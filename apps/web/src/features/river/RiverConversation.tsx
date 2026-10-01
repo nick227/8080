@@ -109,12 +109,19 @@ export function RiverConversation({ item, onJoin }: { item: RiverPostItem; onJoi
   const playing = playingId ? byId[playingId] : undefined
   const time = root.createdAt ? new Date(root.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
 
+  const revealedId = useRef<string | null>(null)
   useEffect(() => {
-    if (!playingId) return
+    if (!playingId) {
+      revealedId.current = null
+      return
+    }
+    if (revealedId.current === playingId) return
     const number = byId[playingId]?.number
     if (number == null) return
     const el = document.getElementById(`item-${number}`)
-    if (el) revealInSequence(el)
+    if (!el) return
+    revealedId.current = playingId
+    revealInSequence(el)
   }, [playingId, byId])
 
   return (

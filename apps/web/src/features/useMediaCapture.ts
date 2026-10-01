@@ -119,12 +119,19 @@ export function useMediaCapture() {
               const step = Math.max(1, Math.floor(channelData.length / points))
               const waveform: number[] = []
               
+              // Sub-sample to avoid reading millions of floats
+              const stride = Math.max(1, Math.floor(step / 100))
+              
               for (let i = 0; i < points; i++) {
                 let sum = 0
-                for (let j = 0; j < step; j++) {
-                  sum += Math.abs(channelData[i * step + j])
+                let count = 0
+                for (let j = 0; j < step; j += stride) {
+                  let val = channelData[i * step + j]
+                  if (val < 0) val = -val // inline Math.abs for speed
+                  sum += val
+                  count++
                 }
-                waveform.push(sum / step)
+                waveform.push(sum / Math.max(1, count))
               }
               
               const max = Math.max(...waveform, 0.001)

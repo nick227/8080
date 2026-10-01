@@ -40,7 +40,7 @@ export function Instrument({ onSend }: { onSend: (input: SendInput) => Promise<v
   // Choosing a camera opens the preview; the eye on the bar toggles it back off.
   const [previewOn, setPreviewOn] = useState(camera)
   useEffect(() => { setPreviewOn(camera) }, [choice])
-  const recordOpen = useShell((s) => s.surface) === 'record'
+  const recordOpen = useShell((s) => s.surface) === 'record' || ui.state === 'replying' || ui.state === 'recording' || ui.state === 'composing' || ui.state === 'reviewing'
 
   // Reply target as the room's sequence ("RE:007"), never the raw item id.
   const targetNumber = useData((s) => (ui.activeItemId ? s.itemsById[ui.activeItemId]?.number : undefined))
@@ -54,6 +54,17 @@ export function Instrument({ onSend }: { onSend: (input: SendInput) => Promise<v
   const isSelected = ui.state === 'selected'
   const isComposing = ui.state === 'composing'
   const isReviewing = ui.state === 'reviewing'
+
+  // Ensure target is visible above the bottom HUD when replying
+  useEffect(() => {
+    if (recordOpen && isReplying && ui.activeItemId) {
+      const el = document.querySelector(`[data-item-id="${ui.activeItemId}"]`) || document.querySelector(`[data-reply-id="${ui.activeItemId}"]`) || document.getElementById(`item-${targetNumber}`)
+      if (el) {
+        // give layout a moment to settle
+        setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100)
+      }
+    }
+  }, [recordOpen, isReplying, ui.activeItemId, targetNumber])
 
   // Visual mass follows state: a light ring at rest, firmer while something plays,
   // dense (filled) only while recording.
@@ -70,6 +81,7 @@ export function Instrument({ onSend }: { onSend: (input: SendInput) => Promise<v
     useCapture.getState().reset()
     if (resumablePlaybackId) ui.startPlayback(resumablePlaybackId, resumablePlaybackMode ?? 'chronological')
     else ui.setIdle()
+    useShell.getState().minimizeRecord()
   }
 
   const startCapture = async (kind: 'audio' | 'video', deviceId = '') => {
@@ -166,10 +178,20 @@ export function Instrument({ onSend }: { onSend: (input: SendInput) => Promise<v
     {recordOpen && !isSelected && (
     <motion.div 
       key="stage"
-      className={isComposing || isReviewing ? "takeover" : "control-zone"}
+      className={isComposing || isReviewing ? "takeover" : "control-hud"}
       layoutId="instrument"
       {...(isComposing || isReviewing ? move : { ...reveal, layout: true })}
     >
+      {!(isComposing || isReviewing) && (
+        <button 
+          type="button" 
+          onClick={handleCancel} 
+          style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 0, fontSize: 28, cursor: 'pointer', color: 'var(--ink)', padding: 8, lineHeight: 1, zIndex: 10, opacity: 0.5 }}
+          aria-label="Close"
+        >
+          ×
+        </button>
+      )}
       {isComposing ? (
         <>
           <div className="mode-label" style={{ opacity: 0.5 }}>{ui.activeItemId ? replyLabel : 'NEW MESSAGE'}</div>
@@ -257,7 +279,7 @@ export function Instrument({ onSend }: { onSend: (input: SendInput) => Promise<v
                 exit={{ opacity: 0, y: -10 }}
                 className="control-label"
                 aria-label={captureState.mode === 'video' ? 'Recording video' : 'Recording audio'}
-                style={{ color: 'var(--signal)', display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center' }}
+                style={{ color: 'var(--signal)', display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center', flexDirection: 'column' }}
               >
                 <KindMark kind={captureState.mode === 'video' ? 'video' : 'audio'} />
                 {captureState.mode === 'audio' && (
@@ -281,7 +303,6 @@ export function Instrument({ onSend }: { onSend: (input: SendInput) => Promise<v
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                   <span style={{ fontWeight: 'bold' }}>RECORDING</span>
-                  <span style={{ fontSize: '0.85em', opacity: 0.7 }}>SLIDE DOWN TO CANCEL</span>
                   {ui.activeItemId && <span style={{ fontSize: '0.85em', opacity: 0.7, color: 'var(--ink)' }}>{replyLabel}</span>}
                 </div>
               </motion.div>
@@ -295,7 +316,6 @@ export function Instrument({ onSend }: { onSend: (input: SendInput) => Promise<v
                 className="control-label"
               >
                 {replyLabel}
-                <Control onClick={handleCancel} style={{ marginLeft: 10 }}>×</Control>
               </motion.div>
             )}
           </AnimatePresence>
@@ -329,6 +349,7 @@ export function Instrument({ onSend }: { onSend: (input: SendInput) => Promise<v
           {!isRecording && (
             <motion.div className="sub-controls" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <DevicePicker />
+              <div className="row">
               <Control
                 variant="default"
                 className="sub-control"
@@ -343,6 +364,7 @@ export function Instrument({ onSend }: { onSend: (input: SendInput) => Promise<v
               </Control>
               <Control variant="default" className="sub-control" aria-label="Attach">+</Control>
               <Control variant="default" className="sub-control" aria-label="Write" onClick={() => { useShell.getState().openRecord(); ui.startComposing() }}>Aa</Control>
+              </div>
             </motion.div>
           )}
         </div>

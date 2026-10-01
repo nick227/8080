@@ -47,15 +47,7 @@ function containsPlayhead(itemId: string, activeId: string | null): boolean {
   return false
 }
 
-function responseMeta(item: ItemType): string {
-  const media = item.media?.find((m) => m.type === 'video' || m.type === 'audio') ?? item.media?.[0]
-  const detail = [item.author.name]
-  if (item.anchorStartMs != null) detail.push(formatMoment(item.anchorStartMs))
-  const made = new Date(item.createdAt)
-  if (!Number.isNaN(made.getTime())) detail.push(made.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))
-  if (media?.duration) detail.push(formatMoment(Math.round(media.duration * 1000)))
-  return detail.join(' · ')
-}
+
 
 // Items without audio/video never fire `ended`, so they must explicitly take part
 // in playback: dwell for a reading-time beat, then advance (otherwise traversal
@@ -70,13 +62,22 @@ export function dwellMs(item: Pick<ItemType, 'text' | 'media'>): number {
   return Math.max(textMs, hasStill ? DWELL.stillMs : 0, DWELL.minMs)
 }
 
+function getWaveform(id: string): number[] {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = Math.imul(31, hash) + id.charCodeAt(i) | 0
+  const rng = () => {
+    hash = Math.imul(741103597, hash) + 123456789 | 0
+    return ((hash >>> 0) / 4294967296)
+  }
+  return Array.from({ length: 64 }, () => 0.1 + rng() * 0.9)
+}
+
 export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onEnded, onPlayOverride, isUpcoming, anchors, onAnchorSelect, anchorFocused, responses, slim }: Props) {
   const [showPlayOptions, setShowPlayOptions] = useState(false)
   const [showShareMenu, setShowShareMenu] = useState(false)
   const count = (type: ReactionType) => item.reactions.find(r => r.type === type)?.count
   const ui = useUI()
   const isActive = ui.state === 'playback' && ui.activeItemId === item.id
-  const meta = slim ? responseMeta(item) : null
   const ref = useRef<HTMLDivElement>(null)
   // Inline-playable media fires `ended`; a YouTube link card (not embeddable) doesn't,
   // so it takes part in playback through the dwell like text/images.
@@ -187,14 +188,14 @@ export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onE
             onEnded={onEnded}
             onRequestPlay={requestPlay}
             isUpcoming={isUpcoming}
+            waveform={media.type === 'audio' ? getWaveform(media.id) : undefined}
             {...(anchorable && media.id === anchorable.id
               ? { anchors, anchorDurationMs: Math.round((anchorable.duration ?? 0) * 1000), activeAnchorId: ui.state === 'playback' ? ui.activeItemId : undefined, onAnchorSelect }
               : {})}
           />
         ))}
-        {meta && <p className="response-meta">{meta}</p>}
-
-        <Stack direction="row" gap="medium" className="item-actions" aria-label={`Actions for item ${label(item.number)}`}>
+        <Stack direction="row" gap="medium" className="item-actions" aria-label={`Actions for item ${label(item.number)}`} style={{ justifyContent: 'space-between', alignItems: 'center', width: '100%', marginTop: 0 }}>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase' }}>{item.media?.[0]?.title || item.media?.[0]?.name || ''}</span>
           <Control aria-label={`Reply to item ${label(item.number)}`} onClick={() => onReply(item.id)}>REPLY</Control>
         </Stack>
         

@@ -160,12 +160,11 @@ export function YouTubeMedia({
             <div className="yt-track-fill" style={{ width: `${progress * 100}%` }} />
           </div>
         )}
-        <div className="yt-meta">
-          <span className="yt-source">{title ?? 'YouTube Video'}</span>
-          {blocked && (
+        {blocked && (
+          <div className="yt-meta">
             <button type="button" className="yt-tap" onClick={start}>TAP TO CONTINUE</button>
-          )}
-        </div>
+          </div>
+        )}
 
       </div>
     </div>
