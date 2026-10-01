@@ -33,12 +33,10 @@ function ConversationCrumb() {
 
   return (
     <nav className="crumb" aria-label="Conversation">
-      <span className="crumb-num">{room.number != null ? seq(room.number) : '···'}</span>
+      <a href="/?lobby=1" onClick={(e) => { e.preventDefault(); useShell.getState().toggleLobby() }}>LOBBY</a>
+      <span className="crumb-sep">/</span>
       <span className="crumb-title">{room.title}</span>
       {room.visibility && <span className="crumb-vis">{room.visibility.toUpperCase()}</span>}
-      <button type="button" className="crumb-toggle" aria-expanded aria-label="Hide conversation" onClick={toggle}>
-        <ChevronIcon open />
-      </button>
     </nav>
   )
 }

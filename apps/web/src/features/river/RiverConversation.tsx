@@ -5,9 +5,11 @@ import { toItem } from '../../api/adapt'
 import type { Item as ItemType, ReactionType } from '../../api/types'
 import { useUI } from '../../state/ui'
 import { useData } from '../../state/data'
-import { ancestorsOf, branchOf } from '../../utils/graph'
-import { formatMoment, type Anchor } from '../../utils/anchor'
+import { branchOf } from '../../utils/graph'
+import type { Anchor } from '../../utils/anchor'
 import { registerRiverItems } from './riverReply'
+import { ResponseMap } from '../ResponseMap'
+import { revealInSequence } from '../../utils/reveal'
 import './river.css'
 
 // River-level conversation exploration for one post, without leaving the River:
@@ -16,17 +18,14 @@ import './river.css'
 // reactions, anchors) and the room's own items/stream — no River-specific API.
 export type RiverPostItem = ItemType & { roomId: string; roomTitle: string; replyCount: number }
 
-type View = { mode: 'closed' } | { mode: 'all' } | { mode: 'moment'; ids: string[]; ms: number }
 const END_HOLD_MS = 1500
 
 export function RiverConversation({ item, onJoin }: { item: RiverPostItem; onJoin: () => void }) {
   const ui = useUI()
   const cardRef = useRef<HTMLDivElement>(null)
-  const branchRef = useRef<HTMLDivElement>(null)
   const [near, setNear] = useState(false) // within ~600px: load the conversation
   const [visible, setVisible] = useState(false) // on screen: keep it live
-  const [view, setView] = useState<View>({ mode: 'closed' })
-  const open = view.mode !== 'closed'
+  const [focusIds, setFocusIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const el = cardRef.current
@@ -39,8 +38,8 @@ export function RiverConversation({ item, onJoin }: { item: RiverPostItem; onJoi
   }, [])
 
   // The post's room: loaded lazily, live (SSE) only while visible or open.
-  const roomItems = useRoomItems(near || open ? item.roomId : undefined)
-  useRoomStream(visible || open ? item.roomId : undefined)
+  const roomItems = useRoomItems(near ? item.roomId : undefined)
+  useRoomStream(visible ? item.roomId : undefined)
   const all = useMemo(() => (roomItems.items ?? []).map(toItem), [roomItems.dataUpdatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
   const byId = useMemo(() => Object.fromEntries(all.map((i) => [i.id, i])) as Record<string, ItemType>, [all])
 
@@ -53,37 +52,38 @@ export function RiverConversation({ item, onJoin }: { item: RiverPostItem; onJoi
   // Lets a reply started here round-trip through the record surface and back.
   useEffect(() => registerRiverItems(item.id, [item.id, ...all.map((i) => i.id)]), [item.id, all])
 
+  const childrenById = useMemo(() => {
+    const map: Record<string, string[]> = {}
+    for (const entry of all) {
+      if (!entry.parentId) continue
+      const list = map[entry.parentId]
+      if (list) list.push(entry.id)
+      else map[entry.parentId] = [entry.id]
+    }
+    return map
+  }, [all])
+
   const root = byId[item.id] ?? item
-  const descendants = useMemo(() => (byId[item.id] ? branchOf(byId, item.id).slice(1) : []), [byId, item.id])
+  const descendants = useMemo(
+    () => (byId[item.id] ? branchOf(byId, childrenById, item.id).slice(1) : []),
+    [byId, childrenById, item.id],
+  )
   const replyTotal = byId[item.id] ? descendants.length : item.replyCount
   const anchors: Anchor[] = useMemo(
     () => descendants.filter((d) => d.parentId === item.id && d.anchorStartMs != null).map((d) => ({ id: d.id, ms: d.anchorStartMs! })),
     [descendants, item.id],
   )
 
-  // What the open branch shows: a moment's replies (with their sub-threads), or everything.
-  const shown = useMemo(() => {
-    if (view.mode === 'all') return descendants
-    if (view.mode !== 'moment') return []
-    const keep = new Set<string>()
-    for (const id of view.ids) for (const n of branchOf(byId, id)) keep.add(n.id)
-    return descendants.filter((d) => keep.has(d.id))
-  }, [view, descendants, byId])
-  const focusIds = view.mode === 'moment' ? new Set(view.ids) : new Set<string>()
-
-  const reveal = () => requestAnimationFrame(() => branchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
-  const openMoment = (ids: string[], ms: number) => { setView({ mode: 'moment', ids, ms }); reveal() }
-  const openAll = () => { setView({ mode: 'all' }); reveal() }
-  const collapse = () => {
-    if (ui.activeItemId && shown.some((s) => s.id === ui.activeItemId)) ui.setIdle()
-    setView({ mode: 'closed' })
-    // Keep the reader where they were: bring the post back if the branch scrolled it away.
-    requestAnimationFrame(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
+  const openMoment = (ids: string[]) => {
+    setFocusIds(new Set(ids))
+    const first = ids[0]
+    if (!first) return
+    requestAnimationFrame(() => document.querySelector(`[data-reply-id="${first}"]`)?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }))
   }
 
-  // Local continuous playback: the post alone ("keep playing"), or post → shown replies
+  // Local continuous playback: the post alone ("keep playing"), or post → replies
   // ("follow replies" / started on a reply). It never runs on into other River posts.
-  const order = [root, ...shown]
+  const order = [root, ...descendants]
   const handleEnded = (currentId: string) => {
     const s = useUI.getState()
     const idx = order.findIndex((o) => o.id === currentId)
@@ -96,7 +96,6 @@ export function RiverConversation({ item, onJoin }: { item: RiverPostItem; onJoi
     }, END_HOLD_MS)
   }
   const playOverride = (startId: string, follow: boolean) => {
-    if (follow && view.mode === 'closed') setView({ mode: 'all' })
     ui.startPlayback(startId, follow ? 'branch' : 'chronological')
   }
 
@@ -106,14 +105,24 @@ export function RiverConversation({ item, onJoin }: { item: RiverPostItem; onJoi
     react.mutate({ itemId, type, on: !current?.reacted })
   }
 
-  const live = !!ui.activeItemId && shown.some((s) => s.id === ui.activeItemId)
+  const playingId = ui.state === 'playback' && ui.activeItemId && descendants.some((d) => d.id === ui.activeItemId) ? ui.activeItemId : undefined
+  const playing = playingId ? byId[playingId] : undefined
   const time = root.createdAt ? new Date(root.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+
+  useEffect(() => {
+    if (!playingId) return
+    const number = byId[playingId]?.number
+    if (number == null) return
+    const el = document.getElementById(`item-${number}`)
+    if (el) revealInSequence(el)
+  }, [playingId, byId])
 
   return (
     <div className="river-conv" ref={cardRef} data-river-post={item.id}>
       <div className="river-conv-head">
-        <button type="button" onClick={onJoin}>{(item.roomTitle || 'CONVERSATION').toUpperCase()} · {time}</button>
-        <button type="button" onClick={onJoin} aria-label="Enter the full room">ENTER ROOM ↗</button>
+        <button type="button" onClick={onJoin} aria-label="Enter the full room" className="title-link">
+          {(item.roomTitle || 'CONVERSATION').toUpperCase()} · {time} ↗
+        </button>
       </div>
 
       <Item
@@ -125,45 +134,34 @@ export function RiverConversation({ item, onJoin }: { item: RiverPostItem; onJoi
         onPlayOverride={(follow) => playOverride(root.id, follow)}
         anchors={anchors}
         onAnchorSelect={openMoment}
+        responses={
+          <ResponseMap
+            parentId={root.id}
+            itemsById={byId}
+            childrenById={childrenById}
+            activeId={playingId}
+            focusIds={focusIds}
+            onOpen={(id) => { if (!(ui.state === 'playback' && ui.activeItemId === id)) ui.startPlayback(id, 'branch') }}
+            onReply={ui.startReply}
+            onMinimize={(id) => { if (useUI.getState().activeItemId === id) useUI.getState().setIdle() }}
+            renderPlayer={(entry) => (
+              <Item
+                item={entry}
+                parentNumber={entry.parentId !== root.id ? byId[entry.parentId]?.number : undefined}
+                replyCount={branchOf(byId, childrenById, entry.id).length - 1}
+                onReply={ui.startReply}
+                onReact={onReact}
+                onEnded={() => handleEnded(entry.id)}
+                onPlayOverride={(follow) => playOverride(entry.id, follow)}
+                anchors={descendants.filter((d) => d.parentId === entry.id && d.anchorStartMs != null).map((d) => ({ id: d.id, ms: d.anchorStartMs! }))}
+                onAnchorSelect={openMoment}
+                anchorFocused={focusIds.has(entry.id)}
+                slim
+              />
+            )}
+          />
+        }
       />
-
-      <div className="river-conv-bar">
-        {view.mode === 'closed' && replyTotal > 0 && (
-          <button type="button" onClick={openAll} aria-expanded={false}>↳ {replyTotal} {replyTotal === 1 ? 'REPLY' : 'REPLIES'}</button>
-        )}
-        {view.mode === 'moment' && (
-          <>
-            <span className="river-conv-moment">↳ {view.ids.length} AT {formatMoment(view.ms)}</span>
-            {replyTotal > view.ids.length && <button type="button" onClick={openAll}>SHOW ALL {replyTotal}</button>}
-          </>
-        )}
-        {open && <button type="button" onClick={collapse} aria-expanded>— COLLAPSE</button>}
-      </div>
-
-      {open && (
-        <div className="river-conv-branch" ref={branchRef} data-live={live || undefined}>
-          {shown.map((child) => {
-            const depth = ancestorsOf(byId, child.id).length
-            const parent = child.parentId ? byId[child.parentId] : undefined
-            return (
-              <div key={child.id} className="river-conv-node" style={{ ['--depth' as string]: Math.min(depth - 1, 3) }}>
-                <Item
-                  item={child}
-                  parentNumber={child.parentId !== root.id ? parent?.number : undefined}
-                  replyCount={branchOf(byId, child.id).length - 1}
-                  onReply={ui.startReply}
-                  onReact={onReact}
-                  onEnded={() => handleEnded(child.id)}
-                  onPlayOverride={(follow) => playOverride(child.id, follow)}
-                  anchors={descendants.filter((d) => d.parentId === child.id && d.anchorStartMs != null).map((d) => ({ id: d.id, ms: d.anchorStartMs! }))}
-                  onAnchorSelect={openMoment}
-                  anchorFocused={focusIds.has(child.id)}
-                />
-              </div>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }

@@ -5,7 +5,8 @@ import { Panel } from './Panel'
 import { Stack } from './Stack'
 import { Label } from './Label'
 import { useUI } from '../state/ui'
-import React, { useEffect, useRef, useState } from 'react'
+import { useData } from '../state/data'
+import React, { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ShareMenu } from './ShareMenu'
 import { anchorableMedia, formatMoment, type Anchor } from '../utils/anchor'
 import { controllerWithin } from '../media/controller'
@@ -23,9 +24,38 @@ type Props = {
   anchors?: Anchor[]
   onAnchorSelect?: (ids: string[], ms: number) => void
   anchorFocused?: boolean
+  // Thumbnail map of replies, rendered directly under this item's media.
+  responses?: ReactNode
+  // A response grown in the sequence: no headline. Title and author sit under the video.
+  slim?: boolean
 }
 
 const label = (n: number) => String(n).padStart(3, '0')
+
+// True when `itemId` is an ancestor of the current playhead. The playhead's
+// container must stay full strength — dimming it grays the nested video with it.
+function containsPlayhead(itemId: string, activeId: string | null): boolean {
+  if (!activeId || activeId === itemId) return false
+  const byId = useData.getState().itemsById
+  let current = byId[activeId]?.parentId
+  const seen = new Set<string>()
+  while (current && !seen.has(current)) {
+    if (current === itemId) return true
+    seen.add(current)
+    current = byId[current]?.parentId
+  }
+  return false
+}
+
+function responseMeta(item: ItemType): string {
+  const media = item.media?.find((m) => m.type === 'video' || m.type === 'audio') ?? item.media?.[0]
+  const detail = [item.author.name]
+  if (item.anchorStartMs != null) detail.push(formatMoment(item.anchorStartMs))
+  const made = new Date(item.createdAt)
+  if (!Number.isNaN(made.getTime())) detail.push(made.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))
+  if (media?.duration) detail.push(formatMoment(Math.round(media.duration * 1000)))
+  return detail.join(' · ')
+}
 
 // Items without audio/video never fire `ended`, so they must explicitly take part
 // in playback: dwell for a reading-time beat, then advance (otherwise traversal
@@ -40,12 +70,13 @@ export function dwellMs(item: Pick<ItemType, 'text' | 'media'>): number {
   return Math.max(textMs, hasStill ? DWELL.stillMs : 0, DWELL.minMs)
 }
 
-export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onEnded, onPlayOverride, isUpcoming, anchors, onAnchorSelect, anchorFocused }: Props) {
+export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onEnded, onPlayOverride, isUpcoming, anchors, onAnchorSelect, anchorFocused, responses, slim }: Props) {
   const [showPlayOptions, setShowPlayOptions] = useState(false)
   const [showShareMenu, setShowShareMenu] = useState(false)
   const count = (type: ReactionType) => item.reactions.find(r => r.type === type)?.count
   const ui = useUI()
   const isActive = ui.state === 'playback' && ui.activeItemId === item.id
+  const meta = slim ? responseMeta(item) : null
   const ref = useRef<HTMLDivElement>(null)
   // Inline-playable media fires `ended`; a YouTube link card (not embeddable) doesn't,
   // so it takes part in playback through the dwell like text/images.
@@ -67,7 +98,8 @@ export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onE
   // Spatial focus while playing or replying: the focused item stays full-strength,
   // the next one is half-lit, everything else recedes (styled via [data-focus]).
   const focusing = (ui.state === 'playback' || ui.state === 'replying') && !!ui.activeItemId
-  const focus = !focusing
+  const nestedHere = focusing && containsPlayhead(item.id, ui.activeItemId ?? null)
+  const focus = !focusing || nestedHere
     ? undefined
     : ui.activeItemId === item.id
       ? (ui.state === 'playback' ? 'active' : 'target')
@@ -127,24 +159,21 @@ export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onE
     onBlur: (e: React.FocusEvent) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHeld(false) },
   }
 
-  // Play/pause from the media itself. Threads offer "keep playing" vs "follow replies".
   const requestPlay = () => {
     if (isActive) return ui.setIdle()
-    if (replyCount > 0) return setShowPlayOptions((open) => !open)
-    if (onPlayOverride) onPlayOverride(false)
+    if (onPlayOverride) onPlayOverride(true)
     else ui.startPlayback(item.id)
   }
 
   return (
     <Panel as="article" variant="item" id={`item-${item.number}`} ref={ref} data-focus={focus} data-anchor-focus={anchorFocused || undefined} aria-current={focus === 'active' ? 'true' : undefined} {...holdHandlers}>
-      <Label variant="sequence" style={{ opacity: 0.3 }}>{label(item.number)}</Label>
       <Stack className="item-body">
 
         {dwelling && held && <Label variant="status" aria-live="polite">HELD</Label>}
-        {item.anchorStartMs != null ? (
+        {!slim && (item.anchorStartMs != null ? (
           <Label variant="reference">{parentNumber != null ? `RE:${label(parentNumber)} · ` : 'AT '}{formatMoment(item.anchorStartMs)}</Label>
-        ) : parentNumber != null && <Label variant="reference">RE:{label(parentNumber)}</Label>}
-        {item.text && <Label variant="caption">{item.text}</Label>}
+        ) : parentNumber != null && <Label variant="reference">RE:{label(parentNumber)}</Label>)}
+        {!slim && item.text && <Label variant="caption">{item.text}</Label>}
         {item.media?.map(media => (
           <Media
             key={media.id}
@@ -163,52 +192,18 @@ export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onE
               : {})}
           />
         ))}
-
-        {isActive && anchorable && (
-          <Control variant="default" className="reply-here" onClick={replyHere} aria-label={`Reply here, at the current moment of item ${label(item.number)}`}>
-            ↳ REPLY HERE
-          </Control>
-        )}
+        {meta && <p className="response-meta">{meta}</p>}
 
         <Stack direction="row" gap="medium" className="item-actions" aria-label={`Actions for item ${label(item.number)}`}>
-          <Control aria-label={`Like, ${count('like') ?? 0} likes`} onClick={() => onReact(item.id, 'like')}>♥ {count('like') ?? ''}</Control>
-          <Control aria-label={`Acknowledge, ${count('ack') ?? 0} acknowledgements`} onClick={() => onReact(item.id, 'ack')}>+1 {count('ack') ?? ''}</Control>
-          <Control aria-label={`Laugh, ${count('laugh') ?? 0} laughs`} onClick={() => onReact(item.id, 'laugh')}>:) {count('laugh') ?? ''}</Control>
           <Control aria-label={`Reply to item ${label(item.number)}`} onClick={() => onReply(item.id)}>REPLY</Control>
-          <Control aria-label={`Share item ${label(item.number)} to other rooms`} onClick={() => {
-            setShowShareMenu(!showShareMenu)
-            setShowPlayOptions(false)
-          }}>SHARE</Control>
         </Stack>
         
         {showShareMenu && !isActive && (
           <ShareMenu messageId={item.messageId} onClose={() => setShowShareMenu(false)} />
         )}
         
-        {showPlayOptions && !isActive && (
-          <Stack className="play-options" gap="small" style={{ marginTop: 16, paddingLeft: 12, borderLeft: '1px solid var(--line)' }}>
-            <Control 
-              style={{ display: 'block', textAlign: 'left', opacity: 0.8 }} 
-              onClick={() => {
-                setShowPlayOptions(false)
-                if (onPlayOverride) onPlayOverride(false)
-                else ui.startPlayback(item.id)
-              }}
-            >
-              ▶ Keep playing
-            </Control>
-            <Control 
-              style={{ display: 'block', textAlign: 'left', opacity: 0.8 }} 
-              onClick={() => {
-                setShowPlayOptions(false)
-                if (onPlayOverride) onPlayOverride(true)
-                else ui.startPlayback(item.id)
-              }}
-            >
-              ↳ Follow replies
-            </Control>
-          </Stack>
-        )}
+
+        {responses}
       </Stack>
     </Panel>
   )

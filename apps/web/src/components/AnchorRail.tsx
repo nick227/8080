@@ -26,10 +26,16 @@ export function AnchorRail({ anchors, durationMs, activeId, onSelect }: {
 
   return (
     <div className="anchor-rail" ref={ref}>
-      {clusters.map((c) => {
+      {clusters.map((c, i) => {
         const live = !!activeId && c.ids.includes(activeId)
         const pct = Math.min(100, Math.max(0, (c.ms / durationMs) * 100))
         const n = c.ids.length
+        const gapTo = (other: (typeof clusters)[number] | undefined) => {
+          if (!other) return Infinity
+          if (width <= 0) return 0
+          return (Math.abs(other.ms - c.ms) / durationMs) * width
+        }
+        const showLabel = gapTo(clusters[i - 1]) >= 48 && gapTo(clusters[i + 1]) >= 48
         return (
           <button
             key={`${c.ms}-${c.ids[0]}`}
@@ -45,7 +51,12 @@ export function AnchorRail({ anchors, durationMs, activeId, onSelect }: {
             }}
           >
             <span className="anchor-point" aria-hidden />
-            {n > 1 && <span className="anchor-count" aria-hidden>{n}</span>}
+            {(showLabel || n > 1) && (
+              <span className="anchor-label">
+                {showLabel && formatMoment(c.ms)}
+                {n > 1 && <span className="anchor-count">{n}</span>}
+              </span>
+            )}
           </button>
         )
       })}

@@ -121,19 +121,17 @@ test.describe('Lobby & River Discovery', () => {
     await replyInput.fill('This is a reply');
     await page.locator('button', { hasText: /^Send$/i }).click();
     
-    // Wait for the reply to appear
-    await expect(page.locator('text=This is a reply')).toBeVisible();
+    // The reply lands as a frame under the post. Its text stays hidden until it plays.
+    await expect(postItem.locator('.response-label')).toBeVisible();
 
     // Return to Home
     await page.goto('/');
     await openLobby(page);
     await expect(page.locator('text=LOADING DIRECTORY...')).not.toBeVisible();
 
-    // Find the post again and verify the reply count
-    await expect(page.locator(`text=${postText}`).first()).toBeVisible();
-    
-    // The reply count is rendered inside a Label that says "1 REPLIES" (or "1 REPLY" depending on your logic)
-    // We just check for "1 REPLIES" or "1 REPLY"
-    await expect(page.locator('text=/1 REPLI/').first()).toBeVisible();
+    // The reply is a frame under the post. Its text stays hidden until it plays.
+    const post = page.locator('.river-conv').filter({ hasText: postText });
+    await expect(post.locator('.response-label')).toBeVisible();
+    await expect(post.locator('.response-reply')).toBeVisible();
   });
 });
