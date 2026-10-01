@@ -16,24 +16,21 @@ function useTetherPath(targetNumber: number | undefined) {
     }
     let raf = 0
     const tick = () => {
-      // The numeral's glyph box (the element itself is a stretched grid cell).
-      const numeral = document.querySelector(`#item-${targetNumber} .item-no`)
-      const glyphs = numeral ? document.createRange() : null
-      glyphs?.selectNodeContents(numeral!)
-      const from = glyphs?.getBoundingClientRect()
+      const item = document.querySelector(`#item-${targetNumber}`)
+      const from = item?.getBoundingClientRect()
       // End just above the Instrument's reply label (or the ring if no label yet).
       const end =
         document.querySelector('.control-zone .control-label')?.getBoundingClientRect() ??
         document.querySelector('.control-zone .record-button')?.getBoundingClientRect()
       if (from && end) {
-        const x1 = from.left + from.width / 2
-        const y1 = from.bottom + 8
+        const x1 = from.left + Math.min(24, from.width / 2)
+        const y1 = from.bottom
         const x2 = end.left + end.width / 2
         const y2 = end.top - 10
         // A plumb line down the numeral gutter until just below the target's thread
         // (so it never crosses the message), then one smooth bend into the
         // Instrument. Vertical tangents at the joint keep it a single line.
-        const thread = numeral?.closest('.thread')?.getBoundingClientRect()
+        const thread = item?.closest('.thread, .river-conv')?.getBoundingClientRect()
         const dropY = Math.min(Math.max((thread?.bottom ?? y1) + 24, y1 + 20), y2 - 40)
         const r = (y2 - dropY) * 0.6
         const f = (n: number) => n.toFixed(1)

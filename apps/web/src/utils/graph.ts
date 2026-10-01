@@ -7,29 +7,12 @@ export function chronological(items: Item[]): Item[] {
   return [...items].sort((a, b) => a.createdAt < b.createdAt ? -1 : (a.createdAt > b.createdAt ? 1 : 0));
 }
 
-// Builds an optimized parent -> children map for O(1) lookup during traversals
-function buildChildrenMap(itemsById: ItemsById): Map<string, string[]> {
-  const map = new Map<string, string[]>();
-  for (const id in itemsById) {
-    const parentId = itemsById[id].parentId;
-    if (parentId) {
-      const children = map.get(parentId);
-      if (children) children.push(id);
-      else map.set(parentId, [id]);
-    }
-  }
-  return map;
-}
+// buildChildrenMap was removed to avoid O(N^2) churn. childrenById is now maintained in the state.
 
-// Returns all direct children of a given parent ID
-export function childrenOf(itemsById: ItemsById, parentId: string): Item[] {
-  const children: Item[] = [];
-  for (const id in itemsById) {
-    if (itemsById[id].parentId === parentId) {
-      children.push(itemsById[id]);
-    }
-  }
-  return children;
+// Returns all direct children of a given parent ID using the pre-built childrenById map
+export function childrenOf(itemsById: ItemsById, childrenById: Record<string, string[]>, parentId: string): Item[] {
+  const ids = childrenById[parentId] || [];
+  return ids.map(id => itemsById[id]).filter(Boolean);
 }
 
 // Returns all ancestors of a given item, from direct parent up to root.
@@ -57,11 +40,10 @@ export function ancestorsOf(itemsById: ItemsById, itemId: string): Item[] {
 
 // Returns the full branch starting from a root node down through all descendants.
 // Traverses strictly chronologically depth-first so playback follows the true narrative thread.
-export function branchOf(itemsById: ItemsById, rootId: string): Item[] {
+export function branchOf(itemsById: ItemsById, childrenById: Record<string, string[]>, rootId: string): Item[] {
   const root = itemsById[rootId];
   if (!root) return [];
 
-  const childrenMap = buildChildrenMap(itemsById);
   const branch: Item[] = [];
   const stack: string[] = [rootId];
   const seen = new Set<string>();
@@ -74,10 +56,10 @@ export function branchOf(itemsById: ItemsById, rootId: string): Item[] {
     const item = itemsById[currentId];
     if (item) {
       branch.push(item);
-      let children = childrenMap.get(currentId) || [];
+      let children = childrenById[currentId] || [];
       // To process siblings chronologically, we push them onto the stack in reverse chronological order
       if (children.length > 0) {
-        children = children.sort((a, b) => itemsById[a].createdAt < itemsById[b].createdAt ? 1 : -1);
+        children = [...children].sort((a, b) => itemsById[a].createdAt < itemsById[b].createdAt ? 1 : -1);
         for (const child of children) {
           stack.push(child);
         }
@@ -89,7 +71,26 @@ export function branchOf(itemsById: ItemsById, rootId: string): Item[] {
 }
 
 // Counts all nested replies (descendants) of a given item.
-export function replyCount(itemsById: ItemsById, itemId: string): number {
-  const branch = branchOf(itemsById, itemId);
+export function replyCount(itemsById: ItemsById, childrenById: Record<string, string[]>, itemId: string): number {
+  const branch = branchOf(itemsById, childrenById, itemId);
   return Math.max(0, branch.length - 1); // Subtract the root itself
+}
+
+// Fast calculation of depth without array allocations
+export function depthOf(itemsById: ItemsById, itemId: string): number {
+  let depth = 0;
+  let currentId = itemsById[itemId]?.parentId;
+  const seen = new Set<string>([itemId]);
+  
+  while (currentId) {
+    if (seen.has(currentId)) break;
+    seen.add(currentId);
+    
+    const parent = itemsById[currentId];
+    if (!parent) break;
+    
+    depth++;
+    currentId = parent.parentId;
+  }
+  return depth;
 }

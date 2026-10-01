@@ -5,7 +5,7 @@ import { Panel } from './Panel'
 import { Stack } from './Stack'
 import { Label } from './Label'
 import { useUI } from '../state/ui'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ShareMenu } from './ShareMenu'
 import { anchorableMedia, formatMoment, type Anchor } from '../utils/anchor'
 import { controllerWithin } from '../media/controller'
@@ -23,6 +23,8 @@ type Props = {
   anchors?: Anchor[]
   onAnchorSelect?: (ids: string[], ms: number) => void
   anchorFocused?: boolean
+  // Thumbnail map of replies, rendered directly under this item's media.
+  responses?: ReactNode
 }
 
 const label = (n: number) => String(n).padStart(3, '0')
@@ -40,7 +42,7 @@ export function dwellMs(item: Pick<ItemType, 'text' | 'media'>): number {
   return Math.max(textMs, hasStill ? DWELL.stillMs : 0, DWELL.minMs)
 }
 
-export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onEnded, onPlayOverride, isUpcoming, anchors, onAnchorSelect, anchorFocused }: Props) {
+export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onEnded, onPlayOverride, isUpcoming, anchors, onAnchorSelect, anchorFocused, responses }: Props) {
   const [showPlayOptions, setShowPlayOptions] = useState(false)
   const [showShareMenu, setShowShareMenu] = useState(false)
   const count = (type: ReactionType) => item.reactions.find(r => r.type === type)?.count
@@ -137,7 +139,6 @@ export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onE
 
   return (
     <Panel as="article" variant="item" id={`item-${item.number}`} ref={ref} data-focus={focus} data-anchor-focus={anchorFocused || undefined} aria-current={focus === 'active' ? 'true' : undefined} {...holdHandlers}>
-      <Label variant="sequence" style={{ opacity: 0.3 }}>{label(item.number)}</Label>
       <Stack className="item-body">
 
         {dwelling && held && <Label variant="status" aria-live="polite">HELD</Label>}
@@ -209,6 +210,7 @@ export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onE
             </Control>
           </Stack>
         )}
+        {responses}
       </Stack>
     </Panel>
   )

@@ -3,8 +3,6 @@ import { useMyRooms, useRiver, useJoinRoom, useCreateRoom } from '@project/sdk'
 import { toRiverItem } from '../api/adapt'
 import { RiverConversation } from './river/RiverConversation'
 
-const seq = (n: number) => String(n).padStart(3, '0')
-
 export function Lobby() {
   const myRooms = useMyRooms()
   const river = useRiver()
@@ -71,7 +69,6 @@ export function Lobby() {
           ) : (
             myList.map((room) => (
               <div key={room.id} className="lobby-row lobby-item" onClick={() => enter(room.id)}>
-                <span className="item-no">{seq(room.number)}</span>
                 <span className="lobby-title">{room.title}</span>
                 <span className="lobby-meta">{room.visibility} · {room.memberCount}</span>
                 <button type="button" className="lobby-go" onClick={(e) => { e.stopPropagation(); enter(room.id) }}>Enter ↗</button>

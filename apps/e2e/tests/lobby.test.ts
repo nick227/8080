@@ -129,11 +129,7 @@ test.describe('Lobby & River Discovery', () => {
     await openLobby(page);
     await expect(page.locator('text=LOADING DIRECTORY...')).not.toBeVisible();
 
-    // Find the post again and verify the reply count
-    await expect(page.locator(`text=${postText}`).first()).toBeVisible();
-    
-    // The reply count is rendered inside a Label that says "1 REPLIES" (or "1 REPLY" depending on your logic)
-    // We just check for "1 REPLIES" or "1 REPLY"
-    await expect(page.locator('text=/1 REPLI/').first()).toBeVisible();
+    // The reply sits in the horizontal map under the post.
+    await expect(page.locator('.river-conv').filter({ hasText: postText }).locator('text=This is a reply')).toBeVisible();
   });
 });

@@ -5,6 +5,7 @@ import { Panel } from '../components/Panel'
 import { useData, selectAllItems, type ItemsById } from '../state/data'
 import { useUI } from '../state/ui'
 import { ancestorsOf, branchOf } from '../utils/graph'
+import { ResponseMap } from './ResponseMap'
 import { itemElement, revealItem, directionTo, isBackInView, haltFollowScroll } from '../utils/reveal'
 import { Control } from '../components/Control'
 import type { Anchor } from '../utils/anchor'
@@ -25,7 +26,7 @@ const threadRootOf = (byId: ItemsById, id: string) => ancestorsOf(byId, id).at(-
 // over SSE since the last render are included).
 function traversal(mode: 'chronological' | 'branch', fromId: string): ItemType[] {
   const data = useData.getState()
-  if (mode === 'branch') return branchOf(data.itemsById, threadRootOf(data.itemsById, fromId))
+  if (mode === 'branch') return branchOf(data.itemsById, data.childrenById, threadRootOf(data.itemsById, fromId))
   return selectAllItems(data)
 }
 
@@ -45,7 +46,7 @@ export function Feed({ items, onReply, onReact }: {
 }) {
   const data = useData()
   const ui = useUI()
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [openedId, setOpenedId] = useState<string | null>(null)
   const [autoFollow, setAutoFollow] = useState(true)
   const autoFollowRef = useRef(autoFollow)
   autoFollowRef.current = autoFollow
@@ -140,35 +141,7 @@ export function Feed({ items, onReply, onReact }: {
       if (useUI.getState().activeItemId === id && autoFollowRef.current) revealItem(itemElement(activeNumber))
     }, BRANCH_EXPAND_MS + 50)
     return () => clearTimeout(settle)
-  }, [isPlayback, ui.activeItemId, activeNumber, autoFollow, expandedIds])
-
-  // ─── branches ──────────────────────────────────────────────────────────────
-  const toggleExpand = (id: string) => {
-    // Branch collapse protection
-    if (ui.state === 'playback' && ui.activeItemId && expandedIds.has(id)) {
-      const branch = branchOf(data.itemsById, id)
-      if (branch.some(i => i.id === ui.activeItemId)) {
-        return // Do not allow collapsing the actively playing branch
-      }
-    }
-    
-    const next = new Set(expandedIds)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    setExpandedIds(next)
-  }
-
-  // Auto-expand the thread containing the active item. Threads are keyed by their
-  // root, so expand the root — not the direct parent (deep replies would otherwise
-  // never mount, and an unmounted audio item never fires `ended`).
-  useEffect(() => {
-    if (!ui.activeItemId) return
-    const active = data.itemsById[ui.activeItemId]
-    if (!active?.parentId) return
-    const rootId = threadRootOf(data.itemsById, active.id)
-    setExpandedIds((prev) => (prev.has(rootId) ? prev : new Set(prev).add(rootId)))
-  }, [ui.activeItemId, data.itemsById])
-
+  }, [isPlayback, ui.activeItemId, activeNumber, autoFollow])
 
   // ─── anchored replies ──────────────────────────────────────────────────────
   // Moments in a parent's media that replies attach to (parentId → anchors).
@@ -187,12 +160,11 @@ export function Feed({ items, onReply, onReact }: {
   // No playback change. Focus clears as soon as the UI moves on (play, reply, …).
   const [anchorFocus, setAnchorFocus] = useState<Set<string>>(new Set())
   useEffect(() => { setAnchorFocus(new Set()) }, [ui.state])
-  const selectAnchor = (parentId: string, ids: string[]) => {
-    const rootId = threadRootOf(data.itemsById, parentId)
-    setExpandedIds((prev) => (prev.has(rootId) ? prev : new Set(prev).add(rootId)))
+  const selectAnchor = (_parentId: string, ids: string[]) => {
     setAnchorFocus(new Set(ids))
-    const first = data.itemsById[ids[0]!]
-    if (first) setTimeout(() => revealItem(itemElement(first.number)), BRANCH_EXPAND_MS + 50)
+    const first = ids[0]
+    if (!first) return
+    requestAnimationFrame(() => document.querySelector(`[data-reply-id="${first}"]`)?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }))
   }
 
   // ─── continuous playback ───────────────────────────────────────────────────
@@ -226,7 +198,7 @@ export function Feed({ items, onReply, onReact }: {
     let list = items
     if (playbackMode === 'branch') {
       const current = data.itemsById[ui.activeItemId]
-      if (current) list = branchOf(data.itemsById, threadRootOf(data.itemsById, current.id))
+      if (current) list = branchOf(data.itemsById, data.childrenById, threadRootOf(data.itemsById, current.id))
     }
     const idx = list.findIndex(i => i.id === ui.activeItemId)
     if (idx < 0) return new Set<string>()
@@ -256,10 +228,11 @@ export function Feed({ items, onReply, onReact }: {
   return (
     <Panel as={motion.section} className="feed" aria-live="polite" variants={containerVariants} initial="hidden" animate="show">
       {roots.map(root => {
-        const branch = branchOf(data.itemsById, root.id)
+        const branch = branchOf(data.itemsById, data.childrenById, root.id)
         const replyCount = branch.length - 1
-        const isExpanded = expandedIds.has(root.id)
-        const holdsPlayhead = isPlayback && !!ui.activeItemId && branch.some((i) => i.id === ui.activeItemId)
+        const playingId = ui.activeItemId && branch.some((i) => i.id === ui.activeItemId && i.id !== root.id) ? ui.activeItemId : null
+        const shownId = playingId ?? (openedId && branch.some((i) => i.id === openedId) ? openedId : null)
+        const shown = shownId ? data.itemsById[shownId] : undefined
 
         return (
           <motion.div 
@@ -279,54 +252,43 @@ export function Feed({ items, onReply, onReact }: {
               anchors={anchorsByParent.get(root.id)}
               onAnchorSelect={(ids) => selectAnchor(root.id, ids)}
               anchorFocused={anchorFocus.has(root.id)}
+              responses={
+                <ResponseMap
+                  parentId={root.id}
+                  itemsById={data.itemsById}
+                  childrenById={data.childrenById}
+                  activeId={shownId ?? undefined}
+                  focusIds={anchorFocus}
+                  onOpen={(id) => { setOpenedId(id); ui.startPlayback(id, 'branch') }}
+                />
+              }
             />
-            
-            {replyCount > 0 && !isExpanded && (
-              <Control className="thread-toggle" aria-expanded={false} onClick={() => toggleExpand(root.id)}>
-                ↳ {replyCount} {replyCount === 1 ? 'REPLY' : 'REPLIES'}
-              </Control>
+            {shown && (
+              <Item
+                item={shown}
+                parentNumber={shown.parentId !== root.id ? numberById.get(shown.parentId!) : undefined}
+                replyCount={branchOf(data.itemsById, data.childrenById, shown.id).length - 1}
+                onReply={onReply}
+                onReact={onReact}
+                onEnded={() => handleEnded(shown.id)}
+                onPlayOverride={(follow) => handlePlayOverride(shown.id, follow)}
+                isUpcoming={upcomingIds.has(shown.id)}
+                anchors={anchorsByParent.get(shown.id)}
+                onAnchorSelect={(ids) => selectAnchor(shown.id, ids)}
+                anchorFocused={anchorFocus.has(shown.id)}
+                responses={shown.parentId !== root.id ? (
+                  <ResponseMap
+                    parentId={shown.id}
+                    itemsById={data.itemsById}
+                    childrenById={data.childrenById}
+                    activeId={shownId ?? undefined}
+                    focusIds={anchorFocus}
+                    onOpen={(id) => { setOpenedId(id); ui.startPlayback(id, 'branch') }}
+                    layers={1}
+                  />
+                ) : undefined}
+              />
             )}
-
-            <AnimatePresence initial={false}>
-              {isExpanded && (
-                <motion.div 
-                  className="branch"
-                  data-live={holdsPlayhead || undefined}
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: BRANCH_EXPAND_MS / 1000, ease: [0.22, 1, 0.36, 1] }}
-                >
-                  <Control className="thread-toggle" aria-expanded onClick={() => toggleExpand(root.id)} disabled={holdsPlayhead} title={holdsPlayhead ? 'Playing in this thread' : undefined}>
-                    — COLLAPSE
-                  </Control>
-                  
-                  {branch.slice(1).map(child => {
-                    // Depth below the root (1 = direct reply); indentation is capped so
-                    // deep threads stay inside the column.
-                    const depth = ancestorsOf(data.itemsById, child.id).length
-                    return (
-                      <div key={child.id} className="branch-node" style={{ ['--depth' as string]: Math.min(depth - 1, 3) }}>
-                        <Item
-                          item={child}
-                          // Only pass parentNumber if this child is deeply nested (i.e. not a direct reply to root)
-                          parentNumber={child.parentId !== root.id ? numberById.get(child.parentId!) : undefined}
-                          replyCount={branchOf(data.itemsById, child.id).length - 1}
-                          onReply={onReply}
-                          onReact={onReact}
-                          onEnded={() => handleEnded(child.id)}
-                          onPlayOverride={(follow) => handlePlayOverride(child.id, follow)}
-                          isUpcoming={upcomingIds.has(child.id)}
-                          anchors={anchorsByParent.get(child.id)}
-                          onAnchorSelect={(ids) => selectAnchor(child.id, ids)}
-                          anchorFocused={anchorFocus.has(child.id)}
-                        />
-                      </div>
-                    )
-                  })}
-                </motion.div>
-              )}
-            </AnimatePresence>
             
             <AnimatePresence>
               {(ui.state === 'recording' || ui.state === 'composing') && ui.activeItemId && branch.some(i => i.id === ui.activeItemId) && (
@@ -335,7 +297,7 @@ export function Feed({ items, onReply, onReact }: {
                   animate={{ opacity: 1, height: 'auto', scale: 1 }}
                   exit={{ opacity: 0, height: 0, scale: 0.9 }}
                   transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                  style={{ marginLeft: '8vw', marginBottom: 32, paddingLeft: 24, borderLeft: '1px solid var(--line)' }}
+                  style={{ marginBottom: 32 }}
                 >
                   <div style={{ height: 120, width: '100%', maxWidth: 400, borderRadius: 24, border: '1px dashed var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
                     <div style={{ fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '0.08em' }}>[ ◉ /// ]</div>
