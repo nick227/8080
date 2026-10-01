@@ -20,6 +20,9 @@ export function useRoomItems(roomId: string | undefined, opts: { pageSize?: numb
         }),
       ),
     getNextPageParam: (last) => last.meta.nextCursor ?? undefined,
+    // The stream (useRoomStream) keeps this cache live and refetches after a dropped
+    // connection. Refetching every page of every mounted room on tab focus is pure cost.
+    refetchOnWindowFocus: false,
   })
   if (query.hasNextPage && !query.isFetchingNextPage && !query.isError) void query.fetchNextPage()
   return { ...query, items: flattenItems(query.data) }
@@ -29,27 +32,42 @@ export function flattenItems(data: ItemsCache | undefined): Item[] {
   return data?.pages.flatMap((p) => p.data) ?? []
 }
 
+// Broadcast payloads carry reacted=false; keep this viewer's own state.
+function withOwnReactions(item: Item, existing: Item): Item {
+  const mine = new Set(existing.reactions.filter((r) => r.reacted).map((r) => r.type))
+  return { ...item, reactions: item.reactions.map((r) => ({ ...r, reacted: mine.has(r.type) })) }
+}
+
 // Insert or replace an item in a room's cached pages (used by mutations and the stream).
+// Copies only the page that changes, so every other page and item keeps its identity.
 export function upsertCachedItem(queryClient: QueryClient, item: Item, opts: { keepReacted?: boolean } = {}) {
   queryClient.setQueryData<ItemsCache>(keys.items(item.roomId), (cache) => {
     if (!cache) return cache
-    let found = false
-    const pages = cache.pages.map((p) => ({
-      ...p,
-      data: p.data.map((existing) => {
-        if (existing.id !== item.id) return existing
-        found = true
-        if (!opts.keepReacted) return item
-        // Broadcast payloads carry reacted=false; keep this viewer's own state.
-        const mine = new Set(existing.reactions.filter((r) => r.reacted).map((r) => r.type))
-        return { ...item, reactions: item.reactions.map((r) => ({ ...r, reacted: mine.has(r.type) })) }
-      }),
-    }))
-    if (!found) {
-      const last = pages[pages.length - 1]
-      if (last && !last.meta.hasMore) last.data = [...last.data, item].sort((a, b) => a.number - b.number)
+    const pages = cache.pages
+    const replacePage = (index: number, data: Item[]) => {
+      const next = [...pages]
+      next[index] = { ...pages[index]!, data }
+      return { ...cache, pages: next }
     }
-    return { ...cache, pages }
+
+    // Recent items (the usual update) live in the last pages: search from the end.
+    for (let p = pages.length - 1; p >= 0; p--) {
+      const at = pages[p]!.data.findIndex((existing) => existing.id === item.id)
+      if (at < 0) continue
+      const data = [...pages[p]!.data]
+      data[at] = opts.keepReacted ? withOwnReactions(item, data[at]!) : item
+      return replacePage(p, data)
+    }
+
+    // New item: append once every page is loaded; while still paging, a later page brings it.
+    const lastIndex = pages.length - 1
+    const last = pages[lastIndex]
+    if (!last || last.meta.hasMore) return cache
+    const tail = last.data[last.data.length - 1]
+    const data = !tail || tail.number < item.number
+      ? [...last.data, item]
+      : [...last.data, item].sort((a, b) => a.number - b.number)
+    return replacePage(lastIndex, data)
   })
   queryClient.setQueryData(keys.item(item.id), item)
 }
