@@ -147,7 +147,7 @@ export function RiverConversation({ item, onJoin }: { item: RiverPostItem; onJoi
             renderPlayer={(entry) => (
               <Item
                 item={entry}
-                parentNumber={entry.parentId !== root.id ? byId[entry.parentId]?.number : undefined}
+                parentNumber={entry.parentId && entry.parentId !== root.id ? byId[entry.parentId]?.number : undefined}
                 replyCount={branchOf(byId, childrenById, entry.id).length - 1}
                 onReply={ui.startReply}
                 onReact={onReact}
