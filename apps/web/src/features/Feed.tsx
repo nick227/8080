@@ -6,7 +6,7 @@ import { useData, selectAllItems, type ItemsById } from '../state/data'
 import { useUI } from '../state/ui'
 import { ancestorsOf, branchOf } from '../utils/graph'
 import { ResponseMap } from './ResponseMap'
-import { itemElement, revealItem, directionTo, isBackInView, haltFollowScroll } from '../utils/reveal'
+import { itemElement, revealItem, revealInSequence, directionTo, isBackInView, haltFollowScroll } from '../utils/reveal'
 import { Control } from '../components/Control'
 import type { Anchor } from '../utils/anchor'
 import { motion, AnimatePresence, type Variants } from 'motion/react'
@@ -46,7 +46,6 @@ export function Feed({ items, onReply, onReact }: {
 }) {
   const data = useData()
   const ui = useUI()
-  const [openedId, setOpenedId] = useState<string | null>(null)
   const [autoFollow, setAutoFollow] = useState(true)
   const autoFollowRef = useRef(autoFollow)
   autoFollowRef.current = autoFollow
@@ -136,9 +135,15 @@ export function Feed({ items, onReply, onReact }: {
     if (!el) return
     const id = ui.activeItemId
     revealedRef.current = id
-    revealItem(el)
+    const reveal = () => {
+      const node = itemElement(activeNumber)
+      if (!node) return
+      if (node.closest('.response-player')) revealInSequence(node)
+      else revealItem(node)
+    }
+    reveal()
     const settle = setTimeout(() => {
-      if (useUI.getState().activeItemId === id && autoFollowRef.current) revealItem(itemElement(activeNumber))
+      if (useUI.getState().activeItemId === id && autoFollowRef.current) reveal()
     }, BRANCH_EXPAND_MS + 50)
     return () => clearTimeout(settle)
   }, [isPlayback, ui.activeItemId, activeNumber, autoFollow])
@@ -230,9 +235,28 @@ export function Feed({ items, onReply, onReact }: {
       {roots.map(root => {
         const branch = branchOf(data.itemsById, data.childrenById, root.id)
         const replyCount = branch.length - 1
-        const playingId = ui.activeItemId && branch.some((i) => i.id === ui.activeItemId && i.id !== root.id) ? ui.activeItemId : null
-        const shownId = playingId ?? (openedId && branch.some((i) => i.id === openedId) ? openedId : null)
-        const shown = shownId ? data.itemsById[shownId] : undefined
+        const playingId = ui.state === 'playback' && ui.activeItemId && branch.some((i) => i.id === ui.activeItemId && i.id !== root.id) ? ui.activeItemId : undefined
+        const playResponse = (id: string) => {
+          if (ui.state === 'playback' && ui.activeItemId === id) return
+          setAutoFollow(true)
+          ui.startPlayback(id, 'branch')
+        }
+        const playerFor = (entry: ItemType) => (
+          <Item
+            item={entry}
+            parentNumber={entry.parentId !== root.id ? numberById.get(entry.parentId!) : undefined}
+            replyCount={branchOf(data.itemsById, data.childrenById, entry.id).length - 1}
+            onReply={onReply}
+            onReact={onReact}
+            onEnded={() => handleEnded(entry.id)}
+            onPlayOverride={(follow) => handlePlayOverride(entry.id, follow)}
+            isUpcoming={upcomingIds.has(entry.id)}
+            anchors={anchorsByParent.get(entry.id)}
+            onAnchorSelect={(ids) => selectAnchor(entry.id, ids)}
+            anchorFocused={anchorFocus.has(entry.id)}
+            slim
+          />
+        )
 
         return (
           <motion.div 
@@ -257,38 +281,14 @@ export function Feed({ items, onReply, onReact }: {
                   parentId={root.id}
                   itemsById={data.itemsById}
                   childrenById={data.childrenById}
-                  activeId={shownId ?? undefined}
+                  activeId={playingId}
                   focusIds={anchorFocus}
-                  onOpen={(id) => { setOpenedId(id); ui.startPlayback(id, 'branch') }}
+                  onOpen={playResponse}
+                  onReply={onReply}
+                  renderPlayer={playerFor}
                 />
               }
             />
-            {shown && (
-              <Item
-                item={shown}
-                parentNumber={shown.parentId !== root.id ? numberById.get(shown.parentId!) : undefined}
-                replyCount={branchOf(data.itemsById, data.childrenById, shown.id).length - 1}
-                onReply={onReply}
-                onReact={onReact}
-                onEnded={() => handleEnded(shown.id)}
-                onPlayOverride={(follow) => handlePlayOverride(shown.id, follow)}
-                isUpcoming={upcomingIds.has(shown.id)}
-                anchors={anchorsByParent.get(shown.id)}
-                onAnchorSelect={(ids) => selectAnchor(shown.id, ids)}
-                anchorFocused={anchorFocus.has(shown.id)}
-                responses={shown.parentId !== root.id ? (
-                  <ResponseMap
-                    parentId={shown.id}
-                    itemsById={data.itemsById}
-                    childrenById={data.childrenById}
-                    activeId={shownId ?? undefined}
-                    focusIds={anchorFocus}
-                    onOpen={(id) => { setOpenedId(id); ui.startPlayback(id, 'branch') }}
-                    layers={1}
-                  />
-                ) : undefined}
-              />
-            )}
             
             <AnimatePresence>
               {(ui.state === 'recording' || ui.state === 'composing') && ui.activeItemId && branch.some(i => i.id === ui.activeItemId) && (
@@ -326,7 +326,7 @@ export function Feed({ items, onReply, onReact }: {
       </AnimatePresence>
 
       <AnimatePresence>
-        {isPlayback && !autoFollow && activeNumber != null && (
+        {isPlayback && !autoFollow && activeNumber != null && !data.itemsById[ui.activeItemId ?? '']?.parentId && (
           <motion.div
             className="return-to-playback"
             initial={{ opacity: 0, y: -8 }}

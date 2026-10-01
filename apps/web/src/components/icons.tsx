@@ -43,6 +43,15 @@ export function PreviewIcon() {
   )
 }
 
+export function ReplyIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+      <path d="M6.2 4.2 3 7.4l3.2 3.2" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3.4 7.4H9.2a3.4 3.4 0 0 1 3.4 3.4v1" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden style={{ transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 450ms cubic-bezier(.22,1,.36,1)' }}>

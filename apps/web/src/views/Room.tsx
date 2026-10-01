@@ -43,9 +43,16 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   useEffect(() => () => replaceItems([]), [roomId, replaceItems]) // don't leak items across rooms
   useLayoutEffect(() => {
     if (!roomId) return
-    const replyTarget = new URLSearchParams(window.location.search).get('reply')
+    const params = new URLSearchParams(window.location.search)
+    const replyTarget = params.get('reply')
+    const action = params.get('action')
     if (replyTarget) {
       useUI.getState().startReply(replyTarget)
+      useShell.getState().openRecord()
+    } else if (action === 'write') {
+      useShell.getState().openRecord()
+      useUI.getState().startComposing()
+    } else if (action === 'capture' || action === 'upload') {
       useShell.getState().openRecord()
     } else {
       useShell.getState().enterRoom()

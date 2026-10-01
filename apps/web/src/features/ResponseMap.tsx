@@ -1,13 +1,21 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { parseYouTubeVideoId, youTubeThumbnailUrl } from '@project/shared'
-import { formatMoment } from '../utils/anchor'
+import { ReplyIcon } from '../components/icons'
 import type { Item } from '../api/types'
 import './responseMap.css'
 
 type ById = Record<string, Item>
 type Children = Record<string, string[]>
 
-const byTime = (a: Item, b: Item) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0)
+const madeOrder = (a: Item, b: Item) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0)
+
+// Moment on the parent first. The same moment, or no moment, stays in the order they were made.
+const sequenceOrder = (a: Item, b: Item) => {
+  if (a.anchorStartMs != null && b.anchorStartMs != null && a.anchorStartMs !== b.anchorStartMs) {
+    return a.anchorStartMs - b.anchorStartMs
+  }
+  return madeOrder(a, b)
+}
 
 function ThumbImage({ src, kind }: { src: string; kind: string }) {
   const [failed, setFailed] = useState(false)
@@ -19,7 +27,19 @@ function repliesTo(childrenById: Children, itemsById: ById, parentId: string): I
   return (childrenById[parentId] ?? [])
     .map((id) => itemsById[id])
     .filter((item): item is Item => !!item && (!!item.text || !!item.media?.length))
-    .sort(byTime)
+    .sort(sequenceOrder)
+}
+
+function containsActive(itemsById: ById, ancestorId: string, activeId?: string): boolean {
+  if (!activeId) return false
+  let current = itemsById[activeId]?.parentId
+  const seen = new Set<string>()
+  while (current && !seen.has(current)) {
+    if (current === ancestorId) return true
+    seen.add(current)
+    current = itemsById[current]?.parentId
+  }
+  return false
 }
 
 function thumbSrc(item: Item): string | undefined {
@@ -31,39 +51,81 @@ function thumbSrc(item: Item): string | undefined {
   return id ? youTubeThumbnailUrl(id) : undefined
 }
 
-// Direct responses sit in a horizontal row of thumbnails under a video.
-// One more row nests under each of those, so a reply-to-a-reply stays on the map.
-export function ResponseMap({ parentId, itemsById, childrenById, activeId, focusIds, onOpen, layers = 2 }: {
+type MapProps = {
   parentId: string
   itemsById: ById
   childrenById: Children
   activeId?: string
   focusIds?: Set<string>
   onOpen: (id: string) => void
+  onReply: (id: string) => void
+  renderPlayer?: (item: Item) => ReactNode
   layers?: number
-}) {
+}
+
+// Each layer is a horizontal row of frames. Three fit the width.
+// The one playing leaves the row and opens full size, with its own layer beneath.
+export function ResponseMap(props: MapProps) {
+  return <ResponseLayer {...props} depth={0} />
+}
+
+function ResponseLayer({ parentId, itemsById, childrenById, activeId, focusIds, onOpen, onReply, renderPlayer, layers = 2, depth }: MapProps & { depth: number }) {
   const items = repliesTo(childrenById, itemsById, parentId)
   if (!items.length) return null
+  const playIdx = items.findIndex((item) => item.id === activeId)
+  const before = playIdx < 0 ? items : items.slice(0, playIdx)
+  const after = playIdx < 0 ? [] : items.slice(playIdx + 1)
+  const playing = playIdx < 0 ? undefined : items[playIdx]
+
   return (
-    <div className="response-row" role="list">
-      {items.map((item) => (
-        <ResponseColumn
-          key={item.id}
-          item={item}
-          depth={0}
-          layers={layers}
-          itemsById={itemsById}
-          childrenById={childrenById}
-          activeId={activeId}
-          focusIds={focusIds}
-          onOpen={onOpen}
-        />
-      ))}
-    </div>
+    <section className="response-layer">
+      <p className="response-label">Responses:</p>
+      {before.length > 0 && (
+        <div className="response-row" role="list">
+          {before.map((item) => (
+            <ResponseCard key={item.id} item={item} depth={depth} layers={layers} itemsById={itemsById} childrenById={childrenById} activeId={activeId} focusIds={focusIds} onOpen={onOpen} onReply={onReply} />
+          ))}
+        </div>
+      )}
+      {playing && renderPlayer && (
+        <div className="response-stage" data-playing>
+          <div className="response-player">{renderPlayer(playing)}</div>
+          <ResponseLayer parentId={playing.id} depth={depth + 1} itemsById={itemsById} childrenById={childrenById} activeId={activeId} focusIds={focusIds} onOpen={onOpen} onReply={onReply} renderPlayer={renderPlayer} layers={layers} />
+        </div>
+      )}
+      {after.length > 0 && (
+        <div className="response-row" role="list">
+          {after.map((item) => (
+            <ResponseCard key={item.id} item={item} depth={depth} layers={layers} itemsById={itemsById} childrenById={childrenById} activeId={activeId} focusIds={focusIds} onOpen={onOpen} onReply={onReply} />
+          ))}
+        </div>
+      )}
+      {items.map((item) => {
+        if (item.id === playing?.id) return null
+        const nested = repliesTo(childrenById, itemsById, item.id)
+        const show = nested.length > 0 && (depth < layers - 1 || containsActive(itemsById, item.id, activeId))
+        if (!show) return null
+        return (
+          <ResponseLayer
+            key={item.id}
+            parentId={item.id}
+            depth={depth + 1}
+            itemsById={itemsById}
+            childrenById={childrenById}
+            activeId={activeId}
+            focusIds={focusIds}
+            onOpen={onOpen}
+            onReply={onReply}
+            renderPlayer={renderPlayer}
+            layers={layers}
+          />
+        )
+      })}
+    </section>
   )
 }
 
-function ResponseColumn({ item, depth, layers, itemsById, childrenById, activeId, focusIds, onOpen }: {
+function ResponseCard({ item, depth, layers, itemsById, childrenById, activeId, focusIds, onOpen, onReply }: {
   item: Item
   depth: number
   layers: number
@@ -72,47 +134,27 @@ function ResponseColumn({ item, depth, layers, itemsById, childrenById, activeId
   activeId?: string
   focusIds?: Set<string>
   onOpen: (id: string) => void
+  onReply: (id: string) => void
 }) {
-  const children = repliesTo(childrenById, itemsById, item.id)
-  const nested = depth < layers - 1 ? children : []
-  const hidden = depth >= layers - 1 ? children.length : 0
   const src = thumbSrc(item)
   const kind = item.media?.some((m) => m.type === 'video') ? 'VIDEO' : item.media?.some((m) => m.type === 'audio') ? 'AUDIO' : item.media?.some((m) => m.type === 'image') ? 'IMAGE' : ''
-  const marked = item.id === activeId || !!focusIds?.has(item.id)
-  const when = item.anchorStartMs != null ? formatMoment(item.anchorStartMs) : ''
-
+  const hidden = depth >= layers - 1 && !containsActive(itemsById, item.id, activeId) ? repliesTo(childrenById, itemsById, item.id).length : 0
+  const marked = !!focusIds?.has(item.id)
   return (
-    <div className="response-col" role="listitem">
-      <button
-        type="button"
-        className="response-thumb"
-        data-reply-id={item.id}
-        data-open={marked || undefined}
-        aria-label={when ? `${when}${item.text ? `, ${item.text}` : ''}` : item.text || kind || 'Reply'}
-        onClick={() => onOpen(item.id)}
-      >
-        {src ? <ThumbImage src={src} kind={kind} /> : <span className="response-fallback">{kind}</span>}
-        {when && <span className="response-time">{when}</span>}
+    <div className="response-card" role="listitem">
+      <button type="button" className="response-thumb" data-reply-id={item.id} data-open={marked || undefined} aria-label={item.text || kind || 'Response'} onClick={() => onOpen(item.id)}>
+        {src ? <ThumbImage src={src} kind={kind} /> : <span className="response-fallback">{item.text || kind || 'TEXT'}</span>}
         {hidden > 0 && <span className="response-more">+{hidden}</span>}
       </button>
-      {item.text && <p className="response-caption">{item.text}</p>}
-      {nested.length > 0 && (
-        <div className="response-nest">
-          {nested.map((child) => (
-            <ResponseColumn
-              key={child.id}
-              item={child}
-              depth={depth + 1}
-              layers={layers}
-              itemsById={itemsById}
-              childrenById={childrenById}
-              activeId={activeId}
-              focusIds={focusIds}
-              onOpen={onOpen}
-            />
-          ))}
-        </div>
-      )}
+      <ReplyButton item={item} onReply={onReply} />
     </div>
+  )
+}
+
+function ReplyButton({ item, onReply }: { item: Item; onReply: (id: string) => void }) {
+  return (
+    <button type="button" className="response-reply" aria-label={`Reply to item ${item.number}`} onClick={() => onReply(item.id)}>
+      <ReplyIcon /> Reply
+    </button>
   )
 }

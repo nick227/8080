@@ -24,6 +24,12 @@ export function Lobby() {
     enter(room.id)
   }
 
+  const handleRiverCompose = async (action: string) => {
+    if (createRoom.isPending) return
+    const room = await createRoom.mutateAsync({ title: 'River Post', visibility: 'public' })
+    window.location.href = `/room/${room.id}?action=${action}`
+  }
+
   const isLoading = myRooms.isLoading || river.isLoading
   const isError = myRooms.isError || river.isError
 
@@ -31,8 +37,8 @@ export function Lobby() {
     <div className="lobby-body">
       <div className="lobby-head">
         <p className="lobby-kicker">Your rooms</p>
-        <button type="button" className="lobby-go" onClick={() => setIsCreating(!isCreating)}>
-          {isCreating ? 'Cancel' : 'New conversation'}
+        <button type="button" className="lobby-pill" onClick={() => setIsCreating(!isCreating)}>
+          {isCreating ? 'CANCEL' : 'START CONVERSATION'}
         </button>
       </div>
 
@@ -76,8 +82,8 @@ export function Lobby() {
             ))
           )}
 
-          <div className="lobby-head lobby-section">
-            <p className="lobby-kicker">River</p>
+          <div className="lobby-section" style={{ marginTop: 48, marginBottom: 32, paddingTop: 40, borderTop: '1px solid var(--line)', display: 'flex', gap: 16, justifyContent: 'flex-start' }}>
+            <button type="button" className="lobby-pill" onClick={() => handleRiverCompose('capture')}>POST TO RIVER</button>
           </div>
           {riverList.length === 0 ? (
             <p className="lobby-note">No recent public conversations.</p>

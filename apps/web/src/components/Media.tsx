@@ -165,9 +165,7 @@ function StoredMedia({ type = 'image', preview = false, name, poster, src, aspec
     return () => cancelAnimationFrame(animFrame);
   }, [playing]);
 
-  const rail = anchors?.length && anchorDurationMs ? (
-    <AnchorRail anchors={anchors} durationMs={anchorDurationMs} activeId={activeAnchorId} onSelect={onAnchorSelect} />
-  ) : null;
+  const rail = null;
 
   const baseClass = preview ? 'media-container preview' : 'media-container';
   const finalClass = `${baseClass} ${className}`.trim();

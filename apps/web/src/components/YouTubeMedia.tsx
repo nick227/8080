@@ -168,9 +168,7 @@ export function YouTubeMedia({
             !error && durationMs != null && <span className="yt-time">{formatMoment(positionMs)} / {formatMoment(durationMs)}</span>
           )}
         </div>
-        {!error && anchors?.length && durationMs ? (
-          <AnchorRail anchors={anchors} durationMs={anchorDurationMs ?? durationMs} activeId={activeAnchorId} onSelect={onAnchorSelect} />
-        ) : null}
+
       </div>
     </div>
   )

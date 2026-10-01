@@ -11,6 +11,41 @@ export function revealItem(el: Element | null) {
   el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center', inline: 'center' })
 }
 
+function verticalScroller(el: Element): Element | null {
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    const y = getComputedStyle(node).overflowY
+    if ((y === 'auto' || y === 'scroll') && node.scrollHeight > node.clientHeight + 2) return node
+  }
+  return null
+}
+
+// Scroll only when the grown video is not already on screen.
+export function revealInSequence(child: HTMLElement) {
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  const behavior: ScrollBehavior = reduce ? 'auto' : 'smooth'
+  const scroller = verticalScroller(child)
+  const bounds = scroller?.getBoundingClientRect()
+  const viewTop = (bounds?.top ?? 0) + 12
+  const viewBottom = (bounds?.bottom ?? window.innerHeight) - 12
+  const rect = child.getBoundingClientRect()
+  const shown = Math.min(rect.bottom, viewBottom) - Math.max(rect.top, viewTop)
+  const enough = shown >= Math.min(rect.height * 0.6, 220) && rect.top < viewBottom - 48
+  if (!enough) {
+    const delta = rect.top - (viewTop + 16)
+    if (Math.abs(delta) > 8) {
+      if (scroller) scroller.scrollBy({ top: delta, behavior })
+      else window.scrollBy({ top: delta, behavior })
+    }
+  }
+  const feed = child.closest('.feed')
+  if (feed) {
+    const frame = feed.getBoundingClientRect()
+    const box = child.getBoundingClientRect()
+    if (box.left < frame.left + 8) feed.scrollBy({ left: box.left - frame.left - 8, behavior })
+    else if (box.right > frame.right - 8) feed.scrollBy({ left: box.right - frame.right + 8, behavior })
+  }
+}
+
 // What the user can actually see of an item: the viewport, clipped by the nearest
 // horizontally scrolling ancestor (the desktop timeline sits inside the page shell,
 // so its visible edge is narrower than the window).
