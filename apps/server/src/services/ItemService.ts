@@ -8,6 +8,19 @@ import { streamHub } from './StreamHub'
 const rooms = new RoomService()
 
 type ItemCursor = { n: number }
+// `id` is absent only in cursors issued before the tie-break existed.
+type RiverCursor = { t: string; id?: string }
+
+function riverAfter(cursor?: string): Prisma.ItemWhereInput {
+  const c = decodeKeyCursor<RiverCursor>(cursor)
+  if (!c) return {}
+  const t = new Date(c.t)
+  if (Number.isNaN(t.getTime()) || (c.id !== undefined && typeof c.id !== 'string')) {
+    throw badRequest('Invalid cursor', 'INVALID_CURSOR')
+  }
+  if (c.id === undefined) return { createdAt: { lt: t } }
+  return { OR: [{ createdAt: { lt: t } }, { createdAt: t, id: { lt: c.id } }] }
+}
 type Tx = Prisma.TransactionClient
 type ContentInput = { text?: string; mediaIds?: string[] }
 
@@ -34,40 +47,34 @@ export class ItemService {
     return { data: result.data.map((i) => toItem(i, viewerId)), meta: result.meta }
   }
 
-  // River: top-level public items
+  // River: live top-level items in live public rooms, newest first. Keyset on
+  // (createdAt, id): a share creates several items in one transaction, so timestamps
+  // tie and a createdAt-only cursor would skip posts at page boundaries.
   async river(viewerId: string, opts: { cursor?: string; limit?: number }) {
     const limit = normalizeLimit(opts.limit)
-    // For river, we paginate by createdAt desc. Cursor is a timestamp.
-    type RiverCursor = { t: string }
-    const c = decodeKeyCursor<RiverCursor>(opts.cursor)
-    
     const rows = await db.item.findMany({
       where: {
         parentId: null,
-        room: { visibility: 'public' },
         deletedAt: null,
-        ...(c?.t ? { createdAt: { lt: new Date(c.t) } } : {})
+        room: { visibility: 'public', deletedAt: null },
+        ...riverAfter(opts.cursor),
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
       include: {
         ...itemInclude,
         room: { select: { title: true } },
-        _count: { select: { replies: true } }
-      }
+        _count: { select: { replies: { where: { deletedAt: null } } } },
+      },
     })
-    
-    const result = page(rows, limit, (last) => encodeKeyCursor<RiverCursor>({ t: last.createdAt.toISOString() }))
-    const hydrated = result.data.map(i => {
-      const baseItem = toItem(i, viewerId)
-      return {
-        ...baseItem,
-        roomId: i.roomId,
-        roomTitle: i.room.title,
-        replyCount: i._count.replies
-      }
-    })
-    return { data: hydrated, meta: result.meta }
+
+    const result = page(rows, limit, (last) => encodeKeyCursor<RiverCursor>({ t: last.createdAt.toISOString(), id: last.id }))
+    const data = result.data.map((i) => ({
+      ...toItem(i, viewerId),
+      roomTitle: i.room.title,
+      replyCount: i._count.replies,
+    }))
+    return { data, meta: result.meta }
   }
 
   async get(viewerId: string, itemId: string) {

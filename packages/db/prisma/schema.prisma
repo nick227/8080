@@ -152,6 +152,7 @@ model Item {
   @@index([parentId, anchorStartMs]) // markers for a parent, in timeline order
   @@index([messageId])
   @@index([roomId, createdAt, id])
+  @@index([parentId, deletedAt, createdAt, id]) // River: newest live top-level items, keyset order
 }
 
 // Where the media lives. stored = our upload/capture (file under storageKey);
