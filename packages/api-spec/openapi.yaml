@@ -1,0 +1,1038 @@
+openapi: 3.1.0
+info:
+  title: Voice Chat API
+  version: 0.1.0
+  description: |
+    Branching voice/text conversations in public and private rooms.
+
+    Identity is guest-first: clients call `POST /auth/guest` on first visit to get a
+    session cookie, and may later upgrade that same account with `POST /auth/register`.
+
+    The server stores conversation facts only (`parentId`); branches are derived
+    client-side. Deleted items are tombstones (`deletedAt` set, content cleared) so
+    replies keep their parent.
+  license:
+    name: UNLICENSED
+    identifier: UNLICENSED
+
+servers:
+  - url: http://localhost:3001
+    description: Local dev
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: auth
+    description: Guest sessions, account upgrade, login
+  - name: users
+    description: Current user profile
+  - name: rooms
+    description: Conversation rooms and membership
+  - name: items
+    description: Placements of messages within a room (send, reply, list, delete)
+  - name: messages
+    description: Reusable message content (share to other rooms)
+  - name: reactions
+    description: Per-user reactions on items
+  - name: media
+    description: File and recording uploads
+  - name: stream
+    description: Real-time room events (SSE)
+
+paths:
+  # ─── auth ──────────────────────────────────────────────────────────────────
+  /auth/guest:
+    post:
+      operationId: createGuestSession
+      x-fastify-config:
+        rateLimit: { max: 20, timeWindow: '1 hour' }
+      summary: Start a guest session
+      description: Creates a guest user and sets the session cookie. Idempotent for a client that already holds a valid session — returns the existing user.
+      security: []
+      tags: [auth]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GuestInput' }
+      responses:
+        '201':
+          description: Guest created — session token delivered via Set-Cookie (httpOnly)
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '200':
+          description: Existing session reused
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /auth/register:
+    post:
+      operationId: register
+      x-fastify-config:
+        rateLimit: { max: 10, timeWindow: '1 hour' }
+      summary: Register, upgrading the current guest if a session is present
+      security: []
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterInput' }
+      responses:
+        '201':
+          description: Registered — session token delivered via Set-Cookie (httpOnly)
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /auth/login:
+    post:
+      operationId: login
+      x-fastify-config:
+        rateLimit: { max: 10, timeWindow: '15 minutes' }
+      summary: Log in with email and password
+      security: []
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginInput' }
+      responses:
+        '200':
+          description: Authenticated — session token delivered via Set-Cookie (httpOnly)
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: End the current session
+      tags: [auth]
+      responses:
+        '200':
+          description: Logged out — clears session cookie
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      summary: Get the current user
+      tags: [auth]
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ─── users ─────────────────────────────────────────────────────────────────
+  /users/me:
+    patch:
+      operationId: updateCurrentUser
+      summary: Update the current user
+      tags: [users]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateMeInput' }
+      responses:
+        '200':
+          description: Updated user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ─── river ─────────────────────────────────────────────────────────────────
+  /river:
+    get:
+      operationId: getRiver
+      summary: Get the public river feed
+      description: Returns all top-level items from public rooms, sorted by most recent first, hydrated for display.
+      tags: [items]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Paginated river items
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedRiverItems' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ─── rooms ─────────────────────────────────────────────────────────────────
+  /rooms:
+    get:
+      operationId: listRooms
+      summary: Browse public rooms, most recently active first
+      tags: [rooms]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/SearchQuery'
+        - in: query
+          name: topic
+          schema: { type: string, minLength: 1, maxLength: 40 }
+      responses:
+        '200':
+          description: Paginated public rooms
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedRooms' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: createRoom
+      x-fastify-config:
+        rateLimit: { max: 20, timeWindow: '1 hour' }
+      summary: Create a room; the caller becomes its owner
+      tags: [rooms]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRoomInput' }
+      responses:
+        '201':
+          description: Room created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoomResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /rooms/mine:
+    get:
+      operationId: listMyRooms
+      summary: Rooms the caller is a member of (public and private), most recently active first
+      tags: [rooms]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Paginated rooms
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedRooms' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /rooms/{roomId}:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    get:
+      operationId: getRoom
+      summary: Get a room
+      description: Private rooms return 404 to non-members.
+      tags: [rooms]
+      responses:
+        '200':
+          description: Room
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoomResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateRoom
+      summary: Update a room (owner only)
+      tags: [rooms]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateRoomInput' }
+      responses:
+        '200':
+          description: Updated room
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoomResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /rooms/{roomId}/join:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    post:
+      operationId: joinRoom
+      summary: Join a room. Private rooms require a valid inviteCode. Idempotent.
+      tags: [rooms]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JoinRoomInput' }
+      responses:
+        '200':
+          description: Joined (or already a member)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoomResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /rooms/{roomId}/members/me:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    delete:
+      operationId: leaveRoom
+      summary: Leave a room. Owners cannot leave their own room.
+      tags: [rooms]
+      responses:
+        '200':
+          description: Left
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /rooms/{roomId}/invite-code:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    post:
+      operationId: rotateInviteCode
+      summary: Issue a new invite code for a private room (owner only); the old code stops working
+      tags: [rooms]
+      responses:
+        '200':
+          description: Room with new inviteCode
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoomResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # ─── items ─────────────────────────────────────────────────────────────────
+  /rooms/{roomId}/items:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    get:
+      operationId: listRoomItems
+      summary: Items in a room, ascending by number
+      description: |
+        Flat list; build branches client-side from `parentId`.
+        Pass `after` (an item number) to fetch only items newer than one you already have —
+        used to catch up after a stream reconnect.
+      tags: [items]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: after
+          schema: { type: integer, minimum: 0 }
+          description: Only return items with number greater than this.
+      responses:
+        '200':
+          description: Paginated items
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedItems' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: sendMessage
+      x-fastify-config:
+        rateLimit: { max: 60, timeWindow: '1 minute' }
+      summary: Send a new message to a room (top-level)
+      description: |
+        Requires membership (public rooms auto-join on first post). Must include text or
+        at least one media id (400 `EMPTY_ITEM`). `mediaIds` must be uploads owned by the
+        caller and not yet attached. Creates a new Message and an Item in the room.
+      tags: [items]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SendMessageInput' }
+      responses:
+        '201':
+          description: Item created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ItemResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /items/{itemId}/replies:
+    parameters:
+      - $ref: '#/components/parameters/ItemId'
+    post:
+      operationId: replyToItem
+      x-fastify-config:
+        rateLimit: { max: 60, timeWindow: '1 minute' }
+      summary: Reply to an item
+      description: |
+        Creates a new Message and a child Item **in the parent's room** — the room is
+        always taken from the parent, so a reply can never be placed in another room.
+        404 if the parent isn't visible to the caller. Same content rules as sendMessage.
+        Optional `anchorStartMs` attaches the reply to a **moment** (a point, not a
+        segment) in the parent's audio/video. Allowed only when the parent has exactly one
+        visible audio/video attachment with a known duration (else 400 `ANCHOR_UNSUPPORTED`),
+        and must be ≤ that duration (else 400 `INVALID_ANCHOR`). Anchors live on this room's
+        Item, so sharing the parent elsewhere carries none of them.
+      tags: [items]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReplyToItemInput' }
+      responses:
+        '201':
+          description: Reply created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ItemResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /messages/{messageId}/share:
+    parameters:
+      - name: messageId
+        in: path
+        required: true
+        schema: { type: string, minLength: 1, maxLength: 64 }
+    post:
+      operationId: shareMessageToRooms
+      x-fastify-config:
+        rateLimit: { max: 30, timeWindow: '1 minute' }
+      summary: Share an existing message to other rooms
+      description: |
+        Creates one top-level Item per target room that reuses the same Message and media —
+        no content or upload is duplicated. Rooms where the message already has a live
+        Item are skipped (idempotent); the response lists only newly created Items.
+        Only the message's author may share it (403), so private-room content can't be
+        re-published by others. All target rooms must be postable by the caller — public
+        rooms auto-join, private rooms require membership (404 otherwise). All-or-nothing.
+      tags: [messages]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ShareMessageInput' }
+      responses:
+        '201':
+          description: Items created by this share (empty if every room already had it)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShareResultResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /items/{itemId}:
+    parameters:
+      - $ref: '#/components/parameters/ItemId'
+    get:
+      operationId: getItem
+      summary: Get an item
+      tags: [items]
+      responses:
+        '200':
+          description: Item
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ItemResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteItem
+      summary: Tombstone an item (author only). Replies are preserved.
+      tags: [items]
+      responses:
+        '200':
+          description: Tombstoned item
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ItemResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─── reactions ─────────────────────────────────────────────────────────────
+  /items/{itemId}/reactions/{type}:
+    parameters:
+      - $ref: '#/components/parameters/ItemId'
+      - $ref: '#/components/parameters/ReactionTypeParam'
+    put:
+      operationId: addReaction
+      summary: Add the caller's reaction (idempotent)
+      tags: [reactions]
+      responses:
+        '200':
+          description: Updated item
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ItemResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: removeReaction
+      summary: Remove the caller's reaction (idempotent)
+      tags: [reactions]
+      responses:
+        '200':
+          description: Updated item
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ItemResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─── media ─────────────────────────────────────────────────────────────────
+  /media:
+    post:
+      operationId: uploadMedia
+      x-fastify-config:
+        rateLimit: { max: 30, timeWindow: '1 minute' }
+      summary: Upload a recording or file; attach it by id in createItem
+      tags: [media]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/UploadMediaInput' }
+      responses:
+        '201':
+          description: Uploaded (not yet attached to an item)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MediaResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '415':
+          description: Unsupported file type
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /media/youtube:
+    post:
+      operationId: createYouTubeMedia
+      x-fastify-config:
+        rateLimit: { max: 30, timeWindow: '1 minute' }
+      summary: Register a YouTube video as media (nothing is downloaded)
+      description: |
+        Resolves the link to a canonical video id, verifies the video exists (oEmbed) and stores
+        its title — never the media itself. Attach the returned id via mediaIds like any upload.
+        400 `INVALID_YOUTUBE_URL` for non-video links (incl. playlist-only),
+        400 `YOUTUBE_UNAVAILABLE` for missing/private videos.
+      tags: [media]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateYouTubeMediaInput' }
+      responses:
+        '201':
+          description: Registered (not yet attached to an item)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MediaResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '502':
+          description: YouTube lookup failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  # ─── stream ────────────────────────────────────────────────────────────────
+  /rooms/{roomId}/stream:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    get:
+      operationId: streamRoomEvents
+      summary: Server-Sent Events for a room
+      description: |
+        `text/event-stream`. Each message's `event:` field is the StreamEvent `type`
+        and `data:` is a JSON-encoded StreamEvent. On `item.created`, `id:` is the item's
+        number; on reconnect, call listRoomItems with `after` = highest number seen to catch up.
+        A `ping` comment is sent every 25s to keep proxies from closing the connection.
+      tags: [stream]
+      responses:
+        '200':
+          description: Event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE frames; each data payload is a JSON StreamEvent
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Session token. Web clients send it as the httpOnly `token` cookie; native clients as a Bearer header.
+
+  parameters:
+    Cursor:
+      in: query
+      name: cursor
+      schema: { type: string, maxLength: 512 }
+      description: Opaque cursor returned by the previous page.
+    Limit:
+      in: query
+      name: limit
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    SearchQuery:
+      in: query
+      name: q
+      schema: { type: string, minLength: 1, maxLength: 200 }
+      description: Simple text search within this resource.
+    RoomId:
+      in: path
+      name: roomId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    ItemId:
+      in: path
+      name: itemId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    ReactionTypeParam:
+      in: path
+      name: type
+      required: true
+      schema: { $ref: '#/components/schemas/ReactionType' }
+
+  responses:
+    BadRequest:
+      description: Invalid input
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: Not authenticated
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Not allowed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: Conflicts with current state
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    TooManyRequests:
+      description: Rate limited
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  schemas:
+    # ─── shared ──────────────────────────────────────────────────────────────
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        code: { type: string }
+
+    NullResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: 'null' }
+
+    PaginatedMeta:
+      type: object
+      required: [hasMore, nextCursor]
+      properties:
+        hasMore: { type: boolean }
+        nextCursor: { type: [string, 'null'] }
+
+    # ─── users ───────────────────────────────────────────────────────────────
+    User:
+      type: object
+      required: [id, email, isGuest, displayName, avatarUrl, createdAt]
+      properties:
+        id: { type: string }
+        email: { type: [string, 'null'] }
+        isGuest: { type: boolean }
+        displayName: { type: string }
+        avatarUrl: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+
+    UserResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/User' }
+
+    GuestInput:
+      type: object
+      additionalProperties: false
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 50 }
+
+    RegisterInput:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 8, maxLength: 200 }
+        displayName: { type: string, minLength: 1, maxLength: 50 }
+
+    LoginInput:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 1, maxLength: 200 }
+
+    UpdateMeInput:
+      type: object
+      additionalProperties: false
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 50 }
+        avatarUrl: { type: [string, 'null'], maxLength: 512 }
+
+    Author:
+      type: object
+      required: [id, name, avatarUrl]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        avatarUrl: { type: [string, 'null'] }
+
+    # ─── rooms ───────────────────────────────────────────────────────────────
+    RoomVisibility:
+      type: string
+      enum: [public, private]
+
+    RoomRole:
+      type: string
+      enum: [owner, member]
+
+    Room:
+      type: object
+      required:
+        [id, number, title, topic, visibility, ownerId, itemCount, memberCount, lastActivityAt, createdAt, role, inviteCode]
+      properties:
+        id: { type: string }
+        number: { type: integer, description: 'Human-facing room sequence ("CONVERSATION 018")' }
+        title: { type: string }
+        topic: { type: [string, 'null'] }
+        visibility: { $ref: '#/components/schemas/RoomVisibility' }
+        ownerId: { type: string }
+        itemCount: { type: integer }
+        memberCount: { type: integer }
+        lastActivityAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        role:
+          description: The caller's membership role, or null if not a member
+          oneOf:
+            - $ref: '#/components/schemas/RoomRole'
+            - type: 'null'
+        inviteCode:
+          type: [string, 'null']
+          description: Present only for members of a private room
+
+    RoomResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Room' }
+
+    PaginatedRooms:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Room' }
+        meta: { $ref: '#/components/schemas/PaginatedMeta' }
+
+    CreateRoomInput:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        topic: { type: string, minLength: 1, maxLength: 40 }
+        visibility: { $ref: '#/components/schemas/RoomVisibility' }
+
+    UpdateRoomInput:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        topic: { type: [string, 'null'], minLength: 1, maxLength: 40 }
+        visibility: { $ref: '#/components/schemas/RoomVisibility' }
+
+    JoinRoomInput:
+      type: object
+      additionalProperties: false
+      properties:
+        inviteCode: { type: string, minLength: 1, maxLength: 32 }
+
+    # ─── items ───────────────────────────────────────────────────────────────
+    MediaType:
+      type: string
+      enum: [audio, video, image, file]
+
+    Media:
+      type: object
+      required: [id, type, source, url, mimeType, size, duration, name, poster, externalId, title, embeddable]
+      properties:
+        id: { type: string }
+        type: { $ref: '#/components/schemas/MediaType' }
+        source:
+          type: string
+          enum: [stored, youtube]
+          description: stored = our upload/capture; youtube = external video (never downloaded)
+        url: { type: string }
+        mimeType: { type: string }
+        size: { type: integer, description: Bytes }
+        duration: { type: [number, 'null'], description: Seconds (audio/video) }
+        name: { type: [string, 'null'] }
+        poster: { type: [string, 'null'], description: Poster image URL (video) }
+        externalId: { type: [string, 'null'], description: Canonical YouTube video id (source youtube) }
+        title: { type: [string, 'null'], description: External title (source youtube) }
+        embeddable:
+          type: boolean
+          description: Whether the media can be played inline. Non-embeddable YouTube shows a link card; its duration is null, so it cannot be anchored.
+
+    MediaResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Media' }
+
+    UploadMediaInput:
+      type: object
+      required: [file]
+      properties:
+        file: { type: string, format: binary }
+        type:
+          $ref: '#/components/schemas/MediaType'
+          description: Defaults from the file's mime type
+        name: { type: string, maxLength: 255 }
+        duration: { type: number, minimum: 0 }
+
+    ReactionType:
+      type: string
+      enum: [like, ack, laugh]
+
+    ReactionSummary:
+      type: object
+      required: [type, count, reacted]
+      properties:
+        type: { $ref: '#/components/schemas/ReactionType' }
+        count: { type: integer, minimum: 1 }
+        reacted: { type: boolean, description: Whether the caller has this reaction }
+
+    Message:
+      type: object
+      description: Reusable content (author, text, media). Hydrated on every Item.
+      required: [id, author, text, media, createdAt]
+      properties:
+        id: { type: string }
+        author: { $ref: '#/components/schemas/Author' }
+        text: { type: [string, 'null'], description: Null when the Item placement is deleted }
+        media:
+          type: array
+          description: Empty when the Item placement is deleted
+          items: { $ref: '#/components/schemas/Media' }
+        createdAt: { type: string, format: date-time }
+
+    Item:
+      type: object
+      description: |
+        Placement of a Message inside one room. The same Message can be placed in many
+        rooms (share); each placement has its own number, thread position and reactions.
+      required: [id, roomId, messageId, number, parentId, anchorStartMs, message, reactions, createdAt, deletedAt]
+      properties:
+        id: { type: string }
+        roomId: { type: string }
+        messageId: { type: string }
+        number: { type: integer, description: 'Per-room sequence ("RE:003")' }
+        parentId: { type: [string, 'null'] }
+        anchorStartMs:
+          type: [integer, 'null']
+          minimum: 0
+          description: Moment (ms) in the parent's media this reply anchors to; null when un-anchored. A point, not a range.
+        message: { $ref: '#/components/schemas/Message' }
+        reactions:
+          type: array
+          items: { $ref: '#/components/schemas/ReactionSummary' }
+        createdAt: { type: string, format: date-time }
+        deletedAt: { type: [string, 'null'], format: date-time }
+
+    RiverItem:
+      type: object
+      required: [id, roomId, messageId, roomTitle, number, parentId, message, reactions, replyCount, createdAt, deletedAt]
+      properties:
+        id: { type: string }
+        roomId: { type: string }
+        messageId: { type: string }
+        parentId: { type: [string, 'null'] }
+        roomTitle: { type: string }
+        number: { type: integer }
+        message: { $ref: '#/components/schemas/Message' }
+        reactions:
+          type: array
+          items: { $ref: '#/components/schemas/ReactionSummary' }
+        replyCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+        deletedAt: { type: [string, 'null'], format: date-time }
+
+    PaginatedRiverItems:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/RiverItem' }
+        meta: { $ref: '#/components/schemas/PaginatedMeta' }
+
+    ItemResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Item' }
+
+    PaginatedItems:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Item' }
+        meta: { $ref: '#/components/schemas/PaginatedMeta' }
+
+    SendMessageInput:
+      type: object
+      additionalProperties: false
+      properties:
+        text: { type: string, maxLength: 4000 }
+        mediaIds:
+          type: array
+          maxItems: 10
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 64 }
+
+    ReplyToItemInput:
+      type: object
+      additionalProperties: false
+      properties:
+        text: { type: string, maxLength: 4000 }
+        mediaIds:
+          type: array
+          maxItems: 10
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 64 }
+        anchorStartMs:
+          type: integer
+          minimum: 0
+          description: |
+            The moment (ms from start) in the parent's single audio/video attachment this
+            reply responds to. A point, not a range — V1 has no anchor end.
+
+    CreateYouTubeMediaInput:
+      type: object
+      additionalProperties: false
+      required: [url]
+      properties:
+        url: { type: string, minLength: 1, maxLength: 2048, description: Any common YouTube video link; resolved to a canonical id }
+        durationMs: { type: integer, minimum: 0, maximum: 86400000, description: "Measured by the client's player; V1 trusts it, as with upload durations" }
+        embeddable: { type: boolean, default: true, description: False when the client's player reports embedding disabled (101/150) }
+
+    ShareResultResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Item' }
+
+    ShareMessageInput:
+      type: object
+      required: [roomIds]
+      additionalProperties: false
+      properties:
+        roomIds:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 64 }
+
+    # ─── stream ──────────────────────────────────────────────────────────────
+    StreamEventType:
+      type: string
+      enum: [item.created, item.updated]
+
+    StreamEvent:
+      type: object
+      description: |
+        Payload of each SSE message. `item.updated` covers reactions and tombstones.
+        Note: `reactions[].reacted` is always false in stream payloads (they are
+        broadcast, not per-viewer); clients should keep their own `reacted` state.
+      required: [type, actorId, item]
+      properties:
+        type: { $ref: '#/components/schemas/StreamEventType' }
+        actorId: { type: string, description: User whose action produced this event }
+        item: { $ref: '#/components/schemas/Item' }

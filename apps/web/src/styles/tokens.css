@@ -1,0 +1,23 @@
+:root {
+  --bg: #0f1115;
+  --panel: #15171c;
+  --ink: #f0ede1;
+  --muted: #84827a;
+  --line: #2b2e36;
+  --signal: #d94236;
+  --danger: #ff5242;
+  --space-1: 6px;
+  --space-2: 12px;
+  --space-3: 18px;
+  --space-4: 28px;
+  --space-5: 42px;
+  --space-6: 72px;
+  --radius: 0px;
+  --line-width: 1px;
+  --motion-fast: 140ms;
+  --motion-base: 220ms;
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --mono: "Courier New", Courier, monospace;
+  --sans: Arial, Helvetica, sans-serif;
+  --content-font: "Georgia", "Times New Roman", serif; /* Art Nouveau / Classic feel */
+}

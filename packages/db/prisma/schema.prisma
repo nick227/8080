@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Identity ────────────────────────────────────────────────────────────────
+// Guest-first: POST /auth/guest creates a User with no email/password.
+// POST /auth/register upgrades the current guest in place (keeps history).
+
+model User {
+  id           String    @id @default(cuid())
+  email        String?   @unique
+  passwordHash String?
+  isGuest      Boolean   @default(true)
+  suspendedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  profile     Profile?
+  sessions    Session[]
+  ownedRooms  Room[]       @relation("RoomOwner")
+  memberships RoomMember[]
+  messages    Message[]
+  media       Media[]
+  reactions   Reaction[]
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  displayName String   @db.VarChar(50)
+  avatarUrl   String?  @db.VarChar(512)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── Rooms ───────────────────────────────────────────────────────────────────
+
+enum RoomVisibility {
+  public
+  private
+}
+
+enum RoomRole {
+  owner
+  member
+}
+
+model Room {
+  id             String         @id @default(cuid())
+  // Human-facing sequence shown as "CONVERSATION 018"
+  number         Int            @unique @default(autoincrement())
+  title          String         @db.VarChar(120)
+  topic          String?        @db.VarChar(40)
+  visibility     RoomVisibility @default(public)
+  // Private rooms only; rotatable via POST /rooms/{roomId}/invite-code
+  inviteCode     String?        @unique @db.VarChar(32)
+  ownerId        String
+  // Per-room item sequence counter; incremented in the createItem transaction
+  itemCount      Int            @default(0)
+  // Lobby sort key; bumped on every new item. Non-null so it can anchor cursors.
+  lastActivityAt DateTime       @default(now())
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+
+  owner   User         @relation("RoomOwner", fields: [ownerId], references: [id])
+  members RoomMember[]
+  items   Item[]
+
+  @@index([visibility, lastActivityAt, id])
+  @@index([topic])
+  @@index([ownerId])
+}
+
+model RoomMember {
+  id       String   @id @default(cuid())
+  roomId   String
+  userId   String
+  role     RoomRole @default(member)
+  joinedAt DateTime @default(now())
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([userId])
+}
+
+// ─── Conversation graph ──────────────────────────────────────────────────────
+// Store facts, derive relationships: only parentId is persisted. Branches are
+// computed client-side (utils/graph.ts). Deletes are tombstones so replies
+// never lose their parent.
+
+model Message {
+  id        String    @id @default(cuid())
+  authorId  String
+  text      String?   @db.Text
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  author User    @relation(fields: [authorId], references: [id])
+  media  Media[]
+  items  Item[]
+
+  @@index([authorId])
+}
+
+model Item {
+  id            String    @id @default(cuid())
+  roomId        String
+  messageId     String
+  // Per-room sequence → "RE:003"
+  number        Int
+  parentId      String?
+  // Moment (ms) in the parent's single audio/video attachment this reply responds
+  // to — a point, not a range. Placement-level: the same Message shared into another
+  // room has its own, independent anchors (none are copied).
+  anchorStartMs Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  room      Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  message   Message    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  parent    Item?      @relation("ItemReplies", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies   Item[]     @relation("ItemReplies")
+  reactions Reaction[]
+
+  @@unique([roomId, number])
+  @@index([parentId])
+  @@index([parentId, anchorStartMs]) // markers for a parent, in timeline order
+  @@index([messageId])
+  @@index([roomId, createdAt, id])
+}
+
+// Where the media lives. stored = our upload/capture (file under storageKey);
+// youtube = external video referenced by canonical id (never downloaded).
+enum MediaSource {
+  stored
+  youtube
+}
+
+enum MediaKind {
+  audio
+  video
+  image
+  file
+}
+
+// Uploaded first (messageId null), then attached when the message is created.
+// Public URLs are derived from storageKey at serialize time (provider-specific),
+// never stored — cloud buckets may need signed or re-based URLs.
+// ## Phase 2: sweep unattached media older than N hours.
+model Media {
+  id         String      @id @default(cuid())
+  ownerId    String
+  messageId  String?
+  kind       MediaKind
+  source     MediaSource @default(stored)
+  storageKey String?     @unique @db.VarChar(255) // null for external (youtube)
+  externalId String?     @db.VarChar(32) // canonical YouTube video id
+  title      String?     @db.VarChar(300)
+  embeddable Boolean     @default(true)
+  mimeType   String      @db.VarChar(127)
+  size       Int
+  // Seconds, for audio/video
+  duration   Float?
+  name       String?     @db.VarChar(255)
+  posterUrl  String?     @db.VarChar(512)
+  position   Int         @default(0)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  owner   User     @relation(fields: [ownerId], references: [id])
+  message Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([messageId, position])
+  @@index([ownerId, createdAt])
+}
+
+enum ReactionType {
+  like
+  ack
+  laugh
+}
+
+model Reaction {
+  id        String       @id @default(cuid())
+  itemId    String
+  userId    String
+  type      ReactionType
+  createdAt DateTime     @default(now())
+
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, userId, type])
+  @@index([userId])
+}

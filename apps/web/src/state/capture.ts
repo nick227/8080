@@ -1,0 +1,115 @@
+import { create } from 'zustand'
+
+export type CapturePhase =
+  | 'idle'
+  | 'arming'
+  | 'recording'
+  | 'stopping'
+  | 'review'
+  | 'preparing'
+  | 'uploading'
+  | 'sent'
+  | 'permissionDenied'
+  | 'captureFailed'
+  | 'uploadFailed'
+
+export type CaptureMode = 'audio' | 'video'
+
+type CaptureState = {
+  phase: CapturePhase
+  mode: CaptureMode | null
+
+  blob: Blob | null
+  previewUrl: string | null
+  durationMs: number
+  level: number
+  waveform: number[] | null
+
+  error: string | null
+
+  resumablePlaybackId: string | null
+  resumablePlaybackMode: 'chronological' | 'branch' | null
+
+  arm: (mode: CaptureMode) => void
+  begin: () => void
+  stop: () => void
+  review: (blob: Blob, previewUrl: string, durationMs: number, waveform?: number[]) => void
+  prepare: () => void
+  upload: () => void
+  complete: () => void
+  failCapture: (error: string) => void
+  failUpload: (error: string) => void
+  cancel: () => void
+  reset: () => void
+  
+  // Helpers to snapshot and restore playback context
+  snapshotPlayback: (id?: string, mode?: 'chronological' | 'branch') => void
+}
+
+export const useCapture = create<CaptureState>((set) => ({
+  phase: 'idle',
+  mode: null,
+  blob: null,
+  previewUrl: null,
+  durationMs: 0,
+  level: 0,
+  waveform: null,
+  error: null,
+  resumablePlaybackId: null,
+  resumablePlaybackMode: null,
+
+  arm: (mode) => set({ phase: 'arming', mode, error: null }),
+  begin: () => set({ phase: 'recording', error: null }),
+  stop: () => set({ phase: 'stopping' }),
+  
+  review: (blob, previewUrl, durationMs, waveform) => set({ 
+    phase: 'review', 
+    blob, 
+    previewUrl, 
+    durationMs,
+    waveform: waveform ?? null
+  }),
+  
+  prepare: () => set({ phase: 'preparing' }),
+  upload: () => set({ phase: 'uploading' }),
+  complete: () => set({ 
+    phase: 'sent', 
+    blob: null, 
+    previewUrl: null, 
+    durationMs: 0, 
+    waveform: null,
+    resumablePlaybackId: null, 
+    resumablePlaybackMode: null 
+  }),
+  
+  failCapture: (error) => set({ phase: 'captureFailed', error }),
+  
+  failUpload: (error) => set({ phase: 'uploadFailed', error }),
+  
+  cancel: () => set({ 
+    phase: 'idle', 
+    blob: null, 
+    previewUrl: null, 
+    durationMs: 0,
+    waveform: null,
+    error: null,
+  }),
+
+  reset: () => set({
+    phase: 'idle',
+    mode: null,
+    blob: null,
+    previewUrl: null,
+    durationMs: 0,
+    level: 0,
+    waveform: null,
+    error: null,
+    resumablePlaybackId: null,
+    resumablePlaybackMode: null,
+  }),
+
+  snapshotPlayback: (id, mode) => set({
+    resumablePlaybackId: id ?? null,
+    resumablePlaybackMode: mode ?? null
+  })
+}))

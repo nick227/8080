@@ -1,0 +1,11 @@
+{
+  "name": "@project/shared",
+  "version": "0.0.1",
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

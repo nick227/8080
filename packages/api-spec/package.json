@@ -1,0 +1,5 @@
+{
+  "name": "@project/api-spec",
+  "version": "0.0.1",
+  "main": "./openapi.yaml"
+}

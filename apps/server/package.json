@@ -1,0 +1,39 @@
+{
+  "name": "server",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch --env-file=../../.env src/index.ts",
+    "build": "tsc",
+    "start": "tsx src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^9.0.0",
+    "@fastify/cors": "^9.0.0",
+    "@fastify/multipart": "^8.0.0",
+    "@fastify/rate-limit": "^9.0.0",
+    "@fastify/static": "^7.0.0",
+    "@fastify/swagger": "^8.0.0",
+    "@fastify/swagger-ui": "^3.0.0",
+    "@project/db": "workspace:*",
+    "bcryptjs": "^2.4.3",
+    "fastify": "^4.0.0",
+    "fastify-openapi-glue": "^4.0.0",
+    "fastify-plugin": "^4.0.0",
+    "js-yaml": "^4.0.0",
+    "tsx": "^4.0.0",
+    "@project/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@apidevtools/swagger-parser": "^10.0.0",
+    "@types/bcryptjs": "^2.4.0",
+    "@types/js-yaml": "^4.0.0",
+    "@types/node": "^20.0.0",
+    "ajv": "^8.0.0",
+    "ajv-formats": "^3.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0"
+  }
+}

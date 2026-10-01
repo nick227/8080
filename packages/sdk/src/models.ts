@@ -1,0 +1,31 @@
+// Friendly aliases over generated schema types. Frontends import these instead of
+// reaching into components['schemas'] — generated/types.ts stays untouched.
+import type { components } from './generated/types'
+
+type S = components['schemas']
+
+export type User = S['User']
+export type Author = S['Author']
+export type Room = S['Room']
+export type RoomVisibility = S['RoomVisibility']
+export type RoomRole = S['RoomRole']
+export type Item = S['Item']
+export type Media = S['Media']
+export type MediaType = S['MediaType']
+export type ReactionType = S['ReactionType']
+export type ReactionSummary = S['ReactionSummary']
+export type StreamEvent = S['StreamEvent']
+export type StreamEventType = S['StreamEventType']
+export type PaginatedMeta = S['PaginatedMeta']
+
+export type GuestInput = S['GuestInput']
+export type RegisterInput = S['RegisterInput']
+export type LoginInput = S['LoginInput']
+export type UpdateMeInput = S['UpdateMeInput']
+export type CreateRoomInput = S['CreateRoomInput']
+export type UpdateRoomInput = S['UpdateRoomInput']
+export type JoinRoomInput = S['JoinRoomInput']
+export type SendMessageInput = S['SendMessageInput']
+export type ReplyToItemInput = S['ReplyToItemInput']
+export type ShareMessageInput = S['ShareMessageInput']
+export type Message = S['Message']

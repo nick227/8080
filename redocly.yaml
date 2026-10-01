@@ -1,0 +1,7 @@
+extends:
+  - recommended
+rules:
+  # Dev server is intentionally localhost; prod URL is set per-deploy.
+  no-server-example.com: off
+  # StreamEvent types the SSE payload for SDK consumers; SSE bodies can't $ref it in 3.1.
+  no-unused-components: off
