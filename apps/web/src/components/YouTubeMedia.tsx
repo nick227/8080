@@ -161,11 +161,9 @@ export function YouTubeMedia({
           </div>
         )}
         <div className="yt-meta">
-          <span className="yt-source">YOUTUBE{title ? ` · ${title}` : ''}</span>
-          {blocked ? (
+          <span className="yt-source">{title ?? 'YouTube Video'}</span>
+          {blocked && (
             <button type="button" className="yt-tap" onClick={start}>TAP TO CONTINUE</button>
-          ) : (
-            !error && durationMs != null && <span className="yt-time">{formatMoment(positionMs)} / {formatMoment(durationMs)}</span>
           )}
         </div>
 

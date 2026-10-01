@@ -47,15 +47,14 @@ function containsPlayhead(itemId: string, activeId: string | null): boolean {
   return false
 }
 
-function responseMeta(item: ItemType): { title: string; detail: string } {
+function responseMeta(item: ItemType): string {
   const media = item.media?.find((m) => m.type === 'video' || m.type === 'audio') ?? item.media?.[0]
-  const title = media?.title || media?.name || item.text || 'Response'
   const detail = [item.author.name]
   if (item.anchorStartMs != null) detail.push(formatMoment(item.anchorStartMs))
   const made = new Date(item.createdAt)
   if (!Number.isNaN(made.getTime())) detail.push(made.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))
   if (media?.duration) detail.push(formatMoment(Math.round(media.duration * 1000)))
-  return { title, detail: detail.join(' · ') }
+  return detail.join(' · ')
 }
 
 // Items without audio/video never fire `ended`, so they must explicitly take part
@@ -193,22 +192,10 @@ export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onE
               : {})}
           />
         ))}
-        {meta && (
-          <p className="response-meta">
-            <span className="response-meta-title">{meta.title}</span>
-            <span>{meta.detail}</span>
-          </p>
-        )}
+        {meta && <p className="response-meta">{meta}</p>}
 
         <Stack direction="row" gap="medium" className="item-actions" aria-label={`Actions for item ${label(item.number)}`}>
-          <Control aria-label={`Like, ${count('like') ?? 0} likes`} onClick={() => onReact(item.id, 'like')}>♥ {count('like') ?? ''}</Control>
-          <Control aria-label={`Acknowledge, ${count('ack') ?? 0} acknowledgements`} onClick={() => onReact(item.id, 'ack')}>+1 {count('ack') ?? ''}</Control>
-          <Control aria-label={`Laugh, ${count('laugh') ?? 0} laughs`} onClick={() => onReact(item.id, 'laugh')}>:) {count('laugh') ?? ''}</Control>
           <Control aria-label={`Reply to item ${label(item.number)}`} onClick={() => onReply(item.id)}>REPLY</Control>
-          <Control aria-label={`Share item ${label(item.number)} to other rooms`} onClick={() => {
-            setShowShareMenu(!showShareMenu)
-            setShowPlayOptions(false)
-          }}>SHARE</Control>
         </Stack>
         
         {showShareMenu && !isActive && (

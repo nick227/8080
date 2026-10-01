@@ -1,4 +1,4 @@
-.response-layer { width: 100%; margin-top: 10px; }
+.response-layer { width: 100%; margin-top: 22px; }
 .response-label { margin: 0 0 6px; font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .response-row { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
 .response-card { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; width: calc((100% - 16px) / 3); }
@@ -9,8 +9,11 @@
 .response-reply { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .response-reply:hover, .response-reply:focus-visible { color: var(--ink); }
 .response-more { position: absolute; right: 4px; top: 4px; padding: 1px 3px; font-family: var(--mono); font-size: 9px; letter-spacing: .06em; color: var(--ink); background: rgba(15, 17, 21, .72); }
-.response-stage { display: flex; flex-direction: column; align-items: stretch; width: 100%; margin: 8px 0; }
+.response-stage { display: flex; flex-direction: column; align-items: stretch; width: 100%; margin: 8px 0; overflow-anchor: none; }
+.response-open { display: grid; grid-template-rows: 1fr; position: relative; animation: response-open 260ms cubic-bezier(.22, 1, .36, 1); }
+.response-open > .response-player { min-height: 0; overflow: hidden; }
 .response-player { position: relative; width: 100%; }
-.response-player .item { border: none; padding: 0; background: transparent; }
-.response-meta { display: flex; flex-direction: column; gap: 2px; margin: 8px 0 0; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.response-meta-title { color: var(--ink); letter-spacing: .04em; }
+.response-player .item { border: none; padding: 0; background: transparent; content-visibility: visible; }
+.response-min { position: absolute; z-index: 3; top: 6px; right: 6px; width: 18px; height: 18px; display: grid; place-items: center; padding: 0; color: var(--ink); background: rgba(15, 17, 21, .55); }
+.response-meta { margin: 4px 0 0; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+@keyframes response-open { from { grid-template-rows: 0fr; } to { grid-template-rows: 1fr; } }

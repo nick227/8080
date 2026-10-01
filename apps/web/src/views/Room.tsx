@@ -110,7 +110,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   }
 
   return (
-    <Panel as={motion.main} variant="shell" layout>
+    <Panel as={motion.main} variant="shell">
       <Blobs count={room.data?.memberCount ?? 3} />
       <Anchors />
       <StageChrome />

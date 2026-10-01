@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { parseYouTubeVideoId, youTubeThumbnailUrl } from '@project/shared'
-import { ReplyIcon } from '../components/icons'
+import { MinimizeIcon, ReplyIcon } from '../components/icons'
 import type { Item } from '../api/types'
 import './responseMap.css'
 
@@ -59,49 +59,77 @@ type MapProps = {
   focusIds?: Set<string>
   onOpen: (id: string) => void
   onReply: (id: string) => void
+  onMinimize: (id: string) => void
   renderPlayer?: (item: Item) => ReactNode
   layers?: number
 }
 
 // Each layer is a horizontal row of frames. Three fit the width.
-// The one playing leaves the row and opens full size, with its own layer beneath.
-export function ResponseMap(props: MapProps) {
-  return <ResponseLayer {...props} depth={0} />
+// An opened frame stays full size until minimized. The one playing is one of them.
+export function ResponseMap({ activeId, onMinimize, ...props }: MapProps) {
+  const [kept, setKept] = useState<Set<string>>(() => new Set())
+  // The playing item is open in this render, so the follow scroll can find it.
+  const openIds = new Set(kept)
+  if (activeId) openIds.add(activeId)
+  useEffect(() => {
+    if (!activeId) return
+    setKept((prev) => (prev.has(activeId) ? prev : new Set(prev).add(activeId)))
+  }, [activeId])
+  const minimize = (id: string) => {
+    setKept((prev) => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+    onMinimize(id)
+  }
+  return <ResponseLayer {...props} activeId={activeId} depth={0} openIds={openIds} onMinimize={minimize} />
 }
 
-function ResponseLayer({ parentId, itemsById, childrenById, activeId, focusIds, onOpen, onReply, renderPlayer, layers = 2, depth }: MapProps & { depth: number }) {
+function ResponseLayer({ parentId, itemsById, childrenById, activeId, focusIds, onOpen, onReply, onMinimize, renderPlayer, layers = 2, depth, openIds }: MapProps & { depth: number; openIds: Set<string> }) {
   const items = repliesTo(childrenById, itemsById, parentId)
   if (!items.length) return null
-  const playIdx = items.findIndex((item) => item.id === activeId)
-  const before = playIdx < 0 ? items : items.slice(0, playIdx)
-  const after = playIdx < 0 ? [] : items.slice(playIdx + 1)
-  const playing = playIdx < 0 ? undefined : items[playIdx]
+  const blocks: ReactNode[] = []
+  let compact: Item[] = []
+  const flush = () => {
+    if (!compact.length) return
+    const row = compact
+    compact = []
+    blocks.push(
+      <div className="response-row" role="list" key={row[0].id}>
+        {row.map((item) => (
+          <ResponseCard key={item.id} item={item} depth={depth} layers={layers} itemsById={itemsById} childrenById={childrenById} activeId={activeId} focusIds={focusIds} onOpen={onOpen} onReply={onReply} />
+        ))}
+      </div>,
+    )
+  }
+  for (const item of items) {
+    if (!openIds.has(item.id) || !renderPlayer) {
+      compact.push(item)
+      continue
+    }
+    flush()
+    blocks.push(
+      <div className="response-stage" key={item.id} data-playing={item.id === activeId || undefined}>
+        <div className="response-open">
+          <div className="response-player">{renderPlayer(item)}</div>
+          <button type="button" className="response-min" aria-label={`Minimize item ${item.number}`} onClick={() => onMinimize(item.id)}>
+            <MinimizeIcon />
+          </button>
+        </div>
+        <ResponseLayer parentId={item.id} depth={depth + 1} openIds={openIds} itemsById={itemsById} childrenById={childrenById} activeId={activeId} focusIds={focusIds} onOpen={onOpen} onReply={onReply} onMinimize={onMinimize} renderPlayer={renderPlayer} layers={layers} />
+      </div>,
+    )
+  }
+  flush()
 
   return (
     <section className="response-layer">
       <p className="response-label">Responses:</p>
-      {before.length > 0 && (
-        <div className="response-row" role="list">
-          {before.map((item) => (
-            <ResponseCard key={item.id} item={item} depth={depth} layers={layers} itemsById={itemsById} childrenById={childrenById} activeId={activeId} focusIds={focusIds} onOpen={onOpen} onReply={onReply} />
-          ))}
-        </div>
-      )}
-      {playing && renderPlayer && (
-        <div className="response-stage" data-playing>
-          <div className="response-player">{renderPlayer(playing)}</div>
-          <ResponseLayer parentId={playing.id} depth={depth + 1} itemsById={itemsById} childrenById={childrenById} activeId={activeId} focusIds={focusIds} onOpen={onOpen} onReply={onReply} renderPlayer={renderPlayer} layers={layers} />
-        </div>
-      )}
-      {after.length > 0 && (
-        <div className="response-row" role="list">
-          {after.map((item) => (
-            <ResponseCard key={item.id} item={item} depth={depth} layers={layers} itemsById={itemsById} childrenById={childrenById} activeId={activeId} focusIds={focusIds} onOpen={onOpen} onReply={onReply} />
-          ))}
-        </div>
-      )}
+      {blocks}
       {items.map((item) => {
-        if (item.id === playing?.id) return null
+        if (openIds.has(item.id)) return null
         const nested = repliesTo(childrenById, itemsById, item.id)
         const show = nested.length > 0 && (depth < layers - 1 || containsActive(itemsById, item.id, activeId))
         if (!show) return null
@@ -110,12 +138,14 @@ function ResponseLayer({ parentId, itemsById, childrenById, activeId, focusIds, 
             key={item.id}
             parentId={item.id}
             depth={depth + 1}
+            openIds={openIds}
             itemsById={itemsById}
             childrenById={childrenById}
             activeId={activeId}
             focusIds={focusIds}
             onOpen={onOpen}
             onReply={onReply}
+            onMinimize={onMinimize}
             renderPlayer={renderPlayer}
             layers={layers}
           />

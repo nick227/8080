@@ -142,10 +142,16 @@ export function Feed({ items, onReply, onReact }: {
       else revealItem(node)
     }
     reveal()
+    if (el.closest('.response-player')) {
+      return () => { if (revealedRef.current === id) revealedRef.current = null }
+    }
     const settle = setTimeout(() => {
       if (useUI.getState().activeItemId === id && autoFollowRef.current) reveal()
     }, BRANCH_EXPAND_MS + 50)
-    return () => clearTimeout(settle)
+    return () => {
+      clearTimeout(settle)
+      if (revealedRef.current === id) revealedRef.current = null
+    }
   }, [isPlayback, ui.activeItemId, activeNumber, autoFollow])
 
   // ─── anchored replies ──────────────────────────────────────────────────────
@@ -285,6 +291,7 @@ export function Feed({ items, onReply, onReact }: {
                   focusIds={anchorFocus}
                   onOpen={playResponse}
                   onReply={onReply}
+                  onMinimize={(id) => { if (useUI.getState().activeItemId === id) useUI.getState().setIdle() }}
                   renderPlayer={playerFor}
                 />
               }

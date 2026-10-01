@@ -143,6 +143,7 @@ export function RiverConversation({ item, onJoin }: { item: RiverPostItem; onJoi
             focusIds={focusIds}
             onOpen={(id) => { if (!(ui.state === 'playback' && ui.activeItemId === id)) ui.startPlayback(id, 'branch') }}
             onReply={ui.startReply}
+            onMinimize={(id) => { if (useUI.getState().activeItemId === id) useUI.getState().setIdle() }}
             renderPlayer={(entry) => (
               <Item
                 item={entry}

@@ -43,6 +43,14 @@ export function PreviewIcon() {
   )
 }
 
+export function MinimizeIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+      <path d="M2 6h8" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function ReplyIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
