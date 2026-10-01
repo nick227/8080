@@ -15,7 +15,7 @@ jobs:
         image: mysql:8
         env:
           MYSQL_ROOT_PASSWORD: test_secret
-          MYSQL_DATABASE: testdb
+          MYSQL_DATABASE: voice_chat_test
         ports:
           - 3306:3306
         options: >-
@@ -25,16 +25,18 @@ jobs:
           --health-retries=5
 
     env:
-      DATABASE_URL: mysql://root:test_secret@127.0.0.1:3306/testdb
+      # Server tests wipe every table, so vitest only runs against TEST_DATABASE_URL and
+      # refuses to start if it equals DATABASE_URL. Nothing in CI uses DATABASE_URL itself.
+      DATABASE_URL: mysql://root:test_secret@127.0.0.1:3306/voice_chat_unused
+      TEST_DATABASE_URL: mysql://root:test_secret@127.0.0.1:3306/voice_chat_test
       SESSION_SECRET: ci-session-secret-not-for-production
       NODE_ENV: test
 
     steps:
       - uses: actions/checkout@v4
 
+      # Version comes from package.json "packageManager"; a second pin here makes the action fail.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v4
         with:
@@ -50,14 +52,15 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Generate SDK
-        run: pnpm sdk:generate
-
+      # Compares the committed generated types against the spec. Don't regenerate first,
+      # or the check compares the output with itself and can never fail.
       - name: Check SDK drift
         run: pnpm sdk:check
 
       - name: Push DB schema
         run: pnpm db:push
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
 
       - name: Test
         run: pnpm test

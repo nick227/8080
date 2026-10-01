@@ -1,12 +1,12 @@
 {
   "name": "e2e",
   "version": "1.0.0",
-  "main": "index.js",
+  "private": true,
+  "description": "Playwright browser suites. Not part of `pnpm test`: they need running servers.",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test:e2e": "playwright test"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": ""
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
 }
