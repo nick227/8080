@@ -1,31 +1,45 @@
-import { writeFile, unlink } from 'fs/promises'
-import { mkdirSync } from 'fs'
+import { createWriteStream, mkdirSync } from 'fs'
+import { open, unlink } from 'fs/promises'
 import { resolve } from 'path'
+import type { Readable } from 'stream'
+import { pipeline } from 'stream/promises'
+import { badRequest } from '../lib/errors'
+import { SAFE_KEY, type ByteRange, type StorageProvider } from './storage'
 
-// Files live in apps/server/uploads/ (gitignored) and are served at /uploads/ by plugins/uploads.ts.
-export const UPLOADS_DIR = resolve(__dirname, '../../uploads')
-const BASE_URL = (process.env.PUBLIC_UPLOAD_BASE_URL ?? 'http://localhost:3001/uploads').replace(/\/$/, '')
+// Dev storage: files under apps/server/uploads/ (gitignored). Tests point UPLOADS_DIR
+// at a temp dir so they don't fill the dev folder.
+export const UPLOADS_DIR = resolve(process.env.UPLOADS_DIR ?? resolve(__dirname, '../../uploads'))
 
-// Keys are generated server-side as `<uuid>.<ext>`; anything else is rejected.
-const SAFE_KEY = /^[a-f0-9-]{36}\.[a-z0-9]{2,5}$/
+function pathFor(key: string) {
+  if (!SAFE_KEY.test(key)) throw badRequest('Invalid key')
+  return resolve(UPLOADS_DIR, key)
+}
 
-export class LocalStorageProvider {
+export class LocalStorageProvider implements StorageProvider {
   constructor() {
     mkdirSync(UPLOADS_DIR, { recursive: true })
   }
 
-  async put({ key, buffer }: { key: string; buffer: Buffer }) {
-    if (!SAFE_KEY.test(key)) throw { statusCode: 400, message: 'Invalid key' }
-    await writeFile(resolve(UPLOADS_DIR, key), buffer)
+  async put({ key, body }: { key: string; body: Readable }) {
+    const path = pathFor(key)
+    try {
+      await pipeline(body, createWriteStream(path))
+    } catch (err) {
+      await unlink(path).catch(() => {}) // never leave a partial file behind
+      throw err
+    }
+  }
+
+  async read(key: string, range?: ByteRange) {
+    // Open first so a missing file is a null here, not an error mid-response.
+    const file = await open(pathFor(key), 'r').catch((err) => {
+      if (err.code === 'ENOENT') return null
+      throw err
+    })
+    return file?.createReadStream(range ? { start: range.start, end: range.end } : {}) ?? null
   }
 
   async delete(key: string) {
-    if (!SAFE_KEY.test(key)) throw { statusCode: 400, message: 'Invalid key' }
-    // Idempotent: silently succeed if already gone.
-    await unlink(resolve(UPLOADS_DIR, key)).catch(() => {})
-  }
-
-  urlFor(key: string) {
-    return `${BASE_URL}/${key}`
+    await unlink(pathFor(key)).catch(() => {})
   }
 }

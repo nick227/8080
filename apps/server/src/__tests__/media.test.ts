@@ -4,6 +4,9 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { db } from '@project/db'
 import { parseYouTubeVideoId } from '@project/shared'
 import { setYouTubeLookup } from '../services/YouTubeService'
+import { readdirSync } from 'fs'
+import { UPLOADS_DIR } from '../providers/LocalStorageProvider'
+import { parseRange } from '../lib/range'
 import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, seedRoom, seedItem, multipart } from './helpers'
 
 const app = buildTestApp()
@@ -80,6 +83,119 @@ describe('uploadMedia', () => {
     // A failed attach must not burn an item number.
     const next = await seedItem(app, testUserId, room.id)
     expect(next.number).toBe(2)
+  })
+})
+
+// Every failure path must leave no stored object and no Media row behind.
+async function expectNothingStored(res: Promise<{ statusCode: number; json: () => any }>, status: number, code: string) {
+  const files = readdirSync(UPLOADS_DIR).length
+  const rows = await db.media.count()
+  const r = await res
+  expect(r.statusCode).toBe(status)
+  expect(r.json().code).toBe(code)
+  expect(readdirSync(UPLOADS_DIR).length).toBe(files)
+  expect(await db.media.count()).toBe(rows)
+}
+
+describe('uploadMedia (streamed to storage)', () => {
+  it('stores the exact bytes and records their size', async () => {
+    const body = Buffer.from(Array.from({ length: 70_000 }, (_, i) => i % 251))
+    const media = (await upload(testUserId, { body })).json().data
+    expect(media.size).toBe(body.length)
+    const served = await app.inject({ method: 'GET', url: new URL(media.url).pathname })
+    expect(served.rawPayload.equals(body)).toBe(true)
+  })
+
+  it('over the size limit → 413 FILE_TOO_LARGE, nothing kept', async () => {
+    const big = Buffer.alloc(1024 * 1024 + 1) // vitest sets UPLOAD_MAX_SIZE_MB=1
+    await expectNothingStored(upload(testUserId, { body: big }), 413, 'FILE_TOO_LARGE')
+  })
+
+  it('disallowed type → 415 before anything is written', async () => {
+    await expectNothingStored(upload(testUserId, { type: 'text/html', filename: 'x.html' }), 415, 'UNSUPPORTED_TYPE')
+  })
+
+  it('a bad field after the file removes the already-stored file', async () => {
+    await expectNothingStored(upload(testUserId, { fields: { duration: '-1' } }), 400, 'INVALID_DURATION')
+  })
+
+  it('empty file → 400 EMPTY_FILE, nothing kept', async () => {
+    await expectNothingStored(upload(testUserId, { body: Buffer.alloc(0) }), 400, 'EMPTY_FILE')
+  })
+
+  it('no file part → 400 MISSING_FILE', async () => {
+    const form = multipart([{ name: 'name', value: 'x' }])
+    const res = await app.inject({ method: 'POST', url: '/media', headers: { ...asAuth(testUserId), ...form.headers }, payload: form.payload })
+    expect(res.json().code).toBe('MISSING_FILE')
+  })
+})
+
+describe('GET /uploads/:key', () => {
+  const bytes = Buffer.from('0123456789abcdefghij') // 20 bytes
+  const get = async (headers: Record<string, string> = {}) => {
+    const path = new URL((await upload(testUserId, { body: bytes })).json().data.url).pathname
+    return app.inject({ method: 'GET', url: path, headers })
+  }
+
+  it('serves the whole file with type, length, caching and safety headers', async () => {
+    const res = await get({ origin: 'http://localhost:5173' })
+    expect(res.statusCode).toBe(200)
+    expect(res.rawPayload.equals(bytes)).toBe(true)
+    expect(res.headers).toMatchObject({
+      'content-type': 'audio/webm',
+      'content-length': '20',
+      'accept-ranges': 'bytes',
+      'x-content-type-options': 'nosniff',
+      'cross-origin-resource-policy': 'cross-origin',
+      // Locked: crossOrigin="anonymous" audio in the Web Audio graph needs ACAO.
+      'access-control-allow-origin': 'http://localhost:5173',
+    })
+  })
+
+  it('serves byte ranges (206) — media elements need them to seek', async () => {
+    const mid = await get({ range: 'bytes=5-9' })
+    expect(mid.statusCode).toBe(206)
+    expect(mid.payload).toBe('56789')
+    expect(mid.headers).toMatchObject({ 'content-range': 'bytes 5-9/20', 'content-length': '5' })
+
+    expect((await get({ range: 'bytes=15-' })).payload).toBe('fghij')
+    expect((await get({ range: 'bytes=-3' })).payload).toBe('hij')
+    expect((await get({ range: 'bytes=18-999' })).headers['content-range']).toBe('bytes 18-19/20')
+  })
+
+  it('416 for a range past the end; malformed ranges serve the whole file', async () => {
+    const res = await get({ range: 'bytes=20-' })
+    expect(res.statusCode).toBe(416)
+    expect(res.headers['content-range']).toBe('bytes */20')
+    expect((await get({ range: 'bytes=0-1,4-5' })).statusCode).toBe(200)
+  })
+
+  it('HEAD and If-None-Match send no body', async () => {
+    const url = new URL((await upload(testUserId, { body: bytes })).json().data.url).pathname
+    const head = await app.inject({ method: 'HEAD', url })
+    expect(head.statusCode).toBe(200)
+    expect(head.headers['content-length']).toBe('20')
+    expect(head.payload).toBe('')
+    const cached = await app.inject({ method: 'GET', url, headers: { 'if-none-match': head.headers.etag as string } })
+    expect(cached.statusCode).toBe(304)
+    expect(cached.payload).toBe('')
+  })
+
+  it('404 for unknown or unsafe keys', async () => {
+    for (const url of ['/uploads/00000000-0000-0000-0000-000000000000.webm', '/uploads/..%2F.env', '/uploads/x'])
+      expect((await app.inject({ method: 'GET', url })).statusCode).toBe(404)
+  })
+})
+
+describe('parseRange', () => {
+  it('resolves single ranges against the size', () => {
+    expect(parseRange(undefined, 10)).toBeNull()
+    expect(parseRange('bytes=0-0', 10)).toEqual({ start: 0, end: 0 })
+    expect(parseRange('bytes=-20', 10)).toEqual({ start: 0, end: 9 })
+    expect(parseRange('bytes=-0', 10)).toBe('unsatisfiable')
+    expect(parseRange('bytes=10-', 10)).toBe('unsatisfiable')
+    expect(parseRange('bytes=5-2', 10)).toBeNull()
+    expect(parseRange('items=0-1', 10)).toBeNull()
   })
 })
 

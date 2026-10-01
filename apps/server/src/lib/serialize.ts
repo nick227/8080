@@ -1,7 +1,7 @@
 // Prisma rows → API shapes (packages/api-spec). The only place DB fields are
 // renamed or hidden: kind→type, posterUrl→poster, storageKey→url, no passwordHash.
 import type { Prisma, ReactionType } from '@project/db'
-import { storage } from '../providers/storage'
+import { uploadUrl } from '../providers/storage'
 import { youTubeThumbnailUrl, youTubeWatchUrl } from '@project/shared'
 
 // ─── users ───────────────────────────────────────────────────────────────────
@@ -68,7 +68,7 @@ export function toMedia(media: MediaRow) {
     type: media.kind,
     source: media.source,
     // External media is referenced, never stored: URL/poster derive from the id.
-    url: youtube ? youTubeWatchUrl(media.externalId!) : storage().urlFor(media.storageKey ?? ''),
+    url: youtube ? youTubeWatchUrl(media.externalId!) : uploadUrl(media.storageKey ?? ''),
     mimeType: media.mimeType,
     size: media.size,
     duration: media.duration,

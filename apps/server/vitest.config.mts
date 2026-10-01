@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config'
 import { existsSync, readFileSync } from 'fs'
 import { parseEnv } from 'util'
 import { resolve, dirname } from 'path'
+import { tmpdir } from 'os'
 import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -25,7 +26,9 @@ export default defineConfig({
     env: {
       NODE_ENV: 'test',
       DATABASE_URL: testDb,
-      STORAGE_PROVIDER: 'local',
+      STORAGE_PROVIDER: process.env.STORAGE_PROVIDER ?? 'local', // s3 to run against a bucket
+      UPLOADS_DIR: resolve(tmpdir(), 'voice-chat-test-uploads'), // keep test files out of the dev uploads folder
+      UPLOAD_MAX_SIZE_MB: '1', // small enough to exercise the limit cheaply
       PUBLIC_UPLOAD_BASE_URL: 'http://localhost:3001/uploads',
     },
   },

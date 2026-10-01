@@ -1,30 +1,33 @@
-import { MediaService, type UploadInput } from '../services/MediaService'
+import { MediaService, type StoredFile } from '../services/MediaService'
 import { badRequest } from '../lib/errors'
 import { YouTubeService } from '../services/YouTubeService'
 
 const mediaService = new MediaService()
 const youTubeService = new YouTubeService()
 
-// Reads all parts: the web client appends `file` before `type`/`name`/`duration`,
-// so request.file() (which only sees fields sent before the file) isn't enough.
+// Streams the upload straight into storage. The web client appends `file` before
+// `type`/`name`/`duration`, so the file is stored first and the fields read after it;
+// the Media row is created once all parts are in. Any failure removes the object.
 export async function uploadMedia(request: any, reply: any) {
-  let file: Pick<UploadInput, 'buffer' | 'truncated' | 'mimetype' | 'filename'> | undefined
+  let stored: StoredFile | undefined
   const fields: Record<string, string> = {}
 
-  for await (const part of request.parts()) {
-    if (part.type === 'file') {
-      const buffer = await part.toBuffer()
-      if (part.fieldname === 'file' && !file) {
-        file = { buffer, truncated: part.file.truncated, mimetype: part.mimetype, filename: part.filename }
+  try {
+    for await (const part of request.parts()) {
+      if (part.type === 'file') {
+        if (part.fieldname === 'file' && !stored) stored = await mediaService.store(part)
+        else part.file.resume() // not ours: drain it
+      } else if (typeof part.value === 'string') {
+        fields[part.fieldname] = part.value
       }
-    } else if (typeof part.value === 'string') {
-      fields[part.fieldname] = part.value
     }
+    if (!stored) throw badRequest('Missing "file" field', 'MISSING_FILE')
+    const media = await mediaService.create(request.user.id, stored, { name: fields.name, duration: fields.duration })
+    return reply.status(201).send({ data: media })
+  } catch (err) {
+    if (stored) await mediaService.discard(stored)
+    throw err
   }
-
-  if (!file) throw badRequest('Missing "file" field', 'MISSING_FILE')
-  const media = await mediaService.upload(request.user.id, { ...file, name: fields.name, duration: fields.duration })
-  return reply.status(201).send({ data: media })
 }
 
 // External YouTube video: referenced by canonical id, never downloaded.

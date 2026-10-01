@@ -10,21 +10,22 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1144.0",
+    "@aws-sdk/lib-storage": "^3.1144.0",
     "@fastify/cookie": "^9.0.0",
     "@fastify/cors": "^9.0.0",
     "@fastify/multipart": "^8.0.0",
     "@fastify/rate-limit": "^9.0.0",
-    "@fastify/static": "^7.0.0",
     "@fastify/swagger": "^8.0.0",
     "@fastify/swagger-ui": "^3.0.0",
     "@project/db": "workspace:*",
+    "@project/shared": "workspace:*",
     "bcryptjs": "^2.4.3",
     "fastify": "^4.0.0",
     "fastify-openapi-glue": "^4.0.0",
     "fastify-plugin": "^4.0.0",
     "js-yaml": "^4.0.0",
-    "tsx": "^4.0.0",
-    "@project/shared": "workspace:*"
+    "tsx": "^4.0.0"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.0.0",
