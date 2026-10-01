@@ -53,9 +53,15 @@ function scrollTarget(scroller: Element | null): Element {
   return scroller ?? document.scrollingElement ?? document.documentElement
 }
 
-// The picture itself, not the caption and actions under it.
+// This item's own picture. Nested responses sit later in the body and must not win.
 function playingFrame(child: HTMLElement): HTMLElement {
-  return child.querySelector<HTMLElement>('.yt-frame, .media-container') ?? child
+  const body = child.querySelector(':scope > .item-body') ?? child
+  for (const node of body.children) {
+    if (node.classList.contains('response-layer')) break
+    const frame = node.matches('.yt-frame, .media-container') ? node : node.querySelector('.yt-frame, .media-container')
+    if (frame instanceof HTMLElement) return frame
+  }
+  return child
 }
 
 // Open band between the crumb and the instrument. The video's centre lands here.

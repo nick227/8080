@@ -6,13 +6,14 @@ import { useData, selectAllItems, type ItemsById } from '../state/data'
 import { useUI } from '../state/ui'
 import { ancestorsOf, branchOf } from '../utils/graph'
 import { ResponseMap } from './ResponseMap'
-import { itemElement, revealItem, revealInSequence, directionTo, isBackInView, haltFollowScroll } from '../utils/reveal'
+import { itemElement, revealInSequence, directionTo, isBackInView, haltFollowScroll } from '../utils/reveal'
 import { Control } from '../components/Control'
 import type { Anchor } from '../utils/anchor'
 import { motion, AnimatePresence, type Variants } from 'motion/react'
+import { Instrument } from './Instrument'
+import type { SendInput } from '../api/types'
 
 const label = (n: number) => String(n).padStart(3, '0')
-const BRANCH_EXPAND_MS = 400
 const END_HOLD_MS = 1500
 const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' '])
 
@@ -39,10 +40,11 @@ function nextInTraversal(mode: 'chronological' | 'branch', currentId: string): I
 const isTyping = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
 
-export function Feed({ items, onReply, onReact }: {
+export function Feed({ items, onReply, onReact, onSend }: {
   items: ItemType[]
   onReply: (id: string) => void
   onReact: (id: string, type: ReactionType) => void
+  onSend: (input: SendInput) => Promise<void>
 }) {
   const data = useData()
   const ui = useUI()
@@ -116,13 +118,14 @@ export function Feed({ items, onReply, onReact }: {
 
   const returnToPlayback = () => {
     setAutoFollow(true)
-    if (activeNumber != null) revealItem(itemElement(activeNumber))
+    if (activeNumber != null) {
+      const node = itemElement(activeNumber)
+      if (node) revealInSequence(node)
+    }
   }
 
   // ─── follow the playhead ───────────────────────────────────────────────────
-  // Reveal each newly active item once (both axes: desktop timeline + mobile feed).
-  // If its branch is still mounting, this re-runs when expandedIds changes; a
-  // second reveal after the expand animation corrects for the shifted layout.
+  // One short scroll per newly active item, aimed at that item's own picture.
   const revealedRef = useRef<string | null>(null)
   useEffect(() => {
     if (!isPlayback) {
@@ -135,23 +138,8 @@ export function Feed({ items, onReply, onReact }: {
     if (!el) return
     const id = ui.activeItemId
     revealedRef.current = id
-    const reveal = () => {
-      const node = itemElement(activeNumber)
-      if (!node) return
-      if (node.closest('.response-player')) revealInSequence(node)
-      else revealItem(node)
-    }
-    reveal()
-    if (el.closest('.response-player')) {
-      return () => { if (revealedRef.current === id) revealedRef.current = null }
-    }
-    const settle = setTimeout(() => {
-      if (useUI.getState().activeItemId === id && autoFollowRef.current) reveal()
-    }, BRANCH_EXPAND_MS + 50)
-    return () => {
-      clearTimeout(settle)
-      if (revealedRef.current === id) revealedRef.current = null
-    }
+    revealInSequence(el)
+    return () => { if (revealedRef.current === id) revealedRef.current = null }
   }, [isPlayback, ui.activeItemId, activeNumber, autoFollow])
 
   // ─── anchored replies ──────────────────────────────────────────────────────
@@ -260,7 +248,6 @@ export function Feed({ items, onReply, onReact }: {
             anchors={anchorsByParent.get(entry.id)}
             onAnchorSelect={(ids) => selectAnchor(entry.id, ids)}
             anchorFocused={anchorFocus.has(entry.id)}
-            slim
           />
         )
 
