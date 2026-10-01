@@ -10,8 +10,6 @@ import { itemElement, revealInSequence, directionTo, isBackInView, haltFollowScr
 import { Control } from '../components/Control'
 import type { Anchor } from '../utils/anchor'
 import { motion, AnimatePresence, type Variants } from 'motion/react'
-import { Instrument } from './Instrument'
-import type { SendInput } from '../api/types'
 
 const label = (n: number) => String(n).padStart(3, '0')
 const END_HOLD_MS = 1500
@@ -40,17 +38,20 @@ function nextInTraversal(mode: 'chronological' | 'branch', currentId: string): I
 const isTyping = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
 
-export function Feed({ items, onReply, onReact, onSend }: {
+export function Feed({ items, onReply, onReact }: {
   items: ItemType[]
   onReply: (id: string) => void
   onReact: (id: string, type: ReactionType) => void
-  onSend: (input: SendInput) => Promise<void>
 }) {
   const data = useData()
   const ui = useUI()
   const [autoFollow, setAutoFollow] = useState(true)
   const autoFollowRef = useRef(autoFollow)
   autoFollowRef.current = autoFollow
+  // A click to play often lands while the previous wheel gesture is still coasting.
+  // That coast must not cancel the scroll that brings the picture into place.
+  const detachHold = useRef(0)
+  const holdDetach = () => { detachHold.current = performance.now() + 400 }
   const [returnDir, setReturnDir] = useState<ReturnType<typeof directionTo>>(null)
   const playbackMode = ui.playbackMode ?? 'chronological'
   const isPlayback = ui.state === 'playback'
@@ -77,6 +78,7 @@ export function Feed({ items, onReply, onReact, onSend }: {
       return
     }
     const detach = () => {
+      if (performance.now() < detachHold.current) return
       if (autoFollowRef.current) haltFollowScroll(document.querySelector('.feed'))
       setAutoFollow(false)
     }
@@ -117,11 +119,8 @@ export function Feed({ items, onReply, onReact, onSend }: {
   }, [isPlayback, autoFollow, activeNumber])
 
   const returnToPlayback = () => {
+    holdDetach()
     setAutoFollow(true)
-    if (activeNumber != null) {
-      const node = itemElement(activeNumber)
-      if (node) revealInSequence(node)
-    }
   }
 
   // ─── follow the playhead ───────────────────────────────────────────────────
@@ -168,6 +167,7 @@ export function Feed({ items, onReply, onReact, onSend }: {
 
   // ─── continuous playback ───────────────────────────────────────────────────
   const handlePlayOverride = (startId: string, followReplies: boolean) => {
+    holdDetach()
     setAutoFollow(true) // an explicit play re-attaches the view
     ui.startPlayback(startId, followReplies ? 'branch' : 'chronological')
   }

@@ -17,13 +17,12 @@ import { resolveMediaIds } from '../api/sendMedia'
 import { useRoomRef } from '../app/useRoomRef'
 import { StageChrome } from '../components/StageChrome'
 import { useShell } from '../state/shell'
-import { ReplyInstrument } from '../components/ReplyInstrument'
 
 const REPLY_STATES = new Set(['replying', 'composing', 'recording', 'reviewing'])
 
 export function Room({ roomId: roomRef }: { roomId: string }) {
   const ui = useUI()
-  const conversationOpen = useShell((s) => s.surface) === 'conversation'
+  const conversationOpen = useShell((s) => s.surface) === 'conversation' || ui.state === 'replying' || ui.state === 'recording' || ui.state === 'composing' || ui.state === 'reviewing'
   const items = useData(useShallow(selectAllItems))
   const replaceItems = useData((s) => s.replaceItems) // stable action; never a dependency on store data
 
@@ -131,19 +130,14 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
             exit={{ opacity: 0, y: 12 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           >
-            <Feed items={items} onReply={(id) => { ui.startReply(id); useShell.getState().openRecord() }} onReact={onReact} />
+            <Feed items={items} onReply={(id) => { ui.startReply(id); }} onReact={onReact} onSend={send} />
           </motion.div>
         )}
       </AnimatePresence>
+      
       <Instrument onSend={send} />
+      
       <ReplyTether />
-      <ReplyInstrument 
-        isActive={REPLY_STATES.has(ui.state) && !!ui.activeItemId}
-        targetId={ui.activeItemId ?? undefined}
-        targetTimestamp={ui.replyAnchorMs != null ? new Date(ui.replyAnchorMs).toISOString().substr(14, 5) : undefined}
-        onCancel={() => ui.setIdle()}
-        onSend={() => { ui.setIdle(); send({ text: 'Test from ReplyInstrument' }); }}
-      />
     </Panel>
   )
 }

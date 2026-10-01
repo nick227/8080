@@ -25,7 +25,7 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px sol
 .header, .footer { display: flex; align-items: flex-start; justify-content: space-between; padding-top: 10px; font-family: var(--mono); }
 .header h1 { margin: 8px 0 0; font-size: clamp(28px, 4vw, 56px); font-weight: 500; letter-spacing: -.03em; line-height: 1.1; }
 .eyebrow, .mode-label, .footer, .ref, .reply-strip, .status { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
-.feed { padding: calc(var(--mast) + var(--crumb-h) + 16px) 0 80px; }
+.feed { padding: calc(var(--mast) + var(--crumb-h) + 16px) 0 80px; overflow-anchor: none; }
 .item { display: block; width: 100%; content-visibility: auto; contain-intrinsic-size: 220px; border: 1px solid var(--line); border-radius: 0px; padding: 24px; }
 .item:has(.response-stage) { content-visibility: visible; }
 .item-no { font-family: var(--mono); font-size: 16px; color: var(--muted); padding-top: 2px; }
@@ -56,7 +56,10 @@ a.media-view.file::before { content: 'FILE  '; color: var(--muted); }
 audio.media-view { width: min(520px, 100%); }
 
 .ref { margin-top: 10px; color: var(--muted); }
-.control-zone { position: fixed; inset: 0; z-index: 25; display: grid; place-items: center; background: var(--bg); }
+.control-inline { position: relative; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 25; padding: 24px 0; }
+.control-inline > * { pointer-events: auto; }
+.control-hud { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; display: flex; flex-direction: column; align-items: center; padding-bottom: 32px; padding-top: 32px; background: var(--bg); border-top: 1px solid var(--line); pointer-events: auto; }
+.control-hud > * { pointer-events: auto; }
 /* ↑ centred without `transform`: it's a motion layoutId element, and motion owns
    `transform` for its layout animation (a translateX here gets overwritten). */
 .control-stack { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; }
@@ -178,7 +181,7 @@ audio.media-view { width: min(520px, 100%); }
 
 /* ─── stage: masthead, lobby, account, device ──────────────────────────── */
 .stage { padding-top: 0; }
-.masthead { position: fixed; top: 0; left: 0; right: 0; z-index: 40; height: var(--mast); display: flex; justify-content: center; align-items: center; padding: 0 14px; pointer-events: none; }
+.masthead { position: fixed; top: 0; left: 0; right: 0; z-index: 40; height: var(--mast); display: flex; justify-content: center; align-items: center; padding: 0 14px; pointer-events: none; background: var(--panel) }
 .masthead > * { pointer-events: auto; }
 .masthead .mast-icon:last-child { justify-self: end; }
 .mast { margin: 0; justify-self: center; display: inline-flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: .46em; padding-left: .46em; color: var(--ink); }
@@ -203,7 +206,7 @@ audio.media-view { width: min(520px, 100%); }
 .field { width: 100%; background: transparent; border: 0; border-bottom: 1px solid var(--line); color: var(--ink); padding: 10px 0; font-size: 16px; outline: none; border-radius: 0; }
 .field:focus { border-bottom-color: var(--ink); }
 .plain-select { background: transparent; color: var(--ink); border: 0; outline: none; font-family: var(--mono); font-size: 12px; letter-spacing: .06em; }
-.crumb { position: fixed; top: var(--mast); left: 0; right: 0; z-index: 32; height: var(--crumb-h); display: flex; align-items: center; justify-content: flex-start; gap: 10px; padding-inline: var(--edge); background: var(--bg); font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.crumb { position: relative; top: var(--mast); left: 0; right: 0; z-index: 32; width: 100%; height: var(--crumb-h); display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--bg); font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .crumb a, .crumb button { color: inherit; }
 .crumb a:hover, .crumb button:hover, .crumb a:focus-visible, .crumb button:focus-visible { color: var(--ink); }
 .crumb a[aria-current="page"] { color: var(--ink); }

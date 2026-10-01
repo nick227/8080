@@ -12,7 +12,7 @@ export function revealItem(el: Element | null) {
 }
 
 function verticalScroller(el: Element): Element | null {
-  for (let node = el.parentElement; node; node = node.parentElement) {
+  for (let node = el.parentElement; node && node !== document.body && node !== document.documentElement; node = node.parentElement) {
     const y = getComputedStyle(node).overflowY
     if ((y === 'auto' || y === 'scroll') && node.scrollHeight > node.clientHeight + 2) return node
   }
@@ -64,29 +64,40 @@ function playingFrame(child: HTMLElement): HTMLElement {
   return child
 }
 
-// Open band between the crumb and the instrument. The video's centre lands here.
-function viewMiddle(scroller: Element | null): number {
+// Open band between the crumb and the instrument.
+function bandOf(scroller: Element | null) {
   const bounds = scroller?.getBoundingClientRect()
-  const top = Math.max(bounds?.top ?? 0, document.querySelector('.crumb')?.getBoundingClientRect().bottom ?? 0)
-  const bottom = Math.min(bounds?.bottom ?? window.innerHeight, document.querySelector('.instrument-floor')?.getBoundingClientRect().top ?? window.innerHeight)
-  return (top + bottom) / 2
+  const mast = document.querySelector('.masthead')?.getBoundingClientRect().bottom ?? 0
+  const crumbBottom = document.querySelector('.crumb')?.getBoundingClientRect().bottom ?? 0
+  const top = Math.max(bounds?.top ?? 0, mast, crumbBottom)
+  const floor = document.querySelector('.instrument-floor')?.getBoundingClientRect().top ?? window.innerHeight
+  const bottom = Math.min(bounds?.bottom ?? window.innerHeight, floor)
+  return { top, bottom }
 }
 
 function placeInMiddle(child: HTMLElement) {
   const scroller = verticalScroller(child)
+  const target = scrollTarget(scroller)
   const frame = playingFrame(child)
   const rect = frame.getBoundingClientRect()
-  const delta = rect.top + rect.height / 2 - viewMiddle(scroller)
+  const band = bandOf(scroller)
+  const max = Math.max(0, target.scrollHeight - target.clientHeight)
+  let delta = rect.top + rect.height / 2 - (band.top + band.bottom) / 2
+  const next = target.scrollTop + delta
+  // The original picture has nothing above it, so the middle is unreachable.
+  // Park it just under the header instead of easing toward a scroll that clamps.
+  if (next < 0) delta = rect.top - (band.top + 12)
+  else if (next > max) delta = max - target.scrollTop
   const feed = child.closest('.feed')
   let left = 0
-  if (feed) {
+  if (feed && feed !== target) {
     const box = feed.getBoundingClientRect()
     const edge = child.getBoundingClientRect()
     if (edge.left < box.left + 8) left = edge.left - box.left - 8
     else if (edge.right > box.right - 8) left = edge.right - box.right + 8
   }
-  if (feed && feed !== scroller && left) scrollQuick(feed, 0, left)
-  if (Math.abs(delta) > 8) scrollQuick(scrollTarget(scroller), delta, feed === scroller ? left : 0)
+  if (feed && feed !== target && left) scrollQuick(feed, 0, left)
+  if (Math.abs(delta) > 8) scrollQuick(target, delta, feed === target ? left : 0)
 }
 
 // After a response finishes opening, put the playing picture in the middle.
@@ -144,7 +155,7 @@ export function haltFollowScroll(feed: Element | null) {
 // Where an element sits relative to what's visible — used to point "return" at it.
 export function directionTo(el: Element | null): '↑' | '↓' | '←' | '→' | null {
   if (!el) return null
-  const r = el.getBoundingClientRect()
+  const r = (el instanceof HTMLElement ? playingFrame(el) : el).getBoundingClientRect()
   const v = visibleBounds(el)
   if (r.right <= v.left) return '←'
   if (r.left >= v.right) return '→'
@@ -157,7 +168,7 @@ export function directionTo(el: Element | null): '↑' | '↓' | '←' | '→' |
 // top or bottom edge is within the middle band of the screen).
 export function isBackInView(el: Element | null): boolean {
   if (!el) return false
-  const r = el.getBoundingClientRect()
+  const r = (el instanceof HTMLElement ? playingFrame(el) : el).getBoundingClientRect()
   const v = visibleBounds(el)
   const cx = (r.left + r.right) / 2
   const band = (v.bottom - v.top) * 0.2
