@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react'
+import { memo, useMemo, useState, useEffect, useRef } from 'react'
 import type { Item as ItemType, ReactionType } from '../api/types'
 import { Item } from '../components/Item'
 import { Panel } from '../components/Panel'
@@ -38,12 +38,12 @@ function nextInTraversal(mode: 'chronological' | 'branch', currentId: string): I
 const isTyping = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
 
-export function Feed({ items, onReply, onReact }: {
-  items: ItemType[]
+export function Feed({ onReply, onReact }: {
   onReply: (id: string) => void
   onReact: (id: string, type: ReactionType) => void
 }) {
   const data = useData()
+  const items = data.orderedItems
   const ui = useUI()
   const [autoFollow, setAutoFollow] = useState(true)
   const autoFollowRef = useRef(autoFollow)
@@ -142,18 +142,6 @@ export function Feed({ items, onReply, onReact }: {
   }, [isPlayback, ui.activeItemId, activeNumber, autoFollow])
 
   // ─── anchored replies ──────────────────────────────────────────────────────
-  // Moments in a parent's media that replies attach to (parentId → anchors).
-  const anchorsByParent = useMemo(() => {
-    const map = new Map<string, Anchor[]>()
-    for (const i of items) {
-      if (!i.parentId || i.anchorStartMs == null) continue
-      const list = map.get(i.parentId)
-      if (list) list.push({ id: i.id, ms: i.anchorStartMs })
-      else map.set(i.parentId, [{ id: i.id, ms: i.anchorStartMs }])
-    }
-    return map
-  }, [items])
-
   // Tapping a marker opens that local branch and shows the replies attached there.
   // No playback change. Focus clears as soon as the UI moves on (play, reply, …).
   const [anchorFocus, setAnchorFocus] = useState<Set<string>>(new Set())
@@ -204,102 +192,45 @@ export function Feed({ items, onReply, onReact }: {
     return new Set(list.slice(idx + 1).filter(hasContent).slice(0, 2).map((i) => i.id))
   }, [isPlayback, ui.activeItemId, playbackMode, items, data.itemsById])
 
-  const containerVariants: Variants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.15,
-        delayChildren: 0.2
-      }
-    }
+  // Threads are memoised; they reach Feed's latest handlers through one stable object.
+  const actionsRef = useRef<ThreadActions>(null!)
+  actionsRef.current = {
+    onReply,
+    onReact,
+    onEnded: handleEnded,
+    onPlayOverride: handlePlayOverride,
+    onAnchorSelect: selectAnchor,
+    onOpenResponse: (id) => {
+      if (useUI.getState().state === 'playback' && useUI.getState().activeItemId === id) return
+      setAutoFollow(true)
+      useUI.getState().startPlayback(id, 'branch')
+    },
   }
-
-  const itemVariants: Variants = {
-    hidden: { opacity: 0, y: 40 },
-    show: { 
-      opacity: 1, 
-      y: 0,
-      transition: { duration: 1.2, ease: [0.22, 1, 0.36, 1] } 
-    }
-  }
+  const actions = useMemo<ThreadActions>(() => ({
+    onReply: (id) => actionsRef.current.onReply(id),
+    onReact: (id, type) => actionsRef.current.onReact(id, type),
+    onEnded: (id) => actionsRef.current.onEnded(id),
+    onPlayOverride: (id, follow) => actionsRef.current.onPlayOverride(id, follow),
+    onAnchorSelect: (parentId, ids) => actionsRef.current.onAnchorSelect(parentId, ids),
+    onOpenResponse: (id) => actionsRef.current.onOpenResponse(id),
+  }), [])
 
   return (
-    <Panel as={motion.section} className="feed" aria-live="polite" variants={containerVariants} initial="hidden" animate="show">
-      {roots.map(root => {
+    <Panel as={motion.section} className="feed" aria-live="polite" variants={CONTAINER_VARIANTS} initial="hidden" animate="show">
+      {roots.map((root) => {
         const branch = branchOf(data.itemsById, data.childrenById, root.id)
-        const replyCount = branch.length - 1
-        const playingId = ui.state === 'playback' && ui.activeItemId && branch.some((i) => i.id === ui.activeItemId && i.id !== root.id) ? ui.activeItemId : undefined
-        const playResponse = (id: string) => {
-          if (ui.state === 'playback' && ui.activeItemId === id) return
-          setAutoFollow(true)
-          ui.startPlayback(id, 'branch')
-        }
-        const playerFor = (entry: ItemType) => (
-          <Item
-            item={entry}
-            parentNumber={entry.parentId !== root.id ? numberById.get(entry.parentId!) : undefined}
-            replyCount={branchOf(data.itemsById, data.childrenById, entry.id).length - 1}
-            onReply={onReply}
-            onReact={onReact}
-            onEnded={() => handleEnded(entry.id)}
-            onPlayOverride={(follow) => handlePlayOverride(entry.id, follow)}
-            isUpcoming={upcomingIds.has(entry.id)}
-            anchors={anchorsByParent.get(entry.id)}
-            onAnchorSelect={(ids) => selectAnchor(entry.id, ids)}
-            anchorFocused={anchorFocus.has(entry.id)}
-          />
-        )
-
+        const inBranch = (id: string | undefined) => !!id && branch.some((i) => i.id === id)
         return (
-          <motion.div 
-            key={root.id} 
-            className="thread"
-            variants={itemVariants}
-          >
-            <Item
-              item={root}
-              parentNumber={undefined}
-              replyCount={replyCount}
-              onReply={onReply}
-              onReact={onReact}
-              onEnded={() => handleEnded(root.id)}
-              onPlayOverride={(follow) => handlePlayOverride(root.id, follow)}
-              isUpcoming={upcomingIds.has(root.id)}
-              anchors={anchorsByParent.get(root.id)}
-              onAnchorSelect={(ids) => selectAnchor(root.id, ids)}
-              anchorFocused={anchorFocus.has(root.id)}
-              responses={
-                <ResponseMap
-                  parentId={root.id}
-                  itemsById={data.itemsById}
-                  childrenById={data.childrenById}
-                  activeId={playingId}
-                  focusIds={anchorFocus}
-                  onOpen={playResponse}
-                  onReply={onReply}
-                  onMinimize={(id) => { if (useUI.getState().activeItemId === id) useUI.getState().setIdle() }}
-                  renderPlayer={playerFor}
-                />
-              }
-            />
-            
-            <AnimatePresence>
-              {(ui.state === 'recording' || ui.state === 'composing') && ui.activeItemId && branch.some(i => i.id === ui.activeItemId) && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, height: 'auto', scale: 1 }}
-                  exit={{ opacity: 0, height: 0, scale: 0.9 }}
-                  transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                  style={{ marginBottom: 32 }}
-                >
-                  <div style={{ height: 120, width: '100%', maxWidth: 400, borderRadius: 24, border: '1px dashed var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
-                    <div style={{ fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '0.08em' }}>[ ◉ /// ]</div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+          <Thread
+            key={root.id}
+            root={root}
+            branch={branch}
+            playingId={ui.state === 'playback' && ui.activeItemId !== root.id && inBranch(ui.activeItemId) ? ui.activeItemId : undefined}
+            composingHere={(ui.state === 'recording' || ui.state === 'composing') && inBranch(ui.activeItemId)}
+            upcomingKey={branch.filter((i) => upcomingIds.has(i.id)).map((i) => i.id).join(' ')}
+            anchorFocusKey={branch.filter((i) => anchorFocus.has(i.id)).map((i) => i.id).join(' ')}
+            actions={actions}
+          />
         )
       })}
 
@@ -338,3 +269,120 @@ export function Feed({ items, onReply, onReact }: {
     </Panel>
   )
 }
+
+// ─── threads ─────────────────────────────────────────────────────────────────
+// One root and its replies. Memoised: a live update or a playback step re-renders
+// only the threads it touches, not the whole room. Everything a thread shows comes
+// from its own items plus a few primitives derived from UI state.
+
+const CONTAINER_VARIANTS: Variants = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.15, delayChildren: 0.2 } },
+}
+
+const THREAD_VARIANTS: Variants = {
+  hidden: { opacity: 0, y: 40 },
+  show: { opacity: 1, y: 0, transition: { duration: 1.2, ease: [0.22, 1, 0.36, 1] } },
+}
+
+type ThreadActions = {
+  onReply: (id: string) => void
+  onReact: (id: string, type: ReactionType) => void
+  onEnded: (id: string) => void
+  onPlayOverride: (id: string, followReplies: boolean) => void
+  onAnchorSelect: (parentId: string, ids: string[]) => void
+  onOpenResponse: (id: string) => void
+}
+
+type ThreadProps = {
+  root: ItemType
+  branch: ItemType[] // root first, then replies depth-first
+  playingId?: string // a reply in this thread that is playing
+  composingHere: boolean
+  upcomingKey: string // ids in this thread queued next (space-separated)
+  anchorFocusKey: string // ids in this thread focused from an anchor marker
+  actions: ThreadActions
+}
+
+function sameThread(a: ThreadProps, b: ThreadProps) {
+  return a.root === b.root
+    && a.playingId === b.playingId
+    && a.composingHere === b.composingHere
+    && a.upcomingKey === b.upcomingKey
+    && a.anchorFocusKey === b.anchorFocusKey
+    && a.actions === b.actions
+    && a.branch.length === b.branch.length
+    && a.branch.every((item, i) => item === b.branch[i])
+}
+
+const Thread = memo(function Thread({ root, branch, playingId, composingHere, upcomingKey, anchorFocusKey, actions }: ThreadProps) {
+  const upcoming = new Set(upcomingKey ? upcomingKey.split(' ') : [])
+  const anchorFocus = new Set(anchorFocusKey ? anchorFocusKey.split(' ') : [])
+  const numberById = new Map(branch.map((i) => [i.id, i.number]))
+  const anchorsByParent = new Map<string, Anchor[]>()
+  for (const i of branch) {
+    if (!i.parentId || i.anchorStartMs == null) continue
+    const list = anchorsByParent.get(i.parentId) ?? []
+    list.push({ id: i.id, ms: i.anchorStartMs })
+    anchorsByParent.set(i.parentId, list)
+  }
+  // Read at render time: this thread re-renders whenever one of its own items changes.
+  const { itemsById, childrenById } = useData.getState()
+
+  const itemProps = (entry: ItemType) => ({
+    item: entry,
+    onReply: actions.onReply,
+    onReact: actions.onReact,
+    onEnded: () => actions.onEnded(entry.id),
+    onPlayOverride: (follow: boolean) => actions.onPlayOverride(entry.id, follow),
+    isUpcoming: upcoming.has(entry.id),
+    anchors: anchorsByParent.get(entry.id),
+    onAnchorSelect: (ids: string[]) => actions.onAnchorSelect(entry.id, ids),
+    anchorFocused: anchorFocus.has(entry.id),
+  })
+
+  return (
+    <motion.div className="thread" variants={THREAD_VARIANTS}>
+      <Item
+        {...itemProps(root)}
+        parentNumber={undefined}
+        replyCount={branch.length - 1}
+        responses={
+          <ResponseMap
+            parentId={root.id}
+            itemsById={itemsById}
+            childrenById={childrenById}
+            activeId={playingId}
+            focusIds={anchorFocus}
+            onOpen={actions.onOpenResponse}
+            onReply={actions.onReply}
+            onMinimize={(id) => { if (useUI.getState().activeItemId === id) useUI.getState().setIdle() }}
+            renderPlayer={(entry) => (
+              <Item
+                {...itemProps(entry)}
+                parentNumber={entry.parentId !== root.id ? numberById.get(entry.parentId!) : undefined}
+                replyCount={branchOf(itemsById, childrenById, entry.id).length - 1}
+              />
+            )}
+          />
+        }
+      />
+
+      <AnimatePresence>
+        {composingHere && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, scale: 0.9 }}
+            animate={{ opacity: 1, height: 'auto', scale: 1 }}
+            exit={{ opacity: 0, height: 0, scale: 0.9 }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            style={{ marginBottom: 32 }}
+          >
+            <div style={{ height: 120, width: '100%', maxWidth: 400, borderRadius: 24, border: '1px dashed var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '0.08em' }}>[ ◉ /// ]</div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
+}, sameThread)

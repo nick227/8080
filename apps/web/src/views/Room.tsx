@@ -1,10 +1,9 @@
-import { useEffect, useLayoutEffect } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { type ReactionType, type SendInput } from '../api/types'
 import { Feed } from '../features/Feed'
 import { Instrument } from '../features/Instrument'
 import { useUI } from '../state/ui'
-import { useData, selectAllItems } from '../state/data'
-import { useShallow } from 'zustand/react/shallow'
+import { useData } from '../state/data'
 import { Panel } from '../components/Panel'
 import { Label } from '../components/Label'
 import { Control } from '../components/Control'
@@ -23,7 +22,6 @@ const REPLY_STATES = new Set(['replying', 'composing', 'recording', 'reviewing']
 export function Room({ roomId: roomRef }: { roomId: string }) {
   const ui = useUI()
   const conversationOpen = useShell((s) => s.surface) === 'conversation' || ui.state === 'replying' || ui.state === 'recording' || ui.state === 'composing' || ui.state === 'reviewing'
-  const items = useData(useShallow(selectAllItems))
   const replaceItems = useData((s) => s.replaceItems) // stable action; never a dependency on store data
 
   // /room/:ref → real room id (dev resolver handles "demo" and ?invite=)
@@ -31,14 +29,9 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const roomId = resolved.data
   const room = useRoom(roomId)
 
-  // SDK → normalized store. The SDK cache is the source of truth (fetches, mutations
-  // and SSE events all land there); mirror it into state/data.ts only when the query
-  // data actually changes (dataUpdatedAt), so replacing the store can't re-trigger this.
-  const roomItems = useRoomItems(roomId)
-  useEffect(() => {
-    if (roomItems.isSuccess) replaceItems(roomItems.items.map(toItem))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomItems.dataUpdatedAt, roomItems.isSuccess, replaceItems])
+  // Room items are mirrored into the store by <RoomItemsSync> (below), so live
+  // updates re-render the feed, not this animated shell.
+  const [itemsError, setItemsError] = useState<string>()
   useEffect(() => () => replaceItems([]), [roomId, replaceItems]) // don't leak items across rooms
   useLayoutEffect(() => {
     if (!roomId) return
@@ -72,7 +65,8 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const react = useSetReaction()
 
   const onReact = (itemId: string, type: ReactionType) => {
-    const current = items.find((i) => i.id === itemId)?.reactions.find((r) => r.type === type)
+    // Read on demand: Room doesn't subscribe to items, so live updates don't re-render it.
+    const current = useData.getState().itemsById[itemId]?.reactions.find((r) => r.type === type)
     react.mutate({ itemId, type, on: !current?.reacted }) // toggle the caller's own reaction
   }
 
@@ -110,13 +104,14 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
 
   return (
     <Panel as={motion.main} variant="shell">
+      {roomId && <RoomItemsSync roomId={roomId} onError={setItemsError} />}
       <Blobs count={room.data?.memberCount ?? 3} />
       <Anchors />
       <StageChrome />
 
-      {(ui.error || resolved.error || roomItems.error) && (
+      {(ui.error || resolved.error || itemsError) && (
         <Label variant="status" className="error" role="alert">
-          {ui.error ?? (resolved.error ?? roomItems.error)?.message ?? 'Unable to load'}
+          {ui.error ?? resolved.error?.message ?? itemsError ?? 'Unable to load'}
           <Control onClick={() => ui.setError(undefined)}>×</Control>
         </Label>
       )}
@@ -130,7 +125,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
             exit={{ opacity: 0, y: 12 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           >
-            <Feed items={items} onReply={(id) => { ui.startReply(id); }} onReact={onReact} />
+            <Feed onReply={(id) => { ui.startReply(id); }} onReact={onReact} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -142,3 +137,18 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   )
 }
 
+// SDK → normalized store. The SDK cache is the source of truth (fetches, mutations
+// and SSE events all land there); mirror it into state/data.ts only when the query
+// data actually changes (dataUpdatedAt), so replacing the store can't re-trigger this.
+// Its own component: React Query re-renders whoever holds the query on every update.
+function RoomItemsSync({ roomId, onError }: { roomId: string; onError: (message?: string) => void }) {
+  const roomItems = useRoomItems(roomId)
+  const replaceItems = useData((s) => s.replaceItems)
+  useEffect(() => {
+    if (roomItems.isSuccess) replaceItems(roomItems.items.map(toItem))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomItems.dataUpdatedAt, roomItems.isSuccess, replaceItems])
+  const message = roomItems.error?.message
+  useEffect(() => onError(message), [message, onError])
+  return null
+}
