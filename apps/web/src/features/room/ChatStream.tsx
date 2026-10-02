@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { memo, useRef, useState } from 'react'
 import type { Media, MediaType } from '../../api/types'
 import { Media as MediaView } from '../../components/Media'
 import { getWaveform } from '../../components/Item'
@@ -84,7 +84,8 @@ function DeleteLink({ onDelete }: { onDelete: () => void }) {
   )
 }
 
-function Row({ row }: { row: StreamRow }) {
+// Memoized: a live event changes one row object; the rest keep their identity (Room caches them).
+const Row = memo(function Row({ row }: { row: StreamRow }) {
   const ref = useRef<HTMLElement>(null)
   const [playing, setPlaying] = useState(false)
   const audio = row.media.some((media) => media.type === 'audio')
@@ -118,10 +119,9 @@ function Row({ row }: { row: StreamRow }) {
       </div>
     </article>
   )
-}
+})
 
 export function ChatStream({ rows }: { rows: StreamRow[] }) {
-
   return (
     <div className="room-stream">
       {rows.map((row) => (

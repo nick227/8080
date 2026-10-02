@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useCapture } from '../state/capture'
 import { uploadMedia, useDeleteItem, useRoom, useRoomItems, useRoomStream, useUpdateRoom } from '@project/sdk'
 import { Panel } from '../components/Panel'
@@ -100,6 +100,36 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
     else ui.setIdle()
   }
 
+  // Row actions go through a ref so cached rows never hold stale closures.
+  const actions = useRef({ reply: (_id: string) => {}, remove: (_id: string) => {} })
+  actions.current = {
+    reply: (id) => { ui.startReply(id); setDesk(true) },
+    remove: (id) => {
+      void removeItem.mutateAsync(id).catch((error: unknown) => {
+        ui.setError(error instanceof Error ? error.message : 'Could not delete')
+      })
+    },
+  }
+  // One row object per item, reused while the item (and who is viewing) is unchanged,
+  // so a live event re-renders only the row it touched.
+  const rowCache = useRef(new WeakMap<Item, { meId: string | undefined; row: StreamRow }>())
+  const rowFor = (item: Item): StreamRow => {
+    const cached = rowCache.current.get(item)
+    if (cached && cached.meId === meId) return cached.row
+    const row: StreamRow = {
+      id: item.id,
+      author: item.author.name,
+      avatarUrl: item.author.avatarUrl,
+      postedAt: item.createdAt,
+      text: item.text,
+      media: stillsFrom(item.media),
+      onReply: () => actions.current.reply(item.id),
+      onDelete: item.author.id === meId ? () => actions.current.remove(item.id) : undefined,
+    }
+    rowCache.current.set(item, { meId, row })
+    return row
+  }
+
   const rows: StreamRow[] = [
     ...[...pending].reverse().map((item) => ({
       id: item.id,
@@ -110,22 +140,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       status: item.status,
       onRetry: item.status === 'failed' ? () => void post(item.input, item.id) : undefined,
     })),
-    ...newest.map((item) => ({
-      id: item.id,
-      author: item.author.name,
-      avatarUrl: item.author.avatarUrl,
-      postedAt: item.createdAt,
-      text: item.text,
-      media: stillsFrom(item.media),
-      onReply: () => { ui.startReply(item.id); setDesk(true) },
-      onDelete: item.author.id === meId
-        ? () => {
-            void removeItem.mutateAsync(item.id).catch((error: unknown) => {
-              ui.setError(error instanceof Error ? error.message : 'Could not delete')
-            })
-          }
-        : undefined,
-    })),
+    ...newest.map(rowFor),
   ]
 
   const data = room.data
