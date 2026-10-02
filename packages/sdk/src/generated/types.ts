@@ -345,7 +345,7 @@ export interface paths {
         get: operations["getItem"];
         put?: never;
         post?: never;
-        /** Tombstone an item (author only). Replies are preserved. */
+        /** Permanently delete a capture (author only). The placement stays so replies keep their parent. */
         delete: operations["deleteItem"];
         options?: never;
         head?: never;
@@ -530,12 +530,17 @@ export interface components {
             visibility: components["schemas"]["RoomVisibility"];
             ownerId: string;
             itemCount: number;
+            /** @description Live items after the opening one */
             responseCount: number;
+            /** @description Total audio/video time of the live items (ms) */
             durationMs: number;
             memberCount: number;
             /** Format: date-time */
             lastActivityAt: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Newest live item after the opening one; null when there is none
+             */
             lastResponseAt?: string | null;
             /** Format: date-time */
             createdAt: string;

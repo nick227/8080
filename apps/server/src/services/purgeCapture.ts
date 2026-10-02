@@ -1,5 +1,6 @@
 import { db } from '@project/db'
 import { storage } from '../providers/storage'
+import { recountRooms } from './roomStats'
 
 type StoredMedia = { id: string; storageKey: string | null }
 
@@ -22,6 +23,7 @@ export async function purgeCapture(messageId: string, media: StoredMedia[]) {
     })
     if (live.length) {
       await tx.item.updateMany({ where: { id: { in: live.map((row) => row.id) } }, data: { deletedAt: new Date() } })
+      await recountRooms(tx, live.map((row) => row.roomId))
     }
     return live
   })

@@ -2,7 +2,10 @@
 // Run `pnpm test:generate` to add stubs for new routes.
 // Alice (testUserId) owns rooms; Bob (testOtherUserId) is the outsider.
 import { describe, it, expect } from 'vitest'
-import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, seedRoom, seedItem } from './helpers'
+import { db } from '@project/db'
+import { randomUUID } from 'crypto'
+import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, seedRoom, seedItem, seedReply } from './helpers'
+import { recountRooms } from '../services/roomStats'
 
 const app = buildTestApp()
 
@@ -319,5 +322,62 @@ describe('rotateInviteCode', () => {
     })
     const r2 = await app.inject({ method: 'POST', url: `/rooms/${priv.id}/invite-code`, headers: asAuth(testOtherUserId) })
     expect(r2.statusCode).toBe(403)
+  })
+})
+
+describe('room stats (responses, length, last response)', () => {
+  const media = (ownerId: string, kind: 'audio' | 'video' | 'image', duration?: number) =>
+    db.media.create({ data: { ownerId, kind, duration, storageKey: `${randomUUID()}.${kind === 'image' ? 'png' : 'webm'}`, mimeType: `${kind}/x`, size: 1 } })
+  const stats = async (roomId: string) => {
+    const res = await app.inject({ method: 'GET', url: `/rooms/${roomId}`, headers: asAuth(testUserId) })
+    const { responseCount, durationMs, lastResponseAt } = res.json().data
+    return { responseCount, durationMs, lastResponseAt }
+  }
+  const del = (userId: string, itemId: string) => app.inject({ method: 'DELETE', url: `/items/${itemId}`, headers: asAuth(userId) })
+
+  it('counts every live item after the opening one, and all audio/video time', async () => {
+    const room = await seedRoom(app, testUserId)
+    const opener = await seedItem(app, testUserId, room.id, { mediaIds: [(await media(testUserId, 'video', 90.5)).id] })
+    expect(await stats(room.id)).toEqual({ responseCount: 0, durationMs: 90500, lastResponseAt: null })
+
+    await seedReply(app, testOtherUserId, opener.id, { mediaIds: [(await media(testOtherUserId, 'audio', 12.25)).id, (await media(testOtherUserId, 'image')).id] })
+    const second = await seedItem(app, testUserId, room.id, { text: 'a second top-level post is a response too' })
+    const after = await stats(room.id)
+    const secondAt = (await db.item.findUniqueOrThrow({ where: { id: second.id } })).createdAt.toISOString()
+    expect(after).toEqual({ responseCount: 2, durationMs: 102750, lastResponseAt: secondAt })
+  })
+
+  it('a deleted item stops counting (responses, length, last response)', async () => {
+    const room = await seedRoom(app, testUserId)
+    const opener = await seedItem(app, testUserId, room.id, { text: 'opening' })
+    const kept = await seedReply(app, testUserId, opener.id, { text: 'kept' })
+    const gone = await seedReply(app, testUserId, opener.id, { mediaIds: [(await media(testUserId, 'audio', 30)).id] })
+    expect((await stats(room.id)).durationMs).toBe(30000)
+    expect((await del(testUserId, gone.id)).statusCode).toBe(200)
+    const keptAt = (await db.item.findUniqueOrThrow({ where: { id: kept.id } })).createdAt.toISOString()
+    expect(await stats(room.id)).toEqual({ responseCount: 1, durationMs: 0, lastResponseAt: keptAt })
+    await del(testUserId, kept.id)
+    expect(await stats(room.id)).toEqual({ responseCount: 0, durationMs: 0, lastResponseAt: null })
+  })
+
+  it('a share counts in the target room; deleting the capture updates every room', async () => {
+    const a = await seedRoom(app, testUserId)
+    const b = await seedRoom(app, testUserId)
+    await seedItem(app, testUserId, b.id, { text: 'b opens' })
+    const clip = await seedItem(app, testUserId, a.id, { mediaIds: [(await media(testUserId, 'audio', 8)).id] })
+    await app.inject({ method: 'POST', url: `/messages/${clip.messageId}/share`, headers: asAuth(testUserId), payload: { roomIds: [b.id] } })
+    expect(await stats(b.id)).toMatchObject({ responseCount: 1, durationMs: 8000 })
+    await del(testUserId, clip.id)
+    expect(await stats(a.id)).toMatchObject({ responseCount: 0, durationMs: 0 })
+    expect(await stats(b.id)).toMatchObject({ responseCount: 0, durationMs: 0, lastResponseAt: null })
+  })
+
+  it('recountRooms repairs drifted numbers (backfill)', async () => {
+    const room = await seedRoom(app, testUserId)
+    const opener = await seedItem(app, testUserId, room.id, { text: 'opening' })
+    await seedReply(app, testUserId, opener.id, { mediaIds: [(await media(testUserId, 'audio', 2)).id] })
+    await db.room.update({ where: { id: room.id }, data: { responseCount: 99, durationMs: 0, lastResponseAt: null } })
+    await recountRooms(db, [room.id])
+    expect(await stats(room.id)).toMatchObject({ responseCount: 1, durationMs: 2000, lastResponseAt: expect.any(String) })
   })
 })

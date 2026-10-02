@@ -840,11 +840,11 @@ components:
         visibility: { $ref: '#/components/schemas/RoomVisibility' }
         ownerId: { type: string }
         itemCount: { type: integer }
-        responseCount: { type: integer }
-        durationMs: { type: integer }
+        responseCount: { type: integer, description: Live items after the opening one }
+        durationMs: { type: integer, description: Total audio/video time of the live items (ms) }
         memberCount: { type: integer }
         lastActivityAt: { type: string, format: date-time }
-        lastResponseAt: { type: [string, 'null'], format: date-time }
+        lastResponseAt: { type: [string, 'null'], format: date-time, description: 'Newest live item after the opening one; null when there is none' }
         createdAt: { type: string, format: date-time }
         role:
           description: The caller's membership role, or null if not a member

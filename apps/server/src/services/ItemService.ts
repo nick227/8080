@@ -5,6 +5,7 @@ import { badRequest, forbidden, notFound } from '../lib/errors'
 import { RoomService } from './RoomService'
 import { streamHub } from './StreamHub'
 import { purgeCapture } from './purgeCapture'
+import { recountRooms } from './roomStats'
 
 const rooms = new RoomService()
 
@@ -49,7 +50,7 @@ export class ItemService {
 
     const item = await db.$transaction(async (tx) => {
       const msg = await this.createMessage(tx, viewerId, content)
-      return this.place(tx, { roomId, messageId: msg.id, parentId: null, durationMs: msg.durationMs })
+      return this.place(tx, { roomId, messageId: msg.id, parentId: null })
     })
     return this.publishCreated(viewerId, item)
   }
@@ -64,7 +65,7 @@ export class ItemService {
 
     const item = await db.$transaction(async (tx) => {
       const msg = await this.createMessage(tx, viewerId, content)
-      return this.place(tx, { roomId: parent.roomId, messageId: msg.id, parentId: parent.id, anchorStartMs, durationMs: msg.durationMs })
+      return this.place(tx, { roomId: parent.roomId, messageId: msg.id, parentId: parent.id, anchorStartMs })
     })
     return this.publishCreated(viewerId, item)
   }
@@ -109,10 +110,9 @@ export class ItemService {
     // ensureMember does an upsert per room if not already member
     await Promise.all(targets.map(room => rooms.ensureMember(viewerId, room)))
 
-    const durationMs = message.media.reduce((acc, m) => acc + (m.duration ? Math.round(m.duration * 1000) : 0), 0)
     const created = await db.$transaction(async (tx) => {
       const items: Prisma.ItemGetPayload<{ include: typeof itemInclude }>[] = []
-      for (const room of targets) items.push(await this.place(tx, { roomId: room.id, messageId, parentId: null, durationMs }))
+      for (const room of targets) items.push(await this.place(tx, { roomId: room.id, messageId, parentId: null }))
       return items
     })
     return created.map((item) => this.publishCreated(viewerId, item))
@@ -167,7 +167,6 @@ export class ItemService {
 
   private async createMessage(tx: Tx, authorId: string, content: { text: string | null; mediaIds: string[] }) {
     const message = await tx.message.create({ data: { authorId, text: content.text }, select: { id: true } })
-    let durationMs = 0
     if (content.mediaIds.length > 0) {
       const uniqueMediaIds = Array.from(new Set(content.mediaIds))
       const medias = await tx.media.findMany({ where: { id: { in: uniqueMediaIds }, ownerId: authorId, messageId: null } })
@@ -176,28 +175,23 @@ export class ItemService {
       for (const [position, id] of content.mediaIds.entries()) {
         await tx.media.update({ where: { id }, data: { messageId: message.id, position } })
       }
-      durationMs = medias.reduce((acc, m) => acc + (m.duration ? Math.round(m.duration * 1000) : 0), 0)
     }
-    return { id: message.id, durationMs }
+    return { id: message.id }
   }
 
   // Row lock on the room serializes numbering within a room.
-  private async place(tx: Tx, p: { roomId: string; messageId: string; parentId: string | null; anchorStartMs?: number | null; durationMs?: number }) {
+  private async place(tx: Tx, p: { roomId: string; messageId: string; parentId: string | null; anchorStartMs?: number | null }) {
     const { itemCount } = await tx.room.update({
       where: { id: p.roomId },
-      data: { 
-        itemCount: { increment: 1 }, 
-        responseCount: { increment: p.parentId ? 1 : 0 },
-        durationMs: { increment: p.durationMs ?? 0 },
-        lastActivityAt: new Date(),
-        ...(p.parentId ? { lastResponseAt: new Date() } : {})
-      },
+      data: { itemCount: { increment: 1 }, lastActivityAt: new Date() },
       select: { itemCount: true },
     })
-    return tx.item.create({
+    const item = await tx.item.create({
       data: { roomId: p.roomId, messageId: p.messageId, number: itemCount, parentId: p.parentId, anchorStartMs: p.anchorStartMs ?? null },
       include: itemInclude,
     })
+    await recountRooms(tx, [p.roomId])
+    return item
   }
 
   private publishCreated(viewerId: string, item: Prisma.ItemGetPayload<{ include: typeof itemInclude }>) {
