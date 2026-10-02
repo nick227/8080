@@ -88,6 +88,12 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const showDesk = desk || (fresh && !skipped)
   const playing = ui.state === 'playback' && ui.activeItemId ? itemsById[ui.activeItemId] : undefined
 
+  const startMessage = () => {
+    ui.setIdle()
+    setCompose(false)
+    setDesk(true)
+  }
+
   const advance = (id: string) => {
     const index = visible.findIndex((item) => item.id === id)
     const next = visible.slice(index + 1).find(isPlayable)
@@ -142,6 +148,9 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       )}
       {data && <ConversationHead room={data} />}
       <PeopleStrip people={roomPeopleFrom(visible, meId, meName, activity)} meId={meId} inviteUrl={inviteUrl} />
+      <div className="room-new-bar">
+        <button type="button" className="room-new" onClick={startMessage}>New message</button>
+      </div>
       <ChatStream rows={rows} />
       {showDesk && (
         <RecordSurface
