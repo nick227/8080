@@ -33,7 +33,7 @@ interface MediaProps extends MediaHTMLAttributes<HTMLMediaElement> {
 
 // Every media source behind one component. A video whose URL is a YouTube link plays
 // through the YouTube adapter; everything else is our stored <audio>/<video>/<img>.
-// Callers (Item, River) don't change.
+// Callers don't change.
 export function Media(props: MediaProps) {
   const ytId = props.type === 'video' && typeof props.src === 'string' ? parseYouTubeVideoId(props.src) : null
   if (ytId) {

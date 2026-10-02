@@ -40,7 +40,7 @@ export function Home() {
   }, [])
 
   const handleSend = async (input: SendInput) => {
-    // A reply started from the River (REPLY / REPLY HERE) goes to its parent, not a new post.
+    // A reply still in progress (started in a room, then navigated here) goes to its parent, not a new post.
     if (await replyFromUIState(input)) return
     const defaultTitle = `Post by ${session.data?.data.displayName ?? 'Anonymous'}`
     const room = await createRoom.mutateAsync({ title: defaultTitle, visibility: 'public' })

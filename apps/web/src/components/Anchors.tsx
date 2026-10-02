@@ -30,7 +30,7 @@ function useTetherPath(targetNumber: number | undefined) {
         // A plumb line down the numeral gutter until just below the target's thread
         // (so it never crosses the message), then one smooth bend into the
         // Instrument. Vertical tangents at the joint keep it a single line.
-        const thread = item?.closest('.thread, .river-conv')?.getBoundingClientRect()
+        const thread = item?.closest('.thread')?.getBoundingClientRect()
         const dropY = Math.min(Math.max((thread?.bottom ?? y1) + 24, y1 + 20), y2 - 40)
         const r = (y2 - dropY) * 0.6
         const f = (n: number) => n.toFixed(1)

@@ -16,7 +16,7 @@ export async function resolveMediaIds(media: SendInput['media']): Promise<string
 }
 
 // When the UI is in a reply context (REPLY / REPLY HERE → compose/record/review), a
-// send is a reply to that item — wherever the Instrument lives (room or River).
+// send is a reply to that item — wherever the record surface lives (room or Home).
 // Returns false when this isn't a reply, so the caller does its normal send.
 const REPLY_STATES = new Set(['replying', 'composing', 'recording', 'reviewing'])
 export async function replyFromUIState(input: SendInput): Promise<boolean> {

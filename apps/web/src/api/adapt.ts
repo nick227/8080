@@ -43,12 +43,3 @@ export function toItem(i: SdkItem): Item {
   adapted.set(i, item)
   return item
 }
-
-export function toRiverItem(i: any): Item & { roomId: string; roomTitle: string; replyCount: number } {
-  return {
-    ...toItem(i),
-    roomId: i.roomId,
-    roomTitle: i.roomTitle,
-    replyCount: i.replyCount,
-  }
-}
