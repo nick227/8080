@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { ApplyIcon, PauseIcon, PlayIcon } from '../../components/icons'
 import { primePreviewAudio, releaseStockPreview, stopStockPreview, toggleStockPreview } from './previewAudio'
-import { STOCK_TRACKS, type StockTrack, stockTrack } from './stock'
+import { STOCK_TRACKS, type StockTrack } from './stock'
 
-export function EditSheet({ open, trackId, fitting, sourceLabel, playing, canPlay, onSelect, onClose, onTogglePlay, onPauseTake }: {
+export function EditSheet({ open, trackId, fitting, playing, canPlay, onSelect, onClose, onTogglePlay, onPauseTake }: {
   open: boolean
   trackId: string | null
   fitting: boolean
-  sourceLabel: string
   playing: boolean
   canPlay: boolean
   onSelect: (id: string | null) => void
@@ -17,12 +17,7 @@ export function EditSheet({ open, trackId, fitting, sourceLabel, playing, canPla
 }) {
   const panelRef = useRef<HTMLElement>(null)
   const { mounted, shown } = useSheetPresence(open)
-  const [chosenId, setChosenId] = useState<string | null>(trackId)
   const [previewId, setPreviewId] = useState<string | null>(null)
-  const status = fitting ? 'Loading' : chosenId ? stockTrack(chosenId).name : sourceLabel
-  const canApply = !!chosenId && chosenId !== trackId && !fitting
-
-  useEffect(() => { setChosenId(trackId) }, [trackId])
 
   useEffect(() => {
     if (shown) panelRef.current?.focus()
@@ -39,11 +34,11 @@ export function EditSheet({ open, trackId, fitting, sourceLabel, playing, canPla
     toggleStockPreview(track.id, track.url, setPreviewId)
   }
 
-  const apply = () => {
-    if (!chosenId || !canApply) return
+  const apply = (id: string) => {
+    if (id === trackId || fitting) return
     primePreviewAudio()
     stopStockPreview()
-    onSelect(chosenId)
+    onSelect(id)
   }
 
   if (!mounted) return null
@@ -60,35 +55,33 @@ export function EditSheet({ open, trackId, fitting, sourceLabel, playing, canPla
       <div className="edit-sheet-body">
         <section aria-label="Audio">
           <h2>Audio</h2>
-          <p className="edit-sheet-status">{status}</p>
+          <p className="edit-sheet-status">Click to replace your audio</p>
           <ul className="edit-sheet-list">
-            {STOCK_TRACKS.map(track => (
-              <li key={track.id} className="edit-sheet-row">
-                <button
-                  type="button"
-                  className="edit-sheet-name"
-                  aria-pressed={chosenId === track.id}
-                  onClick={() => setChosenId(track.id)}
-                >
-                  {track.name}
-                </button>
-                <button
-                  type="button"
-                  className="edit-sheet-preview"
-                  aria-pressed={previewId === track.id}
-                  onClick={() => preview(track)}
-                >
-                  {previewId === track.id ? 'Pause' : 'Preview'}
-                </button>
-              </li>
-            ))}
+            {STOCK_TRACKS.map(track => {
+              const sounding = previewId === track.id
+              const applied = trackId === track.id
+              return (
+                <li key={track.id} className="edit-sheet-row">
+                  <button type="button" className="edit-sheet-name" aria-pressed={sounding} onClick={() => preview(track)}>
+                    {track.name}
+                  </button>
+                  <button type="button" className="edit-sheet-icon" aria-label={sounding ? `Pause ${track.name}` : `Play ${track.name}`} aria-pressed={sounding} onClick={() => preview(track)}>
+                    {sounding ? <PauseIcon /> : <PlayIcon />}
+                  </button>
+                  <button type="button" className="edit-sheet-icon edit-sheet-apply" aria-label={applied ? `${track.name} applied` : `Apply ${track.name}`} aria-pressed={applied} disabled={fitting} onClick={() => apply(track.id)}>
+                    <ApplyIcon />
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         </section>
       </div>
-      <footer className="edit-sheet-foot">
-        <button type="button" className="edit-sheet-apply" disabled={!canApply} onClick={apply}>Apply</button>
-        {trackId && <button type="button" onClick={() => onSelect(null)}>Remove</button>}
-      </footer>
+      {trackId && (
+        <footer className="edit-sheet-foot">
+          <button type="button" onClick={() => onSelect(null)}>Remove</button>
+        </footer>
+      )}
     </aside>,
     document.body,
   )

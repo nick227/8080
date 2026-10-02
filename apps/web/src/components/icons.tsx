@@ -34,6 +34,30 @@ export function KindMark({ kind }: MarkProps) {
   )
 }
 
+export function PlayIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+      <path d="M5.2 3.4v9.2L12.6 8 5.2 3.4Z" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function PauseIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+      <path d="M5.2 3.4v9.2M10.8 3.4v9.2" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export function ApplyIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+      <path d="M3.4 8.2 6.4 11.2 12.6 4.6" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function PreviewIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>

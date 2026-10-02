@@ -296,7 +296,6 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
         open={canEdit && edit.open}
         trackId={edit.trackId}
         fitting={edit.fitting}
-        sourceLabel={picture?.kind === 'image' ? 'No audio' : 'Original'}
         playing={playing}
         canPlay={showPlay}
         onSelect={edit.select}

@@ -436,17 +436,26 @@
   gap: 12px;
   border-bottom: 1px solid var(--line);
 }
-.edit-sheet-name,
-.edit-sheet-preview {
+.edit-sheet-name {
+  flex: 1;
   padding: 12px 0;
+  text-align: left;
   font-family: var(--mono);
   font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink);
 }
-.edit-sheet-name { flex: 1; text-align: left; }
-.edit-sheet-name[aria-pressed="true"] { color: var(--signal); }
+.edit-sheet-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  padding: 0;
+  color: var(--ink);
+}
+.edit-sheet-apply[aria-pressed="true"] { color: var(--signal); }
 .edit-sheet-foot {
   display: flex;
   gap: 18px;
@@ -460,7 +469,6 @@
   text-transform: uppercase;
   color: var(--muted);
 }
-.edit-sheet-foot .edit-sheet-apply { color: var(--ink); }
 .edit-sheet-foot button:hover,
 .edit-sheet-foot button:focus-visible { color: var(--ink); }
 .stock-wave { display: flex; align-items: center; gap: 2px; width: 100%; height: 64px; }
