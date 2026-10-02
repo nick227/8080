@@ -16,7 +16,8 @@
     "docs:generate": "tsx scripts/generate-docs.ts",
     "db:push": "pnpm --filter @project/db db:push",
     "db:seed": "pnpm --filter @project/db db:seed",
-    "db:studio": "pnpm --filter @project/db db:studio"
+    "db:studio": "pnpm --filter @project/db db:studio",
+    "postinstall": "pnpm --filter @project/db generate"
   },
   "devDependencies": {
     "@redocly/cli": "^1.0.0",
