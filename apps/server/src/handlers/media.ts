@@ -3,6 +3,7 @@ import { badRequest, conflict, notFound } from '../lib/errors'
 import { YouTubeService } from '../services/YouTubeService'
 import { db } from '@project/db'
 import { storage } from '../providers/storage'
+import { verifyPlaybackToken } from '../lib/playbackToken'
 
 const mediaService = new MediaService()
 const youTubeService = new YouTubeService()
@@ -52,9 +53,14 @@ export async function createYouTubeMedia(request: any, reply: any) {
 export async function playbackMedia(request: any, reply: any) {
   const { mediaId } = request.params
   const userId = request.user?.id
+  // A valid token for exactly this media id authorizes on its own: media elements
+  // with crossOrigin="anonymous" send no cookies (see lib/playbackToken.ts).
+  const tokenOk = verifyPlaybackToken(request.query?.token, mediaId)
 
-  // Unauthenticated requests cannot access any media
-  if (!userId) throw badRequest('Unauthorized', 'UNAUTHORIZED')
+  // Neither a session nor a valid token: no media.
+  if (!userId && !tokenOk) {
+    return reply.status(401).send({ error: 'Sign in or use a current playback link', code: 'UNAUTHORIZED' })
+  }
 
   // Find media and include relations needed for authorization
   const media = await db.media.findUnique({
@@ -74,11 +80,11 @@ export async function playbackMedia(request: any, reply: any) {
   if (!media) return reply.status(404).send({ error: 'Not found', code: 'NOT_FOUND' })
   if (!media.storageKey) return reply.status(400).send({ error: 'Not a stored file', code: 'BAD_REQUEST' })
 
-  let authorized = false
+  let authorized = tokenOk
 
-  if (media.ownerId === userId) {
+  if (!authorized && media.ownerId === userId) {
     authorized = true
-  } else {
+  } else if (!authorized) {
     // Collect all rooms where this media is visible (as part of a message or as a thumbnail)
     const roomIds = new Set<string>()
     let hasPublicRoom = false

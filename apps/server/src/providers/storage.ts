@@ -30,7 +30,7 @@ export const SAFE_KEY = /^[a-f0-9-]{36}\.[a-z0-9]{2,5}$/
 // when a profile replaces its avatar.
 export function ownedMediaId(url: string | null | undefined): string | null {
   if (!url) return null
-  const match = url.match(/\/media\/([a-z0-9-]+)\/playback$/)
+  const match = url.match(/\/media\/([a-z0-9-]+)\/playback(?:\?|$)/)
   return match?.[1] ?? null
 }
 

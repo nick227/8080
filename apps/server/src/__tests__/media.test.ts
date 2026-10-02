@@ -9,6 +9,7 @@ import { UPLOADS_DIR } from '../providers/LocalStorageProvider'
 import { parseRange } from '../lib/range'
 import { Readable } from 'stream'
 import { MediaService, matchesSignature } from '../services/MediaService'
+import { playbackToken, verifyPlaybackToken } from '../lib/playbackToken'
 import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, seedRoom, seedItem, multipart, fileBytes, storedPath } from './helpers'
 
 const app = buildTestApp()
@@ -34,7 +35,7 @@ describe('uploadMedia', () => {
     await validateResponse('uploadMedia', 201, res.json())
     const media = res.json().data
     expect(media).toMatchObject({ type: 'audio', mimeType: 'audio/webm', duration: 4.5, size: 20 })
-    expect(media.url).toBe(`http://localhost:3001/media/${media.id}/playback`)
+    expect(media.url.startsWith(`http://localhost:3001/media/${media.id}/playback?token=`)).toBe(true)
     expect(await storedPath(media.id)).toMatch(/^\/uploads\/[a-f0-9-]{36}\.webm$/)
 
     const served = await app.inject({ method: 'GET', url: await storedPath(media.id) })
@@ -354,5 +355,64 @@ describe('deleteMedia', () => {
     const thumb = (await upload(testUserId, { type: 'image/png', fields: {} })).json().data
     await db.room.update({ where: { id: room.id }, data: { thumbnailId: thumb.id } })
     expect((await remove(testUserId, thumb.id)).statusCode).toBe(409)
+  })
+})
+
+describe('playbackMedia (session or signed token)', () => {
+  const pathOf = (url: string) => { const u = new URL(url); return u.pathname + u.search }
+  const play = (path: string, headers: Record<string, string> = {}) => app.inject({ method: 'GET', url: path, headers })
+  const withToken = (id: string, token: string) => `/media/${id}/playback?token=${encodeURIComponent(token)}`
+
+  it('media URLs carry a token; anonymous playback with it redirects to the bytes (with CORS)', async () => {
+    const media = (await upload(testUserId)).json().data
+    expect(media.url).toMatch(/\/media\/[^/]+\/playback\?token=[\w-]+\.[\w-]+$/)
+    const res = await play(pathOf(media.url), { origin: 'http://localhost:5173' })
+    expect(res.statusCode).toBe(307)
+    expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5173')
+    const bytes = await play(new URL(res.headers.location as string).pathname, { origin: 'http://localhost:5173' })
+    expect(bytes.statusCode).toBe(200)
+    expect(bytes.rawPayload.equals(fileBytes('audio/webm', 'fake-audio-bytes'))).toBe(true)
+  })
+
+  it('a session still authorizes without a token', async () => {
+    const media = (await upload(testUserId)).json().data
+    expect((await play(`/media/${media.id}/playback`, asAuth(testUserId))).statusCode).toBe(307)
+  })
+
+  it('no session and no token → 401', async () => {
+    const media = (await upload(testUserId)).json().data
+    expect((await play(`/media/${media.id}/playback`)).statusCode).toBe(401)
+  })
+
+  it('an expired token → 401', async () => {
+    const media = (await upload(testUserId)).json().data
+    const old = playbackToken(media.id, Date.now() - 16 * 60 * 1000)
+    expect((await play(withToken(media.id, old))).statusCode).toBe(401)
+    expect(verifyPlaybackToken(playbackToken(media.id), media.id, Date.now() + 16 * 60 * 1000)).toBe(false)
+  })
+
+  it('a token for media A does not play media B', async () => {
+    const a = (await upload(testUserId)).json().data
+    const b = (await upload(testUserId)).json().data
+    expect((await play(withToken(b.id, playbackToken(a.id)))).statusCode).toBe(401)
+  })
+
+  it('a tampered token → 401', async () => {
+    const a = (await upload(testUserId)).json().data
+    const b = (await upload(testUserId)).json().data
+    const [payload, mac] = playbackToken(a.id).split('.')
+    // Same signature, payload rewritten to point at B (and to expire later).
+    const forged = Buffer.from(JSON.stringify({ m: b.id, e: Math.floor(Date.now() / 1000) + 86400 })).toString('base64url')
+    for (const token of [`${forged}.${mac}`, `${payload}.${mac!.slice(0, -2)}AA`, `${payload}`, `${payload}.${mac}.x`, 'garbage'])
+      expect((await play(withToken(b.id, token))).statusCode).toBe(401)
+  })
+
+  it('a session without access is still refused (403); a token does not unlock other media', async () => {
+    const room = await seedRoom(app, testUserId, { visibility: 'private' })
+    const secret = (await upload(testUserId)).json().data
+    await seedItem(app, testUserId, room.id, { mediaIds: [secret.id] })
+    expect((await play(`/media/${secret.id}/playback`, asAuth(testOtherUserId))).statusCode).toBe(403)
+    const other = (await upload(testOtherUserId)).json().data
+    expect((await play(withToken(secret.id, playbackToken(other.id)), asAuth(testOtherUserId))).statusCode).toBe(403)
   })
 })

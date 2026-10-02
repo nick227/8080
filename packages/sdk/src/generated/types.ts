@@ -447,7 +447,9 @@ export interface paths {
         };
         /**
          * Get playback URL for media
-         * @description Returns a 307 redirect to a pre-signed URL to play the media.
+         * @description Returns a 307 redirect to the stored file. Authorized by a session that may see the
+         *     media, or by `token` — the short-lived signed token in the `url` the API returns for
+         *     the media (media elements with crossOrigin="anonymous" send no cookies).
          */
         get: operations["playbackMedia"];
         put?: never;
@@ -1574,7 +1576,9 @@ export interface operations {
     };
     playbackMedia: {
         parameters: {
-            query?: never;
+            query?: {
+                token?: string;
+            };
             header?: never;
             path: {
                 mediaId: string;

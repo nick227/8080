@@ -2,6 +2,7 @@ import { db } from '@project/db'
 import { userInclude } from '../lib/session'
 import { forbidden, httpError } from '../lib/errors'
 import { MediaService, type StoredFile } from './MediaService'
+import { playbackUrl } from '../lib/serialize'
 import { ownedMediaId, storage } from '../providers/storage'
 
 const mediaService = new MediaService()
@@ -37,10 +38,10 @@ export class UserService {
     try {
       const user = await db.user.update({
         where: { id: userId },
-        data: { profile: { update: { avatarUrl: media.url } } },
+        data: { profile: { update: { avatarUrl: playbackUrl(media.id) } } },
         include: userInclude,
       })
-      await tossOwnedAvatar(userId, current?.profile?.avatarUrl, media.url)
+      await tossOwnedAvatar(userId, current?.profile?.avatarUrl, playbackUrl(media.id))
       return user
     } catch (err) {
       await db.media.delete({ where: { id: media.id } }).catch(() => {})

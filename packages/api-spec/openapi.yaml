@@ -649,8 +649,20 @@ paths:
     get:
       operationId: playbackMedia
       summary: Get playback URL for media
-      description: Returns a 307 redirect to a pre-signed URL to play the media.
+      description: |
+        Returns a 307 redirect to the stored file. Authorized by a session that may see the
+        media, or by `token` — the short-lived signed token in the `url` the API returns for
+        the media (media elements with crossOrigin="anonymous" send no cookies).
       tags: [media]
+      # Session optional: an anonymous request needs a valid token (checked in the handler).
+      security:
+        - bearerAuth: []
+        - {}
+      parameters:
+        - in: query
+          name: token
+          required: false
+          schema: { type: string, maxLength: 512 }
       responses:
         '307':
           description: Redirect to S3

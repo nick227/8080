@@ -2,6 +2,7 @@
 // renamed or hidden: kind→type, posterUrl→poster, storageKey→url, no passwordHash.
 import type { Prisma, ReactionType } from '@project/db'
 import { youTubeThumbnailUrl, youTubeWatchUrl } from '@project/shared'
+import { playbackToken } from './playbackToken'
 
 // ─── users ───────────────────────────────────────────────────────────────────
 
@@ -68,6 +69,9 @@ export function toRoom(room: RoomRow, fallback: MediaRow | null = null) {
 
 export type MediaRow = Prisma.MediaGetPayload<object>
 
+/** The stored file's playback endpoint, without a token (for places that persist it, e.g. avatars). */
+export const playbackUrl = (mediaId: string) => `${process.env.PUBLIC_API_URL ?? 'http://localhost:3001'}/media/${mediaId}/playback`
+
 export function toMedia(media: MediaRow) {
   const youtube = media.source === 'youtube' && media.externalId
   return {
@@ -75,7 +79,9 @@ export function toMedia(media: MediaRow) {
     type: media.kind,
     source: media.source,
     // External media is referenced, never stored: URL/poster derive from the id.
-    url: youtube ? youTubeWatchUrl(media.externalId!) : `${process.env.PUBLIC_API_URL ?? 'http://localhost:3001'}/media/${media.id}/playback`,
+    // Stored media: the playback endpoint plus a short-lived token, so media elements
+    // with crossOrigin="anonymous" (no cookies) can still play it.
+    url: youtube ? youTubeWatchUrl(media.externalId!) : `${playbackUrl(media.id)}?token=${playbackToken(media.id)}`,
     mimeType: media.mimeType,
     size: media.size,
     duration: media.duration,
