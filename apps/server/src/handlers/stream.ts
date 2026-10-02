@@ -22,8 +22,12 @@ export async function streamRoomEvents(request: any, reply: any) {
   const unsubscribe = streamHub.subscribe(roomId, {
     userId: request.user.id,
     write: (frame) => reply.raw.write(frame),
+    close: () => request.raw.destroy(),
   })
-  const heartbeat = setInterval(() => reply.raw.write(': ping\n\n'), HEARTBEAT_MS)
+  const heartbeat = setInterval(() => {
+    const ok = reply.raw.write(': ping\n\n')
+    if (!ok) request.raw.destroy() // drop connection if heartbeat backs up
+  }, HEARTBEAT_MS)
 
   request.raw.on('close', () => {
     clearInterval(heartbeat)

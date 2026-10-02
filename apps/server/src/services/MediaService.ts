@@ -54,8 +54,21 @@ export class MediaService {
     const [ext, kind] = allowed
     const key = `${randomUUID()}.${ext}`
     let size = 0
+    let checkedMagic = false
+    let headerBuffer = Buffer.alloc(0)
+
     const counted = new Transform({
       transform(chunk: Buffer, _encoding, done) {
+        if (!checkedMagic) {
+          headerBuffer = Buffer.concat([headerBuffer, chunk])
+          if (headerBuffer.length >= 32 || headerBuffer.length >= size + chunk.length) { // Wait for 32 bytes or EOF
+            if (!checkMagicBytes(headerBuffer, mimeType)) {
+              return done(httpError(415, `File content does not match ${mimeType}`, 'UNSUPPORTED_TYPE') as unknown as Error)
+            }
+            checkedMagic = true
+            // we don't clear headerBuffer to save memory because it's small anyway
+          }
+        }
         size += chunk.length
         done(null, chunk)
       },
@@ -107,4 +120,41 @@ export class MediaService {
   discard(stored: StoredFile) {
     return storage().delete(stored.key)
   }
+}
+
+function checkMagicBytes(buffer: Buffer, mimeType: string): boolean {
+  if (buffer.length < 8) return true // too small to check reliably here
+  
+  if (mimeType === 'image/jpeg') return buffer[0]! === 0xFF && buffer[1]! === 0xD8 && buffer[2]! === 0xFF
+  if (mimeType === 'image/png') return buffer.toString('hex', 0, 8) === '89504e470d0a1a0a'
+  if (mimeType === 'image/gif') return buffer.toString('utf8', 0, 4).startsWith('GIF8')
+  if (mimeType === 'application/pdf') return buffer.toString('utf8', 0, 5) === '%PDF-'
+  if (mimeType === 'audio/webm' || mimeType === 'video/webm') return buffer.toString('hex', 0, 4) === '1a45dfa3'
+  if (mimeType === 'audio/ogg') return buffer.toString('utf8', 0, 4) === 'OggS'
+  
+  // RIFF-based (WebP, WAV)
+  if (buffer.toString('utf8', 0, 4) === 'RIFF') {
+    const format = buffer.toString('utf8', 8, 12)
+    if (mimeType === 'image/webp') return format === 'WEBP'
+    if (mimeType === 'audio/wav' || mimeType === 'audio/x-wav') return format === 'WAVE'
+    return false
+  }
+  
+  // ftyp-based (MP4, M4A, MOV)
+  if (buffer.toString('utf8', 4, 8) === 'ftyp') {
+    return mimeType === 'video/mp4' || mimeType === 'audio/mp4' || mimeType === 'video/quicktime'
+  }
+  
+  // MP3: either ID3 tag or MPEG sync word
+  if (mimeType === 'audio/mpeg') {
+    return buffer.toString('utf8', 0, 3) === 'ID3' || (buffer[0]! === 0xFF && (buffer[1]! & 0xE0) === 0xE0)
+  }
+  
+  // AAC ADTS: sync word
+  if (mimeType === 'audio/aac') {
+    return buffer[0]! === 0xFF && (buffer[1]! & 0xF0) === 0xF0
+  }
+  
+  // If we don't have a specific check, allow it (but we covered all our ALLOWED types)
+  return true
 }

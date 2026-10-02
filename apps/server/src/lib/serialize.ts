@@ -1,7 +1,6 @@
 // Prisma rows → API shapes (packages/api-spec). The only place DB fields are
 // renamed or hidden: kind→type, posterUrl→poster, storageKey→url, no passwordHash.
 import type { Prisma, ReactionType } from '@project/db'
-import { uploadUrl } from '../providers/storage'
 import { youTubeThumbnailUrl, youTubeWatchUrl } from '@project/shared'
 
 // ─── users ───────────────────────────────────────────────────────────────────
@@ -74,7 +73,7 @@ export function toMedia(media: MediaRow) {
     type: media.kind,
     source: media.source,
     // External media is referenced, never stored: URL/poster derive from the id.
-    url: youtube ? youTubeWatchUrl(media.externalId!) : uploadUrl(media.storageKey ?? ''),
+    url: youtube ? youTubeWatchUrl(media.externalId!) : `${process.env.PUBLIC_API_URL ?? 'http://localhost:3001'}/media/${media.id}/playback`,
     mimeType: media.mimeType,
     size: media.size,
     duration: media.duration,
@@ -125,13 +124,13 @@ export function toItem(item: ItemRow, viewerId: string | null) {
     const counts: Record<string, number> = { like: 0, ack: 0, laugh: 0 }
     const reacted: Record<string, boolean> = { like: false, ack: false, laugh: false }
     for (const r of item.reactions) {
-      counts[r.type]++
+      counts[r.type] = (counts[r.type] || 0) + 1
       if (viewerId !== null && r.userId === viewerId) reacted[r.type] = true
     }
-    reactions = REACTION_ORDER.filter((t) => counts[t] > 0).map((t) => ({
+    reactions = REACTION_ORDER.filter((t) => (counts[t] || 0) > 0).map((t) => ({
       type: t,
-      count: counts[t],
-      reacted: reacted[t],
+      count: counts[t] || 0,
+      reacted: reacted[t] || false,
     }))
   }
 

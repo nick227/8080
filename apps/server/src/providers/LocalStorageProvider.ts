@@ -42,4 +42,9 @@ export class LocalStorageProvider implements StorageProvider {
   async delete(key: string) {
     await unlink(pathFor(key)).catch(() => {})
   }
+
+  async signUrl(key: string) {
+    const baseUrl = (process.env.PUBLIC_UPLOAD_BASE_URL ?? 'http://localhost:3001/uploads').replace(/\/$/, '')
+    return `${baseUrl}/${key}` // Return the local proxy for dev
+  }
 }

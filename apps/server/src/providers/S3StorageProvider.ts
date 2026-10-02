@@ -1,4 +1,5 @@
 import { DeleteObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { Upload } from '@aws-sdk/lib-storage'
 import type { Readable } from 'stream'
 import type { ByteRange, StorageProvider } from './storage'
@@ -62,5 +63,14 @@ export class S3StorageProvider implements StorageProvider {
 
   async delete(key: string) {
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }))
+  }
+
+  async signUrl(key: string) {
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ResponseContentDisposition: 'inline',
+    })
+    return await getSignedUrl(this.client, command, { expiresIn: 3600 })
   }
 }

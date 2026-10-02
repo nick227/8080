@@ -616,6 +616,24 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
+  /media/{mediaId}/playback:
+    parameters:
+      - name: mediaId
+        in: path
+        required: true
+        schema: { type: string, minLength: 1, maxLength: 64 }
+    get:
+      operationId: playbackMedia
+      summary: Get playback URL for media
+      description: Returns a 307 redirect to a pre-signed URL to play the media.
+      tags: [media]
+      responses:
+        '307':
+          description: Redirect to S3
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   # ─── stream ────────────────────────────────────────────────────────────────
   /rooms/{roomId}/stream:
     parameters:

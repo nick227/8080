@@ -8,7 +8,7 @@ export type StreamEvent = {
   item: { number: number } & Record<string, unknown>
 }
 
-type Client = { userId: string; write: (frame: string) => void }
+type Client = { userId: string; write: (frame: string) => boolean; close: () => void }
 
 class StreamHub {
   private rooms = new Map<string, Set<Client>>()
@@ -28,7 +28,18 @@ class StreamHub {
     if (!clients) return
     const id = event.type === 'item.created' ? `id: ${event.item.number}\n` : ''
     const frame = `${id}event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`
-    for (const client of clients) client.write(frame)
+    for (const client of clients) {
+      // Disconnect clients immediately if write buffer is full (backpressure),
+      // to avoid memory leaks or delaying other users. Client will reconnect.
+      const ok = client.write(frame)
+      if (!ok) {
+        setImmediate(() => {
+          try {
+            client.close()
+          } catch (e) {}
+        })
+      }
+    }
   }
 
   connectionCount(roomId?: string) {

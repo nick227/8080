@@ -2,7 +2,7 @@ import { db } from '@project/db'
 import { userInclude } from '../lib/session'
 import { forbidden, httpError } from '../lib/errors'
 import { MediaService, type StoredFile } from './MediaService'
-import { ownedUploadKey, storage } from '../providers/storage'
+import { ownedMediaId, storage } from '../providers/storage'
 
 const mediaService = new MediaService()
 
@@ -57,12 +57,12 @@ export class UserService {
 // Deletes an avatar we stored, when nothing else still uses that file.
 async function tossOwnedAvatar(userId: string, previousUrl: string | null | undefined, nextUrl: string | null) {
   if (!previousUrl || previousUrl === nextUrl) return
-  const key = ownedUploadKey(previousUrl)
-  if (!key) return
-  const media = await db.media.findUnique({ where: { storageKey: key } })
+  const id = ownedMediaId(previousUrl)
+  if (!id) return
+  const media = await db.media.findUnique({ where: { id } })
   if (!media || media.ownerId !== userId || media.messageId) return
   const usedAsThumbnail = await db.room.count({ where: { thumbnailId: media.id } })
   if (usedAsThumbnail) return
   await db.media.delete({ where: { id: media.id } })
-  await storage().delete(key)
+  if (media.storageKey) await storage().delete(media.storageKey)
 }

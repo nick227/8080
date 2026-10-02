@@ -1,6 +1,8 @@
 import { MediaService, type StoredFile } from '../services/MediaService'
 import { badRequest } from '../lib/errors'
 import { YouTubeService } from '../services/YouTubeService'
+import { db } from '@project/db'
+import { storage } from '../providers/storage'
 
 const mediaService = new MediaService()
 const youTubeService = new YouTubeService()
@@ -34,4 +36,67 @@ export async function uploadMedia(request: any, reply: any) {
 export async function createYouTubeMedia(request: any, reply: any) {
   const media = await youTubeService.create(request.user.id, request.body)
   return reply.status(201).send({ data: media })
+}
+
+export async function playbackMedia(request: any, reply: any) {
+  const { mediaId } = request.params
+  const userId = request.user?.id
+
+  // Unauthenticated requests cannot access any media
+  if (!userId) throw badRequest('Unauthorized', 'UNAUTHORIZED')
+
+  // Find media and include relations needed for authorization
+  const media = await db.media.findUnique({
+    where: { id: mediaId },
+    include: {
+      message: {
+        include: {
+          items: {
+            include: { room: { select: { visibility: true, id: true } } },
+          },
+        },
+      },
+      roomsAsThumbnail: { select: { visibility: true, id: true } }
+    },
+  })
+
+  if (!media) return reply.status(404).send({ error: 'Not found', code: 'NOT_FOUND' })
+  if (!media.storageKey) return reply.status(400).send({ error: 'Not a stored file', code: 'BAD_REQUEST' })
+
+  let authorized = false
+
+  if (media.ownerId === userId) {
+    authorized = true
+  } else {
+    // Collect all rooms where this media is visible (as part of a message or as a thumbnail)
+    const roomIds = new Set<string>()
+    let hasPublicRoom = false
+
+    if (media.message) {
+      for (const item of media.message.items) {
+        if (item.room.visibility === 'public') hasPublicRoom = true
+        roomIds.add(item.room.id)
+      }
+    }
+    for (const room of media.roomsAsThumbnail) {
+      if (room.visibility === 'public') hasPublicRoom = true
+      roomIds.add(room.id)
+    }
+
+    if (hasPublicRoom) {
+      authorized = true
+    } else if (roomIds.size > 0) {
+      // Check if user is a member of any of the private rooms
+      const membership = await db.roomMember.findFirst({
+        where: { userId, roomId: { in: Array.from(roomIds) } },
+      })
+      if (membership) authorized = true
+    }
+  }
+
+  if (!authorized) return reply.status(403).send({ error: 'Forbidden', code: 'FORBIDDEN' })
+
+  const url = await storage().signUrl(media.storageKey)
+  // Reply 307 Temporary Redirect to the signed URL
+  return reply.redirect(307, url)
 }

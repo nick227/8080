@@ -19,25 +19,19 @@ export interface StorageProvider {
   read(key: string, range?: ByteRange): Promise<Readable | null>
   // Idempotent: succeeds if the object is already gone.
   delete(key: string): Promise<void>
+  // Returns a signed URL or local equivalent.
+  signUrl(key: string): Promise<string>
 }
 
 // Keys are generated server-side as `<uuid>.<ext>`; anything else is rejected.
 export const SAFE_KEY = /^[a-f0-9-]{36}\.[a-z0-9]{2,5}$/
 
-const BASE_URL = (process.env.PUBLIC_UPLOAD_BASE_URL ?? 'http://localhost:3001/uploads').replace(/\/$/, '')
-
-export function uploadUrl(key: string) {
-  return `${BASE_URL}/${key}`
-}
-
-// A URL this server minted for an upload, or null for anything else (external
-// avatars, junk). Used to delete the previous file when a profile replaces it.
-export function ownedUploadKey(url: string | null | undefined): string | null {
+// Parses the media ID from a playback URL. Used to delete the previous file
+// when a profile replaces its avatar.
+export function ownedMediaId(url: string | null | undefined): string | null {
   if (!url) return null
-  const prefix = uploadUrl('')
-  if (!url.startsWith(prefix)) return null
-  const key = url.slice(prefix.length)
-  return SAFE_KEY.test(key) ? key : null
+  const match = url.match(/\/media\/([a-z0-9-]+)\/playback$/)
+  return match?.[1] ?? null
 }
 
 let _provider: StorageProvider | null = null

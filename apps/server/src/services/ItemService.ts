@@ -95,6 +95,7 @@ export class ItemService {
       include: {
         _count: { select: { members: true } },
         members: { where: { userId: viewerId }, select: { role: true } },
+        thumbnail: true,
       }
     })
     
