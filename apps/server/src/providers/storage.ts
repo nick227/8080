@@ -30,6 +30,16 @@ export function uploadUrl(key: string) {
   return `${BASE_URL}/${key}`
 }
 
+// A URL this server minted for an upload, or null for anything else (external
+// avatars, junk). Used to delete the previous file when a profile replaces it.
+export function ownedUploadKey(url: string | null | undefined): string | null {
+  if (!url) return null
+  const prefix = uploadUrl('')
+  if (!url.startsWith(prefix)) return null
+  const key = url.slice(prefix.length)
+  return SAFE_KEY.test(key) ? key : null
+}
+
 let _provider: StorageProvider | null = null
 
 // Factory — reads STORAGE_PROVIDER (local | s3), defaults to local.

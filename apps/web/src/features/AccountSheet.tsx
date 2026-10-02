@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
 import { getApiClient, useLogin, useLogout, useRegister, useSession, type User } from '@project/sdk'
+import { AccountAvatar } from './AccountAvatar'
 import { useShell } from '../state/shell'
 
 const sheetMotion = {
@@ -60,7 +61,7 @@ function GuestAuth({ user }: { user: User }) {
       }}
     >
       <p className="eyebrow">Guest</p>
-      <p className="account-name">{user.displayName}</p>
+      <AccountIdentity user={user} onError={setError} />
       <label className="account-field">
         <span>Name</span>
         <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
@@ -102,8 +103,7 @@ function MemberAccount({ user }: { user: User }) {
       }}
     >
       <p className="eyebrow">Account</p>
-      <p className="account-name">{user.displayName}</p>
-      {user.email && <p className="account-email">{user.email}</p>}
+      <AccountIdentity user={user} onError={setError} />
       <label className="account-field">
         <span>Name</span>
         <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
@@ -120,6 +120,18 @@ function MemberAccount({ user }: { user: User }) {
         Sign out
       </button>
     </form>
+  )
+}
+
+function AccountIdentity({ user, onError }: { user: User; onError: (message: string) => void }) {
+  return (
+    <div className="account-id">
+      <AccountAvatar user={user} onError={onError} />
+      <div>
+        <p className="account-name">{user.displayName}</p>
+        {user.email && <p className="account-email">{user.email}</p>}
+      </div>
+    </div>
   )
 }
 
