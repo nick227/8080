@@ -15,6 +15,7 @@ import { controllerWithin } from '../../media/controller'
 import type { LocalMedia, MediaType, SendInput } from '../../api/types'
 import { EditPreview } from '../edit/EditPreview'
 import { EditSheet } from '../edit/EditSheet'
+import { stopStockPreview } from '../edit/previewAudio'
 import { takePicture, useStockEdit } from '../edit/useStockEdit'
 import type { PresenceActivity } from './PeopleStrip'
 
@@ -213,7 +214,10 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
   const togglePlay = () => {
     const ctrl = controllerWithin(stageRef.current)
     if (playing) ctrl?.pause()
-    else void ctrl?.play()
+    else {
+      stopStockPreview()
+      void ctrl?.play()
+    }
   }
 
   return (
@@ -276,7 +280,7 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
             overflow: 'hidden'
           }}>
             {showPlay && (
-              <button type="button" style={{ background: playing ? 'var(--fg)' : undefined, color: playing ? 'var(--bg)' : undefined, transition: 'all 0.2s' }} onClick={togglePlay}>{playing ? 'PAUSE' : 'PLAY'}</button>
+              <button type="button" onClick={togglePlay}>{playing ? 'Pause' : 'Play'}</button>
             )}
             {showRetry && <button type="button" onClick={() => { capture.cancel(); clearUpload(); void begin() }}>RETRY</button>}
             {canEdit && (
@@ -296,9 +300,9 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
         playing={playing}
         canPlay={showPlay}
         onSelect={edit.select}
-        onReplay={() => { const ctrl = controllerWithin(stageRef.current); ctrl?.seek(0); void ctrl?.play() }}
         onClose={edit.close}
         onTogglePlay={togglePlay}
+        onPauseTake={() => controllerWithin(stageRef.current)?.pause()}
       />
 
       {ytOpen && pasted && (

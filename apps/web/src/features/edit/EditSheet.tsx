@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { primePreviewAudio } from './previewAudio'
-import { STOCK_TRACKS, stockTrack } from './stock'
+import { primePreviewAudio, releaseStockPreview, stopStockPreview, toggleStockPreview } from './previewAudio'
+import { STOCK_TRACKS, type StockTrack, stockTrack } from './stock'
 
-export function EditSheet({ open, trackId, fitting, sourceLabel, playing, canPlay, onSelect, onReplay, onClose, onTogglePlay }: {
+export function EditSheet({ open, trackId, fitting, sourceLabel, playing, canPlay, onSelect, onClose, onTogglePlay, onPauseTake }: {
   open: boolean
   trackId: string | null
   fitting: boolean
@@ -11,17 +11,40 @@ export function EditSheet({ open, trackId, fitting, sourceLabel, playing, canPla
   playing: boolean
   canPlay: boolean
   onSelect: (id: string | null) => void
-  onReplay: () => void
   onClose: () => void
   onTogglePlay: () => void
+  onPauseTake: () => void
 }) {
   const panelRef = useRef<HTMLElement>(null)
   const { mounted, shown } = useSheetPresence(open)
-  const status = fitting ? 'Loading' : trackId ? stockTrack(trackId).name : sourceLabel
+  const [chosenId, setChosenId] = useState<string | null>(trackId)
+  const [previewId, setPreviewId] = useState<string | null>(null)
+  const status = fitting ? 'Loading' : chosenId ? stockTrack(chosenId).name : sourceLabel
+  const canApply = !!chosenId && chosenId !== trackId && !fitting
+
+  useEffect(() => { setChosenId(trackId) }, [trackId])
 
   useEffect(() => {
     if (shown) panelRef.current?.focus()
   }, [shown])
+
+  useEffect(() => {
+    if (!open) stopStockPreview()
+  }, [open])
+
+  useEffect(() => () => releaseStockPreview(), [])
+
+  const preview = (track: StockTrack) => {
+    onPauseTake()
+    toggleStockPreview(track.id, track.url, setPreviewId)
+  }
+
+  const apply = () => {
+    if (!chosenId || !canApply) return
+    primePreviewAudio()
+    stopStockPreview()
+    onSelect(chosenId)
+  }
 
   if (!mounted) return null
 
@@ -40,31 +63,32 @@ export function EditSheet({ open, trackId, fitting, sourceLabel, playing, canPla
           <p className="edit-sheet-status">{status}</p>
           <ul className="edit-sheet-list">
             {STOCK_TRACKS.map(track => (
-              <li key={track.id}>
+              <li key={track.id} className="edit-sheet-row">
                 <button
                   type="button"
-                  aria-current={trackId === track.id ? 'true' : undefined}
-                  onClick={() => {
-                    primePreviewAudio()
-                    if (trackId === track.id) {
-                      if (!fitting) onReplay()
-                      return
-                    }
-                    onSelect(track.id)
-                  }}
+                  className="edit-sheet-name"
+                  aria-pressed={chosenId === track.id}
+                  onClick={() => setChosenId(track.id)}
                 >
                   {track.name}
+                </button>
+                <button
+                  type="button"
+                  className="edit-sheet-preview"
+                  aria-pressed={previewId === track.id}
+                  onClick={() => preview(track)}
+                >
+                  {previewId === track.id ? 'Pause' : 'Preview'}
                 </button>
               </li>
             ))}
           </ul>
         </section>
       </div>
-      {trackId && (
-        <footer className="edit-sheet-foot">
-          <button type="button" onClick={() => onSelect(null)}>Remove</button>
-        </footer>
-      )}
+      <footer className="edit-sheet-foot">
+        <button type="button" className="edit-sheet-apply" disabled={!canApply} onClick={apply}>Apply</button>
+        {trackId && <button type="button" onClick={() => onSelect(null)}>Remove</button>}
+      </footer>
     </aside>,
     document.body,
   )

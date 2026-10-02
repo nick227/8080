@@ -428,20 +428,28 @@
   letter-spacing: -0.03em;
   line-height: 1.1;
 }
+.edit-sheet-bar button { color: var(--ink); }
 .edit-sheet-list { list-style: none; margin: 0; padding: 0; }
-.edit-sheet-list button {
-  width: 100%;
-  padding: 12px 0;
+.edit-sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   border-bottom: 1px solid var(--line);
-  text-align: left;
+}
+.edit-sheet-name,
+.edit-sheet-preview {
+  padding: 12px 0;
   font-family: var(--mono);
   font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink);
 }
-.edit-sheet-list button[aria-current="true"] { color: var(--signal); }
+.edit-sheet-name { flex: 1; text-align: left; }
+.edit-sheet-name[aria-pressed="true"] { color: var(--signal); }
 .edit-sheet-foot {
+  display: flex;
+  gap: 18px;
   padding: 14px 24px calc(14px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
 }
@@ -452,6 +460,7 @@
   text-transform: uppercase;
   color: var(--muted);
 }
+.edit-sheet-foot .edit-sheet-apply { color: var(--ink); }
 .edit-sheet-foot button:hover,
 .edit-sheet-foot button:focus-visible { color: var(--ink); }
 .stock-wave { display: flex; align-items: center; gap: 2px; width: 100%; height: 64px; }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { PlayableMediaController, PlayOutcome } from '../../media/controller'
-import { primePreviewAudio } from './previewAudio'
+import { primePreviewAudio, stopStockPreview } from './previewAudio'
 
 type Listener = () => void
 
@@ -69,6 +69,7 @@ export function useFittedPlayback(
     : offsetRef.current
 
   playRef.current = async () => {
+    stopStockPreview()
     if (offsetRef.current >= durationRef.current - 30) offsetRef.current = 0
     const ctx = primePreviewAudio()
     ctxRef.current = ctx
