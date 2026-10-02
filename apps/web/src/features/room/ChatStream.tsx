@@ -121,9 +121,6 @@ function Row({ row }: { row: StreamRow }) {
 }
 
 export function ChatStream({ rows }: { rows: StreamRow[] }) {
-  if (!rows.length) {
-    return <p className="room-empty">This room is quiet. Record something.</p>
-  }
 
   return (
     <div className="room-stream">

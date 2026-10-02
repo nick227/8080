@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ApplyIcon, PauseIcon, PlayIcon } from '../../components/icons'
 import { primePreviewAudio, releaseStockPreview, stopStockPreview, toggleStockPreview } from './previewAudio'
-import { STOCK_TRACKS, type StockTrack } from './stock'
+import { STOCK_TRACKS, STOCK_IMAGES, type StockTrack, type StockImage } from './stock'
 
-export function EditSheet({ open, trackId, fitting, playing, canPlay, onSelect, onClose, onTogglePlay, onPauseTake }: {
+export function EditSheet({ open, trackId, pictureKind, fitting, playing, canPlay, onSelect, onClose, onTogglePlay, onPauseTake }: {
   open: boolean
   trackId: string | null
+  pictureKind?: 'audio' | 'video' | 'image'
   fitting: boolean
   playing: boolean
   canPlay: boolean
@@ -29,13 +30,18 @@ export function EditSheet({ open, trackId, fitting, playing, canPlay, onSelect, 
 
   useEffect(() => () => releaseStockPreview(), [])
 
-  const preview = (track: StockTrack) => {
+  const preview = (track: StockTrack | StockImage) => {
+    if (pictureKind === 'audio') return apply(track.id)
     onPauseTake()
     toggleStockPreview(track.id, track.url, setPreviewId)
   }
 
   const apply = (id: string) => {
-    if (id === trackId || fitting) return
+    if (fitting) return
+    if (id === trackId) {
+      onSelect(null)
+      return
+    }
     primePreviewAudio()
     stopStockPreview()
     onSelect(id)
@@ -45,19 +51,12 @@ export function EditSheet({ open, trackId, fitting, playing, canPlay, onSelect, 
 
   return createPortal(
     <aside ref={panelRef} className={shown ? 'edit-sheet is-open' : 'edit-sheet'} role="dialog" aria-label="Edit" tabIndex={-1}>
-      <div className="edit-sheet-bar">
-        {canPlay ? (
-          <button type="button" onClick={onTogglePlay}>{playing ? 'Pause' : 'Play'}</button>
-        ) : <span />}
-        <span>Edit</span>
-        <button type="button" onClick={onClose}>Close</button>
-      </div>
       <div className="edit-sheet-body">
-        <section aria-label="Audio">
-          <h2>Audio</h2>
-          <p className="edit-sheet-status">Click to replace your audio</p>
+        <section aria-label={pictureKind === 'audio' ? 'Image' : 'Audio'}>
+          <h2>{pictureKind === 'audio' ? 'Image' : 'Audio'}</h2>
+          <p className="edit-sheet-status">{pictureKind === 'audio' ? 'Add a stock image' : 'Replace your audio'}</p>
           <ul className="edit-sheet-list">
-            {STOCK_TRACKS.map(track => {
+            {(pictureKind === 'audio' ? STOCK_IMAGES : STOCK_TRACKS).map(track => {
               const sounding = previewId === track.id
               const applied = trackId === track.id
               return (
@@ -65,9 +64,11 @@ export function EditSheet({ open, trackId, fitting, playing, canPlay, onSelect, 
                   <button type="button" className="edit-sheet-name" aria-pressed={sounding} onClick={() => preview(track)}>
                     {track.name}
                   </button>
-                  <button type="button" className="edit-sheet-icon" aria-label={sounding ? `Pause ${track.name}` : `Play ${track.name}`} aria-pressed={sounding} onClick={() => preview(track)}>
-                    {sounding ? <PauseIcon /> : <PlayIcon />}
-                  </button>
+                  {pictureKind !== 'audio' && (
+                    <button type="button" className="edit-sheet-icon" aria-label={sounding ? `Pause ${track.name}` : `Play ${track.name}`} aria-pressed={sounding} onClick={() => preview(track as StockTrack)}>
+                      {sounding ? <PauseIcon /> : <PlayIcon />}
+                    </button>
+                  )}
                   <button type="button" className="edit-sheet-icon edit-sheet-apply" aria-label={applied ? `${track.name} applied` : `Apply ${track.name}`} aria-pressed={applied} disabled={fitting} onClick={() => apply(track.id)}>
                     <ApplyIcon />
                   </button>
@@ -77,11 +78,9 @@ export function EditSheet({ open, trackId, fitting, playing, canPlay, onSelect, 
           </ul>
         </section>
       </div>
-      {trackId && (
-        <footer className="edit-sheet-foot">
-          <button type="button" onClick={() => onSelect(null)}>Remove</button>
-        </footer>
-      )}
+      <div className="edit-sheet-bar">
+        <button type="button" onClick={onClose}>Close</button>
+      </div>
     </aside>,
     document.body,
   )

@@ -27,7 +27,7 @@ export class ReactionService {
 
   private async publish(viewerId: string, itemId: string) {
     const item = await db.item.findUniqueOrThrow({ where: { id: itemId }, include: itemInclude })
-    streamHub.publish(item.roomId, { type: 'item.updated', actorId: viewerId, item: toItem(item, null) })
+    streamHub.publish(item.roomId, { type: 'item.updated', actorId: viewerId, itemId: item.id, itemNumber: item.number })
     return toItem(item, viewerId)
   }
 }

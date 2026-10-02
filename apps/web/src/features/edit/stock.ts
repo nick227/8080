@@ -17,3 +17,20 @@ export function stockTrack(id: string): StockTrack {
   if (!track) throw new Error('Unknown track')
   return track
 }
+
+export type StockImage = {
+  id: string
+  name: string
+  url: string
+}
+
+export const STOCK_IMAGES: StockImage[] = [
+  { id: 'gradient', name: 'Gradient', url: '/stock/gradient.jpg' },
+  { id: 'landscape', name: 'Landscape', url: '/stock/landscape.jpg' },
+]
+
+export function stockImage(id: string): StockImage {
+  const img = STOCK_IMAGES.find(item => item.id === id)
+  if (!img) throw new Error('Unknown image')
+  return img
+}

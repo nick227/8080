@@ -241,7 +241,7 @@ audio.media-view { width: min(520px, 100%); }
 .device-chip { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 4px; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); opacity: .5; }
 .device-chip:hover, .device-chip:focus-visible, .device-chip[aria-expanded="true"] { opacity: 1; }
 .device-chip span { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.device-list { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); margin-top: 6px; display: flex; flex-direction: column; align-items: center; min-width: 360px; max-height: 36vh; overflow: auto; }
+.device-list { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); margin-top: 6px; display: flex; flex-direction: column; align-items: center; min-width: 360px; max-height: 36vh; overflow: auto; background-color: var(--bg); }
 .record-min { position: fixed; right: 20px; bottom: 20px; z-index: 30; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; border: 1px solid rgba(240, 237, 225, .45); background: var(--bg); color: var(--ink); }
 .record-min:hover, .record-min:focus-visible { border-color: var(--ink); }
 .record-min .kind-mark { color: var(--ink); opacity: .8; }

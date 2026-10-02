@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { getApiBaseUrl } from '../client'
+import { getApiBaseUrl, getApiClient } from '../client'
 import type { StreamEvent } from '../models'
 import { keys } from './keys'
 import { upsertCachedItem } from './useItems'
@@ -15,6 +15,7 @@ export function useRoomStream(roomId: string | undefined, opts: { onEvent?: (eve
     if (!roomId || typeof EventSource === 'undefined') return
     const source = new EventSource(`${getApiBaseUrl()}/rooms/${roomId}/stream`, { withCredentials: true })
     let dropped = false
+    const pendingFetches = new Map<string, ReturnType<typeof setTimeout>>()
 
     const handle = (message: MessageEvent<string>) => {
       let event: StreamEvent
@@ -23,9 +24,31 @@ export function useRoomStream(roomId: string | undefined, opts: { onEvent?: (eve
       } catch {
         return
       }
-      // Broadcast payloads always carry reacted=false, so keep this viewer's cached
-      // flags — including for their own actions, whose mutation response sets them.
-      upsertCachedItem(queryClient, event.item, { keepReacted: true })
+
+      // Debounce rapid events for the same item (e.g. multiple reactions in <100ms)
+      // to avoid race conditions and redundant DB queries.
+      const timer = pendingFetches.get(event.itemId)
+      if (timer) clearTimeout(timer)
+
+      pendingFetches.set(
+        event.itemId,
+        setTimeout(async () => {
+          pendingFetches.delete(event.itemId)
+          try {
+            const res = await queryClient.fetchQuery({
+              queryKey: keys.item(event.itemId),
+              queryFn: () => getApiClient().GET('/items/{itemId}', { params: { path: { itemId: event.itemId } } }),
+              staleTime: 0, // Always fetch, but dedupes if multiple concurrent fetchQuery happen
+            })
+            if (res.data?.data) {
+              upsertCachedItem(queryClient, res.data.data, { keepReacted: true })
+            }
+          } catch (e) {
+            // Ignore fetch errors
+          }
+        }, 100)
+      )
+
       onEvent?.(event)
     }
 
@@ -39,6 +62,10 @@ export function useRoomStream(roomId: string | undefined, opts: { onEvent?: (eve
       if (dropped) queryClient.invalidateQueries({ queryKey: keys.items(roomId) })
       dropped = false
     }
-    return () => source.close()
+    return () => {
+      source.close()
+      pendingFetches.forEach(clearTimeout)
+      pendingFetches.clear()
+    }
   }, [roomId, queryClient, onEvent])
 }

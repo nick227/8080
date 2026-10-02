@@ -413,6 +413,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/media/{mediaId}/playback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mediaId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Get playback URL for media
+         * @description Returns a 307 redirect to a pre-signed URL to play the media.
+         */
+        get: operations["playbackMedia"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rooms/{roomId}/stream": {
         parameters: {
             query?: never;
@@ -663,14 +685,15 @@ export interface components {
         StreamEventType: "item.created" | "item.updated";
         /**
          * @description Payload of each SSE message. `item.updated` covers reactions and tombstones.
-         *     Note: `reactions[].reacted` is always false in stream payloads (they are
-         *     broadcast, not per-viewer); clients should keep their own `reacted` state.
+         *     Instead of a fully hydrated Item, this payload only contains the itemId and itemNumber.
+         *     The client must fetch the item to get the full state.
          */
         StreamEvent: {
             type: components["schemas"]["StreamEventType"];
             /** @description User whose action produced this event */
             actorId: string;
-            item: components["schemas"]["Item"];
+            itemId: string;
+            itemNumber: number;
         };
     };
     responses: {
@@ -1487,6 +1510,29 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+        };
+    };
+    playbackMedia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mediaId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to S3 */
+            307: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     streamRoomEvents: {

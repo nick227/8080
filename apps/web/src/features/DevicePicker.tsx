@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { KindMark } from '../components/icons'
 import { captureKind, useDevice, type DeviceChoice, type DeviceKind } from '../state/device'
 
@@ -16,6 +16,18 @@ export function DevicePicker() {
   const setOpen = useDevice((s) => s.setOpen)
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
   const [listed, setListed] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onClick = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('click', onClick, true)
+    return () => document.removeEventListener('click', onClick, true)
+  }, [open, setOpen])
 
   useEffect(() => {
     if (!open) return
@@ -66,7 +78,7 @@ export function DevicePicker() {
   const kind = captureKind(choice)
 
   return (
-    <div className="device-slot">
+    <div className="device-slot" ref={rootRef}>
       <button
         type="button"
         className="device-chip"

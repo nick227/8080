@@ -5,7 +5,8 @@
 export type StreamEvent = {
   type: 'item.created' | 'item.updated'
   actorId: string
-  item: { number: number } & Record<string, unknown>
+  itemId: string
+  itemNumber: number
 }
 
 type Client = { userId: string; write: (frame: string) => boolean; close: () => void }
@@ -26,7 +27,7 @@ class StreamHub {
   publish(roomId: string, event: StreamEvent) {
     const clients = this.rooms.get(roomId)
     if (!clients) return
-    const id = event.type === 'item.created' ? `id: ${event.item.number}\n` : ''
+    const id = event.type === 'item.created' ? `id: ${event.itemNumber}\n` : ''
     const frame = `${id}event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`
     for (const client of clients) {
       // Disconnect clients immediately if write buffer is full (backpressure),

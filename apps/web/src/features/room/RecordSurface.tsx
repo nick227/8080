@@ -243,7 +243,7 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
               {edit.fitted && picture ? (
                 <EditPreview key={edit.fitted.trackId} kind={picture.kind} url={picture.url} buffer={edit.fitted.buffer} durationMs={edit.fitted.durationMs} waveform={picture.kind === 'audio' ? edit.fitted.waveform : undefined} onPlaying={setPlaying} />
               ) : (
-                <Media type={previewType === 'image' ? 'image' : previewType} src={previewSrc} name={upload?.file.name ?? 'take'} waveform={previewType === 'audio' ? waveform ?? undefined : undefined} isActive={false} onPlayStatusChange={setPlaying} />
+                <Media type={previewType === 'image' ? 'image' : previewType} src={previewSrc} name={upload?.file.name ?? 'take'} waveform={previewType === 'audio' ? waveform ?? undefined : undefined} hidePlayButton isActive={false} onPlayStatusChange={setPlaying} />
               )}
             </div>
           )}
@@ -255,7 +255,9 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
           {!entry && !take && kind === 'video' && !showCamera && <div className="room-desk-card"><p className="room-desk-file">Camera off</p></div>}
         </div>
         <Control variant="record" type="button" active={recording} data-mass={recording ? 'dense' : 'rest'} aria-label={recording ? 'Stop' : 'Record'} onClick={() => (recording ? capture.stop() : void begin())}>
-          {recording ? '◉' : '●'}
+          <span style={{ display: 'grid', placeItems: 'center', width: '1em', height: '1em' }}>
+            {recording ? '◉' : '●'}
+          </span>
         </Control>
         </div>
 
@@ -276,8 +278,7 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
             opacity: canSend && !recording ? 1 : 0, 
             pointerEvents: canSend && !recording ? 'auto' : 'none', 
             transition: 'opacity 0.2s',
-            height: canSend && !recording ? 'auto' : 0,
-            overflow: 'hidden'
+            visibility: canSend && !recording ? 'visible' : 'hidden'
           }}>
             {showPlay && (
               <button type="button" onClick={togglePlay}>{playing ? 'Pause' : 'Play'}</button>
@@ -286,7 +287,6 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
             {canEdit && (
               <button ref={editButtonRef} type="button" aria-pressed={edit.open} aria-expanded={edit.open} data-armed={edit.fitted ? '' : undefined} onClick={edit.toggle}>Edit</button>
             )}
-            {edit.fitted && !edit.open && <button type="button" onClick={() => edit.select(null)}>Remove</button>}
             <button type="button" disabled={sending || edit.fitting || !canSend} onClick={() => void send()}>{rendering ? 'Rendering' : sending ? (replyName ? 'Sending' : 'Saving') : (replyName ? 'Send' : 'Save')}</button>
           </div>
         </div>
@@ -295,6 +295,7 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
       <EditSheet
         open={canEdit && edit.open}
         trackId={edit.trackId}
+        pictureKind={picture?.kind}
         fitting={edit.fitting}
         playing={playing}
         canPlay={showPlay}

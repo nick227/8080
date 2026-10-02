@@ -1072,10 +1072,11 @@ components:
       type: object
       description: |
         Payload of each SSE message. `item.updated` covers reactions and tombstones.
-        Note: `reactions[].reacted` is always false in stream payloads (they are
-        broadcast, not per-viewer); clients should keep their own `reacted` state.
-      required: [type, actorId, item]
+        Instead of a fully hydrated Item, this payload only contains the itemId and itemNumber.
+        The client must fetch the item to get the full state.
+      required: [type, actorId, itemId, itemNumber]
       properties:
         type: { $ref: '#/components/schemas/StreamEventType' }
         actorId: { type: string, description: User whose action produced this event }
-        item: { $ref: '#/components/schemas/Item' }
+        itemId: { type: string }
+        itemNumber: { type: integer }

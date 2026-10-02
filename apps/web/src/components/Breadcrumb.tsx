@@ -26,7 +26,6 @@ function ConversationCrumb() {
       <a href="/" onClick={(e) => { e.preventDefault(); useShell.getState().toggleLobby() }}>LOBBY</a>
       <span className="crumb-sep">/</span>
       <span className="crumb-title">{room.title}</span>
-      {room.visibility && <span className="crumb-vis">{room.visibility.toUpperCase()}</span>}
     </nav>
   )
 }

@@ -57,15 +57,15 @@
 .room-head-actions button[aria-pressed="true"] { color: var(--ink); }
 .room-head-actions button[data-armed] { color: var(--signal); }
 
-.room-people { display: flex; flex-direction: column; gap: 10px; padding-bottom: 18px; }
-.room-discs { display: flex; gap: 18px; overflow-x: auto; align-items: center; }
+.room-people { display: flex; flex-direction: column; gap: 10px; padding-bottom: 18px; max-height: 320px; overflow-y: auto; }
+.room-discs { display: flex; gap: 18px; overflow-x: auto; align-items: center; flex-wrap: wrap; }
 .room-person { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; color: inherit; }
 .room-disc {
   width: 28px;
   height: 28px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--line);
+  border-radius: 50%;
   background: var(--bg);
   font-family: var(--mono);
   font-size: 11px;

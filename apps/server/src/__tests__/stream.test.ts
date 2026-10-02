@@ -65,13 +65,12 @@ describe('streamRoomEvents', () => {
       const created = stream.next('item.created')
       const item = await seedItem(app, testUserId, room.id, { text: 'live' })
       const ev = await created
-      expect(ev).toMatchObject({ type: 'item.created', actorId: testUserId, id: String(item.number) })
-      expect(ev.item).toMatchObject({ id: item.id, message: { text: 'live' } })
+      expect(ev).toMatchObject({ type: 'item.created', actorId: testUserId, id: String(item.number), itemId: item.id, itemNumber: item.number })
 
       const updated = stream.next('item.updated')
       await app.inject({ method: 'PUT', url: `/items/${item.id}/reactions/like`, headers: asAuth(testUserId) })
       const up = await updated
-      expect(up.item.reactions).toEqual([{ type: 'like', count: 1, reacted: false }]) // broadcast payload
+      expect(up.itemId).toBe(item.id)
       expect(up.actorId).toBe(testUserId)
     } finally {
       stream.close()
