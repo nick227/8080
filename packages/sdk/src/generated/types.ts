@@ -109,20 +109,21 @@ export interface paths {
         patch: operations["updateCurrentUser"];
         trace?: never;
     };
-    "/river": {
+    "/users/me/avatar": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get the public river feed
-         * @description Returns all top-level items from public rooms, sorted by most recent first, hydrated for display.
-         */
-        get: operations["getRiver"];
+        get?: never;
         put?: never;
-        post?: never;
+        /**
+         * Replace the current user's avatar
+         * @description Signed-in accounts only. Stores the image and points the profile at it.
+         *     The previous avatar file is deleted. Guests receive 403. JPEG, PNG, GIF, or WebP.
+         */
+        post: operations["uploadAvatar"];
         delete?: never;
         options?: never;
         head?: never;
@@ -180,7 +181,8 @@ export interface paths {
         get: operations["getRoom"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete a conversation (owner only) */
+        delete: operations["deleteRoom"];
         options?: never;
         head?: never;
         /** Update a room (owner only) */
@@ -481,6 +483,10 @@ export interface components {
             displayName?: string;
             avatarUrl?: string | null;
         };
+        UploadAvatarInput: {
+            /** Format: binary */
+            file: string;
+        };
         Author: {
             id: string;
             name: string;
@@ -495,13 +501,20 @@ export interface components {
             /** @description Human-facing room sequence ("CONVERSATION 018") */
             number: number;
             title: string;
+            description: string;
+            /** @description Conversation image */
+            thumbnail: components["schemas"]["Media"] | null;
             topic: string | null;
             visibility: components["schemas"]["RoomVisibility"];
             ownerId: string;
             itemCount: number;
+            responseCount: number;
+            durationMs: number;
             memberCount: number;
             /** Format: date-time */
             lastActivityAt: string;
+            /** Format: date-time */
+            lastResponseAt?: string | null;
             /** Format: date-time */
             createdAt: string;
             /** @description The caller's membership role, or null if not a member */
@@ -518,11 +531,15 @@ export interface components {
         };
         CreateRoomInput: {
             title: string;
+            description?: string;
+            thumbnailId?: string;
             topic?: string;
             visibility?: components["schemas"]["RoomVisibility"];
         };
         UpdateRoomInput: {
             title?: string;
+            description?: string;
+            thumbnailId?: string;
             topic?: string | null;
             visibility?: components["schemas"]["RoomVisibility"];
         };
@@ -604,25 +621,6 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             deletedAt: string | null;
-        };
-        RiverItem: {
-            id: string;
-            roomId: string;
-            messageId: string;
-            parentId: string | null;
-            roomTitle: string;
-            number: number;
-            message: components["schemas"]["Message"];
-            reactions: components["schemas"]["ReactionSummary"][];
-            replyCount: number;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            deletedAt: string | null;
-        };
-        PaginatedRiverItems: {
-            data: components["schemas"]["RiverItem"][];
-            meta: components["schemas"]["PaginatedMeta"];
         };
         ItemResponse: {
             data: components["schemas"]["Item"];
@@ -904,30 +902,50 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
         };
     };
-    getRiver: {
+    uploadAvatar: {
         parameters: {
-            query?: {
-                /** @description Opaque cursor returned by the previous page. */
-                cursor?: components["parameters"]["Cursor"];
-                limit?: components["parameters"]["Limit"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["UploadAvatarInput"];
+            };
+        };
         responses: {
-            /** @description Paginated river items */
+            /** @description Updated user */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedRiverItems"];
+                    "application/json": components["schemas"]["UserResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description File too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported file type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
         };
     };
     listRooms: {
@@ -1032,6 +1050,31 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteRoom: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: components["parameters"]["RoomId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };

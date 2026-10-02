@@ -113,3 +113,23 @@ export const useCapture = create<CaptureState>((set) => ({
     resumablePlaybackMode: mode ?? null
   })
 }))
+
+const SPECTRUM_BARS = 42
+const spectrum = new Float32Array(SPECTRUM_BARS).fill(0.08)
+
+// Frequency bars for the live recording meter. Kept off the store so a frame
+// of audio does not re-render the rest of the desk.
+export function publishSpectrum(data: Uint8Array) {
+  const step = data.length / SPECTRUM_BARS
+  for (let index = 0; index < SPECTRUM_BARS; index++) {
+    const start = Math.floor(index * step)
+    const end = Math.max(start + 1, Math.floor((index + 1) * step))
+    let sum = 0
+    for (let bin = start; bin < end; bin++) sum += data[bin] ?? 0
+    spectrum[index] = Math.max(0.08, sum / (end - start) / 255)
+  }
+}
+
+export function readSpectrum() {
+  return spectrum
+}

@@ -27,12 +27,12 @@ type ShellState = {
 const inRoom = typeof window !== 'undefined' && /^\/room\//.test(window.location.pathname)
 
 export const useShell = create<ShellState>((set, get) => ({
-  surface: inRoom ? 'conversation' : 'record',
+  surface: inRoom ? 'conversation' : 'lobby',
   place: inRoom ? 'room' : 'home',
   accountOpen: false,
   room: null,
 
-  enterHome: (lobby) => set({ place: 'home', surface: lobby ? 'lobby' : 'record', accountOpen: false }),
+  enterHome: (lobby = true) => set({ place: 'home', surface: lobby ? 'lobby' : 'record', accountOpen: false }),
   enterRoom: () => set({ place: 'room', surface: 'conversation', accountOpen: false }),
   openRecord: () => set({ surface: 'record', accountOpen: false }),
   showLobby: () => set({ surface: 'lobby', accountOpen: false }),

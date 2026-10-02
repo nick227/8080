@@ -168,24 +168,42 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
-  # ─── river ─────────────────────────────────────────────────────────────────
-  /river:
-    get:
-      operationId: getRiver
-      summary: Get the public river feed
-      description: Returns all top-level items from public rooms, sorted by most recent first, hydrated for display.
-      tags: [items]
-      parameters:
-        - $ref: '#/components/parameters/Cursor'
-        - $ref: '#/components/parameters/Limit'
+  /users/me/avatar:
+    post:
+      operationId: uploadAvatar
+      x-fastify-config:
+        rateLimit: { max: 20, timeWindow: '1 hour' }
+      summary: Replace the current user's avatar
+      description: |
+        Signed-in accounts only. Stores the image and points the profile at it.
+        The previous avatar file is deleted. Guests receive 403. JPEG, PNG, GIF, or WebP.
+      tags: [users]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/UploadAvatarInput' }
       responses:
         '200':
-          description: Paginated river items
+          description: Updated user
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/PaginatedRiverItems' }
+              schema: { $ref: '#/components/schemas/UserResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '415':
+          description: Unsupported file type
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
 
   # ─── rooms ─────────────────────────────────────────────────────────────────
   /rooms:
@@ -277,6 +295,19 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/RoomResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteRoom
+      summary: Delete a conversation (owner only)
+      tags: [rooms]
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -749,6 +780,12 @@ components:
         displayName: { type: string, minLength: 1, maxLength: 50 }
         avatarUrl: { type: [string, 'null'], maxLength: 512 }
 
+    UploadAvatarInput:
+      type: object
+      required: [file]
+      properties:
+        file: { type: string, format: binary }
+
     Author:
       type: object
       required: [id, name, avatarUrl]
@@ -769,17 +806,26 @@ components:
     Room:
       type: object
       required:
-        [id, number, title, topic, visibility, ownerId, itemCount, memberCount, lastActivityAt, createdAt, role, inviteCode]
+        [id, number, title, description, thumbnail, topic, visibility, ownerId, itemCount, responseCount, durationMs, memberCount, lastActivityAt, createdAt, role, inviteCode]
       properties:
         id: { type: string }
         number: { type: integer, description: 'Human-facing room sequence ("CONVERSATION 018")' }
         title: { type: string }
+        description: { type: string }
+        thumbnail:
+          description: Conversation image
+          oneOf:
+            - $ref: '#/components/schemas/Media'
+            - type: 'null'
         topic: { type: [string, 'null'] }
         visibility: { $ref: '#/components/schemas/RoomVisibility' }
         ownerId: { type: string }
         itemCount: { type: integer }
+        responseCount: { type: integer }
+        durationMs: { type: integer }
         memberCount: { type: integer }
         lastActivityAt: { type: string, format: date-time }
+        lastResponseAt: { type: [string, 'null'], format: date-time }
         createdAt: { type: string, format: date-time }
         role:
           description: The caller's membership role, or null if not a member
@@ -811,6 +857,8 @@ components:
       required: [title]
       properties:
         title: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, minLength: 0, maxLength: 4000 }
+        thumbnailId: { type: string, minLength: 1, maxLength: 64 }
         topic: { type: string, minLength: 1, maxLength: 40 }
         visibility: { $ref: '#/components/schemas/RoomVisibility' }
 
@@ -819,6 +867,8 @@ components:
       additionalProperties: false
       properties:
         title: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, minLength: 0, maxLength: 4000 }
+        thumbnailId: { type: string, minLength: 1, maxLength: 64 }
         topic: { type: [string, 'null'], minLength: 1, maxLength: 40 }
         visibility: { $ref: '#/components/schemas/RoomVisibility' }
 
@@ -921,32 +971,6 @@ components:
         createdAt: { type: string, format: date-time }
         deletedAt: { type: [string, 'null'], format: date-time }
 
-    RiverItem:
-      type: object
-      required: [id, roomId, messageId, roomTitle, number, parentId, message, reactions, replyCount, createdAt, deletedAt]
-      properties:
-        id: { type: string }
-        roomId: { type: string }
-        messageId: { type: string }
-        parentId: { type: [string, 'null'] }
-        roomTitle: { type: string }
-        number: { type: integer }
-        message: { $ref: '#/components/schemas/Message' }
-        reactions:
-          type: array
-          items: { $ref: '#/components/schemas/ReactionSummary' }
-        replyCount: { type: integer }
-        createdAt: { type: string, format: date-time }
-        deletedAt: { type: [string, 'null'], format: date-time }
-
-    PaginatedRiverItems:
-      type: object
-      required: [data, meta]
-      properties:
-        data:
-          type: array
-          items: { $ref: '#/components/schemas/RiverItem' }
-        meta: { $ref: '#/components/schemas/PaginatedMeta' }
 
     ItemResponse:
       type: object

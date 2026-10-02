@@ -23,6 +23,11 @@ export async function updateRoom(request: any, reply: any) {
   return reply.send({ data: await roomService.update(request.user.id, request.params.roomId, request.body) })
 }
 
+export async function deleteRoom(request: any, reply: any) {
+  await roomService.remove(request.user.id, request.params.roomId)
+  return reply.send({ data: null })
+}
+
 export async function joinRoom(request: any, reply: any) {
   const room = await roomService.join(request.user.id, request.params.roomId, request.body?.inviteCode)
   return reply.send({ data: room })

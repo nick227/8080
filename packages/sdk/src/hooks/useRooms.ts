@@ -54,6 +54,20 @@ export function useUpdateRoom(roomId: string) {
   )
 }
 
+export function useDeleteRoom() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (roomId: string) => {
+      unwrap(await getApiClient().DELETE('/rooms/{roomId}', { params: { path: { roomId } } }))
+      return roomId
+    },
+    onSuccess: (roomId) => {
+      queryClient.removeQueries({ queryKey: keys.room(roomId) })
+      queryClient.invalidateQueries({ queryKey: keys.roomsAll })
+    },
+  })
+}
+
 // Pass inviteCode for private rooms (from a /room/:id?invite=CODE link).
 export function useJoinRoom() {
   return useRoomMutation(

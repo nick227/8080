@@ -14,6 +14,7 @@ interface MediaProps extends MediaHTMLAttributes<HTMLMediaElement> {
   isActive?: boolean;
   isUpcoming?: boolean;
   onEnded?: () => void;
+  onPlayStatusChange?: (playing: boolean) => void;
   // Feed items route play through UI state (highlight, auto-advance, follow-replies)
   // instead of playing the element directly.
   onRequestPlay?: () => void;
@@ -99,7 +100,7 @@ function releaseGraph(el: HTMLMediaElement) {
   }, 0)
 }
 
-function StoredMedia({ type = 'image', preview = false, name, poster, src, aspectRatio, className = '', isActive, isUpcoming, onEnded, onRequestPlay, waveform, anchors, anchorDurationMs, activeAnchorId, onAnchorSelect, title: _title, embeddable: _embeddable, ...props }: MediaProps) {
+function StoredMedia({ type = 'image', preview = false, name, poster, src, aspectRatio, className = '', isActive, isUpcoming, onEnded, onPlayStatusChange, onRequestPlay, waveform, anchors, anchorDurationMs, activeAnchorId, onAnchorSelect, title: _title, embeddable: _embeddable, ...props }: MediaProps) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const mediaRef = React.useRef<HTMLMediaElement>(null);
@@ -182,15 +183,33 @@ function StoredMedia({ type = 'image', preview = false, name, poster, src, aspec
           preload={isUpcoming || isActive ? "auto" : "metadata"} 
           onLoadedMetadata={(e) => setDuration((e.target as HTMLAudioElement).duration || 0)}
           onEnded={onEnded} 
-          onPlay={() => { setPlaying(true); setBlocked(false) }}
-          onPause={() => setPlaying(false)}
+          onPlay={() => { setPlaying(true); setBlocked(false); onPlayStatusChange?.(true); }}
+          onPause={() => { setPlaying(false); onPlayStatusChange?.(false); }}
           onTimeUpdate={(e) => setProgress((e.target as HTMLAudioElement).currentTime / ((e.target as HTMLAudioElement).duration || 1))}
           onError={() => { setError(true); if (onEnded && isActive) onEnded(); }} 
           {...props} 
         />
         {waveform ? (
-          <div 
-            style={{ display: 'flex', gap: 4, height: 64, alignItems: 'center', width: '100%', justifyContent: 'center', cursor: 'pointer', position: 'relative' }}
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', width: '100%', padding: '0 16px' }}>
+            <button 
+              type="button"
+              className="lobby-pill"
+              aria-label={playing ? 'Pause' : 'Play'}
+              style={{ width: 44, height: 44, borderRadius: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0, background: 'var(--surface-sunken)' }}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (isActive && mediaRef.current?.paused) return void mediaRef.current.play().catch(() => {})
+                if (onRequestPlay && !isActive) return onRequestPlay()
+                const el = mediaRef.current
+                if (!el) return
+                if (el.paused) el.play().catch(() => {})
+                else el.pause()
+              }}
+            >
+              {playing ? '❚❚' : '▶'}
+            </button>
+            <div 
+              style={{ display: 'flex', gap: 4, height: 64, alignItems: 'center', flex: 1, cursor: 'pointer', position: 'relative' }}
             onClick={(e) => {
               if (isActive && mediaRef.current?.paused) return void mediaRef.current.play().catch(() => {})
               if (onRequestPlay && !isActive) return onRequestPlay()
@@ -214,6 +233,7 @@ function StoredMedia({ type = 'image', preview = false, name, poster, src, aspec
                 }} 
               />
             ))}
+            </div>
           </div>
         ) : (
           <div
@@ -299,9 +319,10 @@ type CustomVideoProps = Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>
   src: string
   isActive?: boolean
   isUpcoming?: boolean
+  onPlayStatusChange?: (playing: boolean) => void
 }
 
-function CustomVideo({ src, poster, isActive, isUpcoming, onLoadedData, onError, onEnded, ...props }: CustomVideoProps) {
+function CustomVideo({ src, poster, isActive, isUpcoming, onLoadedData, onError, onEnded, onPlayStatusChange, ...props }: CustomVideoProps) {
   const ref = React.useRef<HTMLVideoElement>(null)
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -343,8 +364,8 @@ function CustomVideo({ src, poster, isActive, isUpcoming, onLoadedData, onError,
         playsInline
         className="media-view loaded"
         preload={isUpcoming || isActive ? 'auto' : 'metadata'}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
+        onPlay={() => { setPlaying(true); onPlayStatusChange?.(true); }}
+        onPause={() => { setPlaying(false); onPlayStatusChange?.(false); }}
         onTimeUpdate={(e) => {
           const t = e.target as HTMLVideoElement
           setProgress(t.currentTime / (t.duration || 1))

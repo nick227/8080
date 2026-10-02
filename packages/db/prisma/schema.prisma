@@ -70,6 +70,8 @@ model Room {
   // Human-facing sequence shown as "CONVERSATION 018"
   number         Int            @unique @default(autoincrement())
   title          String         @db.VarChar(120)
+  description    String?        @db.Text
+  thumbnailId    String?
   topic          String?        @db.VarChar(40)
   visibility     RoomVisibility @default(public)
   // Private rooms only; rotatable via POST /rooms/{roomId}/invite-code
@@ -77,15 +79,19 @@ model Room {
   ownerId        String
   // Per-room item sequence counter; incremented in the createItem transaction
   itemCount      Int            @default(0)
+  responseCount  Int            @default(0)
+  durationMs     Int            @default(0)
   // Lobby sort key; bumped on every new item. Non-null so it can anchor cursors.
   lastActivityAt DateTime       @default(now())
+  lastResponseAt DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   deletedAt      DateTime?
 
-  owner   User         @relation("RoomOwner", fields: [ownerId], references: [id])
-  members RoomMember[]
-  items   Item[]
+  owner     User         @relation("RoomOwner", fields: [ownerId], references: [id])
+  thumbnail Media?       @relation("RoomThumbnail", fields: [thumbnailId], references: [id])
+  members   RoomMember[]
+  items     Item[]
 
   @@index([visibility, lastActivityAt, id])
   @@index([topic])
@@ -194,6 +200,7 @@ model Media {
 
   owner   User     @relation(fields: [ownerId], references: [id])
   message Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  roomsAsThumbnail Room[] @relation("RoomThumbnail")
 
   @@index([messageId, position])
   @@index([ownerId, createdAt])

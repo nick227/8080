@@ -107,7 +107,7 @@ function DeviceGroup({
   if (!devices.length) return null
   return (
     <div className="device-group">
-      <p>{title}</p>
+      <p className="device-group-title">{title}</p>
       {devices.map((d, i) => {
         const label = nameOf(d, i)
         const current = d.deviceId === choice.deviceId && d.kind === choice.kind

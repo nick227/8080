@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { useSession } from '@project/sdk'
 import { Breadcrumb } from '../components/Breadcrumb'
@@ -14,7 +15,8 @@ export function StageChrome() {
   const toggleLobby = useShell((s) => s.toggleLobby)
   const toggleAccount = useShell((s) => s.toggleAccount)
   const session = useSession()
-  const guest = session.data?.data.isGuest ?? true
+  const user = session.data?.data
+  const guest = user?.isGuest ?? true
   const lobbyOpen = surface === 'lobby'
 
   useEffect(() => {
@@ -35,9 +37,9 @@ export function StageChrome() {
   return (
     <>
       <header className="masthead">
-        <button type="button" className="mast-icon" data-mark="lobby" aria-label="Lobby" aria-expanded={lobbyOpen} onClick={toggleLobby}>
+        <Link to="/" className="mast-icon" aria-label="Lobby" onClick={() => useShell.getState().showLobby()}>
           <LobbyIcon />
-        </button>
+        </Link>
         <p className="mast">
           <span className="mast-mark" aria-hidden />
           8080
@@ -46,11 +48,11 @@ export function StageChrome() {
           type="button"
           className="mast-icon"
           data-mark="account"
-          aria-label={guest ? 'Guest' : 'Account'}
+          aria-label={guest ? 'Guest' : (user?.displayName ?? 'Account')}
           aria-expanded={accountOpen}
           onClick={toggleAccount}
         >
-          <PersonIcon guest={guest} />
+          {user?.avatarUrl ? <img className="mast-avatar" src={user.avatarUrl} alt="" /> : <PersonIcon guest={guest} />}
         </button>
       </header>
       <Breadcrumb />

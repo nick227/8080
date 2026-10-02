@@ -2,7 +2,7 @@ import { db, type Prisma, type RoomVisibility } from '@project/db'
 import { randomBytes } from 'crypto'
 import { decodeKeyCursor, encodeKeyCursor, normalizeLimit, page } from '../lib/pagination'
 import { roomInclude, toRoom, type RoomRow } from '../lib/serialize'
-import { conflict, forbidden, notFound } from '../lib/errors'
+import { badRequest, conflict, forbidden, notFound } from '../lib/errors'
 
 type RoomCursor = { t: string; id: string }
 type ListOpts = { cursor?: string; limit?: number }
@@ -56,11 +56,19 @@ export class RoomService {
     return activityPage(rows, limit)
   }
 
-  async create(ownerId: string, input: { title: string; topic?: string; visibility?: RoomVisibility }) {
+  async ownImage(ownerId: string, mediaId: string) {
+    const media = await db.media.findFirst({ where: { id: mediaId, ownerId, kind: 'image' } })
+    if (!media) throw badRequest('Thumbnail must be an image you uploaded', 'INVALID_THUMBNAIL')
+  }
+
+  async create(ownerId: string, input: { title: string; description?: string; thumbnailId?: string; topic?: string; visibility?: RoomVisibility }) {
     const visibility = input.visibility ?? 'public'
+    if (input.thumbnailId) await this.ownImage(ownerId, input.thumbnailId)
     const room = await db.room.create({
       data: {
         title: input.title.trim(),
+        description: input.description?.trim() ?? '',
+        thumbnailId: input.thumbnailId,
         topic: input.topic?.trim().toLowerCase() || null,
         visibility,
         inviteCode: visibility === 'private' ? newInviteCode() : null,
@@ -98,9 +106,10 @@ export class RoomService {
     })
   }
 
-  async update(viewerId: string, roomId: string, input: { title?: string; topic?: string | null; visibility?: RoomVisibility }) {
+  async update(viewerId: string, roomId: string, input: { title?: string; description?: string; thumbnailId?: string; topic?: string | null; visibility?: RoomVisibility }) {
     const room = await this.viewable(viewerId, roomId)
     if (room.ownerId !== viewerId) throw forbidden('Only the owner can edit this room')
+    if (input.thumbnailId) await this.ownImage(viewerId, input.thumbnailId)
 
     const visibility = input.visibility ?? room.visibility
     const inviteCode =
@@ -110,6 +119,8 @@ export class RoomService {
       where: { id: roomId },
       data: {
         ...(input.title !== undefined ? { title: input.title.trim() } : {}),
+        ...(input.description !== undefined ? { description: input.description.trim() } : {}),
+        ...(input.thumbnailId !== undefined ? { thumbnailId: input.thumbnailId } : {}),
         ...(input.topic !== undefined ? { topic: input.topic?.trim().toLowerCase() || null } : {}),
         visibility,
         inviteCode,
@@ -117,6 +128,12 @@ export class RoomService {
       include: roomInclude(viewerId),
     })
     return toRoom(updated)
+  }
+
+  async remove(viewerId: string, roomId: string) {
+    const room = await this.viewable(viewerId, roomId)
+    if (room.ownerId !== viewerId) throw forbidden('Only the owner can delete this room')
+    await db.room.update({ where: { id: roomId }, data: { deletedAt: new Date() } })
   }
 
   async join(viewerId: string, roomId: string, inviteCode?: string) {

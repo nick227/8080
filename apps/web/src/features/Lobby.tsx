@@ -1,98 +1,88 @@
 import { useState } from 'react'
-import { useMyRooms, useRiver, useJoinRoom, useCreateRoom } from '@project/sdk'
-import { toRiverItem } from '../api/adapt'
-import { RiverConversation } from './river/RiverConversation'
+import { useMyRooms, useRooms, useCreateRoom, type Room } from '@project/sdk'
+import { useShell } from '../state/shell'
+import { useNavigate } from 'react-router-dom'
 
 export function Lobby() {
   const myRooms = useMyRooms()
-  const river = useRiver()
-  const join = useJoinRoom()
+  const publicRooms = useRooms()
   const createRoom = useCreateRoom()
+  const [creating, setCreating] = useState(false)
 
   const myList = myRooms.data?.pages.flatMap((p) => p.data) ?? []
-  const riverList = (river.data?.pages.flatMap((p) => p.data) ?? []).map(toRiverItem)
+  const publicListAll = publicRooms.data?.pages.flatMap((p) => p.data) ?? []
+  
+  const myIds = new Set(myList.map(r => r.id))
+  const publicList = publicListAll.filter(r => !myIds.has(r.id))
 
-  const [isCreating, setIsCreating] = useState(false)
-  const [createTitle, setCreateTitle] = useState('')
-  const [createVisibility, setCreateVisibility] = useState<'public' | 'private'>('public')
+  const navigate = useNavigate()
 
-  const enter = (roomId: string) => { window.location.href = `/room/${roomId}` }
+  const enter = (roomId: string) => { navigate(`/room/${roomId}`) }
 
-  const handleCreate = async () => {
-    if (!createTitle.trim() || createRoom.isPending) return
-    const room = await createRoom.mutateAsync({ title: createTitle.trim(), visibility: createVisibility })
-    enter(room.id)
+  const start = () => {
+    useShell.getState().openRecord()
   }
 
-  const handleRiverCompose = async (action: string) => {
-    if (createRoom.isPending) return
-    const room = await createRoom.mutateAsync({ title: 'River Post', visibility: 'public' })
-    window.location.href = `/room/${room.id}?action=${action}`
+  // format duration Ms
+  const formatDuration = (ms: number) => {
+    const totalSeconds = Math.floor(ms / 1000)
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`
   }
 
-  const isLoading = myRooms.isLoading || river.isLoading
-  const isError = myRooms.isError || river.isError
+  const renderCard = (room: Room) => (
+    <div key={room.id} className="room-card" onClick={() => enter(room.id)} style={{ cursor: 'pointer', border: '1px solid var(--line)', borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <img src={room.thumbnail?.url || 'https://via.placeholder.com/300x200'} alt={room.title} style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', borderRadius: 4, background: 'var(--surface-sunken)' }} />
+      <div>
+        <h3 style={{ margin: 0, fontSize: 16 }}>{room.title}</h3>
+        <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--muted)' }}>{room.description}</p>
+      </div>
+      <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--muted)', marginTop: 'auto' }}>
+        <span>{room.responseCount} replies</span>
+        <span>{formatDuration(room.durationMs)} duration</span>
+        <span>{room.lastResponseAt ? new Date(room.lastResponseAt).toLocaleDateString() : 'No activity'}</span>
+      </div>
+    </div>
+  )
+
+  const isLoading = myRooms.isLoading || publicRooms.isLoading
+  const isError = myRooms.isError || publicRooms.isError
 
   return (
     <div className="lobby-body">
       <div className="lobby-head">
-        <p className="lobby-kicker">Your rooms</p>
-        <button type="button" className="lobby-pill" onClick={() => setIsCreating(!isCreating)}>
-          {isCreating ? 'CANCEL' : 'START CONVERSATION'}
+        <button type="button" className="lobby-pill" disabled={creating} onClick={() => void start()}>
+          {creating ? 'CREATING' : 'NEW CONVERSATION'}
         </button>
       </div>
-
-      {isCreating && (
-        <form className="lobby-create" onSubmit={(e) => { e.preventDefault(); void handleCreate() }}>
-          <input
-            className="field"
-            autoFocus
-            placeholder="Conversation title…"
-            value={createTitle}
-            onChange={(e) => setCreateTitle(e.target.value)}
-          />
-          <div className="lobby-create-row">
-            <select
-              value={createVisibility}
-              onChange={(e) => setCreateVisibility(e.target.value as 'public' | 'private')}
-              className="plain-select"
-            >
-              <option value="public">Public (discoverable)</option>
-              <option value="private">Private (invite only)</option>
-            </select>
-            <button type="submit" className="lobby-go" disabled={!createTitle.trim() || createRoom.isPending}>Create ↗</button>
-          </div>
-        </form>
-      )}
 
       {isError && <p className="lobby-note lobby-note-error">Failed to load rooms</p>}
       {isLoading && !isError && <p className="lobby-note">Loading directory...</p>}
 
       {!isLoading && !isError && (
         <>
-          {myList.length === 0 ? (
-            <p className="lobby-note">No active conversations.</p>
-          ) : (
-            myList.map((room) => (
-              <div key={room.id} className="lobby-row lobby-item" onClick={() => enter(room.id)}>
-                <span className="lobby-title">{room.title}</span>
-                <span className="lobby-meta">{room.visibility} · {room.memberCount}</span>
-                <button type="button" className="lobby-go" onClick={(e) => { e.stopPropagation(); enter(room.id) }}>Enter ↗</button>
+          <div style={{ marginBottom: 40 }}>
+            <h2 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: 16 }}>Your Rooms</h2>
+            {myList.length === 0 ? (
+              <p className="lobby-note">No active conversations.</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
+                {myList.map(renderCard)}
               </div>
-            ))
-          )}
-
-          <div className="lobby-section" style={{ marginTop: 48, marginBottom: 32, paddingTop: 40, borderTop: '1px solid var(--line)', display: 'flex', gap: 16, justifyContent: 'flex-start' }}>
-            <button type="button" className="lobby-pill" onClick={() => handleRiverCompose('capture')}>POST TO RIVER</button>
+            )}
           </div>
-          {riverList.length === 0 ? (
-            <p className="lobby-note">No recent public conversations.</p>
-          ) : (
-            riverList.map((item) => (
-              // KEEP: River conversation explorer lives in features/river/RiverConversation.tsx
-              <RiverConversation key={item.id} item={item} onJoin={() => join.mutate({ roomId: item.roomId }, { onSuccess: () => enter(item.roomId) })} />
-            ))
-          )}
+
+          <div>
+            <h2 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: 16 }}>Public Rooms</h2>
+            {publicList.length === 0 ? (
+              <p className="lobby-note">No public conversations.</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
+                {publicList.map(renderCard)}
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>

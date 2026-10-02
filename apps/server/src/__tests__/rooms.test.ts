@@ -171,6 +171,52 @@ describe('updateRoom', () => {
     })
     expect(res.statusCode).toBe(403)
   })
+
+  it('updates the description', async () => {
+    const room = await seedRoom(app, testUserId)
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/rooms/${room.id}`,
+      headers: asAuth(testUserId),
+      payload: { description: '  A quiet room  ' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data.description).toBe('A quiet room')
+  })
+})
+
+describe('deleteRoom', () => {
+  it('requires auth', async () => {
+    const res = await app.inject({ method: 'DELETE', url: '/rooms/00000000-0000-0000-0000-000000000000' })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('lets the owner delete, then hides the room', async () => {
+    const room = await seedRoom(app, testUserId, { title: 'Gone' })
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/rooms/${room.id}`,
+      headers: asAuth(testUserId),
+    })
+    expect(res.statusCode).toBe(200)
+    await validateResponse('deleteRoom', 200, res.json())
+    expect(res.json().data).toBeNull()
+
+    const gone = await app.inject({ method: 'GET', url: `/rooms/${room.id}`, headers: asAuth(testUserId) })
+    expect(gone.statusCode).toBe(404)
+    const listed = await app.inject({ method: 'GET', url: '/rooms', headers: asAuth(testUserId) })
+    expect(listed.json().data.map((row: { id: string }) => row.id)).not.toContain(room.id)
+  })
+
+  it('forbids non-owners', async () => {
+    const room = await seedRoom(app, testUserId)
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/rooms/${room.id}`,
+      headers: asAuth(testOtherUserId),
+    })
+    expect(res.statusCode).toBe(403)
+  })
 })
 
 describe('joinRoom', () => {

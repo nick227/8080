@@ -1,61 +1,75 @@
-import { useEffect, useLayoutEffect } from 'react'
-import { type ReactionType, type SendInput } from '../api/types'
-import { Feed } from '../features/Feed'
-import { Instrument } from '../features/Instrument'
-import { useUI } from '../state/ui'
-import { useData, selectAllItems } from '../state/data'
-import { useShallow } from 'zustand/react/shallow'
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
+import { useCapture } from '../state/capture'
+import { uploadMedia, useRoom, useRoomItems, useRoomStream, useUpdateRoom } from '@project/sdk'
 import { Panel } from '../components/Panel'
 import { Label } from '../components/Label'
 import { Control } from '../components/Control'
-import { Anchors, ReplyTether } from '../components/Anchors'
-import { Blobs } from '../components/Blobs'
-import { AnimatePresence, motion } from 'motion/react'
-import { useRoom, useRoomItems, useRoomStream, useSendMessage, useReplyToItem, useSetReaction } from '@project/sdk'
-import { toItem } from '../api/adapt'
-import { resolveMediaIds } from '../api/sendMedia'
-import { useRoomRef } from '../app/useRoomRef'
 import { StageChrome } from '../components/StageChrome'
+import { SEO } from '../components/SEO'
+import { toItem } from '../api/adapt'
+import { useRoomRef } from '../app/useRoomRef'
+import { useData, selectAllItems } from '../state/data'
+import { useUI } from '../state/ui'
 import { useShell } from '../state/shell'
+import { useShallow } from 'zustand/react/shallow'
+import type { Item } from '../api/types'
+import { ConversationHead } from '../features/room/ConversationHead'
+import { PeopleStrip, type PresenceActivity } from '../features/room/PeopleStrip'
+import { ChatStream, stillsFrom, type StreamRow } from '../features/room/ChatStream'
+import { Composer } from '../features/room/Composer'
+import { RecordSurface } from '../features/room/RecordSurface'
+import { Playback, isPlayable } from '../features/room/Playback'
+import { useRoomPost } from '../features/room/useRoomPost'
+import '../features/room/room.css'
 
-const REPLY_STATES = new Set(['replying', 'composing', 'recording', 'reviewing'])
+function roomPeopleFrom(items: Item[], meId: string | undefined, meName: string, activity: PresenceActivity) {
+  const seen = new Map<string, string>()
+  for (const item of items) seen.set(item.author.id, item.author.name)
+  if (meId) seen.set(meId, meName)
+  return [...seen].map(([id, name]) => ({
+    id,
+    name,
+    activity: id === meId ? activity : null,
+  }))
+}
 
 export function Room({ roomId: roomRef }: { roomId: string }) {
   const ui = useUI()
-  const conversationOpen = useShell((s) => s.surface) === 'conversation' || ui.state === 'replying' || ui.state === 'recording' || ui.state === 'composing' || ui.state === 'reviewing'
+  const lobby = useShell((s) => s.surface) === 'lobby'
   const items = useData(useShallow(selectAllItems))
-  const replaceItems = useData((s) => s.replaceItems) // stable action; never a dependency on store data
+  const itemsById = useData((s) => s.itemsById)
+  const replaceItems = useData((s) => s.replaceItems)
+  const [desk, setDesk] = useState(false)
+  const [compose, setCompose] = useState(false)
+  const [skipped, setSkipped] = useState(false)
+  const [activity, setActivity] = useState<PresenceActivity>('here')
+  const onActivity = useCallback((next: PresenceActivity) => {
+    setActivity((current) => (current === next ? current : next))
+  }, [])
 
-  // /room/:ref → real room id (dev resolver handles "demo" and ?invite=)
   const resolved = useRoomRef(roomRef)
   const roomId = resolved.data
   const room = useRoom(roomId)
-
-  // SDK → normalized store. The SDK cache is the source of truth (fetches, mutations
-  // and SSE events all land there); mirror it into state/data.ts only when the query
-  // data actually changes (dataUpdatedAt), so replacing the store can't re-trigger this.
+  const updateRoom = useUpdateRoom(roomId ?? '')
   const roomItems = useRoomItems(roomId)
+  const { pending, post, meId, meName } = useRoomPost(roomId)
+
   useEffect(() => {
     if (roomItems.isSuccess) replaceItems(roomItems.items.map(toItem))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomItems.dataUpdatedAt, roomItems.isSuccess, replaceItems])
-  useEffect(() => () => replaceItems([]), [roomId, replaceItems]) // don't leak items across rooms
+  useEffect(() => () => replaceItems([]), [roomId, replaceItems])
+
   useLayoutEffect(() => {
     if (!roomId) return
     const params = new URLSearchParams(window.location.search)
-    const replyTarget = params.get('reply')
+    useShell.getState().enterRoom()
+    const reply = params.get('reply')
     const action = params.get('action')
-    if (replyTarget) {
-      useUI.getState().startReply(replyTarget)
-      useShell.getState().openRecord()
-    } else if (action === 'write') {
-      useShell.getState().openRecord()
-      useUI.getState().startComposing()
-    } else if (action === 'capture' || action === 'upload') {
-      useShell.getState().openRecord()
-    } else {
-      useShell.getState().enterRoom()
-    }
+    setSkipped(false)
+    setCompose(false)
+    if (reply) useUI.getState().startReply(reply)
+    else if (action === 'write') { setCompose(true); setDesk(true); useUI.getState().startComposing() }
+    else if (action === 'capture') { setDesk(true); useUI.getState().startRecording() }
   }, [roomId])
 
   useEffect(() => {
@@ -67,78 +81,109 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
 
   useRoomStream(roomId)
 
-  const sendMessage = useSendMessage(roomId ?? '')
-  const replyToItem = useReplyToItem(roomId ?? '')
-  const react = useSetReaction()
+  const visible = items.filter((item) => item.text?.trim() || item.media?.length).sort((a, b) => a.number - b.number)
+  const newest = [...visible].reverse()
+  const replying = ui.state === 'replying' || ui.state === 'composing' || ui.state === 'recording' || ui.state === 'reviewing'
+  const replyName = replying && ui.activeItemId ? itemsById[ui.activeItemId]?.author.name : undefined
+  const fresh = Boolean(roomId) && roomItems.isSuccess && visible.length === 0 && pending.length === 0
+  const showDesk = desk || (fresh && !skipped)
+  const playing = ui.state === 'playback' && ui.activeItemId ? itemsById[ui.activeItemId] : undefined
 
-  const onReact = (itemId: string, type: ReactionType) => {
-    const current = items.find((i) => i.id === itemId)?.reactions.find((r) => r.type === type)
-    react.mutate({ itemId, type, on: !current?.reacted }) // toggle the caller's own reaction
+  const advance = (id: string) => {
+    const index = visible.findIndex((item) => item.id === id)
+    const next = visible.slice(index + 1).find(isPlayable)
+    if (next) ui.startPlayback(next.id, 'chronological')
+    else ui.setIdle()
   }
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    if (ui.state === 'replying' && ui.activeItemId) {
-      params.set('reply', ui.activeItemId)
-    } else {
-      params.delete('reply')
-    }
-    const newUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`
-    window.history.replaceState(null, '', newUrl)
-  }, [ui.state, ui.activeItemId])
+  const rows: StreamRow[] = [
+    ...[...pending].reverse().map((item) => ({
+      id: item.id,
+      author: item.author,
+      avatarUrl: item.avatarUrl,
+      text: item.text,
+      media: item.media,
+      status: item.status,
+      onRetry: item.status === 'failed' ? () => void post(item.input, item.id) : undefined,
+    })),
+    ...newest.map((item) => ({
+      id: item.id,
+      author: item.author.name,
+      avatarUrl: item.author.avatarUrl,
+      postedAt: item.createdAt,
+      text: item.text,
+      media: stillsFrom(item.media),
+      onReply: () => { ui.startReply(item.id); setDesk(true) },
+    })),
+  ]
 
-  const send = async (input: SendInput) => {
-    // Uploads captures/files and registers YouTube drafts (shared with every send path).
-    const mediaIds = await resolveMediaIds(input.media)
-
-    const isReply = REPLY_STATES.has(ui.state) && !!ui.activeItemId
-    const payload = {
-      text: input.text,
-      mediaIds: mediaIds.length ? mediaIds : undefined
-    }
-
-    if (isReply) {
-      // The moment was captured when REPLY HERE was chosen, not now at Send.
-      const anchor = ui.replyAnchorMs != null ? { anchorStartMs: ui.replyAnchorMs } : {}
-      await replyToItem.mutateAsync({ itemId: ui.activeItemId!, ...payload, ...anchor })
-    } else {
-      await sendMessage.mutateAsync(payload)
-    }
-    
-    ui.setIdle()
-  }
+  const data = room.data
+  const inviteUrl = data
+    ? data.visibility === 'private' && data.inviteCode
+      ? `${window.location.origin}/room/${data.id}?invite=${data.inviteCode}`
+      : `${window.location.origin}/room/${data.id}`
+    : undefined
 
   return (
-    <Panel as={motion.main} variant="shell">
-      <Blobs count={room.data?.memberCount ?? 3} />
-      <Anchors />
+    <Panel as="main" variant="shell" className="room-shell">
+      <SEO title={data?.title ? `${data.title} - Voice Chat` : 'Room - Voice Chat'} description={`Join ${data?.title ?? 'this room'} on Voice Chat.`} />
       <StageChrome />
-
       {(ui.error || resolved.error || roomItems.error) && (
         <Label variant="status" className="error" role="alert">
           {ui.error ?? (resolved.error ?? roomItems.error)?.message ?? 'Unable to load'}
           <Control onClick={() => ui.setError(undefined)}>×</Control>
         </Label>
       )}
-
-      <AnimatePresence>
-        {conversationOpen && (
-          <motion.div
-            key="conversation"
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: ui.state === 'selected' ? 0.3 : 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <Feed items={items} onReply={(id) => { ui.startReply(id); }} onReact={onReact} onSend={send} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
-      <Instrument onSend={send} />
-      
-      <ReplyTether />
+      {data && <ConversationHead room={data} />}
+      <PeopleStrip people={roomPeopleFrom(visible, meId, meName, activity)} meId={meId} inviteUrl={inviteUrl} />
+      <ChatStream rows={rows} />
+      {!lobby && !showDesk && <Composer onOpen={() => setDesk(true)} />}
+      {showDesk && (
+        <RecordSurface
+          title={fresh && !replyName ? (data?.title ?? 'New conversation') : undefined}
+          identity={fresh && !replyName && data ? {
+            title: data.title,
+            thumbUrl: data.thumbnail?.url ?? null,
+            onTitle: (title) => {
+              void updateRoom.mutateAsync({ title }).catch((error: unknown) => {
+                ui.setError(error instanceof Error ? error.message : 'Could not rename')
+              })
+            },
+            onThumb: (file) => {
+              void uploadMedia({ file, type: 'image', name: file.name })
+                .then((media) => updateRoom.mutateAsync({ thumbnailId: media.id }))
+                .catch((error: unknown) => {
+                  ui.setError(error instanceof Error ? error.message : 'Could not set image')
+                })
+            },
+          } : undefined}
+          compose={compose}
+          replyName={replyName}
+          onActivity={onActivity}
+          onClose={() => {
+            useCapture.getState().cancel()
+            onActivity('here')
+            ui.setIdle()
+            setSkipped(true)
+            setDesk(false)
+          }}
+          onSend={async (input) => {
+            await post(input)
+            if (useUI.getState().error) return
+            useCapture.getState().complete()
+            setDesk(false)
+          }}
+        />
+      )}
+      {playing && (
+        <Playback
+          key={playing.id}
+          item={playing}
+          onClose={() => ui.setIdle()}
+          onEnded={() => advance(playing.id)}
+          onReply={() => { ui.startReply(playing.id); setDesk(true) }}
+        />
+      )}
     </Panel>
   )
 }
-

@@ -4,6 +4,7 @@ export type ReactionType = 'like' | 'ack' | 'laugh'
 export type Author = {
   id: string
   name: string
+  avatarUrl?: string
 }
 
 export type Media = {

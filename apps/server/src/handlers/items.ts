@@ -6,9 +6,7 @@ export async function listRoomItems(request: any, reply: any) {
   return reply.send(await itemService.list(request.user.id, request.params.roomId, request.query))
 }
 
-export async function getRiver(request: any, reply: any) {
-  return reply.send(await itemService.river(request.user.id, request.query))
-}
+
 
 export async function sendMessage(request: any, reply: any) {
   const item = await itemService.send(request.user.id, request.params.roomId, request.body)

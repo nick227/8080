@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { useCapture } from '../state/capture'
+import { publishSpectrum, useCapture } from '../state/capture'
 import { pausePreview, publishLiveStream, resumePreview } from './previewStream'
 
 const getConstraints = (kind: 'audio' | 'video', deviceId: string): MediaStreamConstraints => {
@@ -46,6 +46,7 @@ export function useMediaCapture() {
     try {
       capture.arm(kind)
       await pausePreview()
+      await new Promise(r => setTimeout(r, 400)) // allow hardware to release
 
       let timeoutId: ReturnType<typeof setTimeout>
       const streamPromise = navigator.mediaDevices.getUserMedia(getConstraints(kind, deviceId))
@@ -70,14 +71,15 @@ export function useMediaCapture() {
         const audioCtx = new AudioContext()
         audioCtxRef.current = audioCtx
         const analyser = audioCtx.createAnalyser()
+        analyser.fftSize = 128
         const source = audioCtx.createMediaStreamSource(stream)
         source.connect(analyser)
-        
+
         const data = new Uint8Array(analyser.frequencyBinCount)
         const updateLevel = () => {
           if (recorderRef.current?.state === 'recording') {
             analyser.getByteFrequencyData(data)
-            useCapture.setState({ level: Math.max(...data) / 255 })
+            publishSpectrum(data)
           }
           animRef.current = requestAnimationFrame(updateLevel)
         }
@@ -103,7 +105,8 @@ export function useMediaCapture() {
           return
         }
         const durationMs = Math.max(0, performance.now() - startedAtRef.current)
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || `${kind}/webm` })
+        const mime = recorder.mimeType || (kind === 'video' ? 'video/mp4' : 'audio/mp4')
+        const blob = new Blob(chunksRef.current, { type: mime })
         const previewUrl = URL.createObjectURL(blob)
         previewRef.current = previewUrl
         

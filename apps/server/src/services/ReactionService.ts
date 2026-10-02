@@ -10,7 +10,11 @@ const rooms = new RoomService()
 export class ReactionService {
   async add(viewerId: string, itemId: string, type: ReactionType) {
     const item = await items.loadViewable(viewerId, itemId, { deletedAt: null })
-    await rooms.ensureMember(viewerId, await rooms.viewable(viewerId, item.roomId))
+    await db.roomMember.upsert({
+      where: { roomId_userId: { roomId: item.roomId, userId: viewerId } },
+      create: { roomId: item.roomId, userId: viewerId },
+      update: {},
+    })
     await db.reaction.createMany({ data: [{ itemId, userId: viewerId, type }], skipDuplicates: true })
     return this.publish(viewerId, itemId)
   }

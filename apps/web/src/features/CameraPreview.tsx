@@ -34,9 +34,14 @@ export function CameraPreview({ deviceId, recording }: { deviceId: string; recor
       if (!stream || gone) return
       attach(stream)
     })
+    
     return () => {
       gone = true
-      void releasePreviewStream()
+      // Only release the stream if we are genuinely unmounting or changing devices.
+      // If we are just transitioning to 'hold' (arming/recording), keep the hardware warm.
+      if (!useCapture.getState().phase.match(/arming|recording|stopping/)) {
+        void releasePreviewStream()
+      }
       video.srcObject = null
     }
   }, [deviceId, live, hold])

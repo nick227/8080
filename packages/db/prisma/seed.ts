@@ -141,9 +141,23 @@ async function createTextMessage(authorId: string, text: string) {
 // ----------------------------------------------------------------------
 
 async function seedHeavyVideoRoom(title: string, users: any[]) {
+  const thumb = await db.media.create({
+    data: {
+      ownerId: users[0].id,
+      kind: MediaKind.image,
+      source: MediaSource.youtube,
+      externalId: YOUTUBE_IDS[0],
+      title: 'Room Thumbnail',
+      mimeType: 'image/jpeg',
+      size: 0,
+    }
+  });
+
   const room = await db.room.create({
     data: {
       title,
+      description: 'A comprehensive collection of video essays and deep dives into various topics. Explore different viewpoints and analysis from multiple contributors.',
+      thumbnailId: thumb.id,
       visibility: RoomVisibility.public,
       ownerId: users[0].id,
       members: { create: users.map(u => ({ userId: u.id, role: 'member' })) }
@@ -210,9 +224,23 @@ async function seedHeavyVideoRoom(title: string, users: any[]) {
 }
 
 async function seedEdgeCasesRoom(title: string, users: any[]) {
+  const thumb = await db.media.create({
+    data: {
+      ownerId: users[0].id,
+      kind: MediaKind.image,
+      source: MediaSource.youtube,
+      externalId: YOUTUBE_IDS[2],
+      title: 'Room Thumbnail',
+      mimeType: 'image/jpeg',
+      size: 0,
+    }
+  });
+
   const room = await db.room.create({
     data: {
       title,
+      description: 'A sandbox room to test how the UI handles edge cases like long text, deep nesting, and bizarre media attachments.',
+      thumbnailId: thumb.id,
       visibility: RoomVisibility.public,
       ownerId: users[0].id,
       members: { create: users.map(u => ({ userId: u.id, role: 'member' })) }

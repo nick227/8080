@@ -31,6 +31,7 @@ export function toAuthor(user: UserRow) {
 
 export function roomInclude(viewerId: string) {
   return {
+    thumbnail: true,
     _count: { select: { members: true } },
     members: { where: { userId: viewerId }, select: { role: true } },
   } satisfies Prisma.RoomInclude
@@ -44,12 +45,17 @@ export function toRoom(room: RoomRow) {
     id: room.id,
     number: room.number,
     title: room.title,
+    description: room.description ?? '',
+    thumbnail: room.thumbnail ? toMedia(room.thumbnail) : null,
     topic: room.topic,
     visibility: room.visibility,
     ownerId: room.ownerId,
     itemCount: room.itemCount,
+    responseCount: room.responseCount,
+    durationMs: room.durationMs,
     memberCount: room._count.members,
     lastActivityAt: room.lastActivityAt,
+    lastResponseAt: room.lastResponseAt,
     createdAt: room.createdAt,
     role,
     // Only members of a private room may see (and share) its invite code.
@@ -114,13 +120,20 @@ const REACTION_ORDER: ReactionType[] = ['like', 'ack', 'laugh']
 // viewerId null → broadcast payload (SSE): `reacted` is always false.
 export function toItem(item: ItemRow, viewerId: string | null) {
   const deleted = item.deletedAt !== null
-  const reactions = deleted
-    ? []
-    : REACTION_ORDER.flatMap((type) => {
-        const of = item.reactions.filter((r) => r.type === type)
-        if (of.length === 0) return []
-        return [{ type, count: of.length, reacted: viewerId !== null && of.some((r) => r.userId === viewerId) }]
-      })
+  let reactions: any[] = []
+  if (!deleted && item.reactions.length > 0) {
+    const counts: Record<string, number> = { like: 0, ack: 0, laugh: 0 }
+    const reacted: Record<string, boolean> = { like: false, ack: false, laugh: false }
+    for (const r of item.reactions) {
+      counts[r.type]++
+      if (viewerId !== null && r.userId === viewerId) reacted[r.type] = true
+    }
+    reactions = REACTION_ORDER.filter((t) => counts[t] > 0).map((t) => ({
+      type: t,
+      count: counts[t],
+      reacted: reacted[t],
+    }))
+  }
 
   return {
     id: item.id,

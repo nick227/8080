@@ -34,41 +34,7 @@ export class ItemService {
     return { data: result.data.map((i) => toItem(i, viewerId)), meta: result.meta }
   }
 
-  // River: top-level public items
-  async river(viewerId: string, opts: { cursor?: string; limit?: number }) {
-    const limit = normalizeLimit(opts.limit)
-    // For river, we paginate by createdAt desc. Cursor is a timestamp.
-    type RiverCursor = { t: string }
-    const c = decodeKeyCursor<RiverCursor>(opts.cursor)
-    
-    const rows = await db.item.findMany({
-      where: {
-        parentId: null,
-        room: { visibility: 'public' },
-        deletedAt: null,
-        ...(c?.t ? { createdAt: { lt: new Date(c.t) } } : {})
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit + 1,
-      include: {
-        ...itemInclude,
-        room: { select: { title: true } },
-        _count: { select: { replies: true } }
-      }
-    })
-    
-    const result = page(rows, limit, (last) => encodeKeyCursor<RiverCursor>({ t: last.createdAt.toISOString() }))
-    const hydrated = result.data.map(i => {
-      const baseItem = toItem(i, viewerId)
-      return {
-        ...baseItem,
-        roomId: i.roomId,
-        roomTitle: i.room.title,
-        replyCount: i._count.replies
-      }
-    })
-    return { data: hydrated, meta: result.meta }
-  }
+
 
   async get(viewerId: string, itemId: string) {
     const item = await this.loadViewable(viewerId, itemId)
@@ -81,8 +47,8 @@ export class ItemService {
     await rooms.ensureMember(viewerId, room)
 
     const item = await db.$transaction(async (tx) => {
-      const messageId = await this.createMessage(tx, viewerId, content)
-      return this.place(tx, { roomId, messageId, parentId: null })
+      const msg = await this.createMessage(tx, viewerId, content)
+      return this.place(tx, { roomId, messageId: msg.id, parentId: null, durationMs: msg.durationMs })
     })
     return this.publishCreated(viewerId, item)
   }
@@ -96,8 +62,8 @@ export class ItemService {
     await rooms.ensureMember(viewerId, room)
 
     const item = await db.$transaction(async (tx) => {
-      const messageId = await this.createMessage(tx, viewerId, content)
-      return this.place(tx, { roomId: parent.roomId, messageId, parentId: parent.id, anchorStartMs })
+      const msg = await this.createMessage(tx, viewerId, content)
+      return this.place(tx, { roomId: parent.roomId, messageId: msg.id, parentId: parent.id, anchorStartMs, durationMs: msg.durationMs })
     })
     return this.publishCreated(viewerId, item)
   }
@@ -105,7 +71,7 @@ export class ItemService {
   async share(viewerId: string, messageId: string, roomIds: string[]) {
     const message = await db.message.findFirst({
       where: { id: messageId, deletedAt: null },
-      select: { authorId: true, items: { where: { deletedAt: null }, select: { roomId: true } } },
+      select: { authorId: true, media: { select: { duration: true } }, items: { where: { deletedAt: null }, select: { roomId: true } } },
     })
     // Only the author can re-publish their content (keeps private-room content private).
     // Non-authors who can't see the message get 404, not 403.
@@ -118,16 +84,33 @@ export class ItemService {
 
     // Validate every target before writing anything (all-or-nothing).
     const alreadyIn = new Set(message.items.map((i) => i.roomId))
-    const targets: Awaited<ReturnType<RoomService['viewable']>>[] = []
-    for (const roomId of roomIds) {
-      const room = await rooms.viewable(viewerId, roomId) // 404 for invisible private rooms
-      if (!alreadyIn.has(roomId)) targets.push(room)
+    
+    const uniqueRoomIds = Array.from(new Set(roomIds))
+    const roomRows = await db.room.findMany({
+      where: {
+        id: { in: uniqueRoomIds },
+        deletedAt: null,
+        OR: [{ visibility: 'public' }, { members: { some: { userId: viewerId } } }],
+      },
+      include: {
+        _count: { select: { members: true } },
+        members: { where: { userId: viewerId }, select: { role: true } },
+      }
+    })
+    
+    if (roomRows.length !== uniqueRoomIds.length) {
+      throw notFound('Room not found')
     }
-    for (const room of targets) await rooms.ensureMember(viewerId, room)
 
+    const targets = roomRows.filter(r => !alreadyIn.has(r.id))
+    
+    // ensureMember does an upsert per room if not already member
+    await Promise.all(targets.map(room => rooms.ensureMember(viewerId, room)))
+
+    const durationMs = message.media.reduce((acc, m) => acc + (m.duration ? Math.round(m.duration * 1000) : 0), 0)
     const created = await db.$transaction(async (tx) => {
       const items: Prisma.ItemGetPayload<{ include: typeof itemInclude }>[] = []
-      for (const room of targets) items.push(await this.place(tx, { roomId: room.id, messageId, parentId: null }))
+      for (const room of targets) items.push(await this.place(tx, { roomId: room.id, messageId, parentId: null, durationMs }))
       return items
     })
     return created.map((item) => this.publishCreated(viewerId, item))
@@ -183,22 +166,31 @@ export class ItemService {
 
   private async createMessage(tx: Tx, authorId: string, content: { text: string | null; mediaIds: string[] }) {
     const message = await tx.message.create({ data: { authorId, text: content.text }, select: { id: true } })
-    for (const [position, id] of content.mediaIds.entries()) {
-      // Only the uploader's own, not-yet-attached media; attached once, ever.
-      const { count } = await tx.media.updateMany({
-        where: { id, ownerId: authorId, messageId: null },
-        data: { messageId: message.id, position },
-      })
-      if (count !== 1) throw badRequest('Media not found or already attached', 'INVALID_MEDIA')
+    let durationMs = 0
+    if (content.mediaIds.length > 0) {
+      const uniqueMediaIds = Array.from(new Set(content.mediaIds))
+      const medias = await tx.media.findMany({ where: { id: { in: uniqueMediaIds }, ownerId: authorId, messageId: null } })
+      if (medias.length !== uniqueMediaIds.length) throw badRequest('Media not found or already attached', 'INVALID_MEDIA')
+      
+      for (const [position, id] of content.mediaIds.entries()) {
+        await tx.media.update({ where: { id }, data: { messageId: message.id, position } })
+      }
+      durationMs = medias.reduce((acc, m) => acc + (m.duration ? Math.round(m.duration * 1000) : 0), 0)
     }
-    return message.id
+    return { id: message.id, durationMs }
   }
 
   // Row lock on the room serializes numbering within a room.
-  private async place(tx: Tx, p: { roomId: string; messageId: string; parentId: string | null; anchorStartMs?: number | null }) {
+  private async place(tx: Tx, p: { roomId: string; messageId: string; parentId: string | null; anchorStartMs?: number | null; durationMs?: number }) {
     const { itemCount } = await tx.room.update({
       where: { id: p.roomId },
-      data: { itemCount: { increment: 1 }, lastActivityAt: new Date() },
+      data: { 
+        itemCount: { increment: 1 }, 
+        responseCount: { increment: p.parentId ? 1 : 0 },
+        durationMs: { increment: p.durationMs ?? 0 },
+        lastActivityAt: new Date(),
+        ...(p.parentId ? { lastResponseAt: new Date() } : {})
+      },
       select: { itemCount: true },
     })
     return tx.item.create({
@@ -213,14 +205,15 @@ export class ItemService {
   }
 
   private async anyVisible(viewerId: string, roomIds: string[]) {
-    for (const roomId of new Set(roomIds)) {
-      try {
-        await rooms.viewable(viewerId, roomId)
-        return true
-      } catch {
-        // not visible — keep looking
-      }
-    }
-    return false
+    const uniqueIds = Array.from(new Set(roomIds))
+    const visibleRoom = await db.room.findFirst({
+      where: {
+        id: { in: uniqueIds },
+        deletedAt: null,
+        OR: [{ visibility: 'public' }, { members: { some: { userId: viewerId } } }],
+      },
+      select: { id: true }
+    })
+    return visibleRoom !== null
   }
 }
