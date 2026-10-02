@@ -21,7 +21,7 @@ button { border: 0; background: transparent; color: inherit; cursor: pointer; }
 button:disabled { cursor: default; opacity: .35; }
 button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
 .action { font-family: var(--mono); letter-spacing: .06em; }
-.shell { width: var(--shell-w); margin: 0 auto; min-height: 100vh; padding: 24px 0 44px; }
+.shell { width: var(--shell-w); margin: 0 auto; min-height: 100vh; padding: calc(var(--mast) + var(--crumb-h) + 16px) 0 44px; }
 .header, .footer { display: flex; align-items: flex-start; justify-content: space-between; padding-top: 10px; font-family: var(--mono); }
 .header h1 { margin: 8px 0 0; font-size: clamp(28px, 4vw, 56px); font-weight: 500; letter-spacing: -.03em; line-height: 1.1; }
 .eyebrow, .mode-label, .footer, .ref, .reply-strip, .status { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
@@ -206,8 +206,9 @@ audio.media-view { width: min(520px, 100%); }
 .field { width: 100%; background: transparent; border: 0; border-bottom: 1px solid var(--line); color: var(--ink); padding: 10px 0; font-size: 16px; outline: none; border-radius: 0; }
 .field:focus { border-bottom-color: var(--ink); }
 .plain-select { background: transparent; color: var(--ink); border: 0; outline: none; font-family: var(--mono); font-size: 12px; letter-spacing: .06em; }
-.crumb { position: relative; top: var(--mast); left: 0; right: 0; z-index: 32; width: 100%; height: var(--crumb-h); display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--bg); font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-.crumb a, .crumb button { color: inherit; }
+.crumb { position: fixed; top: var(--mast); left: 0; right: 0; z-index: 32; height: var(--crumb-h); display: flex; align-items: center; justify-content: flex-start; gap: 10px; padding: 3px var(--edge) 0; background: var(--bg); font-family: var(--mono); font-size: 11px; line-height: 1; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.crumb a, .crumb button { color: inherit; line-height: 1; text-decoration: none; }
+@media (max-width: 720px) { .crumb { padding-left: 10px; padding-right: 10px; } }
 .crumb a:hover, .crumb button:hover, .crumb a:focus-visible, .crumb button:focus-visible { color: var(--ink); }
 .crumb a[aria-current="page"] { color: var(--ink); }
 .crumb-sep, .crumb-num, .crumb-vis, .crumb-toggle { flex-shrink: 0; }
