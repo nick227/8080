@@ -19,6 +19,8 @@ interface MediaProps extends MediaHTMLAttributes<HTMLMediaElement> {
   // instead of playing the element directly.
   onRequestPlay?: () => void;
   waveform?: number[] | null;
+  // Conversation rows put Play/Pause next to Reply, so the waveform uses the whole row.
+  hidePlayButton?: boolean;
   // Anchored replies on this media (V1: only the parent's single timed clip).
   anchors?: Anchor[];
   anchorDurationMs?: number;
@@ -100,7 +102,7 @@ function releaseGraph(el: HTMLMediaElement) {
   }, 0)
 }
 
-function StoredMedia({ type = 'image', preview = false, name, poster, src, aspectRatio, className = '', isActive, isUpcoming, onEnded, onPlayStatusChange, onRequestPlay, waveform, anchors, anchorDurationMs, activeAnchorId, onAnchorSelect, title: _title, embeddable: _embeddable, ...props }: MediaProps) {
+function StoredMedia({ type = 'image', preview = false, name, poster, src, aspectRatio, className = '', isActive, isUpcoming, onEnded, onPlayStatusChange, onRequestPlay, waveform, hidePlayButton, anchors, anchorDurationMs, activeAnchorId, onAnchorSelect, title: _title, embeddable: _embeddable, ...props }: MediaProps) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const mediaRef = React.useRef<HTMLMediaElement>(null);
@@ -190,26 +192,28 @@ function StoredMedia({ type = 'image', preview = false, name, poster, src, aspec
           {...props} 
         />
         {waveform ? (
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center', width: '100%', padding: '0 16px' }}>
-            <button 
-              type="button"
-              className="lobby-pill"
-              aria-label={playing ? 'Pause' : 'Play'}
-              style={{ width: 44, height: 44, borderRadius: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0, background: 'var(--surface-sunken)' }}
-              onClick={(e) => {
-                e.stopPropagation()
-                if (isActive && mediaRef.current?.paused) return void mediaRef.current.play().catch(() => {})
-                if (onRequestPlay && !isActive) return onRequestPlay()
-                const el = mediaRef.current
-                if (!el) return
-                if (el.paused) el.play().catch(() => {})
-                else el.pause()
-              }}
-            >
-              {playing ? '❚❚' : '▶'}
-            </button>
-            <div 
-              style={{ display: 'flex', gap: 4, height: 64, alignItems: 'center', flex: 1, cursor: 'pointer', position: 'relative' }}
+          <div style={{ display: 'flex', gap: hidePlayButton ? 0 : 16, alignItems: 'center', width: '100%', padding: hidePlayButton ? 0 : '0 16px' }}>
+            {!hidePlayButton && (
+              <button
+                type="button"
+                className="lobby-pill"
+                aria-label={playing ? 'Pause' : 'Play'}
+                style={{ width: 44, height: 44, borderRadius: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0, background: 'var(--surface-sunken)' }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (isActive && mediaRef.current?.paused) return void mediaRef.current.play().catch(() => {})
+                  if (onRequestPlay && !isActive) return onRequestPlay()
+                  const el = mediaRef.current
+                  if (!el) return
+                  if (el.paused) el.play().catch(() => {})
+                  else el.pause()
+                }}
+              >
+                {playing ? '❚❚' : '▶'}
+              </button>
+            )}
+            <div
+              style={{ display: 'flex', gap: hidePlayButton ? 2 : 4, height: 64, alignItems: 'center', flex: 1, width: '100%', cursor: 'pointer', position: 'relative' }}
             onClick={(e) => {
               if (isActive && mediaRef.current?.paused) return void mediaRef.current.play().catch(() => {})
               if (onRequestPlay && !isActive) return onRequestPlay()
@@ -224,10 +228,12 @@ function StoredMedia({ type = 'image', preview = false, name, poster, src, aspec
             {waveform.map((val, i) => (
               <div 
                 key={i} 
-                style={{ 
-                  width: 4, 
-                  height: `${Math.max(10, val * 100)}%`, 
-                  background: (i / waveform.length) <= progress ? 'var(--signal)' : 'var(--ink)', 
+                style={{
+                  width: hidePlayButton ? undefined : 4,
+                  flex: hidePlayButton ? '1 1 0' : undefined,
+                  minWidth: hidePlayButton ? 0 : undefined,
+                  height: `${Math.max(10, val * 100)}%`,
+                  background: (i / waveform.length) <= progress ? 'var(--signal)' : 'var(--ink)',
                   borderRadius: 2,
                   transition: 'background 0.1s linear'
                 }} 
@@ -294,6 +300,7 @@ function StoredMedia({ type = 'image', preview = false, name, poster, src, aspec
             if (onEnded && isActive) onEnded()
           }}
           onEnded={onEnded}
+          onPlayStatusChange={onPlayStatusChange}
           {...props}
         />
       )}
