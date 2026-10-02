@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest'
 import { db } from '@project/db'
 import { randomUUID } from 'crypto'
-import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, seedRoom, seedItem, seedReply } from './helpers'
+import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, seedRoom, seedItem, seedReply, seedImage } from './helpers'
 import { recountRooms } from '../services/roomStats'
 
 const app = buildTestApp()
@@ -69,16 +69,19 @@ describe('createRoom', () => {
   })
 
   it('POST /rooms creates a public room owned by the caller', async () => {
+    const thumb = await seedImage(testUserId)
     const res = await app.inject({
       method: 'POST',
       url: '/rooms',
       headers: asAuth(testUserId),
-      payload: { title: '  Open channel ', topic: 'General' },
+      payload: { title: '  Open channel ', description: ' Say anything ', thumbnailId: thumb.id, topic: 'General' },
     })
     expect(res.statusCode).toBe(201)
     await validateResponse('createRoom', 201, res.json())
     expect(res.json().data).toMatchObject({
       title: 'Open channel',
+      description: 'Say anything',
+      thumbnail: { id: thumb.id, type: 'image' },
       topic: 'general',
       visibility: 'public',
       role: 'owner',
@@ -86,6 +89,36 @@ describe('createRoom', () => {
       itemCount: 0,
       inviteCode: null,
     })
+  })
+
+  it('a conversation needs a name, a description and a thumbnail', async () => {
+    const thumb = await seedImage(testUserId)
+    const post = (payload: object) => app.inject({ method: 'POST', url: '/rooms', headers: asAuth(testUserId), payload })
+    expect((await post({ title: 'No picture', description: 'x' })).statusCode).toBe(400)
+    expect((await post({ title: 'No description', thumbnailId: thumb.id })).statusCode).toBe(400)
+    expect((await post({ title: 'Blank', description: '   ', thumbnailId: thumb.id })).json().code).toBe('INVALID_ROOM')
+    expect((await post({ title: '   ', description: 'x', thumbnailId: thumb.id })).json().code).toBe('INVALID_ROOM')
+  })
+
+  it('the thumbnail is the caller\'s own image or YouTube video', async () => {
+    const post = (thumbnailId: string) =>
+      app.inject({ method: 'POST', url: '/rooms', headers: asAuth(testUserId), payload: { title: 'T', description: 'D', thumbnailId } })
+    const theirs = await seedImage(testOtherUserId)
+    const audio = await db.media.create({ data: { ownerId: testUserId, kind: 'audio', storageKey: `${randomUUID()}.webm`, mimeType: 'audio/webm', size: 1 } })
+    for (const id of [theirs.id, audio.id, 'missing']) expect((await post(id)).json().code).toBe('INVALID_THUMBNAIL')
+    const youtube = await db.media.create({ data: { ownerId: testUserId, kind: 'video', source: 'youtube', externalId: 'dQw4w9WgXcQ', mimeType: 'video/youtube', size: 0 } })
+    const ok = await post(youtube.id)
+    expect(ok.statusCode).toBe(201)
+    expect(ok.json().data.thumbnail.poster).toContain('dQw4w9WgXcQ')
+  })
+
+  it('an update cannot blank the name or description', async () => {
+    const room = await seedRoom(app, testUserId)
+    const patch = (payload: object) => app.inject({ method: 'PATCH', url: `/rooms/${room.id}`, headers: asAuth(testUserId), payload })
+    expect((await patch({ description: '' })).statusCode).toBe(400)
+    expect((await patch({ description: '  ' })).json().code).toBe('INVALID_ROOM')
+    expect((await patch({ title: '  ' })).json().code).toBe('INVALID_ROOM')
+    expect((await patch({ description: 'Sharper' })).json().data.description).toBe('Sharper')
   })
 
   it('private rooms get an invite code visible to the owner', async () => {

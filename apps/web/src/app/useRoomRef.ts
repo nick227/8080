@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { getApiClient, ApiError } from '@project/sdk'
+import { getApiClient, ApiError, uploadMedia } from '@project/sdk'
+import { titleCard } from '../utils/thumbnail'
 
 // DEV-ONLY resolver for the room segment of /room/:ref.
 //   /room/demo       → the shared public "OPEN CHANNEL" room (created on first visit)
@@ -19,7 +20,12 @@ export function useRoomRef(ref: string) {
         const found = await client.GET('/rooms', { params: { query: { q: DEMO_TITLE, limit: 20 } } })
         const existing = found.data?.data.find((r) => r.title === DEMO_TITLE)
         if (existing) return existing.id
-        const created = await client.POST('/rooms', { body: { title: DEMO_TITLE } })
+        const card = await titleCard(DEMO_TITLE)
+        if (!card) throw new Error('Unable to draw the demo thumbnail')
+        const thumbnail = await uploadMedia({ file: card, type: 'image', name: 'thumbnail.jpg' })
+        const created = await client.POST('/rooms', {
+          body: { title: DEMO_TITLE, description: 'The shared demo conversation.', thumbnailId: thumbnail.id },
+        })
         if (!created.data) throw new ApiError(created.response.status, 'Unable to create demo room')
         return created.data.data.id
       }

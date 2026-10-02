@@ -581,8 +581,9 @@ export interface components {
         };
         CreateRoomInput: {
             title: string;
-            description?: string;
-            thumbnailId?: string;
+            description: string;
+            /** @description The caller's own image, or a YouTube video they added. 400 INVALID_THUMBNAIL otherwise. */
+            thumbnailId: string;
             topic?: string;
             visibility?: components["schemas"]["RoomVisibility"];
         };

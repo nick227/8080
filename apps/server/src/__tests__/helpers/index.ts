@@ -4,6 +4,7 @@ import SwaggerParser from '@apidevtools/swagger-parser'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import { db } from '@project/db'
+import { randomUUID } from 'crypto'
 import { buildApp, specPath } from '../../app'
 import { bearerAuth as realBearerAuth } from '../../plugins/security'
 import { userInclude } from '../../lib/session'
@@ -106,16 +107,22 @@ export async function validateResponse(operationId: string, status: number, body
 
 // ─── domain seeds (go through the API so tests exercise real paths) ────────────
 
+// A stored image owned by `ownerId` — what a conversation thumbnail points at.
+export async function seedImage(ownerId: string) {
+  return db.media.create({ data: { ownerId, kind: 'image', storageKey: `${randomUUID()}.png`, mimeType: 'image/png', size: 1 } })
+}
+
 export async function seedRoom(
   app: FastifyInstance,
   ownerId: string,
-  body: { title?: string; topic?: string; visibility?: 'public' | 'private' } = {},
+  body: { title?: string; description?: string; thumbnailId?: string; topic?: string; visibility?: 'public' | 'private' } = {},
 ) {
+  const thumbnailId = body.thumbnailId ?? (await seedImage(ownerId)).id
   const res = await app.inject({
     method: 'POST',
     url: '/rooms',
     headers: asAuth(ownerId),
-    payload: { title: 'Test room', ...body },
+    payload: { title: 'Test room', description: 'What this is about', ...body, thumbnailId },
   })
   if (res.statusCode !== 201) throw new Error(`seedRoom failed: ${res.statusCode} ${res.body}`)
   return res.json().data as { id: string; inviteCode: string | null; number: number }

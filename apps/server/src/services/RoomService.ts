@@ -84,18 +84,24 @@ export class RoomService {
     return activityPage(rows, limit)
   }
 
+  // A thumbnail is the caller's own stored image, or a YouTube video they added
+  // (shown by its YouTube thumbnail).
   async ownImage(ownerId: string, mediaId: string) {
-    const media = await db.media.findFirst({ where: { id: mediaId, ownerId, kind: 'image' } })
-    if (!media) throw badRequest('Thumbnail must be an image you uploaded', 'INVALID_THUMBNAIL')
+    const media = await db.media.findFirst({ where: { id: mediaId, ownerId, OR: [{ kind: 'image' }, { source: 'youtube' }] } })
+    if (!media) throw badRequest('Thumbnail must be an image (or YouTube video) you added', 'INVALID_THUMBNAIL')
   }
 
-  async create(ownerId: string, input: { title: string; description?: string; thumbnailId?: string; topic?: string; visibility?: RoomVisibility }) {
+  // Every conversation has a name, a description and a picture.
+  async create(ownerId: string, input: { title: string; description: string; thumbnailId: string; topic?: string; visibility?: RoomVisibility }) {
     const visibility = input.visibility ?? 'public'
-    if (input.thumbnailId) await this.ownImage(ownerId, input.thumbnailId)
+    const title = input.title.trim()
+    const description = input.description.trim()
+    if (!title || !description) throw badRequest('A conversation needs a name and a description', 'INVALID_ROOM')
+    await this.ownImage(ownerId, input.thumbnailId)
     const room = await db.room.create({
       data: {
-        title: input.title.trim(),
-        description: input.description?.trim() ?? '',
+        title,
+        description,
         thumbnailId: input.thumbnailId,
         topic: input.topic?.trim().toLowerCase() || null,
         visibility,
@@ -138,6 +144,8 @@ export class RoomService {
     const room = await this.viewable(viewerId, roomId)
     if (room.ownerId !== viewerId) throw forbidden('Only the owner can edit this room')
     if (input.thumbnailId) await this.ownImage(viewerId, input.thumbnailId)
+    if (input.title !== undefined && !input.title.trim()) throw badRequest('A conversation needs a name', 'INVALID_ROOM')
+    if (input.description !== undefined && !input.description.trim()) throw badRequest('A conversation needs a description', 'INVALID_ROOM')
 
     const visibility = input.visibility ?? room.visibility
     const inviteCode =

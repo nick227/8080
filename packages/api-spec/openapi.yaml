@@ -896,11 +896,15 @@ components:
     CreateRoomInput:
       type: object
       additionalProperties: false
-      required: [title]
+      required: [title, description, thumbnailId]
       properties:
         title: { type: string, minLength: 1, maxLength: 120 }
-        description: { type: string, minLength: 0, maxLength: 4000 }
-        thumbnailId: { type: string, minLength: 1, maxLength: 64 }
+        description: { type: string, minLength: 1, maxLength: 4000 }
+        thumbnailId:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: The caller's own image, or a YouTube video they added. 400 INVALID_THUMBNAIL otherwise.
         topic: { type: string, minLength: 1, maxLength: 40 }
         visibility: { $ref: '#/components/schemas/RoomVisibility' }
 
@@ -909,7 +913,7 @@ components:
       additionalProperties: false
       properties:
         title: { type: string, minLength: 1, maxLength: 120 }
-        description: { type: string, minLength: 0, maxLength: 4000 }
+        description: { type: string, minLength: 1, maxLength: 4000 }
         thumbnailId: { type: string, minLength: 1, maxLength: 64 }
         topic: { type: [string, 'null'], minLength: 1, maxLength: 40 }
         visibility: { $ref: '#/components/schemas/RoomVisibility' }
