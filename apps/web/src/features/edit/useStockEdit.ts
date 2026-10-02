@@ -101,12 +101,17 @@ export function useStockEdit(picture: TakePicture | null) {
     const current = pictureRef.current
     const edit = fittedRef.current
     if (!current || !edit) throw new Error('Nothing to render')
-    if (current.kind === 'audio' && !edit.imageUrl) {
-      return { file: encodeWav(edit.buffer), type: 'audio', name: 'edit.wav', duration: edit.durationMs / 1000 }
+    if (current.kind === 'audio') {
+      if (!edit.imageUrl) {
+        return { file: encodeWav(edit.buffer), type: 'audio', name: 'edit.wav', duration: edit.durationMs / 1000 }
+      }
+      if (!audioCtx) throw new Error('Could not render the clip')
+      const file = await composeClip({ kind: 'image', url: edit.imageUrl }, edit.buffer, edit.durationMs, audioCtx)
+      const ext = file.type === 'video/mp4' ? 'mp4' : 'webm'
+      return { file, type: 'video', name: `edit.${ext}`, duration: edit.durationMs / 1000 }
     }
     if (!audioCtx) throw new Error('Could not render the clip')
-    const picture = current.kind === 'audio' && edit.imageUrl ? { kind: 'image' as const, url: edit.imageUrl } : { kind: current.kind, url: current.url }
-    const file = await composeClip(picture, edit.buffer, edit.durationMs, audioCtx)
+    const file = await composeClip({ kind: current.kind, url: current.url }, edit.buffer, edit.durationMs, audioCtx)
     const ext = file.type === 'video/mp4' ? 'mp4' : 'webm'
     return { file, type: 'video', name: `edit.${ext}`, duration: edit.durationMs / 1000 }
   }
