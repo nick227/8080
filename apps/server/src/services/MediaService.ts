@@ -54,23 +54,33 @@ export class MediaService {
     const [ext, kind] = allowed
     const key = `${randomUUID()}.${ext}`
     let size = 0
-    let checkedMagic = false
-    let headerBuffer = Buffer.alloc(0)
+    // Hold the first bytes back until the signature can be checked: nothing reaches
+    // storage before it passes, however the client chunks the upload.
+    let head: Buffer[] = []
+    let headLength = 0
+    let verified = false
+    const release = (push: (chunk: Buffer) => void) => {
+      const bytes = Buffer.concat(head)
+      head = []
+      if (!matchesSignature(bytes, mimeType)) return httpError(415, `File content does not match ${mimeType}`, 'UNSUPPORTED_TYPE') as unknown as Error
+      verified = true
+      push(bytes)
+      return null
+    }
 
     const counted = new Transform({
       transform(chunk: Buffer, _encoding, done) {
-        if (!checkedMagic) {
-          headerBuffer = Buffer.concat([headerBuffer, chunk])
-          if (headerBuffer.length >= 32 || headerBuffer.length >= size + chunk.length) { // Wait for 32 bytes or EOF
-            if (!checkMagicBytes(headerBuffer, mimeType)) {
-              return done(httpError(415, `File content does not match ${mimeType}`, 'UNSUPPORTED_TYPE') as unknown as Error)
-            }
-            checkedMagic = true
-            // we don't clear headerBuffer to save memory because it's small anyway
-          }
-        }
         size += chunk.length
-        done(null, chunk)
+        if (verified) return done(null, chunk)
+        head.push(chunk)
+        headLength += chunk.length
+        if (headLength < SIGNATURE_BYTES) return done()
+        done(release((bytes) => this.push(bytes)) ?? undefined)
+      },
+      // A file shorter than SIGNATURE_BYTES is checked on what there is.
+      flush(done) {
+        if (verified || headLength === 0) return done()
+        done(release((bytes) => this.push(bytes)) ?? undefined)
       },
     })
     // Over the size limit, @fastify/multipart errors the file stream; pass that on.
@@ -122,39 +132,37 @@ export class MediaService {
   }
 }
 
-function checkMagicBytes(buffer: Buffer, mimeType: string): boolean {
-  if (buffer.length < 8) return true // too small to check reliably here
-  
-  if (mimeType === 'image/jpeg') return buffer[0]! === 0xFF && buffer[1]! === 0xD8 && buffer[2]! === 0xFF
-  if (mimeType === 'image/png') return buffer.toString('hex', 0, 8) === '89504e470d0a1a0a'
-  if (mimeType === 'image/gif') return buffer.toString('utf8', 0, 4).startsWith('GIF8')
-  if (mimeType === 'application/pdf') return buffer.toString('utf8', 0, 5) === '%PDF-'
-  if (mimeType === 'audio/webm' || mimeType === 'video/webm') return buffer.toString('hex', 0, 4) === '1a45dfa3'
-  if (mimeType === 'audio/ogg') return buffer.toString('utf8', 0, 4) === 'OggS'
-  
-  // RIFF-based (WebP, WAV)
-  if (buffer.toString('utf8', 0, 4) === 'RIFF') {
-    const format = buffer.toString('utf8', 8, 12)
-    if (mimeType === 'image/webp') return format === 'WEBP'
-    if (mimeType === 'audio/wav' || mimeType === 'audio/x-wav') return format === 'WAVE'
-    return false
-  }
-  
-  // ftyp-based (MP4, M4A, MOV)
-  if (buffer.toString('utf8', 4, 8) === 'ftyp') {
-    return mimeType === 'video/mp4' || mimeType === 'audio/mp4' || mimeType === 'video/quicktime'
-  }
-  
-  // MP3: either ID3 tag or MPEG sync word
-  if (mimeType === 'audio/mpeg') {
-    return buffer.toString('utf8', 0, 3) === 'ID3' || (buffer[0]! === 0xFF && (buffer[1]! & 0xE0) === 0xE0)
-  }
-  
-  // AAC ADTS: sync word
-  if (mimeType === 'audio/aac') {
-    return buffer[0]! === 0xFF && (buffer[1]! & 0xF0) === 0xF0
-  }
-  
-  // If we don't have a specific check, allow it (but we covered all our ALLOWED types)
-  return true
+// Enough leading bytes for every signature below.
+const SIGNATURE_BYTES = 32
+
+const ascii = (b: Buffer, start: number, end: number) => b.toString('latin1', start, end)
+const riff = (b: Buffer, format: string) => ascii(b, 0, 4) === 'RIFF' && ascii(b, 8, 12) === format
+const isoMedia = (b: Buffer) => ascii(b, 4, 8) === 'ftyp'
+const ebml = (b: Buffer) => b.toString('hex', 0, 4) === '1a45dfa3'
+const mpegSync = (b: Buffer) => b[0] === 0xff && (b[1]! & 0xe0) === 0xe0
+const adtsSync = (b: Buffer) => b[0] === 0xff && (b[1]! & 0xf6) === 0xf0
+
+// The bytes must look like the declared type — every allowed type has a check, and
+// anything else (including a file too short to tell) is rejected.
+const SIGNATURES: Record<string, (b: Buffer) => boolean> = {
+  'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  'image/png': (b) => b.toString('hex', 0, 8) === '89504e470d0a1a0a',
+  'image/gif': (b) => ascii(b, 0, 4) === 'GIF8',
+  'image/webp': (b) => riff(b, 'WEBP'),
+  'audio/webm': ebml,
+  'video/webm': ebml,
+  'audio/ogg': (b) => ascii(b, 0, 4) === 'OggS',
+  'audio/mpeg': (b) => ascii(b, 0, 3) === 'ID3' || mpegSync(b),
+  'audio/mp4': isoMedia,
+  'video/mp4': isoMedia,
+  'video/quicktime': (b) => isoMedia(b) || ['moov', 'mdat', 'wide', 'free'].includes(ascii(b, 4, 8)),
+  'audio/aac': adtsSync,
+  'audio/wav': (b) => riff(b, 'WAVE'),
+  'audio/x-wav': (b) => riff(b, 'WAVE'),
+  'application/pdf': (b) => ascii(b, 0, 5) === '%PDF-',
+}
+
+export function matchesSignature(bytes: Buffer, mimeType: string): boolean {
+  const check = SIGNATURES[mimeType]
+  return !!check && bytes.length >= 4 && check(bytes)
 }

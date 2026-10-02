@@ -3,7 +3,7 @@
 // Share = new Item placements that reuse one Message and its media.
 import { describe, it, expect } from 'vitest'
 import { db } from '@project/db'
-import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, seedRoom, seedItem, multipart } from './helpers'
+import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, seedRoom, seedItem, multipart, fileBytes } from './helpers'
 
 const app = buildTestApp()
 
@@ -11,7 +11,7 @@ const share = (userId: string, messageId: string, roomIds: string[]) =>
   app.inject({ method: 'POST', url: `/messages/${messageId}/share`, headers: asAuth(userId), payload: { roomIds } })
 
 async function uploadAudio(userId: string) {
-  const form = multipart([{ name: 'file', value: Buffer.from('audio-bytes'), filename: 'rec', type: 'audio/webm' }])
+  const form = multipart([{ name: 'file', value: fileBytes('audio/webm', 'audio-bytes'), filename: 'rec', type: 'audio/webm' }])
   const res = await app.inject({ method: 'POST', url: '/media', headers: { ...asAuth(userId), ...form.headers }, payload: form.payload })
   return res.json().data as { id: string; url: string }
 }

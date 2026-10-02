@@ -169,3 +169,24 @@ export function multipart(parts: Array<{ name: string; value: string | Buffer; f
   chunks.push(Buffer.from(`--${boundary}--\r\n`))
   return { payload: Buffer.concat(chunks), headers: { 'content-type': `multipart/form-data; boundary=${boundary}` } }
 }
+
+// Uploads must start with their type's signature (MediaService checks it).
+// Media URLs are /media/:id/playback (an authorized redirect); the bytes themselves
+// are served at /uploads/<storageKey>.
+export async function storedPath(mediaId: string) {
+  return `/uploads/${(await db.media.findUniqueOrThrow({ where: { id: mediaId } })).storageKey}`
+}
+
+const SIGNATURE_HEX: Record<string, string> = {
+  'audio/webm': '1a45dfa3',
+  'video/webm': '1a45dfa3',
+  'image/png': '89504e470d0a1a0a',
+  'image/jpeg': 'ffd8ffe0',
+  'image/gif': '474946383961',
+}
+
+/** `rest` behind a valid signature for `type` (codec parameters ignored); just `rest` for types we don't accept. */
+export function fileBytes(type: string, rest: string | Buffer = 'test-bytes') {
+  const hex = SIGNATURE_HEX[type.split(';')[0]!.trim()] ?? ''
+  return Buffer.concat([Buffer.from(hex, 'hex'), Buffer.isBuffer(rest) ? rest : Buffer.from(rest)])
+}

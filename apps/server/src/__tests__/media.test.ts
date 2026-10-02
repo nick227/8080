@@ -7,14 +7,16 @@ import { setYouTubeLookup } from '../services/YouTubeService'
 import { readdirSync } from 'fs'
 import { UPLOADS_DIR } from '../providers/LocalStorageProvider'
 import { parseRange } from '../lib/range'
-import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, seedRoom, seedItem, multipart } from './helpers'
+import { Readable } from 'stream'
+import { MediaService, matchesSignature } from '../services/MediaService'
+import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, seedRoom, seedItem, multipart, fileBytes, storedPath } from './helpers'
 
 const app = buildTestApp()
 
 // File part first, fields after — the order the web client sends.
 function upload(userId: string, opts: { type?: string; filename?: string; body?: Buffer; fields?: Record<string, string> } = {}) {
   const form = multipart([
-    { name: 'file', value: opts.body ?? Buffer.from('fake-audio-bytes'), filename: opts.filename ?? 'rec', type: opts.type ?? 'audio/webm;codecs=opus' },
+    { name: 'file', value: opts.body ?? fileBytes(opts.type ?? 'audio/webm', 'fake-audio-bytes'), filename: opts.filename ?? 'rec', type: opts.type ?? 'audio/webm;codecs=opus' },
     ...Object.entries(opts.fields ?? { type: 'audio', duration: '4.5' }).map(([name, value]) => ({ name, value })),
   ])
   return app.inject({ method: 'POST', url: '/media', headers: { ...asAuth(userId), ...form.headers }, payload: form.payload })
@@ -31,17 +33,18 @@ describe('uploadMedia', () => {
     expect(res.statusCode).toBe(201)
     await validateResponse('uploadMedia', 201, res.json())
     const media = res.json().data
-    expect(media).toMatchObject({ type: 'audio', mimeType: 'audio/webm', duration: 4.5, size: 16 })
-    expect(media.url).toMatch(/^http:\/\/localhost:3001\/uploads\/[a-f0-9-]{36}\.webm$/)
+    expect(media).toMatchObject({ type: 'audio', mimeType: 'audio/webm', duration: 4.5, size: 20 })
+    expect(media.url).toBe(`http://localhost:3001/media/${media.id}/playback`)
+    expect(await storedPath(media.id)).toMatch(/^\/uploads\/[a-f0-9-]{36}\.webm$/)
 
-    const served = await app.inject({ method: 'GET', url: new URL(media.url).pathname })
+    const served = await app.inject({ method: 'GET', url: await storedPath(media.id) })
     expect(served.statusCode).toBe(200)
     expect(served.headers['x-content-type-options']).toBe('nosniff')
   })
 
   it('ignores the client filename extension', async () => {
     const res = await upload(testUserId, { type: 'image/png', filename: 'evil.html', fields: {} })
-    expect(res.json().data.url).toMatch(/\.png$/)
+    expect(await storedPath(res.json().data.id)).toMatch(/\.png$/)
   })
 
   it('rejects disallowed types (e.g. SVG) with 415', async () => {
@@ -99,10 +102,10 @@ async function expectNothingStored(res: Promise<{ statusCode: number; json: () =
 
 describe('uploadMedia (streamed to storage)', () => {
   it('stores the exact bytes and records their size', async () => {
-    const body = Buffer.from(Array.from({ length: 70_000 }, (_, i) => i % 251))
+    const body = fileBytes('audio/webm', Buffer.from(Array.from({ length: 70_000 }, (_, i) => i % 251)))
     const media = (await upload(testUserId, { body })).json().data
     expect(media.size).toBe(body.length)
-    const served = await app.inject({ method: 'GET', url: new URL(media.url).pathname })
+    const served = await app.inject({ method: 'GET', url: await storedPath(media.id) })
     expect(served.rawPayload.equals(body)).toBe(true)
   })
 
@@ -130,10 +133,41 @@ describe('uploadMedia (streamed to storage)', () => {
   })
 })
 
+describe('upload signatures', () => {
+  it('content that does not match the declared type → 415, nothing kept', async () => {
+    const html = Buffer.from('<!doctype html><script>alert(1)</script>')
+    for (const type of ['image/png', 'video/mp4', 'audio/mp4', 'image/webp', 'audio/wav', 'video/quicktime'])
+      await expectNothingStored(upload(testUserId, { type, body: html, fields: {} }), 415, 'UNSUPPORTED_TYPE')
+  })
+
+  it('a file too short to identify → 415', async () => {
+    await expectNothingStored(upload(testUserId, { body: Buffer.from([0x1a, 0x45]) }), 415, 'UNSUPPORTED_TYPE')
+  })
+
+  it('tiny first chunks cannot slip past the check', async () => {
+    const service = new MediaService()
+    const trickle = (bytes: Buffer) => Readable.from([...bytes].map((b) => Buffer.from([b])))
+    const html = Buffer.from('<html><body>not a picture at all</body></html>')
+    await expect(service.store({ file: trickle(html), mimetype: 'image/png' })).rejects.toMatchObject({ statusCode: 415 })
+    const png = fileBytes('image/png', 'x'.repeat(40))
+    const stored = await service.store({ file: trickle(png), mimetype: 'image/png' })
+    expect(stored.size).toBe(png.length)
+    await service.discard(stored)
+  })
+
+  it('every allowed type has a signature', () => {
+    expect(matchesSignature(fileBytes('audio/webm'), 'audio/webm')).toBe(true)
+    expect(matchesSignature(Buffer.from('....ftypisom'), 'video/mp4')).toBe(true)
+    expect(matchesSignature(Buffer.from('RIFF....WEBPVP8 '), 'image/webp')).toBe(true)
+    expect(matchesSignature(Buffer.from('RIFF....WAVEfmt '), 'image/webp')).toBe(false)
+    expect(matchesSignature(fileBytes('image/png'), 'image/svg+xml')).toBe(false)
+  })
+})
+
 describe('GET /uploads/:key', () => {
-  const bytes = Buffer.from('0123456789abcdefghij') // 20 bytes
+  const bytes = fileBytes('audio/webm', '456789abcdefghij') // 20 bytes: 4-byte signature + 4…j
   const get = async (headers: Record<string, string> = {}) => {
-    const path = new URL((await upload(testUserId, { body: bytes })).json().data.url).pathname
+    const path = await storedPath((await upload(testUserId, { body: bytes })).json().data.id)
     return app.inject({ method: 'GET', url: path, headers })
   }
 
@@ -171,7 +205,7 @@ describe('GET /uploads/:key', () => {
   })
 
   it('HEAD and If-None-Match send no body', async () => {
-    const url = new URL((await upload(testUserId, { body: bytes })).json().data.url).pathname
+    const url = await storedPath((await upload(testUserId, { body: bytes })).json().data.id)
     const head = await app.inject({ method: 'HEAD', url })
     expect(head.statusCode).toBe(200)
     expect(head.headers['content-length']).toBe('20')

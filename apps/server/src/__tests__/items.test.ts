@@ -6,7 +6,7 @@ import { existsSync } from 'fs'
 import { join } from 'path'
 import { db } from '@project/db'
 import { UPLOADS_DIR } from '../providers/LocalStorageProvider'
-import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, seedRoom, seedItem, seedReply, multipart } from './helpers'
+import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, seedRoom, seedItem, seedReply, multipart, fileBytes } from './helpers'
 
 const app = buildTestApp()
 
@@ -326,7 +326,7 @@ describe('deleteItem', () => {
 describe('replyToItem — anchors', () => {
   const upload = async (userId: string, opts: { type?: string; duration?: string } = {}) => {
     const parts: Array<{ name: string; value: string | Buffer; filename?: string; type?: string }> = [
-      { name: 'file', value: Buffer.from('media-bytes'), filename: 'clip', type: opts.type ?? 'audio/webm' },
+      { name: 'file', value: fileBytes(opts.type ?? 'audio/webm', 'media-bytes'), filename: 'clip', type: opts.type ?? 'audio/webm' },
     ]
     if (opts.duration !== undefined) parts.push({ name: 'duration', value: opts.duration })
     const form = multipart(parts)
