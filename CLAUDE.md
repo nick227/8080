@@ -38,7 +38,7 @@ Defaults (pnpm monorepo, Fastify + fastify-openapi-glue, Prisma + MySQL, OpenAPI
 Invariants agreed after the 2026-10-01 stabilization pass. Change only deliberately.
 
 - **`crossOrigin="anonymous"` is mandatory** on server audio routed through the Web Audio graph (Media's StereoPanner). Without it Chrome outputs zeroes for cross-origin media. Server must keep sending ACAO on `/uploads`.
-- **One audio graph per media element** via the `graphs` WeakMap in `components/Media.tsx` — StrictMode-safe (reuse on remount, deferred close on real unmount). Never call `createMediaElementSource` directly.
+- **One audio graph per media element, one shared AudioContext** (`graphs` WeakMap + `audioContext()` in `components/Media.tsx`) — StrictMode-safe (reuse on remount; deferred disconnect on real unmount). The shared context is never closed: a context per element accumulated one per clip played, and iOS caps them. Never call `createMediaElementSource` or `new AudioContext` for playback directly.
 - **Capture failures always return to idle** and restore interrupted playback (`resume()` in Instrument), then show a human error. Stop is ignored until the recorder is actually recording.
 - **Upload failure keeps the local recording** (blob retained; Send retries).
 - **Text/image/file items explicitly participate in playback completion** (Item dwell → `onEnded`). Timing (`DWELL` in `components/Item.tsx`): min 2.0s, 60ms/char, cap 7.5s; image/file without text 2.75s. Interaction holds the dwell — mouse hover, focus within, or touch tap toggle (shows HELD) — and resuming continues the remaining time.

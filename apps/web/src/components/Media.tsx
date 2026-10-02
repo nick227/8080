@@ -58,24 +58,35 @@ export function Media(props: MediaProps) {
 
 // One WebAudio graph per media element: an element can be connected to a
 // MediaElementSourceNode only once, ever. React StrictMode (and fast remounts)
-// unmount→remount on the same DOM node, so graphs are reused, and closing is
-// deferred a tick so a remount can cancel it. Real unmounts close the context.
-type SpatialGraph = { ctx: AudioContext; panner: StereoPannerNode; closeTimer?: ReturnType<typeof setTimeout> }
+// unmount→remount on the same DOM node, so graphs are reused, and releasing is
+// deferred a tick so a remount can cancel it. Real unmounts disconnect the graph.
+//
+// All graphs share ONE AudioContext. A context per element piled up one live audio
+// thread per clip played (continuous playback through 100 clips = 100 contexts);
+// iOS Safari caps contexts at a handful. The shared context is never closed.
+type SpatialGraph = { ctx: AudioContext; source: MediaElementAudioSourceNode; panner: StereoPannerNode; releaseTimer?: ReturnType<typeof setTimeout> }
 const graphs = new WeakMap<HTMLMediaElement, SpatialGraph>()
+let sharedContext: AudioContext | null = null
+
+function audioContext(): AudioContext | null {
+  if (sharedContext) return sharedContext
+  const Ctx = window.AudioContext || (window as any).webkitAudioContext
+  return Ctx ? (sharedContext = new Ctx() as AudioContext) : null
+}
 
 function attachGraph(el: HTMLMediaElement): SpatialGraph | null {
   const existing = graphs.get(el)
   if (existing) {
-    clearTimeout(existing.closeTimer)
+    clearTimeout(existing.releaseTimer)
     return existing
   }
-  const Ctx = window.AudioContext || (window as any).webkitAudioContext
-  if (!Ctx) return null
-  const ctx: AudioContext = new Ctx()
+  const ctx = audioContext()
+  if (!ctx) return null
+  const source = ctx.createMediaElementSource(el)
   const panner = ctx.createStereoPanner()
-  ctx.createMediaElementSource(el).connect(panner)
+  source.connect(panner)
   panner.connect(ctx.destination)
-  const graph = { ctx, panner }
+  const graph = { ctx, source, panner }
   graphs.set(el, graph)
   return graph
 }
@@ -96,9 +107,10 @@ export function startPlaying(el: HTMLMediaElement, onBlocked: () => void, onUnpl
 function releaseGraph(el: HTMLMediaElement) {
   const graph = graphs.get(el)
   if (!graph) return
-  graph.closeTimer = setTimeout(() => {
+  graph.releaseTimer = setTimeout(() => {
     graphs.delete(el)
-    graph.ctx.close().catch(() => {})
+    graph.source.disconnect()
+    graph.panner.disconnect()
   }, 0)
 }
 

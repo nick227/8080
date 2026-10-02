@@ -49,6 +49,16 @@ function containsPlayhead(itemId: string, activeId: string | null): boolean {
 
 
 
+// Spatial focus while playing or replying: the focused item stays full-strength,
+// the next one is half-lit, everything else recedes (styled via [data-focus]).
+type FocusState = { state: string; activeItemId?: string }
+function focusOf(s: FocusState, itemId: string, isUpcoming?: boolean) {
+  const focusing = (s.state === 'playback' || s.state === 'replying') && !!s.activeItemId
+  if (!focusing || containsPlayhead(itemId, s.activeItemId ?? null)) return undefined
+  if (s.activeItemId === itemId) return s.state === 'playback' ? 'active' : 'target'
+  return isUpcoming ? 'upcoming' : 'receded'
+}
+
 // Items without audio/video never fire `ended`, so they must explicitly take part
 // in playback: dwell for a reading-time beat, then advance (otherwise traversal
 // stalls on text/images/files). Interaction holds the dwell; leaving resumes it.
@@ -76,8 +86,11 @@ export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onE
   const [showPlayOptions, setShowPlayOptions] = useState(false)
   const [showShareMenu, setShowShareMenu] = useState(false)
   const count = (type: ReactionType) => item.reactions.find(r => r.type === type)?.count
-  const ui = useUI()
-  const isActive = ui.state === 'playback' && ui.activeItemId === item.id
+  // Narrow subscriptions: each item re-renders only when its own focus changes, not
+  // on every UI transition (advancing playback touches two items, not all of them).
+  const isActive = useUI((s) => s.state === 'playback' && s.activeItemId === item.id)
+  const focus = useUI((s) => focusOf(s, item.id, isUpcoming))
+  const activeAnchorId = useUI((s) => (s.state === 'playback' && anchors?.some((a) => a.id === s.activeItemId) ? s.activeItemId : undefined))
   const ref = useRef<HTMLDivElement>(null)
   // Inline-playable media fires `ended`; a YouTube link card (not embeddable) doesn't,
   // so it takes part in playback through the dwell like text/images.
@@ -93,18 +106,8 @@ export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onE
     const now = controllerWithin(ref.current)?.getCurrentTimeMs() ?? 0
     const limit = Math.round((anchorable.duration ?? 0) * 1000)
     const ms = Math.min(limit, Math.max(0, now))
-    ui.startReply(item.id, ms)
+    useUI.getState().startReply(item.id, ms)
   }
-
-  // Spatial focus while playing or replying: the focused item stays full-strength,
-  // the next one is half-lit, everything else recedes (styled via [data-focus]).
-  const focusing = (ui.state === 'playback' || ui.state === 'replying') && !!ui.activeItemId
-  const nestedHere = focusing && containsPlayhead(item.id, ui.activeItemId ?? null)
-  const focus = !focusing || nestedHere
-    ? undefined
-    : ui.activeItemId === item.id
-      ? (ui.state === 'playback' ? 'active' : 'target')
-      : isUpcoming ? 'upcoming' : 'receded'
 
   // Latest callback in a ref: Feed passes a new closure every render, and re-renders
   // (e.g. an SSE update) must not restart the dwell timer.
@@ -161,9 +164,9 @@ export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onE
   }
 
   const requestPlay = () => {
-    if (isActive) return ui.setIdle()
+    if (isActive) return useUI.getState().setIdle()
     if (onPlayOverride) onPlayOverride(true)
-    else ui.startPlayback(item.id)
+    else useUI.getState().startPlayback(item.id)
   }
 
   return (
@@ -190,7 +193,7 @@ export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onE
             isUpcoming={isUpcoming}
             waveform={media.type === 'audio' ? getWaveform(media.id) : undefined}
             {...(anchorable && media.id === anchorable.id
-              ? { anchors, anchorDurationMs: Math.round((anchorable.duration ?? 0) * 1000), activeAnchorId: ui.state === 'playback' ? ui.activeItemId : undefined, onAnchorSelect }
+              ? { anchors, anchorDurationMs: Math.round((anchorable.duration ?? 0) * 1000), activeAnchorId, onAnchorSelect }
               : {})}
           />
         ))}

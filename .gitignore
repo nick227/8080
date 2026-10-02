@@ -6,3 +6,4 @@ apps/server/uploads/
 .DS_Store
 apps/e2e/playwright-report/
 apps/e2e/test-results/
+*.tsbuildinfo

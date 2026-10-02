@@ -1,6 +1,15 @@
+<<<<<<< HEAD
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { useCapture } from '../state/capture'
 import { uploadMedia, useDeleteItem, useRoom, useRoomItems, useRoomStream, useUpdateRoom } from '@project/sdk'
+=======
+import { useEffect, useLayoutEffect, useState } from 'react'
+import { type ReactionType, type SendInput } from '../api/types'
+import { Feed } from '../features/Feed'
+import { Instrument } from '../features/Instrument'
+import { useUI } from '../state/ui'
+import { useData } from '../state/data'
+>>>>>>> feat/lobby-cards
 import { Panel } from '../components/Panel'
 import { Label } from '../components/Label'
 import { Control } from '../components/Control'
@@ -49,15 +58,12 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const roomId = resolved.data
   const room = useRoom(roomId)
   const updateRoom = useUpdateRoom(roomId ?? '')
-  const roomItems = useRoomItems(roomId)
   const { pending, post, meId, meName } = useRoomPost(roomId)
   const removeItem = useDeleteItem()
 
-  useEffect(() => {
-    if (roomItems.isSuccess) replaceItems(roomItems.items.map(toItem))
-  }, [roomItems.dataUpdatedAt, roomItems.isSuccess, replaceItems])
-  useEffect(() => () => replaceItems([]), [roomId, replaceItems])
-
+  const [itemsError, setItemsError] = useState<string>()
+  const [itemsSuccess, setItemsSuccess] = useState(false)
+  useEffect(() => () => { replaceItems([]); setItemsSuccess(false) }, [roomId, replaceItems])
   useLayoutEffect(() => {
     if (!roomId) return
     const params = new URLSearchParams(window.location.search)
@@ -138,11 +144,12 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
 
   return (
     <Panel as="main" variant="shell" className="room-shell">
+      {roomId && <RoomItemsSync roomId={roomId} onError={setItemsError} onSuccess={() => setItemsSuccess(true)} />}
       <SEO title={data?.title ? `${data.title} - Voice Chat` : 'Room - Voice Chat'} description={`Join ${data?.title ?? 'this room'} on Voice Chat.`} />
       <StageChrome />
-      {(ui.error || resolved.error || roomItems.error) && (
+      {(ui.error || resolved.error || itemsError) && (
         <Label variant="status" className="error" role="alert">
-          {ui.error ?? (resolved.error ?? roomItems.error)?.message ?? 'Unable to load'}
+          {ui.error ?? resolved.error?.message ?? itemsError ?? 'Unable to load'}
           <Control onClick={() => ui.setError(undefined)}>×</Control>
         </Label>
       )}
@@ -200,4 +207,19 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       )}
     </Panel>
   )
+}
+
+function RoomItemsSync({ roomId, onError, onSuccess }: { roomId: string; onError: (message?: string) => void; onSuccess: () => void }) {
+  const roomItems = useRoomItems(roomId)
+  const replaceItems = useData((s) => s.replaceItems)
+  useEffect(() => {
+    if (roomItems.isSuccess) {
+      replaceItems(roomItems.items.map(toItem))
+      onSuccess()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomItems.dataUpdatedAt, roomItems.isSuccess, replaceItems, onSuccess])
+  const message = roomItems.error?.message
+  useEffect(() => onError(message), [message, onError])
+  return null
 }
