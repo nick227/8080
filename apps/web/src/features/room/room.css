@@ -185,6 +185,9 @@
   color: var(--ink);
 }
 .room-desk-identity { display: flex; align-items: center; gap: 16px; width: 100%; }
+.room-desk-identity-text { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.room-desk-description { width: 100%; resize: none; border: 0; border-bottom: 1px solid transparent; background: transparent; color: color-mix(in srgb, var(--ink) 72%, transparent); font: inherit; font-size: 15px; line-height: 1.4; padding: 2px 0; outline: none; }
+.room-desk-description:hover, .room-desk-description:focus { border-bottom-color: var(--line); }
 .room-desk-thumb {
   width: 56px;
   height: 56px;

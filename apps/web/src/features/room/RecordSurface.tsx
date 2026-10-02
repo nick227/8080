@@ -18,6 +18,7 @@ import { EditSheet } from '../edit/EditSheet'
 import { stopStockPreview } from '../edit/previewAudio'
 import { takePicture, useStockEdit } from '../edit/useStockEdit'
 import type { PresenceActivity } from './PeopleStrip'
+import { THUMB_ACCEPT, thumbFileProblem } from '../conversation/newConversation'
 
 function IdentityField({ identity }: { identity: ConversationIdentity }) {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -32,24 +33,40 @@ function IdentityField({ identity }: { identity: ConversationIdentity }) {
       <button type="button" className="room-desk-thumb" aria-label="Conversation image" onClick={() => fileRef.current?.click()}>
         {shown ? <img src={shown} alt="" /> : <span>+</span>}
       </button>
-      <input ref={fileRef} type="file" accept="image/*" hidden onChange={(event) => {
+      <input ref={fileRef} type="file" accept={THUMB_ACCEPT} hidden onChange={(event) => {
         const file = event.target.files?.[0]
         event.target.value = ''
         if (!file) return
+        const problem = thumbFileProblem(file)
+        if (problem) { useUI.getState().setError(problem); return }
         setPreview((current) => { if (current) URL.revokeObjectURL(current); return URL.createObjectURL(file) })
         identity.onThumb(file)
       }} />
-      <input
-        className="room-desk-title-input"
-        aria-label="Conversation title"
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        onBlur={(event) => {
-          const next = event.currentTarget.value.trim()
-          if (next && next !== identity.title) identity.onTitle(next)
-        }}
-        onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
-      />
+      <div className="room-desk-identity-text">
+        <input
+          className="room-desk-title-input"
+          aria-label="Conversation title"
+          placeholder={identity.onDescription ? 'Name' : undefined}
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          onBlur={(event) => {
+            const next = event.currentTarget.value.trim()
+            if (next && next !== identity.title) identity.onTitle(next)
+          }}
+          onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
+        />
+        {identity.onDescription && (
+          <textarea
+            className="room-desk-description"
+            aria-label="Conversation description"
+            placeholder="What is this conversation about?"
+            maxLength={500}
+            rows={2}
+            value={identity.description ?? ''}
+            onChange={(event) => identity.onDescription!(event.target.value)}
+          />
+        )}
+      </div>
     </div>
   )
 }
@@ -68,6 +85,9 @@ export type ConversationIdentity = {
   thumbUrl: string | null
   onTitle: (title: string) => void
   onThumb: (file: File) => void
+  // New conversations also ask what it's about.
+  description?: string
+  onDescription?: (description: string) => void
 }
 
 export function RecordSurface({ replyName, title, identity, compose = false, onClose, onSend, onActivity }: {

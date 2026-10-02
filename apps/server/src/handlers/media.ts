@@ -36,7 +36,7 @@ export async function uploadMedia(request: any, reply: any) {
 export async function deleteMedia(request: any, reply: any) {
   const media = await db.media.findFirst({ where: { id: request.params.mediaId, ownerId: request.user.id } })
   if (!media) throw notFound('Media not found')
-  const usedAsThumbnail = await db.room.count({ where: { thumbnailId: media.id } })
+  const usedAsThumbnail = await db.room.count({ where: { thumbnailId: media.id, deletedAt: null } })
   if (media.messageId || usedAsThumbnail) throw conflict('Media is in use', 'MEDIA_IN_USE')
   await db.media.delete({ where: { id: media.id } })
   if (media.storageKey) await storage().delete(media.storageKey)

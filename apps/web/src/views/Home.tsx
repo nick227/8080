@@ -1,12 +1,11 @@
-import { useLayoutEffect } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useNavigate } from 'react-router-dom'
-import { useCreateRoom, getApiClient, useSession, ApiError } from '@project/sdk'
 import { Panel } from '../components/Panel'
 import { Label } from '../components/Label'
 import { Control } from '../components/Control'
 import { StageChrome } from '../components/StageChrome'
-import { replyFromUIState, resolveMediaIds } from '../api/sendMedia'
+import { replyFromUIState } from '../api/sendMedia'
 import type { SendInput } from '../api/types'
 import { useUI } from '../state/ui'
 import { useShell } from '../state/shell'
@@ -14,20 +13,57 @@ import { useData } from '../state/data'
 import { useCapture } from '../state/capture'
 import { RecordSurface } from '../features/room/RecordSurface'
 import { SEO } from '../components/SEO'
+import { abandon, attachmentThumb, createConversation, type Progress, type ThumbChoice } from '../features/conversation/newConversation'
+import { videoFrame } from '../utils/thumbnail'
 import '../features/room/room.css'
 
 const REPLYING = new Set(['replying', 'composing', 'recording', 'reviewing'])
 
+// The still from a captured video, offered as the conversation's thumbnail until one
+// is picked. Recomputed per take; a slower, older still never replaces a newer one.
+function useCaptureStill(): ThumbChoice | null {
+  const blob = useCapture((s) => s.blob)
+  const mode = useCapture((s) => s.mode)
+  const durationMs = useCapture((s) => s.durationMs)
+  const [still, setStill] = useState<ThumbChoice | null>(null)
+  useEffect(() => {
+    setStill(null)
+    if (!blob || mode !== 'video') return
+    let current = true
+    let url: string | null = null
+    void videoFrame(blob, durationMs / 1000).then((frame) => {
+      if (!current || !frame) return
+      url = URL.createObjectURL(frame)
+      setStill({ kind: 'file', file: frame, preview: url })
+    })
+    return () => { current = false; if (url) URL.revokeObjectURL(url) }
+  }, [blob, mode, durationMs])
+  return still
+}
+
 export function Home() {
   const ui = useUI()
-  const session = useSession()
-  const createRoom = useCreateRoom()
   const navigate = useNavigate()
   const surface = useShell((s) => s.surface)
   const replyName = useData((s) => {
     if (!REPLYING.has(ui.state) || !ui.activeItemId) return undefined
     return s.itemsById[ui.activeItemId]?.author.name
   })
+
+  // The new conversation's name, description and picked thumbnail.
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [picked, setPicked] = useState<ThumbChoice | null>(null)
+  const still = useCaptureStill()
+  const progress = useRef<Progress>({})
+  useEffect(() => () => { if (picked?.kind === 'file') URL.revokeObjectURL(picked.preview) }, [picked])
+
+  const resetDraft = () => {
+    setTitle('')
+    setDescription('')
+    setPicked(null)
+    progress.current = {}
+  }
 
   useLayoutEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -42,25 +78,21 @@ export function Home() {
   const handleSend = async (input: SendInput) => {
     // A reply still in progress (started in a room, then navigated here) goes to its parent, not a new post.
     if (await replyFromUIState(input)) return
-    const defaultTitle = `Post by ${session.data?.data.displayName ?? 'Anonymous'}`
-    const room = await createRoom.mutateAsync({ title: defaultTitle, visibility: 'public' })
-
-    const mediaIds = await resolveMediaIds(input.media)
-
-    const result = await getApiClient().POST('/rooms/{roomId}/items', {
-      params: { path: { roomId: room.id } },
-      body: {
-        text: input.text,
-        mediaIds: mediaIds.length ? mediaIds : undefined,
-      },
-    })
-
-    if (result.error) {
-      const body = result.error as { error?: string }
-      throw new ApiError(result.response.status, body.error ?? 'Failed to send item')
-    }
-
+    const thumb = picked ?? still ?? attachmentThumb(input.media)
+    const missing = [!title.trim() && 'a name', !description.trim() && 'a description', !thumb && 'a picture'].filter(Boolean)
+    if (missing.length) throw new Error(`Give the conversation ${missing.join(', ').replace(/, ([^,]*)$/, ' and $1')}`)
+    const room = await createConversation({ title, description, thumb: thumb! }, input, progress.current)
+    resetDraft()
     navigate(`/room/${room.id}`)
+  }
+
+  const identity = {
+    title,
+    thumbUrl: (picked ?? still)?.preview ?? null,
+    onTitle: setTitle,
+    onThumb: (file: File) => setPicked({ kind: 'file', file, preview: URL.createObjectURL(file) }),
+    description,
+    onDescription: setDescription,
   }
 
   return (
@@ -85,9 +117,12 @@ export function Home() {
           >
             <RecordSurface
               title="New conversation"
+              identity={identity}
               replyName={replyName}
               onActivity={() => {}}
               onClose={() => {
+                void abandon(progress.current)
+                resetDraft()
                 useCapture.getState().cancel()
                 ui.setIdle()
                 useShell.getState().minimizeRecord()
