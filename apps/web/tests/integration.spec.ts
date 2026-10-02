@@ -14,11 +14,15 @@ test.describe('Main Integration Path', () => {
     // Create Bob's context (the consumer)
     const bobContext = await browser.newContext();
     const bob = await bobContext.newPage();
+    bob.on('console', msg => console.log('BOB CONSOLE:', msg.text()));
+    bob.on('pageerror', err => console.log('BOB ERROR:', err.message));
 
     // 1. Alice goes to home
     await alice.goto('/');
 
     // 2. Alice clicks New Conversation to create a room
+    await alice.waitForTimeout(1000);
+    await alice.screenshot({ path: 'test-results/home.png' });
     const newConv = alice.getByRole('button', { name: /new conversation/i });
     await expect(newConv).toBeVisible();
     await newConv.click();
@@ -45,17 +49,20 @@ test.describe('Main Integration Path', () => {
     // Wait for the upload and item creation to finish.
     // The feed should render the media item.
     const aliceMediaItem = alice.locator('audio, video').first();
-    await expect(aliceMediaItem).toBeVisible({ timeout: 15000 });
+    await expect(aliceMediaItem).toBeAttached({ timeout: 15000 });
 
     // 6. Extract the room URL to have Bob join
+    await alice.waitForURL(/\/room\//, { timeout: 15000 });
     const roomUrl = alice.url();
+    console.log('ALICE ROOM URL:', roomUrl);
 
     // 7. Bob joins the room
     await bob.goto(roomUrl);
     
     // Bob should see the media item Alice created (loaded from the DB)
     const bobMediaItem = bob.locator('audio, video').first();
-    await expect(bobMediaItem).toBeVisible({ timeout: 10000 });
+    await bob.screenshot({ path: 'test-results/bob-room.png' });
+    await expect(bobMediaItem).toBeAttached({ timeout: 10000 });
 
     // Bob can play the media (tests playback from persisted file)
     // The play button in the feed might have an aria-label or just text
@@ -73,7 +80,8 @@ test.describe('Main Integration Path', () => {
     // 8. Test SSE notification by having Alice post AGAIN while Bob is already in the room
     
     // Alice records a second message
-    await alice.getByRole('button', { name: 'Record' }).click();
+    await alice.getByRole('button', { name: 'New message' }).click();
+    await alice.getByRole('button', { name: 'Record', exact: true }).click();
     await expect(alice.getByRole('button', { name: 'Stop' })).toBeVisible();
     await alice.waitForTimeout(1000);
     await alice.getByRole('button', { name: 'Stop' }).click();

@@ -5,7 +5,7 @@ async function openRecordSurface(page: Page) {
   const newConvButton = page.getByRole('button', { name: /new conversation/i });
   await expect(newConvButton).toBeVisible();
   await newConvButton.click();
-  const recordButton = page.getByRole('button', { name: 'Record' });
+  const recordButton = page.getByRole('button', { name: 'Record', exact: true });
   await expect(recordButton).toBeVisible();
 }
 
@@ -39,7 +39,7 @@ test.describe('Media Capture State Machine', () => {
     await openRecordSurface(page);
     
     // Start recording
-    const recordButton = page.getByRole('button', { name: 'Record' });
+    const recordButton = page.getByRole('button', { name: 'Record', exact: true });
     await recordButton.click();
     
     // Wait for state to change to Stop button and ensure we are in a dense/recording state
@@ -78,7 +78,7 @@ test.describe('Media Capture State Machine', () => {
     });
 
     await openRecordSurface(page);
-    const recordButton = page.getByRole('button', { name: 'Record' });
+    const recordButton = page.getByRole('button', { name: 'Record', exact: true });
     await recordButton.click();
 
     // Should show error and not get stuck in arming state
@@ -92,7 +92,7 @@ test.describe('Media Capture State Machine', () => {
 
   test('canceling an active recording session discards the capture and resets the UI', async ({ page }) => {
     await openRecordSurface(page);
-    await page.getByRole('button', { name: 'Record' }).click();
+    await page.getByRole('button', { name: 'Record', exact: true }).click();
     
     const stopButton = page.getByRole('button', { name: 'Stop' });
     await expect(stopButton).toBeVisible();
@@ -109,7 +109,7 @@ test.describe('Media Capture State Machine', () => {
     await openRecordSurface(page);
     
     // First record
-    await page.getByRole('button', { name: 'Record' }).click();
+    await page.getByRole('button', { name: 'Record', exact: true }).click();
     const stopButton = page.getByRole('button', { name: 'Stop' });
     await expect(stopButton).toBeVisible();
     await page.waitForTimeout(1000);
@@ -145,7 +145,7 @@ test.describe('Media Capture State Machine', () => {
 
     await openRecordSurface(page);
     
-    await page.getByRole('button', { name: 'Record' }).click();
+    await page.getByRole('button', { name: 'Record', exact: true }).click();
     const stopButton = page.getByRole('button', { name: 'Stop' });
     await expect(stopButton).toBeVisible();
     await page.waitForTimeout(1000);

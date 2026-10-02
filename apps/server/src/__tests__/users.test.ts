@@ -10,7 +10,7 @@ import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, mu
 const app = buildTestApp()
 
 function avatarForm(opts: { type?: string; body?: Buffer } = {}) {
-  return multipart([{ name: 'file', value: opts.body ?? Buffer.from('png-bytes'), filename: 'face', type: opts.type ?? 'image/png' }])
+  return multipart([{ name: 'file', value: opts.body ?? Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.from('png-bytes')]), filename: 'face', type: opts.type ?? 'image/png' }])
 }
 
 function uploadAvatar(userId: string, opts?: { type?: string; body?: Buffer }) {
@@ -18,8 +18,9 @@ function uploadAvatar(userId: string, opts?: { type?: string; body?: Buffer }) {
   return app.inject({ method: 'POST', url: '/users/me/avatar', headers: { ...asAuth(userId), ...form.headers }, payload: form.payload })
 }
 
-function keyOf(url: string) {
-  return new URL(url).pathname.split('/').pop()!
+async function keyOf(url: string, asUser: string) {
+  const playback = await app.inject({ method: 'GET', url: new URL(url).pathname, headers: asAuth(asUser) });
+  return new URL(playback.headers.location).pathname.split('/').pop()!;
 }
 
 async function fileExists(key: string) {
@@ -57,7 +58,7 @@ describe('updateCurrentUser', () => {
   it('deletes the previous avatar file when the url changes', async () => {
     const uploaded = await uploadAvatar(testUserId)
     const url = uploaded.json().data.avatarUrl as string
-    const key = keyOf(url)
+    const key = await keyOf(url, testUserId)
     const res = await app.inject({
       method: 'PATCH',
       url: '/users/me',
@@ -88,26 +89,28 @@ describe('uploadAvatar', () => {
     expect(res.statusCode).toBe(200)
     await validateResponse('uploadAvatar', 200, res.json())
     const url = res.json().data.avatarUrl as string
-    expect(url).toMatch(/^http:\/\/localhost:3001\/uploads\/[a-f0-9-]{36}\.png$/)
-    const served = await app.inject({ method: 'GET', url: new URL(url).pathname })
+    expect(url).toMatch(/^http:\/\/localhost:3001\/media\/[a-z0-9]+\/playback$/)
+    const playback = await app.inject({ method: 'GET', url: new URL(url).pathname, headers: asAuth(testUserId) })
+    const served = await app.inject({ method: 'GET', url: new URL(playback.headers.location).pathname })
     expect(served.statusCode).toBe(200)
-    expect(served.body).toBe('png-bytes')
+    expect(served.rawPayload.subarray(8).toString()).toBe('png-bytes')
   })
 
   it('replaces the previous avatar and deletes its file', async () => {
     const first = await uploadAvatar(testUserId)
     const firstUrl = first.json().data.avatarUrl as string
-    const firstKey = keyOf(firstUrl)
+    const firstKey = await keyOf(firstUrl, testUserId)
 
-    const second = await uploadAvatar(testUserId, { type: 'image/jpeg', body: Buffer.from('jpeg-bytes') })
+    const second = await uploadAvatar(testUserId, { type: 'image/jpeg', body: Buffer.concat([Buffer.from('ffd8ff', 'hex'), Buffer.from('jpeg-bytes')]) })
     expect(second.statusCode).toBe(200)
     const secondUrl = second.json().data.avatarUrl as string
     expect(secondUrl).not.toBe(firstUrl)
-    expect(secondUrl).toMatch(/\.jpg$/)
+    const secondKey = await keyOf(secondUrl, testUserId)
+    expect(secondKey).toMatch(/\.jpg$/)
 
     expect(await fileExists(firstKey)).toBe(false)
     expect(await db.media.findUnique({ where: { storageKey: firstKey } })).toBeNull()
-    expect(await fileExists(keyOf(secondUrl))).toBe(true)
+    expect(await fileExists(await keyOf(secondUrl, testUserId))).toBe(true)
     expect(await db.media.count({ where: { ownerId: testUserId, name: 'avatar' } })).toBe(1)
   })
 
@@ -118,7 +121,7 @@ describe('uploadAvatar', () => {
   })
 
   it('keeps an upload that is already attached to a message', async () => {
-    const form = multipart([{ name: 'file', value: Buffer.from('posted'), filename: 'shot', type: 'image/png' }])
+    const form = multipart([{ name: 'file', value: Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.from('posted')]), filename: 'shot', type: 'image/png' }])
     const media = await app.inject({ method: 'POST', url: '/media', headers: { ...asAuth(testUserId), ...form.headers }, payload: form.payload })
     const uploaded = media.json().data as { id: string; url: string }
     const message = await db.message.create({ data: { authorId: testUserId, text: 'posted' } })
@@ -136,7 +139,7 @@ describe('uploadAvatar', () => {
       payload: { avatarUrl: null },
     })
     expect(replaced.statusCode).toBe(200)
-    expect(await db.media.findUnique({ where: { storageKey: keyOf(uploaded.url) } })).not.toBeNull()
-    expect(await fileExists(keyOf(uploaded.url))).toBe(true)
+    expect(await db.media.findUnique({ where: { storageKey: await keyOf(uploaded.url, testUserId) } })).not.toBeNull()
+    expect(await fileExists(await keyOf(uploaded.url, testUserId))).toBe(true)
   })
 })

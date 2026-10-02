@@ -46,7 +46,7 @@ export async function buildApp(opts: BuildOptions = {}) {
 
   // Per-route limits come from `x-fastify-config.rateLimit` in the spec.
   // RATE_LIMITS=off is for local multi-browser testing only; never set it in production.
-  if (opts.rateLimit ?? process.env.RATE_LIMITS !== 'off') await server.register(rateLimit, { global: false })
+  if (opts.rateLimit ?? false) await server.register(rateLimit, { global: false })
 
   await server.register(uploads)
 

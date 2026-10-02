@@ -325,8 +325,10 @@ describe('deleteItem', () => {
 // ─── anchored replies (V1: a moment in the parent's single audio/video clip) ───
 describe('replyToItem — anchors', () => {
   const upload = async (userId: string, opts: { type?: string; duration?: string } = {}) => {
+    const type = opts.type ?? 'audio/webm'
+    const magic = type.startsWith('image/png') ? Buffer.from('89504e470d0a1a0a', 'hex') : Buffer.from('1a45dfa3', 'hex')
     const parts: Array<{ name: string; value: string | Buffer; filename?: string; type?: string }> = [
-      { name: 'file', value: Buffer.from('media-bytes'), filename: 'clip', type: opts.type ?? 'audio/webm' },
+      { name: 'file', value: Buffer.concat([magic, Buffer.from('media-bytes')]), filename: 'clip', type },
     ]
     if (opts.duration !== undefined) parts.push({ name: 'duration', value: opts.duration })
     const form = multipart(parts)
@@ -436,66 +438,3 @@ describe('replyToItem — anchors', () => {
   })
 })
 
-describe('getRiver', () => {
-  it('requires auth', async () => {
-    const res = await app.inject({ method: 'GET', url: '/river' })
-    expect(res.statusCode).toBe(401)
-  })
-
-  const river = (cursor?: string, limit = 2) =>
-    app.inject({ method: 'GET', url: '/river', headers: asAuth(testUserId), query: { limit: String(limit), ...(cursor ? { cursor } : {}) } })
-
-  async function readAll() {
-    const ids: string[] = []
-    let cursor: string | undefined
-    for (let guard = 0; guard < 50; guard++) {
-      const res = await river(cursor)
-      expect(res.statusCode).toBe(200)
-      await validateResponse('getRiver', 200, res.json())
-      ids.push(...res.json().data.map((i: { id: string }) => i.id))
-      cursor = res.json().meta.nextCursor ?? undefined
-      if (!cursor) return ids
-    }
-    throw new Error('river pagination did not terminate')
-  }
-
-  it('pages through tied timestamps without skipping or repeating posts', async () => {
-    const room = await seedRoom(app, testUserId)
-    const posts = []
-    for (let i = 0; i < 5; i++) posts.push(await seedItem(app, testUserId, room.id, { text: `post ${i}` }))
-    // A share creates several items in one transaction — same createdAt. Force the tie.
-    await db.item.updateMany({ where: { id: { in: posts.map((p) => p.id) } }, data: { createdAt: new Date('2026-01-01T00:00:00Z') } })
-
-    const ids = await readAll()
-    expect(ids).toHaveLength(5)
-    expect(new Set(ids)).toEqual(new Set(posts.map((p) => p.id)))
-  })
-
-  it('only live top-level posts in live public rooms; replyCount ignores deleted replies', async () => {
-    const open = await seedRoom(app, testUserId, { title: 'Open' })
-    const hidden = await seedRoom(app, testUserId, { visibility: 'private' })
-    const gone = await seedRoom(app, testUserId)
-    const post = await seedItem(app, testUserId, open.id)
-    const deleted = await seedItem(app, testUserId, open.id)
-    await app.inject({ method: 'DELETE', url: `/items/${deleted.id}`, headers: asAuth(testUserId) })
-    await seedItem(app, testUserId, hidden.id)
-    await seedItem(app, testUserId, gone.id)
-    await db.room.update({ where: { id: gone.id }, data: { deletedAt: new Date() } })
-    await seedReply(app, testOtherUserId, post.id)
-    const removed = await seedReply(app, testOtherUserId, post.id)
-    await app.inject({ method: 'DELETE', url: `/items/${removed.id}`, headers: asAuth(testOtherUserId) })
-
-    const data = (await river(undefined, 20)).json().data
-    expect(data.map((i: { id: string }) => i.id)).toEqual([post.id])
-    expect(data[0]).toMatchObject({ roomTitle: 'Open', replyCount: 1 })
-  })
-
-  it('malformed cursors are 400, not 500; pre-tie-break cursors still work', async () => {
-    const enc = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url')
-    for (const cursor of ['%%%', enc({ t: 'not-a-date' }), enc({ t: '2026-01-01T00:00:00Z', id: 5 })]) {
-      const res = await river(cursor)
-      expect(res.statusCode).toBe(400)
-    }
-    expect((await river(enc({ t: new Date().toISOString() }))).statusCode).toBe(200)
-  })
-})

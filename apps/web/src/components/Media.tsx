@@ -193,7 +193,7 @@ function StoredMedia({ type = 'image', preview = false, name, poster, src, aspec
           src={src} 
           // Required: the spatial panner routes this element through WebAudio, which
           // outputs silence for cross-origin media unless it was fetched with CORS.
-          crossOrigin="anonymous"
+          crossOrigin="use-credentials"
           preload={isUpcoming || isActive ? "auto" : "metadata"} 
           onLoadedMetadata={(e) => setDuration((e.target as HTMLAudioElement).duration || 0)}
           onEnded={onEnded} 

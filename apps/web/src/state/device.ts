@@ -15,6 +15,25 @@ const FALLBACK: DeviceChoice = { deviceId: '', kind: 'audioinput', label: 'Micro
 export const captureKind = (choice: DeviceChoice): 'audio' | 'video' =>
   choice.kind === 'videoinput' ? 'video' : 'audio'
 
+export async function chooseKind(kind: 'audio' | 'video') {
+  const want: DeviceKind = kind === 'video' ? 'videoinput' : 'audioinput'
+  const current = useDevice.getState().choice
+  if (current.kind === want) return
+  const label = kind === 'video' ? 'Camera' : 'Microphone'
+  let match: MediaDeviceInfo | undefined
+  try {
+    const all = await navigator.mediaDevices.enumerateDevices()
+    match = all.find((device) => device.kind === want && device.deviceId && device.deviceId !== 'default' && device.deviceId !== 'communications')
+  } catch {
+    match = undefined
+  }
+  useDevice.getState().select({
+    deviceId: match?.deviceId ?? '',
+    kind: want,
+    label: match?.label || label,
+  })
+}
+
 export function readDevice(): DeviceChoice | null {
   try {
     const raw = localStorage.getItem(KEY)

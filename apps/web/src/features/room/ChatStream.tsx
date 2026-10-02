@@ -99,7 +99,7 @@ function Row({ row }: { row: StreamRow }) {
   return (
     <article ref={ref} className="room-msg" data-item-id={row.id}>
       <Byline row={row} />
-      {row.text && <p className={row.media.length ? 'room-text' : 'room-card'}>{row.text}</p>}
+      {row.text && <p className="room-card">{row.text}</p>}
       {row.media.map((media, index) => (
         <Piece key={`${row.id}-${index}`} row={row} media={media} onPlaying={setPlaying} />
       ))}

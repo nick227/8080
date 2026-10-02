@@ -91,6 +91,11 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
     setDesk(true)
   }
 
+  const playAll = () => {
+    const firstPlayable = visible.find(isPlayable)
+    if (firstPlayable) ui.startPlayback(firstPlayable.id, 'chronological')
+  }
+
   const advance = (id: string) => {
     const index = visible.findIndex((item) => item.id === id)
     const next = visible.slice(index + 1).find(isPlayable)
@@ -144,7 +149,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
           <Control onClick={() => ui.setError(undefined)}>×</Control>
         </Label>
       )}
-      {data && <ConversationHead room={data} />}
+      {data && <ConversationHead room={data} onPlayAll={visible.some(isPlayable) ? playAll : undefined} />}
       <PeopleStrip people={roomPeopleFrom(visible, meId, meName, activity)} meId={meId} inviteUrl={inviteUrl} />
       <div className="room-new-bar">
         <button type="button" className="room-new" onClick={startMessage}>New message</button>
@@ -152,7 +157,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       <ChatStream rows={rows} />
       {showDesk && (
         <RecordSurface
-          title={fresh && !replyName ? (data?.title ?? 'New conversation') : undefined}
+          title={fresh && !replyName ? (data?.title ?? 'New Message') : undefined}
           identity={fresh && !replyName && data ? {
             title: data.title,
             thumbUrl: data.thumbnail?.url ?? null,
@@ -209,8 +214,11 @@ function RoomItemsSync({ roomId, onError, onSuccess }: { roomId: string; onError
       onSuccess()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomItems.dataUpdatedAt, roomItems.isSuccess, replaceItems, onSuccess])
+  }, [roomItems.dataUpdatedAt])
   const message = roomItems.error?.message
-  useEffect(() => onError(message), [message, onError])
+  useEffect(() => {
+    if (message !== undefined) onError(message)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [message])
   return null
 }
