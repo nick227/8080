@@ -1,5 +1,5 @@
 import { MediaService, type StoredFile } from '../services/MediaService'
-import { badRequest } from '../lib/errors'
+import { badRequest, conflict, notFound } from '../lib/errors'
 import { YouTubeService } from '../services/YouTubeService'
 import { db } from '@project/db'
 import { storage } from '../providers/storage'
@@ -30,6 +30,17 @@ export async function uploadMedia(request: any, reply: any) {
     if (stored) await mediaService.discard(stored)
     throw err
   }
+}
+
+// An abandoned draft's upload: only the owner's, never one in use.
+export async function deleteMedia(request: any, reply: any) {
+  const media = await db.media.findFirst({ where: { id: request.params.mediaId, ownerId: request.user.id } })
+  if (!media) throw notFound('Media not found')
+  const usedAsThumbnail = await db.room.count({ where: { thumbnailId: media.id } })
+  if (media.messageId || usedAsThumbnail) throw conflict('Media is in use', 'MEDIA_IN_USE')
+  await db.media.delete({ where: { id: media.id } })
+  if (media.storageKey) await storage().delete(media.storageKey)
+  return reply.status(204).send()
 }
 
 // External YouTube video: referenced by canonical id, never downloaded.

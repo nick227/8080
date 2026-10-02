@@ -18,6 +18,11 @@ export async function uploadMedia(input: UploadMediaInput) {
   return unwrap(result).data
 }
 
+// Removes an upload that was never used (an abandoned draft). 409 once it's attached.
+export async function deleteMedia(mediaId: string) {
+  unwrap(await getApiClient().DELETE('/media/{mediaId}', { params: { path: { mediaId } } }))
+}
+
 export function useUploadMedia() {
   return useMutation({ mutationFn: uploadMedia })
 }

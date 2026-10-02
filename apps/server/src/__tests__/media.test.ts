@@ -329,3 +329,30 @@ describe('parseYouTubeVideoId (shared parser)', () => {
       expect(parseYouTubeVideoId(u)).toBeNull()
   })
 })
+
+describe('deleteMedia', () => {
+  const remove = (userId: string, id: string) => app.inject({ method: 'DELETE', url: `/media/${id}`, headers: asAuth(userId) })
+
+  it('the owner deletes an unused upload and its file', async () => {
+    const files = readdirSync(UPLOADS_DIR).length
+    const media = (await upload(testUserId)).json().data
+    expect(readdirSync(UPLOADS_DIR).length).toBe(files + 1)
+    expect((await remove(testUserId, media.id)).statusCode).toBe(204)
+    expect(await db.media.findUnique({ where: { id: media.id } })).toBeNull()
+    expect(readdirSync(UPLOADS_DIR).length).toBe(files)
+  })
+
+  it('404 for someone else\'s upload; 409 once attached or used as a thumbnail', async () => {
+    const theirs = (await upload(testOtherUserId)).json().data
+    expect((await remove(testUserId, theirs.id)).statusCode).toBe(404)
+
+    const room = await seedRoom(app, testUserId)
+    const attached = (await upload(testUserId)).json().data
+    await seedItem(app, testUserId, room.id, { mediaIds: [attached.id] })
+    expect((await remove(testUserId, attached.id)).json().code).toBe('MEDIA_IN_USE')
+
+    const thumb = (await upload(testUserId, { type: 'image/png', fields: {} })).json().data
+    await db.room.update({ where: { id: room.id }, data: { thumbnailId: thumb.id } })
+    expect((await remove(testUserId, thumb.id)).statusCode).toBe(409)
+  })
+})

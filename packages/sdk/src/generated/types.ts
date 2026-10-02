@@ -413,6 +413,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/media/{mediaId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mediaId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete an upload that was never used (owner only)
+         * @description For abandoned drafts. Only the owner's media that is attached to no message and is
+         *     no room's thumbnail; the stored file goes too. 409 `MEDIA_IN_USE` otherwise.
+         */
+        delete: operations["deleteMedia"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/media/{mediaId}/playback": {
         parameters: {
             query?: never;
@@ -1508,6 +1531,37 @@ export interface operations {
             429: components["responses"]["TooManyRequests"];
             /** @description YouTube lookup failed */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteMedia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mediaId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            /** @description Attached to a message or used as a thumbnail */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

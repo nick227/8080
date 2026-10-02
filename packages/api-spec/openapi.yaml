@@ -617,6 +617,29 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
+  /media/{mediaId}:
+    parameters:
+      - name: mediaId
+        in: path
+        required: true
+        schema: { type: string, minLength: 1, maxLength: 64 }
+    delete:
+      operationId: deleteMedia
+      summary: Delete an upload that was never used (owner only)
+      description: |
+        For abandoned drafts. Only the owner's media that is attached to no message and is
+        no room's thumbnail; the stored file goes too. 409 `MEDIA_IN_USE` otherwise.
+      tags: [media]
+      responses:
+        '204': { description: Deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Attached to a message or used as a thumbnail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
   /media/{mediaId}/playback:
     parameters:
       - name: mediaId
