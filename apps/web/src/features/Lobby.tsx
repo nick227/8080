@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useDeleteRoom, useMyRooms, useRooms, type Room } from '@project/sdk'
 import { useShell } from '../state/shell'
+import { ConversationCard } from './lobby/ConversationCard'
+import './lobby/lobby.css'
 
 export function Lobby() {
   const myRooms = useMyRooms()
@@ -17,8 +19,6 @@ export function Lobby() {
   const myIds = new Set(myList.map(r => r.id))
   const publicList = publicListAll.filter(r => !myIds.has(r.id))
 
-  const enter = (roomId: string) => { navigate(`/room/${roomId}`) }
-
   const start = () => {
     useShell.getState().openRecord()
   }
@@ -32,43 +32,24 @@ export function Lobby() {
     })
   }
 
-  const formatDuration = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000)
-    const minutes = Math.floor(totalSeconds / 60)
-    const seconds = totalSeconds % 60
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`
-  }
+  const deleteAction = (room: Room) =>
+    room.role === 'owner' ? (
+      <button
+        type="button"
+        className="lobby-delete"
+        data-armed={armedId === room.id || undefined}
+        disabled={deleteRoom.isPending}
+        onClick={() => {
+          if (armedId !== room.id) { setArmedId(room.id); return }
+          setArmedId(null)
+          remove(room.id)
+        }}
+      >
+        {armedId === room.id ? 'Confirm' : 'Delete'}
+      </button>
+    ) : undefined
 
-  const renderCard = (room: Room) => (
-    <div key={room.id} className="room-card" onClick={() => enter(room.id)} style={{ cursor: 'pointer', border: '1px solid var(--line)', borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <img src={room.thumbnail?.url || 'https://via.placeholder.com/300x200'} alt={room.title} style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', borderRadius: 4, background: 'var(--surface-sunken)' }} />
-      <div>
-        <h3 style={{ margin: 0, fontSize: 16 }}>{room.title}</h3>
-        <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--muted)' }}>{room.description}</p>
-      </div>
-      <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--muted)', marginTop: 'auto', alignItems: 'center' }}>
-        <span>{room.responseCount} replies</span>
-        <span>{formatDuration(room.durationMs)} duration</span>
-        <span>{room.lastResponseAt ? new Date(room.lastResponseAt).toLocaleDateString() : 'No activity'}</span>
-        {room.role === 'owner' && (
-          <button
-            type="button"
-            className="lobby-delete"
-            data-armed={armedId === room.id || undefined}
-            disabled={deleteRoom.isPending}
-            onClick={(event) => {
-              event.stopPropagation()
-              if (armedId !== room.id) { setArmedId(room.id); return }
-              setArmedId(null)
-              remove(room.id)
-            }}
-          >
-            {armedId === room.id ? 'Confirm' : 'Delete'}
-          </button>
-        )}
-      </div>
-    </div>
-  )
+  const renderCard = (room: Room) => <ConversationCard key={room.id} room={room} action={deleteAction(room)} />
 
   const isLoading = myRooms.isLoading || publicRooms.isLoading
   const isError = myRooms.isError || publicRooms.isError
@@ -81,33 +62,29 @@ export function Lobby() {
         </button>
       </div>
 
-      {isError && <p className="lobby-note lobby-note-error">Failed to load rooms</p>}
+      {isError && <p className="lobby-note lobby-note-error">Failed to load conversations</p>}
       {deleteError && <p className="lobby-note lobby-note-error">{deleteError}</p>}
-      {isLoading && !isError && <p className="lobby-note">Loading directory...</p>}
+      {isLoading && !isError && <p className="lobby-note">Loading…</p>}
 
       {!isLoading && !isError && (
         <>
-          <div style={{ marginBottom: 40 }}>
-            <h2 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: 16 }}>Your Rooms</h2>
+          <section className="lobby-section" aria-label="Your conversations">
+            <p className="lobby-kicker">Yours</p>
             {myList.length === 0 ? (
-              <p className="lobby-note">No active conversations.</p>
+              <p className="lobby-note">You're not in any conversations yet.</p>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
-                {myList.map(renderCard)}
-              </div>
+              <div className="conv-grid">{myList.map(renderCard)}</div>
             )}
-          </div>
+          </section>
 
-          <div>
-            <h2 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: 16 }}>Public Rooms</h2>
+          <section className="lobby-section" aria-label="Public conversations">
+            <p className="lobby-kicker">Public</p>
             {publicList.length === 0 ? (
-              <p className="lobby-note">No public conversations.</p>
+              <p className="lobby-note">No other public conversations.</p>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
-                {publicList.map(renderCard)}
-              </div>
+              <div className="conv-grid">{publicList.map(renderCard)}</div>
             )}
-          </div>
+          </section>
         </>
       )}
     </div>

@@ -1,0 +1,22 @@
+/* Lobby cards. Phone: one column on the header edge. Desktop: the directory widens
+   into a centred grid (cards need room; the timeline grid doesn't apply here). */
+@media (min-width: 900px) {
+  .lobby-sheet .lobby-body { width: min(1120px, calc(100vw - 64px)); margin-inline: auto; }
+}
+.lobby-section .lobby-kicker { margin-bottom: 14px; }
+
+.conv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 32px 24px; }
+
+.conv-card { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.conv-card-link { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: inherit; text-decoration: none; }
+.conv-card-thumb { display: grid; place-items: center; aspect-ratio: 16 / 9; margin-bottom: 6px; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--ink) 3%, transparent); }
+.conv-card-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--motion-base) var(--ease-out); }
+.conv-card-thumb-fallback { font-family: var(--mono); font-size: 28px; letter-spacing: .12em; color: var(--muted); }
+.conv-card-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; font-weight: 500; letter-spacing: -.02em; line-height: 1.25; }
+.conv-card-desc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 14px; line-height: 1.4; color: color-mix(in srgb, var(--ink) 72%, transparent); }
+.conv-card-meta { display: flex; align-items: baseline; gap: 12px; font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+
+.conv-card-link:hover .conv-card-thumb, .conv-card-link:focus-visible .conv-card-thumb { border-color: var(--ink); }
+.conv-card-link:hover .conv-card-thumb img { transform: scale(1.02); }
+.conv-card-link:focus-visible { outline: none; }
+.conv-card-link:focus-visible .conv-card-title { text-decoration: underline; text-underline-offset: 3px; }

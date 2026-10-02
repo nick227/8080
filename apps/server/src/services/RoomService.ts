@@ -1,7 +1,7 @@
-import { db, type Prisma, type RoomVisibility } from '@project/db'
+import { db, Prisma, type RoomVisibility } from '@project/db'
 import { randomBytes } from 'crypto'
 import { decodeKeyCursor, encodeKeyCursor, normalizeLimit, page } from '../lib/pagination'
-import { roomInclude, toRoom, type RoomRow } from '../lib/serialize'
+import { roomInclude, toRoom, type MediaRow, type RoomRow } from '../lib/serialize'
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors'
 
 type RoomCursor = { t: string; id: string }
@@ -9,12 +9,40 @@ type ListOpts = { cursor?: string; limit?: number }
 
 const newInviteCode = () => randomBytes(9).toString('base64url') // 12 chars
 
+// A picture a card can show: a stored image, a YouTube video (its thumbnail) or a poster.
+const pictured: Prisma.MediaWhereInput = { OR: [{ kind: 'image' }, { source: 'youtube' }, { posterUrl: { not: null } }] }
+
+// For rooms without a thumbnail: the first picture of their earliest live item that has one.
+async function fallbackPictures(rooms: RoomRow[]): Promise<Map<string, MediaRow>> {
+  const ids = rooms.filter((r) => !r.thumbnail).map((r) => r.id)
+  const found = new Map<string, MediaRow>()
+  if (ids.length === 0) return found
+  const firsts = await db.$queryRaw<{ roomId: string; number: number }[]>`
+    SELECT i.roomId AS roomId, MIN(i.number) AS number
+    FROM Item i JOIN Media m ON m.messageId = i.messageId
+    WHERE i.roomId IN (${Prisma.join(ids)}) AND i.deletedAt IS NULL
+      AND (m.kind = 'image' OR m.source = 'youtube' OR m.posterUrl IS NOT NULL)
+    GROUP BY i.roomId`
+  if (firsts.length === 0) return found
+  const items = await db.item.findMany({
+    where: { OR: firsts.map((f) => ({ roomId: f.roomId, number: Number(f.number) })) },
+    select: { roomId: true, message: { select: { media: { where: pictured, orderBy: { position: 'asc' }, take: 1 } } } },
+  })
+  for (const item of items) if (item.message.media[0]) found.set(item.roomId, item.message.media[0])
+  return found
+}
+
+async function withFallback(room: RoomRow) {
+  return toRoom(room, (await fallbackPictures([room])).get(room.id) ?? null)
+}
+
 // Lobby order: most recently active first, id as tiebreaker.
-function activityPage(rows: RoomRow[], limit: number) {
+async function activityPage(rows: RoomRow[], limit: number) {
   const result = page(rows, limit, (last) =>
     encodeKeyCursor<RoomCursor>({ t: last.lastActivityAt.toISOString(), id: last.id }),
   )
-  return { data: result.data.map(toRoom), meta: result.meta }
+  const pictures = await fallbackPictures(result.data)
+  return { data: result.data.map((room) => toRoom(room, pictures.get(room.id) ?? null)), meta: result.meta }
 }
 
 function afterCursor(cursor?: string): Prisma.RoomWhereInput {
@@ -81,7 +109,7 @@ export class RoomService {
   }
 
   async get(viewerId: string, roomId: string) {
-    return toRoom(await this.viewable(viewerId, roomId))
+    return withFallback(await this.viewable(viewerId, roomId))
   }
 
   // Loads a room the viewer may see. Private rooms are 404 to non-members so
@@ -127,7 +155,7 @@ export class RoomService {
       },
       include: roomInclude(viewerId),
     })
-    return toRoom(updated)
+    return withFallback(updated)
   }
 
   async remove(viewerId: string, roomId: string) {
@@ -174,6 +202,6 @@ export class RoomService {
       data: { inviteCode: newInviteCode() },
       include: roomInclude(viewerId),
     })
-    return toRoom(updated)
+    return withFallback(updated)
   }
 }

@@ -38,14 +38,16 @@ export function roomInclude(viewerId: string) {
 
 export type RoomRow = Prisma.RoomGetPayload<{ include: ReturnType<typeof roomInclude> }>
 
-export function toRoom(room: RoomRow) {
+// `fallback`: the room's earliest picture, shown when no thumbnail is set (rooms
+// from before thumbnails were required, or whose thumbnail file was deleted).
+export function toRoom(room: RoomRow, fallback: MediaRow | null = null) {
   const role = room.members[0]?.role ?? null
   return {
     id: room.id,
     number: room.number,
     title: room.title,
     description: room.description ?? '',
-    thumbnail: room.thumbnail ? toMedia(room.thumbnail) : null,
+    thumbnail: room.thumbnail ? toMedia(room.thumbnail) : fallback ? toMedia(fallback) : null,
     topic: room.topic,
     visibility: room.visibility,
     ownerId: room.ownerId,

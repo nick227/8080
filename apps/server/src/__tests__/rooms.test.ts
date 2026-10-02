@@ -381,3 +381,34 @@ describe('room stats (responses, length, last response)', () => {
     expect(await stats(room.id)).toMatchObject({ responseCount: 1, durationMs: 2000, lastResponseAt: expect.any(String) })
   })
 })
+
+describe('room thumbnail fallback', () => {
+  const picture = (ownerId: string) =>
+    db.media.create({ data: { ownerId, kind: 'image', storageKey: `${randomUUID()}.png`, mimeType: 'image/png', size: 1 } })
+  const audio = (ownerId: string) =>
+    db.media.create({ data: { ownerId, kind: 'audio', duration: 3, storageKey: `${randomUUID()}.webm`, mimeType: 'audio/webm', size: 1 } })
+
+  it('a room without a thumbnail shows its earliest live picture', async () => {
+    const room = await seedRoom(app, testUserId)
+    await db.room.update({ where: { id: room.id }, data: { thumbnailId: null } })
+    await seedItem(app, testUserId, room.id, { mediaIds: [(await audio(testUserId)).id] })
+    const deleted = await seedItem(app, testUserId, room.id, { mediaIds: [(await picture(testUserId)).id] })
+    const later = await picture(testUserId)
+    await seedItem(app, testUserId, room.id, { mediaIds: [later.id] })
+    await app.inject({ method: 'DELETE', url: `/items/${deleted.id}`, headers: asAuth(testUserId) })
+
+    const list = await app.inject({ method: 'GET', url: '/rooms/mine', headers: asAuth(testUserId) })
+    await validateResponse('listMyRooms', 200, list.json())
+    expect(list.json().data.find((r: { id: string }) => r.id === room.id).thumbnail).toMatchObject({ id: later.id, type: 'image' })
+    const one = await app.inject({ method: 'GET', url: `/rooms/${room.id}`, headers: asAuth(testUserId) })
+    expect(one.json().data.thumbnail).toMatchObject({ id: later.id })
+  })
+
+  it('no picture at all → null (the card shows the room number)', async () => {
+    const room = await seedRoom(app, testUserId)
+    await db.room.update({ where: { id: room.id }, data: { thumbnailId: null } })
+    await seedItem(app, testUserId, room.id, { text: 'words only' })
+    const one = await app.inject({ method: 'GET', url: `/rooms/${room.id}`, headers: asAuth(testUserId) })
+    expect(one.json().data.thumbnail).toBeNull()
+  })
+})
