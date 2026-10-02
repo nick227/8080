@@ -160,10 +160,19 @@ audio.media-view { width: min(520px, 100%); }
 .lobby-go { padding: 0; white-space: nowrap; }
 .lobby-go:hover, .lobby-go:focus-visible { color: var(--ink); }
 .lobby-note { margin: 14px 0; }
+.lobby-delete {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.lobby-delete:hover, .lobby-delete:focus-visible { color: var(--signal); }
 .lobby-note-error { color: var(--signal); }
 .lobby-create { margin: 0 0 4px; padding: 12px 0 16px; border-bottom: 1px solid var(--line); }
 .lobby-create-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; }
-.lobby-pill { padding: 12px 24px; border: 1px solid var(--line); border-radius: 999px; font-family: var(--mono); font-size: 13px; font-weight: bold; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); background: transparent; transition: border-color var(--motion-fast) linear, background var(--motion-fast) linear, color var(--motion-fast) linear; }
+.lobby-pill { padding: 12px 24px; border: 1px solid var(--line); border-radius: 999px; font-family: var(--mono); font-size: 13px; font-weight: bold; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); background: transparent; transition: border-color var(--motion-fast) linear, background var(--motion-fast) linear, color var(--motion-fast) linear; width: 100%; }
 .lobby-pill:hover, .lobby-pill:focus-visible { border-color: var(--ink); background: var(--ink); color: var(--bg); }
 .river-post { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; padding: 24px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 24px; }
 .river-context, .river-text { display: block; width: 100%; padding: 0; text-align: left; }

@@ -1,4 +1,4 @@
-.room-shell { padding-bottom: 128px; }
+.room-shell { padding-bottom: 48px; }
 
 .room-head { display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; }
 .room-cover {
@@ -133,58 +133,6 @@
 }
 .room-actions button:hover, .room-actions button:focus-visible { color: var(--ink); }
 .room-status { color: var(--signal); }
-
-.room-bar {
-  position: fixed;
-  z-index: 30;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  justify-content: center;
-  padding: 0 0 env(safe-area-inset-bottom);
-  background: var(--bg);
-  border-top: 1px solid var(--line);
-}
-.room-bar-in { width: var(--shell-w); padding: 12px 0 14px; }
-.room-replying {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--signal);
-}
-.room-tools { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; }
-.room-tools button, .room-send {
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink);
-}
-.room-tools button:nth-child(2) { justify-self: center; }
-.room-tools button:nth-child(3), .room-record { justify-self: end; }
-.room-record { color: var(--signal); }
-.room-field {
-  width: 100%;
-  min-height: 72px;
-  resize: vertical;
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-  font-family: var(--content-font);
-  font-size: 22px;
-  line-height: 1.35;
-  outline: none;
-}
-.room-compose-actions, .room-review-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
-.room-level { display: flex; gap: 3px; align-items: flex-end; height: 22px; }
-.room-level i { display: block; width: 3px; background: var(--signal); }
-.room-review-media { margin-top: 8px; max-height: 240px; overflow: hidden; }
 
 .room-desk {
   position: fixed;
@@ -492,7 +440,7 @@
 
 @media (max-width: 720px) {
   .room-stage, .room-desk { padding-left: 16px; padding-right: 16px; }
-  .room-text, .room-field, .room-empty { font-size: 20px; }
+  .room-text, .room-empty { font-size: 20px; }
   .room-desk-title, .room-desk-title-input, .room-head-title { font-size: 28px; }
   .room-desk-thumb { width: 48px; height: 48px; }
   .room-desk-anchor { gap: 24px; }

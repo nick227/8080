@@ -16,7 +16,6 @@ import type { Item } from '../api/types'
 import { ConversationHead } from '../features/room/ConversationHead'
 import { PeopleStrip, type PresenceActivity } from '../features/room/PeopleStrip'
 import { ChatStream, stillsFrom, type StreamRow } from '../features/room/ChatStream'
-import { Composer } from '../features/room/Composer'
 import { RecordSurface } from '../features/room/RecordSurface'
 import { Playback, isPlayable } from '../features/room/Playback'
 import { useRoomPost } from '../features/room/useRoomPost'
@@ -35,7 +34,6 @@ function roomPeopleFrom(items: Item[], meId: string | undefined, meName: string,
 
 export function Room({ roomId: roomRef }: { roomId: string }) {
   const ui = useUI()
-  const lobby = useShell((s) => s.surface) === 'lobby'
   const items = useData(useShallow(selectAllItems))
   const itemsById = useData((s) => s.itemsById)
   const replaceItems = useData((s) => s.replaceItems)
@@ -137,7 +135,6 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       {data && <ConversationHead room={data} />}
       <PeopleStrip people={roomPeopleFrom(visible, meId, meName, activity)} meId={meId} inviteUrl={inviteUrl} />
       <ChatStream rows={rows} />
-      {!lobby && !showDesk && <Composer onOpen={() => setDesk(true)} />}
       {showDesk && (
         <RecordSurface
           title={fresh && !replyName ? (data?.title ?? 'New conversation') : undefined}

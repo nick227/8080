@@ -1,21 +1,20 @@
 import { useState } from 'react'
-import { useMyRooms, useRooms, useCreateRoom, type Room } from '@project/sdk'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { useDeleteRoom, useMyRooms, useRooms, type Room } from '@project/sdk'
 import { useShell } from '../state/shell'
-import { useNavigate } from 'react-router-dom'
 
 export function Lobby() {
   const myRooms = useMyRooms()
   const publicRooms = useRooms()
-  const createRoom = useCreateRoom()
-  const [creating, setCreating] = useState(false)
+  const deleteRoom = useDeleteRoom()
+  const [deleteError, setDeleteError] = useState<string | undefined>()
+  const navigate = useNavigate()
+  const location = useLocation()
 
   const myList = myRooms.data?.pages.flatMap((p) => p.data) ?? []
   const publicListAll = publicRooms.data?.pages.flatMap((p) => p.data) ?? []
-  
   const myIds = new Set(myList.map(r => r.id))
   const publicList = publicListAll.filter(r => !myIds.has(r.id))
-
-  const navigate = useNavigate()
 
   const enter = (roomId: string) => { navigate(`/room/${roomId}`) }
 
@@ -23,7 +22,15 @@ export function Lobby() {
     useShell.getState().openRecord()
   }
 
-  // format duration Ms
+  const remove = (roomId: string) => {
+    setDeleteError(undefined)
+    void deleteRoom.mutateAsync(roomId).then(() => {
+      if (location.pathname === `/room/${roomId}`) navigate('/')
+    }).catch((error: unknown) => {
+      setDeleteError(error instanceof Error ? error.message : 'Could not delete')
+    })
+  }
+
   const formatDuration = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000)
     const minutes = Math.floor(totalSeconds / 60)
@@ -38,10 +45,15 @@ export function Lobby() {
         <h3 style={{ margin: 0, fontSize: 16 }}>{room.title}</h3>
         <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--muted)' }}>{room.description}</p>
       </div>
-      <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--muted)', marginTop: 'auto' }}>
+      <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--muted)', marginTop: 'auto', alignItems: 'center' }}>
         <span>{room.responseCount} replies</span>
         <span>{formatDuration(room.durationMs)} duration</span>
         <span>{room.lastResponseAt ? new Date(room.lastResponseAt).toLocaleDateString() : 'No activity'}</span>
+        {room.role === 'owner' && (
+          <button type="button" className="lobby-delete" disabled={deleteRoom.isPending} onClick={(event) => { event.stopPropagation(); remove(room.id) }}>
+            Delete
+          </button>
+        )}
       </div>
     </div>
   )
@@ -52,12 +64,13 @@ export function Lobby() {
   return (
     <div className="lobby-body">
       <div className="lobby-head">
-        <button type="button" className="lobby-pill" disabled={creating} onClick={() => void start()}>
-          {creating ? 'CREATING' : 'NEW CONVERSATION'}
+        <button type="button" className="lobby-pill" onClick={() => void start()}>
+          NEW CONVERSATION
         </button>
       </div>
 
       {isError && <p className="lobby-note lobby-note-error">Failed to load rooms</p>}
+      {deleteError && <p className="lobby-note lobby-note-error">{deleteError}</p>}
       {isLoading && !isError && <p className="lobby-note">Loading directory...</p>}
 
       {!isLoading && !isError && (
