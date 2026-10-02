@@ -54,6 +54,8 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
 
   const [itemsError, setItemsError] = useState<string>()
   const [itemsSuccess, setItemsSuccess] = useState(false)
+  // Stable: RoomItemsSync re-mirrors the room whenever this changes.
+  const onItemsSuccess = useCallback(() => setItemsSuccess(true), [])
   useEffect(() => () => { replaceItems([]); setItemsSuccess(false) }, [roomId, replaceItems])
   useLayoutEffect(() => {
     if (!roomId) return
@@ -135,7 +137,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
 
   return (
     <Panel as="main" variant="shell" className="room-shell">
-      {roomId && <RoomItemsSync roomId={roomId} onError={setItemsError} onSuccess={() => setItemsSuccess(true)} />}
+      {roomId && <RoomItemsSync roomId={roomId} onError={setItemsError} onSuccess={onItemsSuccess} />}
       <SEO title={data?.title ? `${data.title} - Voice Chat` : 'Room - Voice Chat'} description={`Join ${data?.title ?? 'this room'} on Voice Chat.`} />
       <StageChrome />
       {(ui.error || resolved.error || itemsError) && (
