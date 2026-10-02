@@ -302,8 +302,10 @@
 }
 .room-desk-write {
   box-sizing: border-box;
+  display: block;
   width: 100%;
   height: 220px;
+  margin: 0;
   border: 1px solid var(--line);
   background: transparent;
   color: var(--ink);
@@ -428,6 +430,76 @@
   color: var(--ink);
 }
 .edit-sheet-apply[aria-pressed="true"] { color: var(--signal); }
+.edit-sheet-stills {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.edit-sheet-still {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  text-align: left;
+  color: var(--ink);
+}
+.edit-sheet-still img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+  border: 1px solid var(--line);
+}
+.edit-sheet-still[aria-pressed="true"] img {
+  border-color: var(--signal);
+  outline: 2px solid var(--signal);
+  outline-offset: -2px;
+}
+.edit-sheet-still[aria-pressed="true"] span { color: var(--signal); }
+.edit-sheet-still span {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.edit-sheet-upload {
+  margin: 14px 0 18px;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.room-desk-card.is-still { padding: 0; overflow: hidden; gap: 0; }
+.room-desk-card.is-still img { width: 100%; height: 240px; max-height: 320px; object-fit: cover; }
+.stock-preview.has-still { position: relative; }
+.stock-preview.has-still .stock-wave {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  height: 28px;
+}
+.stock-preview.has-still .stock-wave i { background: rgba(240, 237, 225, 0.55); }
+.room-desk-write-wrap { position: relative; width: 100%; overflow: hidden; }
+.room-desk-write-wrap.has-still img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.room-desk-write-wrap.has-still .room-desk-write {
+  position: relative;
+  border: 0;
+  background: linear-gradient(to top, rgba(15, 17, 21, 0.82), rgba(15, 17, 21, 0.28));
+}
 .edit-sheet-foot {
   display: flex;
   gap: 18px;

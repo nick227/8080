@@ -4,16 +4,18 @@ import { useUI } from '../../state/ui'
 import { composeClip } from './composeClip'
 import { encodeWav } from './encodeWav'
 import { bufferDurationMs, decodeStock, fitAudio, readDurationMs, waveformPeaks } from './fitAudio'
-import { stockTrack, stockImage } from './stock'
+import { imageFile, stillTake } from './stillTake'
+import { stockImage, stockTrack } from './stock'
 
 export type TakePicture =
   | { kind: 'audio'; url: string; durationMs: number }
   | { kind: 'video'; url: string; durationMs: number }
   | { kind: 'image'; url: string }
+  | { kind: 'text' }
 
 export type FittedTake = {
   trackId: string
-  buffer: AudioBuffer
+  buffer: AudioBuffer | null
   durationMs: number
   waveform: number[]
   imageUrl?: string
@@ -42,9 +44,20 @@ export function useStockEdit(picture: TakePicture | null) {
   const pictureRef = useRef(picture)
   const fittedRef = useRef(fitted)
   const request = useRef(0)
+  const owned = useRef<string | null>(null)
   pictureRef.current = picture
   fittedRef.current = fitted
-  const sourceKey = picture ? `${picture.kind}:${picture.url}` : ''
+  const sourceKey = picture ? `${picture.kind}:${'url' in picture ? picture.url : ''}` : ''
+
+  const dropOwned = (url: string | null) => {
+    if (!url) return
+    window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  }
+
+  const releaseOwned = () => {
+    dropOwned(owned.current)
+    owned.current = null
+  }
 
   useEffect(() => {
     request.current += 1
@@ -52,45 +65,84 @@ export function useStockEdit(picture: TakePicture | null) {
     setTrackId(null)
     setFitted(null)
     setFitting(false)
+    return () => {
+      const url = owned.current
+      owned.current = null
+      if (url) window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    }
   }, [sourceKey])
+
+  const commit = (token: number, next: FittedTake, blobUrl: string | null) => {
+    if (token !== request.current) {
+      dropOwned(blobUrl)
+      return
+    }
+    const prev = owned.current
+    owned.current = blobUrl
+    if (prev && prev !== blobUrl) dropOwned(prev)
+    setTrackId(next.trackId)
+    setFitted(next)
+    setError(undefined)
+  }
+
+  const fail = (token: number, blobUrl: string | null, cause: unknown) => {
+    dropOwned(blobUrl)
+    if (token !== request.current) return
+    setError(cause instanceof Error ? cause.message : 'Could not apply that')
+  }
 
   const select = (id: string | null) => {
     const token = ++request.current
     const current = pictureRef.current
     if (!id || !current) {
+      releaseOwned()
       setTrackId(null)
       setFitted(null)
       setFitting(false)
       return
     }
-    setTrackId(id)
     setFitting(true)
     void (async () => {
       try {
-        if (current.kind === 'audio') {
-          const stockImg = stockImage(id)
-          const durationMs = current.durationMs > 0 ? current.durationMs : await readDurationMs(current.url, current.kind)
-          if (token !== request.current) return
-          const buffer = await decodeStock(current.url)
-          if (token !== request.current) return
-          setFitted({ trackId: id, buffer, durationMs, waveform: waveformPeaks(buffer), imageUrl: stockImg.url })
-          setError(undefined)
-        } else {
-          const stock = await decodeStock(stockTrack(id).url)
-          if (token !== request.current) return
-          const durationMs = current.kind === 'image'
-            ? bufferDurationMs(stock)
-            : current.durationMs > 0 ? current.durationMs : await readDurationMs(current.url, current.kind)
-          if (token !== request.current) return
-          const buffer = current.kind === 'image' ? stock : fitAudio(stock, durationMs)
-          setFitted({ trackId: id, buffer, durationMs, waveform: waveformPeaks(buffer) })
-          setError(undefined)
+        if (current.kind === 'text' || current.kind === 'audio') {
+          const imageUrl = stockImage(id).url
+          const next = await stillTake(current, imageUrl, token, request)
+          if (!next) return
+          commit(token, { ...next, trackId: id }, null)
+          return
         }
-      } catch (cause) {
+        const stock = await decodeStock(stockTrack(id).url)
         if (token !== request.current) return
-        setTrackId(null)
-        setFitted(null)
-        setError(cause instanceof Error ? cause.message : 'Could not load that track')
+        const durationMs = current.kind === 'image'
+          ? bufferDurationMs(stock)
+          : current.durationMs > 0 ? current.durationMs : await readDurationMs(current.url, current.kind)
+        if (token !== request.current) return
+        const buffer = current.kind === 'image' ? stock : fitAudio(stock, durationMs)
+        commit(token, { trackId: id, buffer, durationMs, waveform: waveformPeaks(buffer) }, null)
+      } catch (cause) {
+        fail(token, null, cause)
+      } finally {
+        if (token === request.current) setFitting(false)
+      }
+    })()
+  }
+
+  const uploadImage = (file: File) => {
+    const current = pictureRef.current
+    if (!current || (current.kind !== 'audio' && current.kind !== 'text')) return
+    const token = ++request.current
+    const imageUrl = URL.createObjectURL(file)
+    setFitting(true)
+    void (async () => {
+      try {
+        const next = await stillTake(current, imageUrl, token, request)
+        if (!next) {
+          dropOwned(imageUrl)
+          return
+        }
+        commit(token, { ...next, trackId: 'upload' }, imageUrl)
+      } catch (cause) {
+        fail(token, imageUrl, cause)
       } finally {
         if (token === request.current) setFitting(false)
       }
@@ -101,6 +153,11 @@ export function useStockEdit(picture: TakePicture | null) {
     const current = pictureRef.current
     const edit = fittedRef.current
     if (!current || !edit) throw new Error('Nothing to render')
+    if (current.kind === 'text') {
+      if (!edit.imageUrl) throw new Error('Nothing to render')
+      return imageFile(edit.imageUrl, edit.trackId)
+    }
+    if (!edit.buffer) throw new Error('Nothing to render')
     if (current.kind === 'audio') {
       if (!edit.imageUrl) {
         return { file: encodeWav(edit.buffer), type: 'audio', name: 'edit.wav', duration: edit.durationMs / 1000 }
@@ -124,6 +181,7 @@ export function useStockEdit(picture: TakePicture | null) {
     fitted,
     fitting,
     select,
+    uploadImage,
     bake,
   }
 }

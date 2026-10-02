@@ -2,23 +2,26 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ApplyIcon, PauseIcon, PlayIcon } from '../../components/icons'
 import { primePreviewAudio, releaseStockPreview, stopStockPreview, toggleStockPreview } from './previewAudio'
-import { STOCK_TRACKS, STOCK_IMAGES, type StockTrack, type StockImage } from './stock'
+import { STOCK_IMAGES, STOCK_TRACKS, type StockImage, type StockTrack } from './stock'
 
-export function EditSheet({ open, trackId, pictureKind, fitting, playing, canPlay, onSelect, onClose, onTogglePlay, onPauseTake }: {
+type PictureKind = 'audio' | 'video' | 'image' | 'text'
+
+export function EditSheet({ open, trackId, pictureKind, uploadUrl, fitting, onSelect, onUpload, onClose, onPauseTake }: {
   open: boolean
   trackId: string | null
-  pictureKind?: 'audio' | 'video' | 'image'
+  pictureKind?: PictureKind
+  uploadUrl?: string | null
   fitting: boolean
-  playing: boolean
-  canPlay: boolean
   onSelect: (id: string | null) => void
+  onUpload: (file: File) => void
   onClose: () => void
-  onTogglePlay: () => void
   onPauseTake: () => void
 }) {
   const panelRef = useRef<HTMLElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const { mounted, shown } = useSheetPresence(open)
   const [previewId, setPreviewId] = useState<string | null>(null)
+  const stills = pictureKind === 'audio' || pictureKind === 'text'
 
   useEffect(() => {
     if (shown) panelRef.current?.focus()
@@ -30,8 +33,7 @@ export function EditSheet({ open, trackId, pictureKind, fitting, playing, canPla
 
   useEffect(() => () => releaseStockPreview(), [])
 
-  const preview = (track: StockTrack | StockImage) => {
-    if (pictureKind === 'audio') return apply(track.id)
+  const preview = (track: StockTrack) => {
     onPauseTake()
     toggleStockPreview(track.id, track.url, setPreviewId)
   }
@@ -49,33 +51,61 @@ export function EditSheet({ open, trackId, pictureKind, fitting, playing, canPla
 
   if (!mounted) return null
 
+  const images: StockImage[] = uploadUrl
+    ? [...STOCK_IMAGES, { id: 'upload', name: 'Yours', url: uploadUrl }]
+    : STOCK_IMAGES
+
   return createPortal(
     <aside ref={panelRef} className={shown ? 'edit-sheet is-open' : 'edit-sheet'} role="dialog" aria-label="Edit" tabIndex={-1}>
       <div className="edit-sheet-body">
-        <section aria-label={pictureKind === 'audio' ? 'Image' : 'Audio'}>
-          <h2>{pictureKind === 'audio' ? 'Image' : 'Audio'}</h2>
-          <p className="edit-sheet-status">{pictureKind === 'audio' ? 'Add a stock image' : 'Replace your audio'}</p>
-          <ul className="edit-sheet-list">
-            {(pictureKind === 'audio' ? STOCK_IMAGES : STOCK_TRACKS).map(track => {
-              const sounding = previewId === track.id
-              const applied = trackId === track.id
-              return (
-                <li key={track.id} className="edit-sheet-row">
-                  <button type="button" className="edit-sheet-name" aria-pressed={sounding} onClick={() => preview(track)}>
-                    {track.name}
-                  </button>
-                  {pictureKind !== 'audio' && (
-                    <button type="button" className="edit-sheet-icon" aria-label={sounding ? `Pause ${track.name}` : `Play ${track.name}`} aria-pressed={sounding} onClick={() => preview(track as StockTrack)}>
+        <section aria-label={stills ? 'Image' : 'Audio'}>
+          <h2>{stills ? 'Image' : 'Audio'}</h2>
+          <p className="edit-sheet-status">{stills ? (pictureKind === 'text' ? 'Place behind your text' : 'Add a stock image') : 'Replace your audio'}</p>
+          {stills ? (
+            <>
+              <ul className="edit-sheet-stills">
+                {images.map(image => {
+                  const applied = trackId === image.id
+                  return (
+                    <li key={image.id}>
+                      <button type="button" className="edit-sheet-still" aria-pressed={applied} disabled={fitting} onClick={() => (image.id === 'upload' ? onSelect(null) : apply(image.id))}>
+                        <img src={image.url} alt="" />
+                        <span>{image.name}</span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+              <button type="button" className="edit-sheet-upload" disabled={fitting} onClick={() => fileRef.current?.click()}>Upload image</button>
+              <input ref={fileRef} type="file" accept="image/*" hidden onChange={(event) => {
+                const file = event.target.files?.[0]
+                event.target.value = ''
+                if (!file) return
+                stopStockPreview()
+                onUpload(file)
+              }} />
+            </>
+          ) : (
+            <ul className="edit-sheet-list">
+              {STOCK_TRACKS.map(track => {
+                const sounding = previewId === track.id
+                const applied = trackId === track.id
+                return (
+                  <li key={track.id} className="edit-sheet-row">
+                    <button type="button" className="edit-sheet-name" aria-pressed={sounding} onClick={() => preview(track)}>
+                      {track.name}
+                    </button>
+                    <button type="button" className="edit-sheet-icon" aria-label={sounding ? `Pause ${track.name}` : `Play ${track.name}`} aria-pressed={sounding} onClick={() => preview(track)}>
                       {sounding ? <PauseIcon /> : <PlayIcon />}
                     </button>
-                  )}
-                  <button type="button" className="edit-sheet-icon edit-sheet-apply" aria-label={applied ? `${track.name} applied` : `Apply ${track.name}`} aria-pressed={applied} disabled={fitting} onClick={() => apply(track.id)}>
-                    <ApplyIcon />
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
+                    <button type="button" className="edit-sheet-icon edit-sheet-apply" aria-label={applied ? `${track.name} applied` : `Apply ${track.name}`} aria-pressed={applied} disabled={fitting} onClick={() => apply(track.id)}>
+                      <ApplyIcon />
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </section>
       </div>
       <div className="edit-sheet-bar">

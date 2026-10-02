@@ -103,7 +103,8 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
   const [sending, setSending] = useState(false)
   const [rendering, setRendering] = useState(false)
   const [playing, setPlaying] = useState(false)
-  const picture = takePicture({ upload, mode, previewUrl, durationMs })
+  const mediaPicture = takePicture({ upload, mode, previewUrl, durationMs })
+  const picture = mediaPicture ?? (write && !upload && !blob ? { kind: 'text' as const } : null)
   const edit = useStockEdit(picture)
   const pasted = useMemo(() => findYouTubeVideoId(ytText), [ytText])
 
@@ -170,13 +171,13 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
     if (edit.open) edit.close()
     const note = (write ? text.trim() : '') || undefined
     const media: SendInput['media'] = []
-    const visual = !!(edit.fitted && picture && picture.kind !== 'audio')
+    const visual = !!(edit.fitted?.buffer && picture && picture.kind !== 'text' && (picture.kind !== 'audio' || edit.fitted.imageUrl))
     const renderCtx = visual ? new AudioContext() : null
     if (renderCtx) void renderCtx.resume()
     setSending(true)
     setRendering(visual)
     try {
-      if (edit.fitted && picture) {
+      if (edit.fitted && picture && (edit.fitted.buffer || picture.kind === 'text')) {
         try {
           media.push(await edit.bake(renderCtx ?? undefined))
         } catch (cause) {
@@ -206,9 +207,13 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
   const previewSrc = upload?.url ?? previewUrl ?? undefined
   const entry = write || ytOpen
   const showCamera = !entry && !take && kind === 'video' && (recording || previewOn)
-  const canSend = !!((write && text.trim()) || take || ytReady)
-  const canEdit = take && !entry && previewType !== 'file' && !!picture
-  const showPlay = canEdit && (previewType !== 'image' || !!edit.fitted)
+  const canSend = !!((write && text.trim()) || take || ytReady || (picture?.kind === 'text' && edit.fitted?.imageUrl))
+  const canEdit = !ytOpen && (
+    picture?.kind === 'audio' ||
+    picture?.kind === 'text' ||
+    ((picture?.kind === 'video' || picture?.kind === 'image') && !write)
+  )
+  const showPlay = !write && !!mediaPicture && (previewType !== 'image' || !!edit.fitted?.buffer)
   const showRetry = take && !entry && previewType !== 'image' && previewType !== 'file'
 
   const togglePlay = () => {
@@ -230,7 +235,10 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
         </div>
         <div className="room-desk-stage" ref={stageRef}>
           {write && (
-            <textarea className="room-desk-write" value={text} autoFocus placeholder="Write something." onChange={(event) => setText(event.target.value)} />
+            <div className={edit.fitted?.imageUrl ? 'room-desk-write-wrap has-still' : 'room-desk-write-wrap'}>
+              {edit.fitted?.imageUrl && <img src={edit.fitted.imageUrl} alt="" />}
+              <textarea className="room-desk-write" value={text} autoFocus placeholder="Write something." onChange={(event) => setText(event.target.value)} />
+            </div>
           )}
           {ytOpen && (
             <div className="room-desk-card">
@@ -239,9 +247,9 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
             </div>
           )}
           {!entry && take && previewSrc && previewType !== 'file' && (
-            <div className="room-desk-card" style={{ position: 'relative' }}>
-              {edit.fitted && picture ? (
-                <EditPreview key={edit.fitted.trackId} kind={picture.kind} url={picture.url} buffer={edit.fitted.buffer} durationMs={edit.fitted.durationMs} waveform={picture.kind === 'audio' ? edit.fitted.waveform : undefined} onPlaying={setPlaying} />
+            <div className={picture?.kind === 'audio' && edit.fitted?.imageUrl ? 'room-desk-card is-still' : 'room-desk-card'} style={{ position: 'relative' }}>
+              {edit.fitted?.buffer && picture && picture.kind !== 'text' ? (
+                <EditPreview key={edit.fitted.trackId} kind={picture.kind} url={picture.url} imageUrl={edit.fitted.imageUrl} buffer={edit.fitted.buffer} durationMs={edit.fitted.durationMs} waveform={picture.kind === 'audio' ? edit.fitted.waveform : undefined} onPlaying={setPlaying} />
               ) : (
                 <Media type={previewType === 'image' ? 'image' : previewType} src={previewSrc} name={upload?.file.name ?? 'take'} waveform={previewType === 'audio' ? waveform ?? undefined : undefined} hidePlayButton isActive={false} onPlayStatusChange={setPlaying} />
               )}
@@ -275,10 +283,10 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
           </div>
 
           <div className="room-desk-actions" style={{ 
-            opacity: canSend && !recording ? 1 : 0, 
-            pointerEvents: canSend && !recording ? 'auto' : 'none', 
+            opacity: !recording && (canSend || picture?.kind === 'text') ? 1 : 0, 
+            pointerEvents: !recording && (canSend || picture?.kind === 'text') ? 'auto' : 'none', 
             transition: 'opacity 0.2s',
-            visibility: canSend && !recording ? 'visible' : 'hidden'
+            visibility: !recording && (canSend || picture?.kind === 'text') ? 'visible' : 'hidden'
           }}>
             {showPlay && (
               <button type="button" onClick={togglePlay}>{playing ? 'Pause' : 'Play'}</button>
@@ -296,12 +304,11 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
         open={canEdit && edit.open}
         trackId={edit.trackId}
         pictureKind={picture?.kind}
+        uploadUrl={edit.trackId === 'upload' ? edit.fitted?.imageUrl : null}
         fitting={edit.fitting}
-        playing={playing}
-        canPlay={showPlay}
         onSelect={edit.select}
+        onUpload={edit.uploadImage}
         onClose={edit.close}
-        onTogglePlay={togglePlay}
         onPauseTake={() => controllerWithin(stageRef.current)?.pause()}
       />
 

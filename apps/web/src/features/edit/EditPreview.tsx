@@ -4,9 +4,10 @@ import { useFittedPlayback } from './useFittedPlayback'
 
 type Kind = 'audio' | 'video' | 'image'
 
-export function EditPreview({ kind, url, buffer, durationMs, waveform, onPlaying }: {
+export function EditPreview({ kind, url, imageUrl, buffer, durationMs, waveform, onPlaying }: {
   kind: Kind
   url: string
+  imageUrl?: string
   buffer: AudioBuffer
   durationMs: number
   waveform?: number[]
@@ -22,10 +23,12 @@ export function EditPreview({ kind, url, buffer, durationMs, waveform, onPlaying
     return registerController(el, api)
   }, [api])
 
+  const still = kind === 'image' ? url : imageUrl
+
   return (
-    <div ref={rootRef} className="stock-preview">
+    <div ref={rootRef} className={still && kind !== 'video' ? 'stock-preview has-still' : 'stock-preview'}>
       {kind === 'video' && <video ref={videoRef} src={url} muted playsInline preload="auto" />}
-      {kind === 'image' && <img src={url} alt="" />}
+      {still && kind !== 'video' && <img src={still} alt="" />}
       {kind === 'audio' && waveform && (
         <div className="stock-wave" aria-hidden>
           {waveform.map((peak, index) => (

@@ -1,15 +1,6 @@
-<<<<<<< HEAD
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { useCapture } from '../state/capture'
 import { uploadMedia, useDeleteItem, useRoom, useRoomItems, useRoomStream, useUpdateRoom } from '@project/sdk'
-=======
-import { useEffect, useLayoutEffect, useState } from 'react'
-import { type ReactionType, type SendInput } from '../api/types'
-import { Feed } from '../features/Feed'
-import { Instrument } from '../features/Instrument'
-import { useUI } from '../state/ui'
-import { useData } from '../state/data'
->>>>>>> feat/lobby-cards
 import { Panel } from '../components/Panel'
 import { Label } from '../components/Label'
 import { Control } from '../components/Control'
@@ -90,7 +81,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const newest = [...visible].reverse()
   const replying = ui.state === 'replying' || ui.state === 'composing' || ui.state === 'recording' || ui.state === 'reviewing'
   const replyName = replying && ui.activeItemId ? itemsById[ui.activeItemId]?.author.name : undefined
-  const fresh = Boolean(roomId) && roomItems.isSuccess && visible.length === 0 && pending.length === 0
+  const fresh = Boolean(roomId) && itemsSuccess && visible.length === 0 && pending.length === 0
   const showDesk = desk || (fresh && !skipped)
   const playing = ui.state === 'playback' && ui.activeItemId ? itemsById[ui.activeItemId] : undefined
 
