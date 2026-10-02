@@ -2,7 +2,10 @@
 // Run `pnpm test:generate` to add stubs for new routes.
 // Item = a Message's placement in one room; send/reply create a new Message each.
 import { describe, it, expect } from 'vitest'
+import { existsSync } from 'fs'
+import { join } from 'path'
 import { db } from '@project/db'
+import { UPLOADS_DIR } from '../providers/LocalStorageProvider'
 import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, seedRoom, seedItem, seedReply, multipart } from './helpers'
 
 const app = buildTestApp()
@@ -272,7 +275,7 @@ describe('deleteItem', () => {
     expect(list.body).not.toContain('secret')
   })
 
-  it('deleting one placement leaves the message visible where it was shared', async () => {
+  it('deleting a capture removes it everywhere it was shared', async () => {
     const a = await seedRoom(app, testUserId)
     const b = await seedRoom(app, testUserId)
     const original = await seedItem(app, testUserId, a.id, { text: 'everywhere' })
@@ -280,7 +283,35 @@ describe('deleteItem', () => {
     await app.inject({ method: 'DELETE', url: `/items/${original.id}`, headers: asAuth(testUserId) })
 
     const inB = await app.inject({ method: 'GET', url: `/rooms/${b.id}/items`, headers: asAuth(testUserId) })
-    expect(inB.json().data[0].message.text).toBe('everywhere')
+    expect(inB.json().data[0]).toMatchObject({ deletedAt: expect.any(String), message: { text: null, media: [] } })
+    expect(inB.body).not.toContain('everywhere')
+  })
+
+  it('DELETE removes the stored file for good', async () => {
+    const room = await seedRoom(app, testUserId)
+    const png = Buffer.alloc(32)
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png)
+    const form = multipart([
+      { name: 'file', value: png, filename: 'shot.png', type: 'image/png' },
+    ])
+    const uploaded = await app.inject({
+      method: 'POST',
+      url: '/media',
+      headers: { ...asAuth(testUserId), ...form.headers },
+      payload: form.payload,
+    })
+    expect(uploaded.statusCode).toBe(201)
+    const media = uploaded.json().data as { id: string }
+    const stored = await db.media.findUniqueOrThrow({ where: { id: media.id } })
+    const path = join(UPLOADS_DIR, stored.storageKey ?? '')
+    expect(existsSync(path)).toBe(true)
+    const item = await seedItem(app, testUserId, room.id, { mediaIds: [media.id] })
+
+    const res = await app.inject({ method: 'DELETE', url: `/items/${item.id}`, headers: asAuth(testUserId) })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data.message.media).toEqual([])
+    expect(existsSync(path)).toBe(false)
+    expect(await db.media.findUnique({ where: { id: media.id } })).toBeNull()
   })
 
   it('forbids deleting someone else’s item', async () => {

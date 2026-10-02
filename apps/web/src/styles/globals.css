@@ -168,7 +168,7 @@ audio.media-view { width: min(520px, 100%); }
   text-transform: uppercase;
   color: var(--muted);
 }
-.lobby-delete:hover, .lobby-delete:focus-visible { color: var(--signal); }
+.lobby-delete:hover, .lobby-delete:focus-visible, .lobby-delete[data-armed] { color: var(--signal); }
 .lobby-note-error { color: var(--signal); }
 .lobby-create { margin: 0 0 4px; padding: 12px 0 16px; border-bottom: 1px solid var(--line); }
 .lobby-create-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; }

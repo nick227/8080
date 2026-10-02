@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { useCapture } from '../state/capture'
-import { uploadMedia, useRoom, useRoomItems, useRoomStream, useUpdateRoom } from '@project/sdk'
+import { uploadMedia, useDeleteItem, useRoom, useRoomItems, useRoomStream, useUpdateRoom } from '@project/sdk'
 import { Panel } from '../components/Panel'
 import { Label } from '../components/Label'
 import { Control } from '../components/Control'
@@ -51,6 +51,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const updateRoom = useUpdateRoom(roomId ?? '')
   const roomItems = useRoomItems(roomId)
   const { pending, post, meId, meName } = useRoomPost(roomId)
+  const removeItem = useDeleteItem()
 
   useEffect(() => {
     if (roomItems.isSuccess) replaceItems(roomItems.items.map(toItem))
@@ -112,6 +113,13 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       text: item.text,
       media: stillsFrom(item.media),
       onReply: () => { ui.startReply(item.id); setDesk(true) },
+      onDelete: item.author.id === meId
+        ? () => {
+            void removeItem.mutateAsync(item.id).catch((error: unknown) => {
+              ui.setError(error instanceof Error ? error.message : 'Could not delete')
+            })
+          }
+        : undefined,
     })),
   ]
 

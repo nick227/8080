@@ -4,6 +4,7 @@ import { itemInclude, toItem, type ItemRow } from '../lib/serialize'
 import { badRequest, forbidden, notFound } from '../lib/errors'
 import { RoomService } from './RoomService'
 import { streamHub } from './StreamHub'
+import { purgeCapture } from './purgeCapture'
 
 const rooms = new RoomService()
 
@@ -117,19 +118,18 @@ export class ItemService {
     return created.map((item) => this.publishCreated(viewerId, item))
   }
 
-  // Tombstone the placement: content hidden in this room, row kept so replies keep
-  // their parent. Other rooms the message was shared to are unaffected.
+  // The author permanently removes the capture (file, media row, text) from every
+  // room it was shared to. The placement row stays so replies keep their parent.
   async delete(viewerId: string, itemId: string) {
     const item = await this.loadViewable(viewerId, itemId)
     if (item.message.authorId !== viewerId) throw forbidden('Only the author can delete this item')
-    if (item.deletedAt) return toItem(item, viewerId)
 
-    const updated = await db.item.update({
-      where: { id: itemId },
-      data: { deletedAt: new Date() },
-      include: itemInclude,
-    })
-    streamHub.publish(updated.roomId, { type: 'item.updated', actorId: viewerId, item: toItem(updated, null) })
+    const placements = await purgeCapture(item.messageId, item.message.media)
+    for (const placement of placements) {
+      streamHub.publish(placement.roomId, { type: 'item.updated', actorId: viewerId, itemId: placement.id, itemNumber: placement.number })
+    }
+
+    const updated = await db.item.findUniqueOrThrow({ where: { id: itemId }, include: itemInclude })
     return toItem(updated, viewerId)
   }
 
@@ -201,7 +201,7 @@ export class ItemService {
   }
 
   private publishCreated(viewerId: string, item: Prisma.ItemGetPayload<{ include: typeof itemInclude }>) {
-    streamHub.publish(item.roomId, { type: 'item.created', actorId: viewerId, item: toItem(item, null) })
+    streamHub.publish(item.roomId, { type: 'item.created', actorId: viewerId, itemId: item.id, itemNumber: item.number })
     return toItem(item, viewerId)
   }
 

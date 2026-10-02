@@ -9,8 +9,9 @@ info:
     session cookie, and may later upgrade that same account with `POST /auth/register`.
 
     The server stores conversation facts only (`parentId`); branches are derived
-    client-side. Deleted items are tombstones (`deletedAt` set, content cleared) so
-    replies keep their parent.
+    client-side. Deleting a capture removes its text, media, and stored file
+    everywhere it was shared. The placement stays as a tombstone (`deletedAt` set)
+    so replies keep their parent.
   license:
     name: UNLICENSED
     identifier: UNLICENSED
@@ -509,7 +510,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
       operationId: deleteItem
-      summary: Tombstone an item (author only). Replies are preserved.
+      summary: Permanently delete a capture (author only). The placement stays so replies keep their parent.
       tags: [items]
       responses:
         '200':

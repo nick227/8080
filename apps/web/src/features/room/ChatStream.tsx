@@ -24,6 +24,7 @@ export type StreamRow = {
   onOpen?: () => void
   onReply?: () => void
   onRetry?: () => void
+  onDelete?: () => void
 }
 
 const mark = (name: string) => (name.trim().charAt(0) || '?').toUpperCase()
@@ -67,6 +68,22 @@ function Piece({ row, media, onPlaying }: { row: StreamRow; media: StreamMedia; 
   )
 }
 
+function DeleteLink({ onDelete }: { onDelete: () => void }) {
+  const [armed, setArmed] = useState(false)
+  return (
+    <button
+      type="button"
+      data-armed={armed || undefined}
+      onClick={() => {
+        if (!armed) { setArmed(true); return }
+        onDelete()
+      }}
+    >
+      {armed ? 'Confirm' : 'Delete'}
+    </button>
+  )
+}
+
 function Row({ row }: { row: StreamRow }) {
   const ref = useRef<HTMLElement>(null)
   const [playing, setPlaying] = useState(false)
@@ -97,6 +114,7 @@ function Row({ row }: { row: StreamRow }) {
           </button>
         )}
         {row.onReply && <button type="button" onClick={row.onReply}>Reply</button>}
+        {row.onDelete && <DeleteLink onDelete={row.onDelete} />}
       </div>
     </article>
   )

@@ -8,6 +8,7 @@ export function Lobby() {
   const publicRooms = useRooms()
   const deleteRoom = useDeleteRoom()
   const [deleteError, setDeleteError] = useState<string | undefined>()
+  const [armedId, setArmedId] = useState<string | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -50,8 +51,19 @@ export function Lobby() {
         <span>{formatDuration(room.durationMs)} duration</span>
         <span>{room.lastResponseAt ? new Date(room.lastResponseAt).toLocaleDateString() : 'No activity'}</span>
         {room.role === 'owner' && (
-          <button type="button" className="lobby-delete" disabled={deleteRoom.isPending} onClick={(event) => { event.stopPropagation(); remove(room.id) }}>
-            Delete
+          <button
+            type="button"
+            className="lobby-delete"
+            data-armed={armedId === room.id || undefined}
+            disabled={deleteRoom.isPending}
+            onClick={(event) => {
+              event.stopPropagation()
+              if (armedId !== room.id) { setArmedId(room.id); return }
+              setArmedId(null)
+              remove(room.id)
+            }}
+          >
+            {armedId === room.id ? 'Confirm' : 'Delete'}
           </button>
         )}
       </div>

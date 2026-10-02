@@ -132,6 +132,7 @@
   color: var(--muted);
 }
 .room-actions button:hover, .room-actions button:focus-visible { color: var(--ink); }
+.room-actions button[data-armed] { color: var(--signal); }
 .room-status { color: var(--signal); }
 
 .room-desk {
