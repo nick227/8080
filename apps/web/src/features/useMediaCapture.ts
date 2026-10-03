@@ -105,7 +105,9 @@ export function useMediaCapture() {
           return
         }
         const durationMs = Math.max(0, performance.now() - startedAtRef.current)
-        const mime = recorder.mimeType || (kind === 'video' ? 'video/mp4' : 'audio/mp4')
+        // Firefox clears recorder.mimeType by onstop; the chunks keep the real type
+        // (a wrong label, e.g. Ogg bytes sent as audio/mp4, is refused by the server).
+        const mime = chunksRef.current[0]?.type || recorder.mimeType || (kind === 'video' ? 'video/mp4' : 'audio/mp4')
         const blob = new Blob(chunksRef.current, { type: mime })
         const previewUrl = URL.createObjectURL(blob)
         previewRef.current = previewUrl
