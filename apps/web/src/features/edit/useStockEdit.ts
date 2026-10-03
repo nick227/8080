@@ -5,7 +5,7 @@ import { composeClip } from './composeClip'
 import { encodeWav } from './encodeWav'
 import { bufferDurationMs, decodeStock, fitAudio, readDurationMs, waveformPeaks } from './fitAudio'
 import { imageFile, stillTake } from './stillTake'
-import { stockImage, stockTrack } from './stock'
+import { STOCK_IMAGES, stockImage, stockTrack } from './stock'
 
 export type TakePicture =
   | { kind: 'audio'; url: string; durationMs: number }
@@ -104,14 +104,25 @@ export function useStockEdit(picture: TakePicture | null) {
     setFitting(true)
     void (async () => {
       try {
-        if (current.kind === 'text' || current.kind === 'audio') {
-          const imageUrl = stockImage(id).url
-          const next = await stillTake(current, imageUrl, token, request)
+        if (STOCK_IMAGES.some((item) => item.id === id)) {
+          if (current.kind !== 'text' && current.kind !== 'audio') return
+          const next = await stillTake(current, stockImage(id).url, token, request)
           if (!next) return
           commit(token, { ...next, trackId: id }, null)
           return
         }
         const stock = await decodeStock(stockTrack(id).url)
+        if (current.kind === 'text' || current.kind === 'audio') {
+          if (token !== request.current) return
+          commit(token, {
+            trackId: id,
+            buffer: stock,
+            durationMs: bufferDurationMs(stock),
+            waveform: waveformPeaks(stock),
+            imageUrl: fittedRef.current?.imageUrl,
+          }, null)
+          return
+        }
         if (token !== request.current) return
         const durationMs = current.kind === 'image'
           ? bufferDurationMs(stock)

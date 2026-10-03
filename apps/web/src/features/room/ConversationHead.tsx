@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { uploadMedia, useDeleteRoom, useUpdateRoom, type Room } from '@project/sdk'
 import { useUI } from '../../state/ui'
 import { useShell } from '../../state/shell'
+import { PlayIcon } from '../../components/icons'
 
-export function ConversationHead({ room }: { room: Room }) {
+export function ConversationHead({ room, onPlayAll }: { room: Room; onPlayAll?: () => void }) {
   const owner = room.role === 'owner'
   const update = useUpdateRoom(room.id)
   const remove = useDeleteRoom()
@@ -98,31 +99,40 @@ export function ConversationHead({ room }: { room: Room }) {
       ) : (
         room.description.trim() ? <p className="room-head-description">{room.description}</p> : null
       )}
-      {owner && (
+      {(onPlayAll || owner) && (
         <div className="room-head-actions">
-          <button
-            type="button"
-            aria-pressed={room.visibility === 'private'}
-            onClick={() => {
-              const visibility = room.visibility === 'private' ? 'public' : 'private'
-              void update.mutateAsync({ visibility }).catch((error: unknown) => fail(error, 'Could not update visibility'))
-            }}
-          >
-            {room.visibility === 'private' ? 'Private' : 'Public'}
-          </button>
-          <button
-            type="button"
-            data-armed={armed || undefined}
-            onClick={() => {
-              if (!armed) { setArmed(true); return }
-              void remove.mutateAsync(room.id).then(() => {
-                useShell.getState().enterHome(true)
-                navigate('/')
-              }).catch((error: unknown) => fail(error, 'Could not delete'))
-            }}
-          >
-            {armed ? 'Confirm delete' : 'Delete'}
-          </button>
+          {onPlayAll && (
+            <button type="button" className="room-play-all" onClick={onPlayAll}>
+              <PlayIcon /> Play all
+            </button>
+          )}
+          {owner && (
+            <>
+              <button
+                type="button"
+                aria-pressed={room.visibility === 'private'}
+                onClick={() => {
+                  const visibility = room.visibility === 'private' ? 'public' : 'private'
+                  void update.mutateAsync({ visibility }).catch((error: unknown) => fail(error, 'Could not update visibility'))
+                }}
+              >
+                {room.visibility === 'private' ? 'Private' : 'Public'}
+              </button>
+              <button
+                type="button"
+                data-armed={armed || undefined}
+                onClick={() => {
+                  if (!armed) { setArmed(true); return }
+                  void remove.mutateAsync(room.id).then(() => {
+                    useShell.getState().enterHome(true)
+                    navigate('/')
+                  }).catch((error: unknown) => fail(error, 'Could not delete'))
+                }}
+              >
+                {armed ? 'Confirm delete' : 'Delete'}
+              </button>
+            </>
+          )}
         </div>
       )}
     </header>

@@ -116,7 +116,7 @@ export function Home() {
             style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, zIndex: 10 }}
           >
             <RecordSurface
-              title="New conversation"
+              title="New Message"
               identity={identity}
               replyName={replyName}
               onActivity={() => {}}

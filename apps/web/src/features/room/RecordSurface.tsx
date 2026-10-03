@@ -2,20 +2,22 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { findYouTubeVideoId, youTubeWatchUrl } from '@project/shared'
 import { useUI } from '../../state/ui'
 import { useCapture } from '../../state/capture'
-import { captureKind, useDevice } from '../../state/device'
+import { captureKind, chooseKind, useDevice } from '../../state/device'
 import { useMediaCapture } from '../useMediaCapture'
 import { DevicePicker } from '../DevicePicker'
 import { CameraPreview } from '../CameraPreview'
 import { VoiceWave } from './VoiceWave'
 import { Media } from '../../components/Media'
 import { Control } from '../../components/Control'
-import { PreviewIcon } from '../../components/icons'
+import { KindMark } from '../../components/icons'
 import { YouTubePreview, type YouTubePreviewResult } from '../../components/YouTubePreview'
 import { controllerWithin } from '../../media/controller'
 import type { LocalMedia, MediaType, SendInput } from '../../api/types'
 import { EditPreview } from '../edit/EditPreview'
 import { EditSheet } from '../edit/EditSheet'
 import { stopStockPreview } from '../edit/previewAudio'
+import { encodeWav } from '../edit/encodeWav'
+import { imageFile } from '../edit/stillTake'
 import { takePicture, useStockEdit } from '../edit/useStockEdit'
 import type { PresenceActivity } from './PeopleStrip'
 import { THUMB_ACCEPT, thumbFileProblem } from '../conversation/newConversation'
@@ -79,6 +81,7 @@ const fileKind = (file: File): MediaType => {
 }
 
 type Upload = { file: File; url: string; type: MediaType }
+type Frame = 'mic' | 'camera' | 'text' | 'file' | 'link'
 
 export type ConversationIdentity = {
   title: string
@@ -114,33 +117,33 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
   const fileRef = useRef<HTMLInputElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const [text, setText] = useState('')
-  const [write, setWrite] = useState(compose)
-  const [ytOpen, setYtOpen] = useState(false)
+  const [frame, setFrame] = useState<Frame>(compose ? 'text' : kind === 'video' ? 'camera' : 'mic')
   const [ytText, setYtText] = useState('')
   const [yt, setYt] = useState<YouTubePreviewResult>({ status: 'loading' })
   const [upload, setUpload] = useState<Upload | null>(null)
-  const [previewOn, setPreviewOn] = useState(kind === 'video')
   const [sending, setSending] = useState(false)
   const [rendering, setRendering] = useState(false)
   const [playing, setPlaying] = useState(false)
-  const mediaPicture = takePicture({ upload, mode, previewUrl, durationMs })
-  const picture = mediaPicture ?? (write && !upload && !blob ? { kind: 'text' as const } : null)
+  const held = frame === 'text' ? null : takePicture({ upload, mode, previewUrl, durationMs })
+  const picture = held ?? { kind: 'text' as const }
   const edit = useStockEdit(picture)
   const pasted = useMemo(() => findYouTubeVideoId(ytText), [ytText])
 
   const recording = phase === 'arming' || phase === 'recording' || phase === 'stopping'
   const take = !recording && !!(blob || upload)
-  const ytReady = ytOpen && !!pasted && yt.status !== 'loading' && yt.status !== 'unavailable'
+  const ytReady = !!pasted && yt.status !== 'loading' && yt.status !== 'unavailable'
 
   useEffect(() => {
     if (sheetWasOpen.current && !edit.open) editButtonRef.current?.focus()
     sheetWasOpen.current = edit.open
   }, [edit.open])
 
-  useEffect(() => { setPreviewOn(kind === 'video') }, [choice])
   useEffect(() => {
-    onActivity(recording ? 'recording' : write && text.trim() ? 'typing' : 'here')
-  }, [recording, write, text, onActivity])
+    setFrame((current) => (current === 'text' || current === 'file' || current === 'link' ? current : kind === 'video' ? 'camera' : 'mic'))
+  }, [kind])
+  useEffect(() => {
+    onActivity(recording ? 'recording' : frame === 'text' && text.trim() ? 'typing' : 'here')
+  }, [recording, frame, text, onActivity])
   useEffect(() => () => { if (upload) URL.revokeObjectURL(upload.url) }, [upload])
 
   const clearUpload = () => setUpload((current) => {
@@ -150,11 +153,17 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
 
   const begin = async () => {
     if (useCapture.getState().phase === 'arming' || useCapture.getState().phase === 'recording') return
-    if (useCapture.getState().blob || upload) {
-      capture.cancel()
-    }
-    clearUpload()
-    const ok = await capture.start(kind, choice.deviceId)
+    const soundLayer = frame === 'text'
+    setYtText('')
+    setYt({ status: 'loading' })
+    if (useCapture.getState().blob) capture.cancel()
+    if (!soundLayer) {
+      clearUpload()
+      setFrame(kind === 'video' ? 'camera' : 'mic')
+    } else if (upload && upload.type !== 'image') clearUpload()
+    const recordKind = soundLayer ? 'audio' : kind
+    const deviceId = recordKind === 'audio' && choice.kind !== 'audioinput' ? '' : choice.deviceId
+    const ok = await capture.start(recordKind, deviceId)
     if (!ok) ui.setError(useCapture.getState().error ?? 'Recording unavailable')
   }
 
@@ -165,9 +174,8 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
       clearUpload()
       return
     }
-    if (write || ytOpen) {
-      setWrite(false)
-      setYtOpen(false)
+    if (frame === 'text' || frame === 'link' || frame === 'file') {
+      setFrame(kind === 'video' ? 'camera' : 'mic')
       return
     }
     onClose()
@@ -189,23 +197,14 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
   const send = async () => {
     if (sending || edit.fitting) return
     if (edit.open) edit.close()
-    const note = (write ? text.trim() : '') || undefined
+    const note = text.trim() || undefined
     const media: SendInput['media'] = []
-    const visual = !!(edit.fitted?.buffer && picture && picture.kind !== 'text' && (picture.kind !== 'audio' || edit.fitted.imageUrl))
-    const renderCtx = visual ? new AudioContext() : null
+    const composite = !!(ytReady ? false : held && edit.fitted?.buffer)
+    const renderCtx = composite ? new AudioContext() : null
     if (renderCtx) void renderCtx.resume()
     setSending(true)
-    setRendering(visual)
+    setRendering(composite)
     try {
-      if (edit.fitted && picture && (edit.fitted.buffer || picture.kind === 'text')) {
-        try {
-          media.push(await edit.bake(renderCtx ?? undefined))
-        } catch (cause) {
-          ui.setError(cause instanceof Error ? cause.message : 'Could not render the clip')
-          return
-        }
-      } else if (blob && mode) media.push({ file: blob, type: mode, name: 'recording', duration: durationMs / 1000 } satisfies LocalMedia)
-      else if (upload) media.push({ file: upload.file, type: upload.type, name: upload.file.name })
       if (pasted && ytReady) {
         media.push({
           kind: 'youtube',
@@ -213,6 +212,22 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
           durationMs: yt.status === 'ready' ? yt.durationMs : undefined,
           embeddable: yt.status !== 'not-embeddable',
         })
+      } else if (composite) {
+        try {
+          media.push(await edit.bake(renderCtx ?? undefined))
+        } catch (cause) {
+          ui.setError(cause instanceof Error ? cause.message : 'Could not render the clip')
+          return
+        }
+      } else {
+        if (blob && mode) media.push({ file: blob, type: mode, name: 'recording', duration: durationMs / 1000 } satisfies LocalMedia)
+        else if (upload) media.push({ file: upload.file, type: upload.type, name: upload.file.name })
+        if (picture.kind === 'text' && edit.fitted) {
+          if (!blob && edit.fitted.buffer) {
+            media.push({ file: encodeWav(edit.fitted.buffer), type: 'audio', name: 'edit.wav', duration: edit.fitted.durationMs / 1000 })
+          }
+          if (edit.fitted.imageUrl && upload?.type !== 'image') media.push(await imageFile(edit.fitted.imageUrl, edit.fitted.trackId))
+        }
       }
       if (!note && !media.length) return
       await onSend({ text: note, media: media.length ? media : undefined })
@@ -225,16 +240,21 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
 
   const previewType = upload?.type ?? (mode === 'video' ? 'video' : 'audio')
   const previewSrc = upload?.url ?? previewUrl ?? undefined
-  const entry = write || ytOpen
-  const showCamera = !entry && !take && kind === 'video' && (recording || previewOn)
-  const canSend = !!((write && text.trim()) || take || ytReady || (picture?.kind === 'text' && edit.fitted?.imageUrl))
-  const canEdit = !ytOpen && (
-    picture?.kind === 'audio' ||
-    picture?.kind === 'text' ||
-    ((picture?.kind === 'video' || picture?.kind === 'image') && !write)
-  )
-  const showPlay = !write && !!mediaPicture && (previewType !== 'image' || !!edit.fitted?.buffer)
-  const showRetry = take && !entry && previewType !== 'image' && previewType !== 'file'
+  const showFile = frame === 'file' && !!upload
+  const showTake = frame !== 'text' && frame !== 'link' && !showFile && take && !!previewSrc && previewType !== 'file'
+  const showCamera = frame === 'camera' && !showTake && !showFile
+  const showWave = frame === 'mic' && !showTake && !showFile
+  const canSend = !!(text.trim() || take || blob || ytReady || edit.fitted?.buffer || edit.fitted?.imageUrl)
+  const showPlay = showTake && (previewType !== 'image' || !!edit.fitted?.buffer)
+  const showRetry = showTake && previewType !== 'image'
+
+  const onYouTube = (result: YouTubePreviewResult) => {
+    setYt(result)
+    if (result.status === 'loading' || result.status === 'unavailable') return
+    capture.cancel()
+    clearUpload()
+    setFrame((current) => current === 'text' ? current : 'link')
+  }
 
   const togglePlay = () => {
     const ctrl = controllerWithin(stageRef.current)
@@ -254,33 +274,35 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
           <button type="button" className="room-desk-cancel" onClick={back}>Cancel</button>
         </div>
         <div className="room-desk-stage" ref={stageRef}>
-          {write && (
-            <div className={edit.fitted?.imageUrl ? 'room-desk-write-wrap has-still' : 'room-desk-write-wrap'}>
-              {edit.fitted?.imageUrl && <img src={edit.fitted.imageUrl} alt="" />}
+          {frame === 'text' && (
+            <div className="room-desk-write-wrap">
               <textarea className="room-desk-write" value={text} autoFocus placeholder="Write something." onChange={(event) => setText(event.target.value)} />
             </div>
           )}
-          {ytOpen && (
+          {frame === 'link' && (
             <div className="room-desk-card">
-              <input className="room-desk-link" value={ytText} autoFocus placeholder="YouTube link" onChange={(event) => setYtText(event.target.value)} />
-              {pasted && yt.status === 'ready' && yt.title && <p className="room-desk-note">{yt.title}</p>}
+              <p className="room-desk-note">{yt.status === 'ready' && yt.title ? yt.title : 'YouTube'}</p>
             </div>
           )}
-          {!entry && take && previewSrc && previewType !== 'file' && (
-            <div className={picture?.kind === 'audio' && edit.fitted?.imageUrl ? 'room-desk-card is-still' : 'room-desk-card'} style={{ position: 'relative' }}>
-              {edit.fitted?.buffer && picture && picture.kind !== 'text' ? (
-                <EditPreview key={edit.fitted.trackId} kind={picture.kind} url={picture.url} imageUrl={edit.fitted.imageUrl} buffer={edit.fitted.buffer} durationMs={edit.fitted.durationMs} waveform={picture.kind === 'audio' ? edit.fitted.waveform : undefined} onPlaying={setPlaying} />
+          {showFile && upload && previewType !== 'file' && previewSrc && (
+            <div className="room-desk-card">
+              <Media type={previewType === 'image' ? 'image' : previewType} src={previewSrc} name={upload.file.name} waveform={previewType === 'audio' ? waveform ?? undefined : undefined} hidePlayButton isActive={false} onPlayStatusChange={setPlaying} />
+            </div>
+          )}
+          {showFile && previewType === 'file' && upload && (
+            <div className="room-desk-card"><p className="room-desk-file">{upload.file.name}</p></div>
+          )}
+          {showTake && previewSrc && held && held.kind !== 'text' && (
+            <div className={held.kind === 'audio' && edit.fitted?.imageUrl ? 'room-desk-card is-still' : 'room-desk-card'} style={{ position: 'relative' }}>
+              {edit.fitted?.buffer ? (
+                <EditPreview key={edit.fitted.trackId} kind={held.kind} url={held.url} imageUrl={edit.fitted.imageUrl} buffer={edit.fitted.buffer} durationMs={edit.fitted.durationMs} waveform={held.kind === 'audio' ? edit.fitted.waveform : undefined} onPlaying={setPlaying} />
               ) : (
                 <Media type={previewType === 'image' ? 'image' : previewType} src={previewSrc} name={upload?.file.name ?? 'take'} waveform={previewType === 'audio' ? waveform ?? undefined : undefined} hidePlayButton isActive={false} onPlayStatusChange={setPlaying} />
               )}
             </div>
           )}
-          {!entry && take && previewType === 'file' && (
-            <div className="room-desk-card"><p className="room-desk-file">{upload?.file.name}</p></div>
-          )}
           {showCamera && <CameraPreview deviceId={choice.deviceId} recording={recording} />}
-          {!entry && !take && kind === 'audio' && <VoiceWave deviceId={choice.deviceId} recording={recording} />}
-          {!entry && !take && kind === 'video' && !showCamera && <div className="room-desk-card"><p className="room-desk-file">Camera off</p></div>}
+          {showWave && <VoiceWave deviceId={choice.deviceId} recording={recording} />}
         </div>
         <Control variant="record" type="button" active={recording} data-mass={recording ? 'dense' : 'rest'} aria-label={recording ? 'Stop' : 'Record'} onClick={() => (recording ? capture.stop() : void begin())}>
           <span style={{ display: 'grid', placeItems: 'center', width: '1em', height: '1em' }}>
@@ -293,48 +315,45 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
           <div className="sub-controls" style={{ opacity: recording ? 0 : 1, pointerEvents: recording ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
             <DevicePicker />
             <div className="room-desk-subs">
-              <Control variant="default" className="sub-control" type="button" aria-label={previewOn ? 'Hide preview' : 'Show preview'} disabled={kind !== 'video'} active={previewOn && kind === 'video'} onClick={() => setPreviewOn((on) => !on)}>
-                <PreviewIcon />
-              </Control>
+              <Control variant="default" className="sub-control" type="button" aria-label="Microphone" active={frame === 'mic'} onClick={() => { setFrame('mic'); void chooseKind('audio') }}><KindMark kind="audio" /></Control>
+              <Control variant="default" className="sub-control" type="button" aria-label="Camera" active={frame === 'camera'} onClick={() => { setFrame('camera'); void chooseKind('video') }}><KindMark kind="video" /></Control>
+              <Control variant="default" className="sub-control" type="button" aria-label="Write" active={frame === 'text'} onClick={() => setFrame('text')}>Aa</Control>
               <Control variant="default" className="sub-control" type="button" aria-label="Upload" onClick={() => fileRef.current?.click()}>+</Control>
-              <Control variant="default" className="sub-control" type="button" aria-label="Write" active={write} onClick={() => { setWrite((on) => !on); setYtOpen(false) }}>Aa</Control>
-              <Control variant="default" className="sub-control" type="button" aria-label="YouTube link" active={ytOpen} onClick={() => { setYtOpen((on) => !on); setWrite(false) }}>YT</Control>
             </div>
           </div>
 
           <div className="room-desk-actions" style={{ 
-            opacity: !recording && (canSend || picture?.kind === 'text') ? 1 : 0, 
-            pointerEvents: !recording && (canSend || picture?.kind === 'text') ? 'auto' : 'none', 
+            opacity: recording ? 0 : 1, 
+            pointerEvents: recording ? 'none' : 'auto', 
             transition: 'opacity 0.2s',
-            visibility: !recording && (canSend || picture?.kind === 'text') ? 'visible' : 'hidden'
+            visibility: recording ? 'hidden' : 'visible'
           }}>
             {showPlay && (
               <button type="button" onClick={togglePlay}>{playing ? 'Pause' : 'Play'}</button>
             )}
             {showRetry && <button type="button" onClick={() => { capture.cancel(); clearUpload(); void begin() }}>RETRY</button>}
-            {canEdit && (
-              <button ref={editButtonRef} type="button" aria-pressed={edit.open} aria-expanded={edit.open} data-armed={edit.fitted ? '' : undefined} onClick={edit.toggle}>Edit</button>
-            )}
+            <button ref={editButtonRef} type="button" aria-pressed={edit.open} aria-expanded={edit.open} data-armed={edit.fitted || ytReady ? '' : undefined} onClick={edit.toggle}>Attach</button>
             <button type="button" disabled={sending || edit.fitting || !canSend} onClick={() => void send()}>{rendering ? 'Rendering' : sending ? (replyName ? 'Sending' : 'Saving') : (replyName ? 'Send' : 'Save')}</button>
           </div>
         </div>
       </div>
 
       <EditSheet
-        open={canEdit && edit.open}
+        open={edit.open}
         trackId={edit.trackId}
-        pictureKind={picture?.kind}
         uploadUrl={edit.trackId === 'upload' ? edit.fitted?.imageUrl : null}
+        link={ytText}
         fitting={edit.fitting}
         onSelect={edit.select}
         onUpload={edit.uploadImage}
+        onLink={setYtText}
         onClose={edit.close}
         onPauseTake={() => controllerWithin(stageRef.current)?.pause()}
       />
 
-      {ytOpen && pasted && (
+      {pasted && (
         <div className="room-desk-probe" aria-hidden>
-          <YouTubePreview key={pasted.id} videoId={pasted.id} onResolved={setYt} />
+          <YouTubePreview key={pasted.id} videoId={pasted.id} onResolved={onYouTube} />
         </div>
       )}
 
@@ -342,11 +361,12 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
         const file = event.target.files?.[0]
         event.target.value = ''
         if (!file) return
-        setWrite(false)
-        setYtOpen(false)
+        setYtText('')
+        setYt({ status: 'loading' })
         capture.cancel()
         clearUpload()
         setUpload({ file, url: URL.createObjectURL(file), type: fileKind(file) })
+        setFrame('file')
       }} />
     </div>
   )

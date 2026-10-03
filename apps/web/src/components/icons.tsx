@@ -58,15 +58,6 @@ export function ApplyIcon() {
   )
 }
 
-export function PreviewIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-      <path d="M1.5 8s2.4-3.6 6.5-3.6S14.5 8 14.5 8s-2.4 3.6-6.5 3.6S1.5 8 1.5 8Z" fill="none" stroke="currentColor" strokeWidth="1.25" />
-      <circle cx="8" cy="8" r="1.7" fill="none" stroke="currentColor" strokeWidth="1.25" />
-    </svg>
-  )
-}
-
 export function MinimizeIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
