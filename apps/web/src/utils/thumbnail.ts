@@ -85,3 +85,10 @@ export async function titleCard(title: string): Promise<Blob | null> {
   ctx.fillText(title.toUpperCase(), 72, H - 72, W - 144)
   return toJpeg(canvas)
 }
+
+/** The picture a room thumbnail shows: the image itself, else a video's poster. Never a
+ *  YouTube thumbnail's `url` — that's the watch page, not an image. */
+export function pictureOf(thumbnail: { type: string; url: string; poster?: string | null } | null | undefined): string | null {
+  if (!thumbnail) return null
+  return thumbnail.type === 'image' ? thumbnail.url : thumbnail.poster ?? null
+}

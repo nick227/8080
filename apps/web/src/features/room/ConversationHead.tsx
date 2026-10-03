@@ -4,6 +4,7 @@ import { uploadMedia, useDeleteRoom, useUpdateRoom, type Room } from '@project/s
 import { useUI } from '../../state/ui'
 import { useShell } from '../../state/shell'
 import { PlayIcon } from '../../components/icons'
+import { pictureOf } from '../../utils/thumbnail'
 
 export function ConversationHead({ room, onPlayAll }: { room: Room; onPlayAll?: () => void }) {
   const owner = room.role === 'owner'
@@ -25,7 +26,7 @@ export function ConversationHead({ room, onPlayAll }: { room: Room; onPlayAll?: 
     ui.setError(error instanceof Error ? error.message : fallback)
   }
 
-  const cover = preview ?? room.thumbnail?.url ?? null
+  const cover = preview ?? pictureOf(room.thumbnail)
 
   const pickCover = (file: File | undefined) => {
     if (!file) return

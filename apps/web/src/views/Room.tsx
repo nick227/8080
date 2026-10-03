@@ -19,6 +19,7 @@ import { ChatStream, stillsFrom, type StreamRow } from '../features/room/ChatStr
 import { RecordSurface } from '../features/room/RecordSurface'
 import { Playback, isPlayable } from '../features/room/Playback'
 import { useRoomPost } from '../features/room/useRoomPost'
+import { pictureOf } from '../utils/thumbnail'
 import '../features/room/room.css'
 
 function roomPeopleFrom(items: Item[], meId: string | undefined, meName: string, activity: PresenceActivity) {
@@ -177,7 +178,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
           title={fresh && !replyName ? (data?.title ?? 'New Message') : undefined}
           identity={fresh && !replyName && data ? {
             title: data.title,
-            thumbUrl: data.thumbnail?.url ?? null,
+            thumbUrl: pictureOf(data.thumbnail),
             onTitle: (title) => {
               void updateRoom.mutateAsync({ title }).catch((error: unknown) => {
                 ui.setError(error instanceof Error ? error.message : 'Could not rename')

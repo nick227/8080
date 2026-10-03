@@ -2,12 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { Room } from '@project/sdk'
 import { formatAgo, formatDay, formatLength } from '../../utils/time'
-
-// The picture a card shows: the image itself, else a video's poster (YouTube thumbnail).
-function pictureOf(thumbnail: Room['thumbnail']): string | null {
-  if (!thumbnail) return null
-  return thumbnail.type === 'image' ? thumbnail.url : thumbnail.poster
-}
+import { pictureOf } from '../../utils/thumbnail'
 
 // One conversation in the Lobby: thumbnail, name, description, meta. Nothing plays
 // here — media lives inside the conversation.

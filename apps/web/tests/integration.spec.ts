@@ -41,6 +41,12 @@ test.describe('Main Integration Path', () => {
     const playBtn = alice.getByRole('button', { name: 'Play', exact: true }).first();
     await expect(playBtn).toBeVisible({ timeout: 10000 });
 
+    // A conversation needs a name, a description and a picture (an audio take has no still).
+    await alice.getByRole('textbox', { name: 'Conversation title' }).fill('Integration test');
+    await alice.getByRole('textbox', { name: 'Conversation description' }).fill('Recorded by integration.spec.ts');
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    await alice.locator('.room-desk-identity input[type="file"]').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: png });
+
     // 5. Save and upload (this tests the upload to volume and create item API)
     const saveBtn = alice.getByRole('button', { name: /Save|Send/ });
     await expect(saveBtn).toBeVisible();
@@ -64,16 +70,12 @@ test.describe('Main Integration Path', () => {
     await bob.screenshot({ path: 'test-results/bob-room.png' });
     await expect(bobMediaItem).toBeAttached({ timeout: 10000 });
 
-    // Bob can play the media (tests playback from persisted file)
-    // The play button in the feed might have an aria-label or just text
-    // Assuming the play button on the feed item:
-    const bobPlayBtn = bob.getByRole('button', { name: /play/i }).first();
-    await expect(bobPlayBtn).toBeVisible();
-    await bobPlayBtn.click();
-
-    // Assert Bob's playback advances
+    // Bob can play the media (tests playback from persisted file). Play all opens the
+    // playback stage, which has its own media element — watch that one, not the list's.
+    await bob.getByRole('button', { name: 'Play all' }).click();
+    const bobStageMedia = bob.locator('.room-stage audio, .room-stage video').first();
     await expect(async () => {
-      const currentTime = await bobMediaItem.evaluate((m: HTMLMediaElement) => m.currentTime);
+      const currentTime = await bobStageMedia.evaluate((m: HTMLMediaElement) => m.currentTime);
       expect(currentTime).toBeGreaterThan(0.1);
     }).toPass({ timeout: 5000 });
 
