@@ -48,7 +48,6 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const updateRoom = useUpdateRoom(roomId ?? '')
   const { pending, post, meId, meName, meAvatar, meGuest } = useRoomPost(roomId)
   const [view, setView] = useState<RoomView>(loadRoomView)
-  const [speakerId, setSpeakerId] = useState<string>()
   const chooseView = (next: RoomView) => {
     setView(next)
     saveRoomView(next)
@@ -191,20 +190,12 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
             room={data}
             onPlayAll={visible.some(isPlayable) ? playAll : undefined}
             views={<ViewSwitch value={view} onChange={chooseView} />}
-            people={<PeopleStrip people={people} meId={meId} inviteUrl={inviteUrl} />}
+            people={<PeopleStrip people={people} meId={meId} inviteUrl={inviteUrl} faces={view === 'log'} />}
           />
         )}
         view={view}
-        stage={(
-          <RoomFloor
-            view={view}
-            item={visible.at(-1)}
-            items={visible}
-            seats={seatsFrom(people, visible, meId, meGuest)}
-            speakerId={speakerId}
-            onPick={setSpeakerId}
-            onOpen={(id) => ui.startPlayback(id, 'chronological')}
-          />
+        stage={view === 'log' ? null : (
+          <RoomFloor view={view} seats={seatsFrom(people, meId, meGuest)} />
         )}
         stream={(
           <ChatStream

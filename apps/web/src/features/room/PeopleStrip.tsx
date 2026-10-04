@@ -43,10 +43,11 @@ function label(person: RoomPerson, meId: string | undefined) {
   return name
 }
 
-export function PeopleStrip({ people, meId, inviteUrl }: {
+export function PeopleStrip({ people, meId, inviteUrl, faces = true }: {
   people: RoomPerson[]
   meId?: string
   inviteUrl?: string
+  faces?: boolean
 }) {
   const [copied, setCopied] = useState(false)
 
@@ -63,7 +64,7 @@ export function PeopleStrip({ people, meId, inviteUrl }: {
   return (
     <div className="room-people">
       <div className="room-discs" role="list" aria-label="People in this room">
-        {shown.map((person) => (
+        {faces && shown.map((person) => (
           <span key={person.id} role="listitem" className="room-person" aria-label={label(person, meId)}>
             <span
               className="room-disc"
@@ -75,7 +76,7 @@ export function PeopleStrip({ people, meId, inviteUrl }: {
             </span>
           </span>
         ))}
-        {extra > 0 && (
+        {faces && extra > 0 && (
           <span className="room-person" role="listitem" aria-label={`${extra} more`}>
             <span className="room-disc" aria-hidden>+{extra}</span>
           </span>

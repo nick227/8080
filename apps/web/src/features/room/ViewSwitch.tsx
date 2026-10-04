@@ -9,26 +9,6 @@ function Mark({ id }: { id: RoomView }) {
       </svg>
     )
   }
-  if (id === 'gallery') {
-    return (
-      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-        <rect x="2" y="2" width="5" height="5" fill="none" stroke="currentColor" strokeWidth="1.25" />
-        <rect x="9" y="2" width="5" height="5" fill="none" stroke="currentColor" strokeWidth="1.25" />
-        <rect x="2" y="9" width="5" height="5" fill="none" stroke="currentColor" strokeWidth="1.25" />
-        <rect x="9" y="9" width="5" height="5" fill="none" stroke="currentColor" strokeWidth="1.25" />
-      </svg>
-    )
-  }
-  if (id === 'speaker') {
-    return (
-      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-        <rect x="2" y="2" width="3.2" height="3.2" fill="none" stroke="currentColor" strokeWidth="1.25" />
-        <rect x="6.4" y="2" width="3.2" height="3.2" fill="none" stroke="currentColor" strokeWidth="1.25" />
-        <rect x="10.8" y="2" width="3.2" height="3.2" fill="none" stroke="currentColor" strokeWidth="1.25" />
-        <rect x="2" y="6.6" width="12" height="7.2" fill="none" stroke="currentColor" strokeWidth="1.25" />
-      </svg>
-    )
-  }
   if (id === 'log') {
     return (
       <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
@@ -38,10 +18,10 @@ function Mark({ id }: { id: RoomView }) {
   }
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-      <rect x="2" y="2" width="12" height="7.5" fill="none" stroke="currentColor" strokeWidth="1.25" />
-      <circle cx="5" cy="12.6" r="0.9" fill="currentColor" />
-      <circle cx="8" cy="12.6" r="0.9" fill="currentColor" />
-      <circle cx="11" cy="12.6" r="0.9" fill="currentColor" />
+      <rect x="2" y="2" width="5" height="5" fill="none" stroke="currentColor" strokeWidth="1.25" />
+      <rect x="9" y="2" width="5" height="5" fill="none" stroke="currentColor" strokeWidth="1.25" />
+      <rect x="2" y="9" width="5" height="5" fill="none" stroke="currentColor" strokeWidth="1.25" />
+      <rect x="9" y="9" width="5" height="5" fill="none" stroke="currentColor" strokeWidth="1.25" />
     </svg>
   )
 }
