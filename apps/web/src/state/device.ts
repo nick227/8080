@@ -10,7 +10,9 @@ export type DeviceChoice = {
   label: string
 }
 
-const FALLBACK: DeviceChoice = { deviceId: '', kind: 'audioinput', label: 'Microphone' }
+// Video first; a device without a camera drops to the microphone (see below).
+const FALLBACK: DeviceChoice = { deviceId: '', kind: 'videoinput', label: 'Camera' }
+const MIC: DeviceChoice = { deviceId: '', kind: 'audioinput', label: 'Microphone' }
 
 export const captureKind = (choice: DeviceChoice): 'audio' | 'video' =>
   choice.kind === 'videoinput' ? 'video' : 'audio'
@@ -43,7 +45,7 @@ export function readDevice(): DeviceChoice | null {
     return {
       deviceId: typeof parsed.deviceId === 'string' ? parsed.deviceId : '',
       kind: parsed.kind,
-      label: typeof parsed.label === 'string' && parsed.label ? parsed.label : FALLBACK.label,
+      label: typeof parsed.label === 'string' && parsed.label ? parsed.label : parsed.kind === 'videoinput' ? 'Camera' : 'Microphone',
     }
   } catch {
     return null
@@ -72,3 +74,12 @@ export const useDevice = create<DeviceState>((set) => ({
   },
   setOpen: (open) => set({ open }),
 }))
+
+// No saved choice and no camera at all: default to the microphone instead (not
+// persisted — it's still a default). Device kinds are listed before permission.
+if (!saved && typeof navigator !== 'undefined' && navigator.mediaDevices?.enumerateDevices) {
+  void navigator.mediaDevices.enumerateDevices().then((all) => {
+    if (all.some((device) => device.kind === 'videoinput')) return
+    if (useDevice.getState().choice === FALLBACK) useDevice.setState({ choice: MIC })
+  }).catch(() => undefined)
+}

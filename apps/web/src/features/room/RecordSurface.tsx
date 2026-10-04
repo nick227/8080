@@ -271,7 +271,6 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
         <div className="room-desk-anchor">
         <div className="room-desk-meta">
           {identity && !replyName ? <IdentityField identity={identity} /> : (replyName || title) && <h2 className="room-desk-title">{replyName ? `Replying to ${replyName}` : title}</h2>}
-          <button type="button" className="room-desk-cancel" onClick={back}>Cancel</button>
         </div>
         <div className="room-desk-stage" ref={stageRef}>
           {frame === 'text' && (
@@ -322,18 +321,22 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
             </div>
           </div>
 
-          <div className="room-desk-actions" style={{ 
-            opacity: recording ? 0 : 1, 
-            pointerEvents: recording ? 'none' : 'auto', 
-            transition: 'opacity 0.2s',
-            visibility: recording ? 'hidden' : 'visible'
-          }}>
+          <div className="room-desk-actions">
+            {/* Stays usable while recording: it aborts the take. */}
+            <button type="button" className="room-desk-cancel" onClick={back}>Cancel</button>
+            <span className="room-desk-take-actions" style={{
+              opacity: recording ? 0 : 1,
+              pointerEvents: recording ? 'none' : 'auto',
+              transition: 'opacity 0.2s',
+              visibility: recording ? 'hidden' : 'visible'
+            }}>
             {showPlay && (
               <button type="button" onClick={togglePlay}>{playing ? 'Pause' : 'Play'}</button>
             )}
             {showRetry && <button type="button" onClick={() => { capture.cancel(); clearUpload(); void begin() }}>RETRY</button>}
             <button ref={editButtonRef} type="button" aria-pressed={edit.open} aria-expanded={edit.open} data-armed={edit.fitted || ytReady ? '' : undefined} onClick={edit.toggle}>Attach</button>
             <button type="button" disabled={sending || edit.fitting || !canSend} onClick={() => void send()}>{rendering ? 'Rendering' : sending ? (replyName ? 'Sending' : 'Saving') : (replyName ? 'Send' : 'Save')}</button>
+            </span>
           </div>
         </div>
       </div>

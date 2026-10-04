@@ -396,7 +396,7 @@
 }
 .room-desk .sub-controls { position: relative; }
 .room-desk-subs { display: flex; align-items: center; gap: 4px; }
-.room-desk-actions { display: flex; align-items: center; gap: 18px; }
+.room-desk-actions, .room-desk-take-actions { display: flex; align-items: center; gap: 18px; }
 .room-desk-actions button {
   font-family: var(--mono);
   font-size: 12px;
