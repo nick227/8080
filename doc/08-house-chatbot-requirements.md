@@ -603,6 +603,31 @@ green, before any Phase 1b work starts.
 - Dev tuning tools (R25–R26).
 
 ### Phase 2 — Real AI (OpenAI)
+
+**Agreed shape (2026-10-04):** the AI router is *not* the new authority over every
+message. The pipeline stays:
+
+`deterministic prefilter → maybe AI router → chosen bot → maybe agent call → existing rails → ItemService`
+
+Phase 1 control and safety behaviour is preserved, and cost stays bounded. **The
+deterministic system must still run the product with AI fully disabled**, which makes it
+the fallback, the test oracle and the baseline for judging whether AI actually improves
+the interaction. Media stays on the YouTube asset library. There's no generated media
+until routing and text are stable.
+
+Slices, each gated on the previous one's logs:
+1. **Router only, in shadow mode.** Input: message + compact room context + seated
+   bots. Output: `{ agent, intent, confidence, shouldRespond }`. It generates no reply
+   and changes no behaviour. Each call is logged next to the deterministic routing
+   (`BotRoute`, agree/disagree) so the two can be compared. A deterministic prefilter
+   decides whether to call at all (mentioned → always; otherwise sampled), with
+   per-room and per-day caps, a timeout, and AI off by default.
+2. **One AI agent (chatbot).** It generates text only, through the same workflow, rails
+   and posting path. A timeout or error falls back to the deterministic line.
+3. **Optional bots** (marketing / technical / buddy) with distinct context. Only after
+   that: richer context windows, tools, TTS, image/media generation.
+
+Original notes:
 - **Intent router call**: one cheap OpenAI request receives the message, short room
   context and the roster of seated agents with their distinct context and personas. It
   returns `{ agent, intent, confidence, shouldRespond }`. The deterministic classifier

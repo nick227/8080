@@ -6,6 +6,8 @@
 //   POST /dev/bots/fire      { handle, workflow, roomId, userId?, itemId? }   run it for real
 //   POST /dev/bots/seat      { handle, roomId, seated }        seat/kick bypassing the owner check
 //   GET  /dev/bots/decisions?roomId=&limit=           newest decisions first
+//   GET  /dev/bots/routes?roomId=&limit=              AI router (shadow) vs deterministic, newest first
+//   GET  /dev/bots/routes/stats?hours=24              agreement, errors, latency
 import type { FastifyInstance } from 'fastify'
 import { db } from '@project/db'
 import { botRuntime } from '../bots/runtime'
@@ -58,5 +60,27 @@ export default async function devBots(server: FastifyInstance) {
       include: { bot: { select: { handle: true } } },
     })
     return { data: rows.map(({ bot, ...d }) => ({ handle: bot.handle, ...d })) }
+  })
+
+  server.get('/dev/bots/routes', async (request: any) => {
+    const { roomId, limit } = request.query ?? {}
+    const rows = await db.botRoute.findMany({ where: roomId ? { roomId: String(roomId) } : {}, orderBy: { at: 'desc' }, take: Math.min(Number(limit) || 20, 200) })
+    return { data: rows }
+  })
+
+  server.get('/dev/bots/routes/stats', async (request: any) => {
+    const hours = Math.min(Number(request.query?.hours) || 24, 24 * 7)
+    const rows = await db.botRoute.findMany({ where: { at: { gte: new Date(Date.now() - hours * 3_600_000) } }, select: { agree: true, error: true, latencyMs: true, reason: true } })
+    const answered = rows.filter((r) => r.error === null)
+    const lat = answered.map((r) => r.latencyMs ?? 0).sort((a, b) => a - b)
+    const pct = (p: number) => (lat.length ? lat[Math.min(lat.length - 1, Math.floor(p * lat.length))] : null)
+    return {
+      data: {
+        hours, calls: rows.length, errors: rows.length - answered.length,
+        agree: answered.filter((r) => r.agree).length, disagree: answered.filter((r) => r.agree === false).length,
+        byReason: { mentioned: rows.filter((r) => r.reason === 'mentioned').length, sampled: rows.filter((r) => r.reason === 'sampled').length },
+        latencyMs: { p50: pct(0.5), p95: pct(0.95) },
+      },
+    }
   })
 }

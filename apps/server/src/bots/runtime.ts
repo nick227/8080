@@ -22,6 +22,7 @@ import type { GuardSpec, LineDef, Pack, Step, Trigger, Workflow } from './pack'
 import { rngFrom, seedOf } from './rng'
 import { seatedBots } from './seating'
 import { seedPacks, type SeededBot } from './seed'
+import { shadowRoute } from './ai/shadow'
 
 const items = new ItemService()
 const DAY_MS = 86_400_000
@@ -84,6 +85,7 @@ export class BotRuntime {
   private timers = new Set<{ timer: NodeJS.Timeout; resolve: () => void }>()
   private unsubscribe: (() => void)[] = []
   private idleTimers = new Map<string, NodeJS.Timeout>()
+  private side = new Set<Promise<unknown>>() // shadow routing; never blocks a run
   private pendingTriggers = 0
   private stopped = false
   private seq = 0
@@ -124,8 +126,9 @@ export class BotRuntime {
     for (;;) {
       await new Promise((r) => setImmediate(r))
       await new Promise((r) => setImmediate(r))
-      if (this.pendingTriggers === 0 && this.runs.size === 0) return
+      if (this.pendingTriggers === 0 && this.runs.size === 0 && this.side.size === 0) return
       await Promise.allSettled([...this.runs.values()].map((r) => r.done))
+      await Promise.allSettled([...this.side])
       while (this.pendingTriggers > 0) await new Promise((r) => setTimeout(r, 1))
     }
   }
@@ -154,6 +157,16 @@ export class BotRuntime {
     const trigger: TriggerInfo = { type: 'item.created', eventId: `item:${e.itemId}`, itemId: e.itemId, actorId: e.actorId, chat: e.chat, text: e.text, roomOwnerId: e.roomOwnerId }
     const seated = await this.seatedIn(e.roomId)
     const mentioned = e.text ? mentionedBots(e.text, seated.map((b) => ({ id: b.botId, aliases: b.pack.aliases }))) : new Set<string>()
+    // Phase 2 slice 1: the AI router answers the same question in the shadow, logged
+    // beside the deterministic routing. Off unless configured; never changes behaviour.
+    if (e.text && seated.length) {
+      const shadow = shadowRoute({
+        roomId: e.roomId, itemId: e.itemId, text: e.text, chat: e.chat, actorId: e.actorId, seated, mentioned,
+        classified: classify(e.text, seated[0]!.pack.classifier),
+      }).catch((error) => console.error('[bots] shadow route failed', error))
+      this.side.add(shadow)
+      void shadow.finally(() => this.side.delete(shadow))
+    }
     for (const bot of seated) {
       for (const wf of bot.pack.workflows) {
         if (!wf.on.includes('item.created')) continue
@@ -539,6 +552,7 @@ export class BotRuntime {
   private async prune() {
     const days = Math.max(RETENTION_DAYS, 1)
     await db.botDecision.deleteMany({ where: { at: { lt: new Date(Date.now() - days * DAY_MS) } } })
+    await db.botRoute.deleteMany({ where: { at: { lt: new Date(Date.now() - days * DAY_MS) } } })
   }
 }
 

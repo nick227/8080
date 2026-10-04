@@ -215,6 +215,7 @@ describe('dev tools (BOTS_DEV=1)', () => {
   it('dry-run scores without posting; decisions are listed', async () => {
     const { startBots, stopBots } = await import('../bots/runtime')
     await rt.stop()
+    process.env.BOT_TIME_SCALE = '0.02'
     rt = await startBots(loadPacks())
     try {
       const room = await liveRoom()
@@ -229,6 +230,7 @@ describe('dev tools (BOTS_DEV=1)', () => {
       const log = await app.inject({ method: 'GET', url: `/dev/bots/decisions?roomId=${room.id}` })
       expect(log.json().data[0]).toMatchObject({ handle: 'chatbot', workflow: 'opening' })
     } finally {
+      delete process.env.BOT_TIME_SCALE
       await stopBots()
     }
   })

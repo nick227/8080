@@ -4,6 +4,7 @@ import { afterEach } from 'vitest'
 // Clean between tests — children before parents for FK constraints.
 afterEach(async () => {
   await db.botDecision.deleteMany()
+  await db.botRoute.deleteMany()
   await db.botOnce.deleteMany()
   await db.roomBot.deleteMany()
   await db.botLine.deleteMany()
