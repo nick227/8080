@@ -245,9 +245,7 @@
   pointer-events: none;
 }
 .room-record > * { pointer-events: auto; }
-.room-record[data-phase="review"] { flex-direction: row; justify-content: center; width: auto; }
 .room-record .device-slot { position: relative; }
-.room-record .device-list { top: auto; bottom: 100%; margin-top: 0; margin-bottom: 6px; }
 .room-bar-invite,
 .room-cycle {
   width: 44px;

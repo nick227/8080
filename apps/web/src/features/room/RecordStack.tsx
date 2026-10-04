@@ -29,9 +29,8 @@ export function RecordButton({ session, label, onRecord, onStop, onSubmit }: {
   )
 }
 
-// The desk's capture cluster, floated over a live tile. Framing shows the
-// background and device with the round record button. A take leaves only Stop.
-// Review is Cancel, Play, RETRY, and Send on that same button.
+// Same vertical order as the desk: background, the round button, then the
+// device, then Cancel / Play / RETRY under it. A take leaves only Stop.
 export function RecordStack({ session, onCancel, onRetry, onSubmit }: {
   session: RecordSession
   onCancel: () => void
@@ -44,6 +43,13 @@ export function RecordStack({ session, onCancel, onRetry, onSubmit }: {
   return (
     <div className="room-record" data-phase={session.recording ? 'recording' : review ? 'review' : 'framing'}>
       {framing && session.showCamera && <BackgroundStrip />}
+      <RecordButton
+        session={session}
+        label={label}
+        onRecord={() => void session.begin()}
+        onStop={() => session.capture.stop()}
+        onSubmit={onSubmit}
+      />
       {framing && <DevicePicker />}
       {review && (
         <div className="room-desk-actions">
@@ -54,13 +60,6 @@ export function RecordStack({ session, onCancel, onRetry, onSubmit }: {
           {session.showRetry && <button type="button" onClick={onRetry}>RETRY</button>}
         </div>
       )}
-      <RecordButton
-        session={session}
-        label={label}
-        onRecord={() => void session.begin()}
-        onStop={() => session.capture.stop()}
-        onSubmit={onSubmit}
-      />
     </div>
   )
 }

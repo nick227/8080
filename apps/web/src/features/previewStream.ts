@@ -53,6 +53,9 @@ export function publishLiveCompositor(compositor: Compositor | null) {
 
 export function pausePreview(): Promise<void> {
   paused = true
+  // Drop the framing camera and the mic monitor before the recorder opens its own stream.
+  releaseFraming()
+  releaseAudioMonitor()
   return Promise.resolve()
 }
 
@@ -60,8 +63,27 @@ export function resumePreview() {
   paused = false
 }
 
-// Live microphone for the desk wave. Recording calls pausePreview first so this
-// drops the mic before the recorder opens its own stream.
+let framingCurrent: MediaStream | null = null
+
+export function releaseFraming() {
+  const held = framingCurrent
+  framingCurrent = null
+  held?.getTracks().forEach((track) => track.stop())
+}
+
+// Keeps the framing stream only while nothing is about to record. A late
+// getUserMedia that arrives after Record is stopped instead of kept.
+export function claimFraming(stream: MediaStream) {
+  if (paused) {
+    stream.getTracks().forEach((track) => track.stop())
+    return false
+  }
+  releaseFraming()
+  framingCurrent = stream
+  return true
+}
+
+// Live microphone for the desk wave. pausePreview drops it before the recorder opens its own.
 let audioGen = 0
 let audioCurrent: MediaStream | null = null
 

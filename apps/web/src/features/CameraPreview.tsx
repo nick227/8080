@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useCapture } from '../state/capture'
 import { useBackground } from '../state/background'
-import { cameraConstraints, getLiveCompositor, getLiveStream, subscribeLive } from './previewStream'
+import { cameraConstraints, claimFraming, getLiveCompositor, getLiveStream, releaseFraming, subscribeLive } from './previewStream'
 import { currentMaskSource, ensureMaskSource, facingUser, loadMaskSource, startCompositor, type Compositor } from './virtualCamera'
 import { VbgReadout } from './room/VbgReadout'
 
@@ -38,14 +38,15 @@ export function CameraPreview({ deviceId, recording }: { deviceId: string; recor
     navigator.mediaDevices
       .getUserMedia({ audio: false, video: cameraConstraints(deviceId) })
       .then((s) => {
-        if (gone) return stopAll(s)
+        if (gone || !claimFraming(s)) return stopAll(s)
         stream = s
         setOwn(s)
       })
       .catch(() => undefined)
     return () => {
       gone = true
-      if (stream) stopAll(stream)
+      if (stream) releaseFraming()
+      stream = null
       setOwn(null)
     }
   }, [deviceId, live, liveCompositor, hold])
