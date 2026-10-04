@@ -7,10 +7,11 @@ import { PlayIcon } from '../../components/icons'
 import { pictureOf } from '../../utils/thumbnail'
 import { roomTitle } from '../../utils/room'
 
-export function ConversationHead({ room, onPlayAll, people }: {
+export function ConversationHead({ room, onPlayAll, people, views }: {
   room: Room
   onPlayAll?: () => void
   people?: ReactNode
+  views?: ReactNode
 }) {
   const owner = room.role === 'owner'
   const update = useUpdateRoom(room.id)
@@ -77,6 +78,7 @@ export function ConversationHead({ room, onPlayAll, people }: {
             <h1 className="room-head-title">{roomTitle(room)}</h1>
           )}
         </div>
+        {views}
         {(onPlayAll || owner || room.description.trim()) && (
           <details className="room-menu">
             <summary aria-label="Conversation options">···</summary>

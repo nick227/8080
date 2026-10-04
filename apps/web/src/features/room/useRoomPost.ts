@@ -80,5 +80,5 @@ export function useRoomPost(roomId: string | undefined) {
     }
   }
 
-  return { pending, post, meId: session.data?.data.id, meName: me, meAvatar }
+  return { pending, post, meId: session.data?.data.id, meName: me, meAvatar, meGuest: session.data?.data.isGuest ?? true }
 }

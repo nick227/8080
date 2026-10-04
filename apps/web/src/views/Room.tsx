@@ -16,7 +16,9 @@ import type { Item, SendInput } from '../api/types'
 import { ConversationHead } from '../features/room/ConversationHead'
 import { PeopleStrip, roomPeopleFrom, type PresenceActivity } from '../features/room/PeopleStrip'
 import { ChatShell } from '../features/room/ChatShell'
-import { RoomStage } from '../features/room/RoomStage'
+import { RoomFloor } from '../features/room/RoomFloor'
+import { ViewSwitch } from '../features/room/ViewSwitch'
+import { loadRoomView, saveRoomView, seatsFrom, type RoomView } from '../features/room/roomViews'
 import { ChatStream, stillsFrom, type StreamRow } from '../features/room/ChatStream'
 import { RecordSurface } from '../features/room/RecordSurface'
 import { Playback, isPlayable } from '../features/room/Playback'
@@ -44,7 +46,13 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const roomId = resolved.data
   const room = useRoom(roomId)
   const updateRoom = useUpdateRoom(roomId ?? '')
-  const { pending, post, meId, meName, meAvatar } = useRoomPost(roomId)
+  const { pending, post, meId, meName, meAvatar, meGuest } = useRoomPost(roomId)
+  const [view, setView] = useState<RoomView>(loadRoomView)
+  const [speakerId, setSpeakerId] = useState<string>()
+  const chooseView = (next: RoomView) => {
+    setView(next)
+    saveRoomView(next)
+  }
   const removeItem = useDeleteItem()
 
   const [itemsError, setItemsError] = useState<string>()
@@ -157,6 +165,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   }, [meId, roomId, latestNumber])
   const stored = meId && roomId ? readNumber(meId, roomId) : null
   const anchorId = stored == null || readMark < 0 ? undefined : visible.find((item) => item.number > stored)?.id
+  const people = roomPeopleFrom(visible, meId, meName, meAvatar, activity)
 
   const data = room.data
   const inviteUrl = data
@@ -178,17 +187,23 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       )}
       <ChatShell
         header={data && (
-          <ConversationHead room={data} onPlayAll={visible.some(isPlayable) ? playAll : undefined} people={
-            <PeopleStrip people={roomPeopleFrom(visible, meId, meName, meAvatar, activity)} meId={meId} inviteUrl={inviteUrl} />
-          } />
+          <ConversationHead
+            room={data}
+            onPlayAll={visible.some(isPlayable) ? playAll : undefined}
+            views={<ViewSwitch value={view} onChange={chooseView} />}
+            people={<PeopleStrip people={people} meId={meId} inviteUrl={inviteUrl} />}
+          />
         )}
+        view={view}
         stage={(
-          <RoomStage
+          <RoomFloor
+            view={view}
             item={visible.at(-1)}
-            onOpen={visible.length ? () => {
-              const latest = visible.at(-1)
-              if (latest) ui.startPlayback(latest.id, 'chronological')
-            } : undefined}
+            items={visible}
+            seats={seatsFrom(people, visible, meId, meGuest)}
+            speakerId={speakerId}
+            onPick={setSpeakerId}
+            onOpen={(id) => ui.startPlayback(id, 'chronological')}
           />
         )}
         stream={(
