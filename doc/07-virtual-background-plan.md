@@ -216,6 +216,11 @@ Run on a **strong GPU desktop, a normal laptop and a weak laptop**, in every tar
 | 7 | First-use load vs cached revisit | seconds to "ready" and to MODNet, cold vs warm |
 | 8 | Firefox vs Chromium | all of the above per browser |
 
+How to read the rows:
+- **Firefox is mostly a fallback/compatibility check.** Its WebGPU support is partial and varies by platform, so many Firefox runs will land on MediaPipe. Record those as fallback behaviour (the `fallback` line says why), not as MODNet results.
+- **Safari: add a row if Mac users matter.** Recent Safari versions support WebGPU, and Apple GPUs may perform very differently from the Windows laptops.
+- **The weak laptop is the deciding row.** It shows whether MODNet is actually the default path for most users, or whether they mostly stay on MediaPipe.
+
 Plus once per machine: MODNet with the gate off (dev build, `8080.vbg-nogate='1'`) — if it manages 15–20 masks/s and still looks better than MediaPipe, the 40 ms gate is too strict.
 
 **No stabilizer tuning before these results.** If MODNet clearly beats MediaPipe on real hardware without falling below a usable frame rate: merge PR #3 and **freeze this phase**. Consider the next quality step (worker inference, flow propagation, recurrent matting) only if the test still shows obvious temporal instability.
