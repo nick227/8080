@@ -151,7 +151,7 @@ export function startCompositor(initialSource: MaskSource, camera: MediaStream, 
   const personCtx = ctx2d(person)
   const segIn = canvas() // the frame resized to the mask source's input size
   const segCtx = ctx2d(segIn)
-  const stabilizer = createStabilizer()
+  const stabilizer = createStabilizer(initialSource.stabilizer)
   const maskCanvas = stabilizer.alpha
   const ringCanvas = stabilizer.ring
   // Blur background: built from the raw camera only, opaque, redrawn every frame.
@@ -567,6 +567,7 @@ export function startCompositor(initialSource: MaskSource, camera: MediaStream, 
   // mask size; an inference already in flight on the old source just completes.
   const unsubscribe = options.fixedSize ? () => {} : subscribeMaskSource((next) => {
     source = next
+    stabilizer.setTuning(next.stabilizer)
     if (!W) return
     const input = source.inputSize(W, H)
     segIn.width = input.width

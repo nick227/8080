@@ -13,7 +13,18 @@ export interface MaskSource {
   inputSize(frameW: number, frameH: number): { width: number; height: number }
   /** Segments `input` (already resized to inputSize). */
   run(input: HTMLCanvasElement, timestampMs: number): Promise<MaskFrame | null>
+  /** Per-source stabilizer tuning (each engine's noise is different). */
+  readonly stabilizer?: Partial<StabilizerTuning>
 }
+
+/**
+ * - threshold: a per-pixel change above this is motion — followed at once, never smoothed.
+ * - keep: the most history a steady pixel keeps.
+ * - floor: the minimum certainty used for smoothing. Edge pixels sit near 0.5 confidence
+ *   (certainty ≈ 0), so with no floor the edge — where flicker lives — is never smoothed.
+ */
+export type StabilizerTuning = { threshold: number; keep: number; floor: number }
+export const DEFAULT_TUNING: StabilizerTuning = { threshold: 0.25, keep: 0.75, floor: 0 }
 
 export const smoothstep = (lo: number, hi: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - lo) / (hi - lo)))

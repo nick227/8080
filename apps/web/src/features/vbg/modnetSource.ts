@@ -7,7 +7,7 @@ import type { MaskSource } from './types'
 // only: on CPU (WASM) it measured 360–570 ms per frame, and ORT's WebGL backend can't run
 // it (int64). Without WebGPU, or if too slow, the pipeline falls back to MediaPipe.
 
-const MODEL = '/models/modnet.onnx'
+const MODEL = __VBG_ASSETS__.modnet
 const MAX_WARM_MS = 40 // ≥ ~24 masks/s, the pipeline's cadence target
 
 const size = (fw: number, fh: number) => {
@@ -17,7 +17,7 @@ const size = (fw: number, fh: number) => {
   return { width, height }
 }
 
-const RUNTIME = '/ort/ort-wasm-simd-threaded.asyncify.wasm'
+const RUNTIME = `${__VBG_ASSETS__.ort}ort-wasm-simd-threaded.asyncify.wasm`
 
 export async function createModnetSource(onProgress?: (pct: number) => void): Promise<MaskSource> {
   if (!(await hasWebGpu())) throw new Error('no WebGPU adapter')
@@ -57,6 +57,9 @@ export async function createModnetSource(onProgress?: (pct: number) => void): Pr
   return {
     backend: 'modnet/webgpu',
     sync: false,
+    // MODNet's edge noise is slower and larger (a pixel or more, several frames): a short
+    // temporal filter can't remove it without lag. Measured: still −15%, slow lag +3%.
+    stabilizer: { floor: 0.8, threshold: 0.5 },
     inputSize: size,
     run: (input) => infer(input),
   }

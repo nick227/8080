@@ -1,5 +1,5 @@
-// ONNX Runtime Web (MIT), self-hosted: its WASM binaries are served from /ort/ (the
-// 'ort-runtime' Vite plugin) — no CDN at runtime. Loaded on first use only.
+// ONNX Runtime Web (MIT), self-hosted: its WASM binaries are served from a versioned
+// /vendor/ort-<version>/ path (the 'ort-runtime' Vite plugin) — no CDN at runtime.
 // WebGPU only: ORT's WebGL backend can't run MODNet ("int64 is not supported").
 export type Ort = typeof import('onnxruntime-web/webgpu')
 
@@ -10,7 +10,7 @@ export async function hasWebGpu() {
 
 export async function loadOrt(): Promise<Ort> {
   const ort = await import('onnxruntime-web/webgpu')
-  ort.env.wasm.wasmPaths = '/ort/'
+  ort.env.wasm.wasmPaths = __VBG_ASSETS__.ort
   ort.env.wasm.numThreads = 1 // no cross-origin isolation, so no SharedArrayBuffer threads
   return ort
 }

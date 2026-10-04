@@ -137,7 +137,7 @@ Goal: real-time client-side room replacement at ~85–90% of Teams quality, plug
 **Stages** (`features/vbg/`): camera frame → **mask source** (`types.ts` `MaskSource`: person alpha 0–1 at its own resolution; `backend`, `sync`, `inputSize`, `run`) → **temporal stabilizer** (`stabilizer.ts`: confidence-weighted smoothing, hysteresis 0.5/0.3, no erosion, 3×3 feather, last-mask seeding, 500 ms stale → raw camera, flicker/coverage metrics) → **compositor** (`virtualCamera.ts`: Blur/Photo, polish, budget ladder; one inference in flight, GPU sources run off the main thread while frames keep drawing).
 
 **Sources** (`maskSource.ts`, chosen once per page; framing and recording share it — never switched mid-recording):
-1. **MODNet** (`modnetSource.ts`, production default) on **WebGPU only**, input 512×288, ONNX Runtime Web (MIT) self-hosted at `/ort/` (asyncify build, 27 MB WASM) + `/models/modnet.onnx` (fp32, 26 MB; **not in git** — the `modnet-model` Vite plugin fetches it from a pinned Hugging Face revision, verifies SHA-256, caches it in `node_modules/.cache/models`, serves it in dev and emits it into the build; notice in `public/models/MODNET-NOTICE.txt`). Rejected at load if the warm median exceeds 40 ms (≥ ~24 masks/s); one timed run 3× over budget aborts early. WebGL is not practical (ORT's WebGL backend: "int64 is not supported"); CPU WASM measured 360–570 ms.
+1. **MODNet** (`modnetSource.ts`, production default) on **WebGPU only**, input 512×288, ONNX Runtime Web (MIT) self-hosted at `/ort/` (asyncify build, 27 MB WASM) + the MODNet weights (fp32, 26 MB; **not in git** — the `modnet-model` Vite plugin fetches them from a pinned revision, verifies SHA-256, caches them in `node_modules/.cache/models`, serves them in dev and emits them into the build as `/models/modnet-<sha12>.onnx`; notice in `public/models/MODNET-NOTICE.txt`). See *Model provenance* below. Rejected at load if the warm median exceeds 40 ms (≥ ~24 masks/s); one timed run 3× over budget aborts early. WebGL is not practical (ORT's WebGL backend: "int64 is not supported"); CPU WASM measured 360–570 ms.
 2. **MediaPipe** selfie_segmenter (fallback), CPU, 384×216, 7–8 ms.
 3. **RVM** (`rvmSourceDevOnly.ts`) — **evaluation only**, see licence.
 
@@ -174,3 +174,30 @@ On the fast-motion clip all three move ≈ 4.5–5.3 px/frame (real motion domin
 
 ### First-use download UX (progressive upgrade)
 `auto` starts on MediaPipe immediately (Record usable in ~0.3 s), then loads MODNet in the background — model + runtime fetched with byte progress (shown as "Sharper edges loading… N%"), handed to ORT (`env.wasm.wasmBinary`, no second download). Devices without WebGPU never download it. When it passes the speed gate it becomes the current source: **framing compositors switch to it; a recording keeps the source it started with**; the next framing view uses the upgrade. Explicit `8080.vbg-source` values load that engine directly (clean evaluation runs).
+
+## Pre-merge hardening (2026-10-04)
+
+### Model provenance
+- Pinned source: Hugging Face `Xenova/modnet`, revision `fa2fa546052fba4c08921230a26cc69a333fca12`, file `onnx/model.onnx`, **SHA-256 `07c308cf0fc7e6e8b2065a12ed7fc07e1de8febb7dc7839d7b7f15dd66584df9`**, 25,888,640 bytes.
+- **Byte-identical to the official ZHKKKe export:** the official repository (github.com/ZHKKKe/MODNet, `onnx/README.md`) links "the ONNX version of the official Image Matting Model" on Google Drive (file id `1cgycTQlYXpTh26gB9FTnthE7AvruV8hd`); downloaded and compared with `cmp` — same bytes, same SHA-256. The official repository states its code, models and demos are Apache-2.0 (excluding GIFs under `doc/gif`). The Hugging Face copy is a mirror of that file, not a re-trained or re-licensed model; it's used for a stable pinned download.
+
+### Build and caching
+- The model fetch **fails the build** in CI and on Railway (`CI`, `RAILWAY_ENVIRONMENT`/`RAILWAY_ENVIRONMENT_NAME`, or `VBG_REQUIRE_MODEL=1`); local builds warn and continue (MediaPipe only). Verified offline (no network namespace): `CI=1` → build error from `modnet-model`; local → warning, build succeeds.
+- Runtime assets live at versioned URLs — `/vendor/mediapipe-<version>/`, `/vendor/ort-<version>/`, `/models/modnet-<sha12>.onnx` — injected into the app as `__VBG_ASSETS__` (one source of truth). Production (`vite preview`, the `long-cache` plugin) serves them and Vite's hashed `/assets/` with `Cache-Control: public, max-age=31536000, immutable`; `index.html` and unversioned files stay `no-cache`. Verified with curl on a production build.
+
+### Per-source stabilizer tuning
+Stillness noise alone can be gamed by lagging, so every setting was also scored for **lag** (mean |stabilized − raw| in a ±3 px band around the current raw contour) on a fast clip (~5 px/frame) and a slow clip (~1 px/frame — where smoothing could trail). Kept only if slow-motion lag rose ≤ ~3%.
+
+| | still edge shift (px/frame) | slow lag |
+|---|---|---|
+| MediaPipe default | 0.173 | 15.59 |
+| **MediaPipe floor 1, keep 0.85** (shipped) | **0.058 (−66%)** | 16.09 (+3%) |
+| MODNet default | 0.188 | 2.80 |
+| **MODNet floor 0.8, threshold 0.5** (shipped) | **0.160 (−15%)** | 2.88 (+3%) |
+| MODNet floor 1, threshold 0.5, keep 0.85 | 0.149 (−21%) | 2.93 (+5%) — rejected |
+| MODNet + 3-frame temporal median | 0.042 | fast lag 39% (vs 2.8%) — rejected |
+
+The missing piece was a certainty **floor**: smoothing was weighted by certainty, and edge pixels sit near 0.5 (certainty ≈ 0), so the edge — where flicker lives — was never smoothed. MODNet improves less because its noise moves the edge by a pixel or more for several frames, indistinguishable from small real motion without a delay. Fast-clip lag was flat for every setting (all moving pixels exceed the threshold), so the slow clip is the real lag check; the acceptance test's fast-hand and arms-up steps remain the final word (watch for edges trailing behind hands, not just clipping).
+
+### Acceptance test additions
+Per machine (including a weak laptop), record: backend, infer ms, masks/s, and whether MODNet passed the 24 masks/s gate (`fallback` line says why not). Run MODNet once with the gate off (dev build: `localStorage['8080.vbg-nogate']='1'` + `8080.vbg-source='modnet'`): if it manages 15–20 masks/s and still looks better than MediaPipe at 30, the gate is too strict and is sending users to the worse engine. Test the real mid-recording swap on a GPU machine (here it ran with a stand-in source).
