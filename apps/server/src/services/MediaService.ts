@@ -4,8 +4,9 @@ import { Transform, type Readable } from 'stream'
 import { storage } from '../providers/storage'
 import { toMedia } from '../lib/serialize'
 import { badRequest, httpError } from '../lib/errors'
+import { MAX_UPLOAD_MB } from '@project/shared'
 
-export const MAX_UPLOAD_BYTES = Number(process.env.UPLOAD_MAX_SIZE_MB ?? 50) * 1024 * 1024
+export const MAX_UPLOAD_BYTES = Number(process.env.UPLOAD_MAX_SIZE_MB ?? MAX_UPLOAD_MB) * 1024 * 1024
 const MAX_DURATION_S = 3 * 60 * 60
 
 // Allow-list: mime → [extension, kind]. Extension is always derived from here,

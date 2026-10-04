@@ -1,11 +1,16 @@
 import { useMutation } from '@tanstack/react-query'
-import { getApiClient, unwrap } from '../client'
+import { MAX_UPLOAD_MB } from '@project/shared'
+import { ApiError, getApiClient, unwrap } from '../client'
 import type { MediaType } from '../models'
 
 export type UploadMediaInput = { file: Blob; type?: MediaType; name?: string; duration?: number }
 
 // Upload first, then pass the returned media id in createItem({ mediaIds }).
 export async function uploadMedia(input: UploadMediaInput) {
+  // Same limit as the server: say so before sending, not after uploading it all.
+  if (input.file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+    throw new ApiError(413, `File exceeds the ${MAX_UPLOAD_MB}MB limit`, 'FILE_TOO_LARGE')
+  }
   const form = new FormData()
   form.append('file', input.file, input.name ?? 'upload')
   if (input.type) form.append('type', input.type)
