@@ -201,3 +201,21 @@ The missing piece was a certainty **floor**: smoothing was weighted by certainty
 
 ### Acceptance test additions
 Per machine (including a weak laptop), record: backend, infer ms, masks/s, and whether MODNet passed the 24 masks/s gate (`fallback` line says why not). Run MODNet once with the gate off (dev build: `localStorage['8080.vbg-nogate']='1'` + `8080.vbg-source='modnet'`): if it manages 15–20 masks/s and still looks better than MediaPipe at 30, the gate is too strict and is sending users to the worse engine. Test the real mid-recording swap on a GPU machine (here it ran with a stand-in source).
+
+## Merge gate: real-device acceptance (agreed 2026-10-04)
+Run on a **strong GPU desktop, a normal laptop and a weak laptop**, in every target browser (Firefox and Chromium). Readout on: `localStorage['8080.vbg-debug']='1'`. Compare engines with `localStorage['8080.vbg-source']` = `'modnet'` vs `'mediapipe'` (reload between).
+
+| # | Check | Record |
+|---|---|---|
+| 1 | Edge calmness sitting still, MODNet vs MediaPipe | `edge … flicker` + what you see |
+| 2 | Hands/arms retained during fast movement (and not trailing behind hands) | pass/fail per engine |
+| 3 | Hair / headphones / face edge quality | notes per engine |
+| 4 | Backend and speed | `backend`, `infer` ms, masks/s; did MODNet pass the 24 masks/s gate (else the `fallback` line) |
+| 5 | Does the quality ladder fall back during framing | `canvas`, `tier`, `polish`, `blur` lines over ~1 min |
+| 6 | Recording stays on the engine it started with, incl. a real upgrade landing mid-take (`auto`, start recording during "Sharper edges loading…") | backend before / during / after |
+| 7 | First-use load vs cached revisit | seconds to "ready" and to MODNet, cold vs warm |
+| 8 | Firefox vs Chromium | all of the above per browser |
+
+Plus once per machine: MODNet with the gate off (dev build, `8080.vbg-nogate='1'`) — if it manages 15–20 masks/s and still looks better than MediaPipe, the 40 ms gate is too strict.
+
+**No stabilizer tuning before these results.** If MODNet clearly beats MediaPipe on real hardware without falling below a usable frame rate: merge PR #3 and **freeze this phase**. Consider the next quality step (worker inference, flow propagation, recurrent matting) only if the test still shows obvious temporal instability.
