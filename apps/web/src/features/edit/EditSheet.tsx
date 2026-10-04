@@ -7,7 +7,7 @@ import { STOCK_IMAGES, STOCK_TRACKS, type StockImage, type StockTrack } from './
 export function EditSheet({ open, sections, trackId, uploadUrl, link, fitting, onSelect, onUpload, onLink, onClose, onPauseTake }: {
   open: boolean
   /** Which enhancements fit this post type. */
-  sections: { audio: boolean; image: boolean }
+  sections: { audio: boolean; image: boolean; link: boolean }
   trackId: string | null
   uploadUrl?: string | null
   link: string
@@ -104,10 +104,10 @@ export function EditSheet({ open, sections, trackId, uploadUrl, link, fitting, o
             })}
           </ul>
         </section>}
-        <section aria-label="Link">
+        {sections.link && <section aria-label="Link">
           <h2>Link</h2>
           <input className="edit-sheet-link" value={link} placeholder="YouTube link" onChange={(event) => onLink(event.target.value)} />
-        </section>
+        </section>}
       </div>
       <div className="edit-sheet-bar">
         <button type="button" onClick={onClose}>Close</button>

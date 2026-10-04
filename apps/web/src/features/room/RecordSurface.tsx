@@ -245,11 +245,14 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
 
   // The attach sheet opens on every post preview (a take, an upload, or writing) and
   // offers only what fits the post: music for everything but a captured voice take,
-  // an image for a captured voice take or text. Dismissed, it returns with the next preview.
+  // an image for a captured voice take or text; a YouTube link only for text (pasting one
+  // replaces the take, so it's a different post source, not an attachment). Dismissed, it
+  // returns with the next preview.
   const capturedAudio = showTake && !upload && mode === 'audio'
   const sections = {
     audio: !capturedAudio,
     image: capturedAudio || frame === 'text',
+    link: frame === 'text',
   }
   const previewKey = showTake ? `take:${previewSrc}`
     : showFile && upload && previewType !== 'file' ? `file:${upload.url}`
