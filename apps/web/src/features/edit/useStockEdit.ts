@@ -194,7 +194,7 @@ export function useStockEdit(picture: TakePicture | null) {
 
   return {
     open,
-    toggle: () => setOpen(on => !on),
+    show: () => setOpen(true),
     close: () => setOpen(false),
     trackId,
     fitted,

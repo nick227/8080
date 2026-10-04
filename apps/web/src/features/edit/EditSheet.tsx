@@ -4,8 +4,10 @@ import { ApplyIcon, PauseIcon, PlayIcon } from '../../components/icons'
 import { primePreviewAudio, releaseStockPreview, stopStockPreview, toggleStockPreview } from './previewAudio'
 import { STOCK_IMAGES, STOCK_TRACKS, type StockImage, type StockTrack } from './stock'
 
-export function EditSheet({ open, trackId, uploadUrl, link, fitting, onSelect, onUpload, onLink, onClose, onPauseTake }: {
+export function EditSheet({ open, sections, trackId, uploadUrl, link, fitting, onSelect, onUpload, onLink, onClose, onPauseTake }: {
   open: boolean
+  /** Which enhancements fit this post type. */
+  sections: { audio: boolean; image: boolean }
   trackId: string | null
   uploadUrl?: string | null
   link: string
@@ -56,7 +58,7 @@ export function EditSheet({ open, trackId, uploadUrl, link, fitting, onSelect, o
     <aside ref={panelRef} className={shown ? 'edit-sheet is-open' : 'edit-sheet'} role="dialog" aria-label="Attach" tabIndex={-1}>
       <div className="edit-sheet-body">
         <p className="edit-sheet-status">Add to this post</p>
-        <section aria-label="Image">
+        {sections.image && <section aria-label="Image">
           <h2>Image</h2>
           <ul className="edit-sheet-stills">
             {images.map(image => {
@@ -79,8 +81,8 @@ export function EditSheet({ open, trackId, uploadUrl, link, fitting, onSelect, o
             stopStockPreview()
             onUpload(file)
           }} />
-        </section>
-        <section aria-label="Audio">
+        </section>}
+        {sections.audio && <section aria-label="Audio">
           <h2>Audio</h2>
           <ul className="edit-sheet-list">
             {STOCK_TRACKS.map(track => {
@@ -101,7 +103,7 @@ export function EditSheet({ open, trackId, uploadUrl, link, fitting, onSelect, o
               )
             })}
           </ul>
-        </section>
+        </section>}
         <section aria-label="Link">
           <h2>Link</h2>
           <input className="edit-sheet-link" value={link} placeholder="YouTube link" onChange={(event) => onLink(event.target.value)} />

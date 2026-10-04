@@ -112,10 +112,9 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
   const durationMs = useCapture((s) => s.durationMs)
   const choice = useDevice((s) => s.choice)
   const kind = captureKind(choice)
-  const editButtonRef = useRef<HTMLButtonElement>(null)
-  const sheetWasOpen = useRef(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
+  const actionsRef = useRef<HTMLDivElement>(null)
   const [text, setText] = useState('')
   const [frame, setFrame] = useState<Frame>(compose ? 'text' : kind === 'video' ? 'camera' : 'mic')
   const [ytText, setYtText] = useState('')
@@ -133,10 +132,6 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
   const take = !recording && !!(blob || upload)
   const ytReady = !!pasted && yt.status !== 'loading' && yt.status !== 'unavailable'
 
-  useEffect(() => {
-    if (sheetWasOpen.current && !edit.open) editButtonRef.current?.focus()
-    sheetWasOpen.current = edit.open
-  }, [edit.open])
 
   useEffect(() => {
     setFrame((current) => (current === 'text' || current === 'file' || current === 'link' ? current : kind === 'video' ? 'camera' : 'mic'))
@@ -248,6 +243,30 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
   const showPlay = showTake && (previewType !== 'image' || !!edit.fitted?.buffer)
   const showRetry = showTake && previewType !== 'image'
 
+  // The attach sheet opens on every post preview (a take, an upload, or writing) and
+  // offers only what fits the post: music for everything but a captured voice take,
+  // an image for a captured voice take or text. Dismissed, it returns with the next preview.
+  const capturedAudio = showTake && !upload && mode === 'audio'
+  const sections = {
+    audio: !capturedAudio,
+    image: capturedAudio || frame === 'text',
+  }
+  const previewKey = showTake ? `take:${previewSrc}`
+    : showFile && upload && previewType !== 'file' ? `file:${upload.url}`
+    : frame === 'text' ? 'text' : ''
+  useEffect(() => {
+    if (!previewKey) {
+      edit.close()
+      return
+    }
+    edit.show()
+    // Phones: the sheet covers the bottom of the desk, so bring the actions up above it.
+    if (!window.matchMedia('(max-width: 720px)').matches) return
+    const timer = window.setTimeout(() => actionsRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }), 260)
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewKey])
+
   const onYouTube = (result: YouTubePreviewResult) => {
     setYt(result)
     if (result.status === 'loading' || result.status === 'unavailable') return
@@ -266,7 +285,7 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
   }
 
   return (
-    <div className="room-desk" role="dialog" aria-label={replyName ? `Reply to ${replyName}` : 'Record'}>
+    <div className="room-desk" role="dialog" aria-label={replyName ? `Reply to ${replyName}` : 'Record'} data-review={showTake || (showFile && !!upload) || undefined}>
       <div className="room-desk-stack">
         <div className="room-desk-anchor">
         <div className="room-desk-meta">
@@ -283,7 +302,12 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
               <p className="room-desk-note">{yt.status === 'ready' && yt.title ? yt.title : 'YouTube'}</p>
             </div>
           )}
-          {showFile && upload && previewType !== 'file' && previewSrc && (
+          {showFile && upload && previewType !== 'file' && previewSrc && held && held.kind !== 'text' && edit.fitted?.buffer && (
+            <div className="room-desk-card" style={{ position: 'relative' }}>
+              <EditPreview key={edit.fitted.trackId} kind={held.kind} url={held.url} imageUrl={edit.fitted.imageUrl} buffer={edit.fitted.buffer} durationMs={edit.fitted.durationMs} waveform={held.kind === 'audio' ? edit.fitted.waveform : undefined} onPlaying={setPlaying} />
+            </div>
+          )}
+          {showFile && upload && previewType !== 'file' && previewSrc && !edit.fitted?.buffer && (
             <div className="room-desk-card">
               <Media type={previewType === 'image' ? 'image' : previewType} src={previewSrc} name={upload.file.name} waveform={previewType === 'audio' ? waveform ?? undefined : undefined} hidePlayButton isActive={false} onPlayStatusChange={setPlaying} />
             </div>
@@ -321,7 +345,7 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
             </div>
           </div>
 
-          <div className="room-desk-actions">
+          <div className="room-desk-actions" ref={actionsRef}>
             <span className="room-desk-take-actions" style={{
               opacity: recording ? 0 : 1,
               pointerEvents: recording ? 'none' : 'auto',
@@ -334,7 +358,6 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
               <button type="button" onClick={togglePlay}>{playing ? 'Pause' : 'Play'}</button>
             )}
             {showRetry && <button type="button" onClick={() => { capture.cancel(); clearUpload(); void begin() }}>RETRY</button>}
-            <button ref={editButtonRef} type="button" aria-pressed={edit.open} aria-expanded={edit.open} data-armed={edit.fitted || ytReady ? '' : undefined} onClick={edit.toggle}>Attach</button>
             <button type="button" disabled={sending || edit.fitting || !canSend} onClick={() => void send()}>{rendering ? 'Rendering' : sending ? (replyName ? 'Sending' : 'Saving') : (replyName ? 'Send' : 'Save')}</button>
             </span>
           </div>
@@ -343,6 +366,7 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
 
       <EditSheet
         open={edit.open}
+        sections={sections}
         trackId={edit.trackId}
         uploadUrl={edit.trackId === 'upload' ? edit.fitted?.imageUrl : null}
         link={ytText}

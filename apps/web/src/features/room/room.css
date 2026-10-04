@@ -599,13 +599,24 @@
     top: auto;
     bottom: 0;
     width: 100%;
-    height: min(42vh, 380px);
+    height: var(--sheet-h);
     border-left: 0;
     border-top: 1px solid var(--line);
     transform: translateY(100%);
   }
   .edit-sheet.is-open { transform: translateY(0); }
-  body:has(.edit-sheet.is-open) .room-desk-stack { transform: translateY(-14vh); }
+  /* The sheet covers the desk's bottom: give the desk that much scroll room so the
+     preview and its actions can sit above the sheet (RecordSurface scrolls them up). */
+  .room-desk { --sheet-h: min(40vh, 340px); }
+  .edit-sheet { --sheet-h: min(40vh, 340px); }
+  body:has(.edit-sheet.is-open) .room-desk-stack {
+    padding-bottom: calc(var(--sheet-h) + 16px);
+    scroll-padding-bottom: calc(var(--sheet-h) + 16px);
+  }
+  /* Reviewing a take with the sheet up: RETRY re-records, so the record button and
+     mode controls step aside and the preview + actions fit above the sheet. */
+  body:has(.edit-sheet.is-open) .room-desk[data-review] .record-button,
+  body:has(.edit-sheet.is-open) .room-desk[data-review] .sub-controls { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
