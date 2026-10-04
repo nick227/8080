@@ -5,6 +5,7 @@ import { useUI } from '../../state/ui'
 import { useShell } from '../../state/shell'
 import { PlayIcon } from '../../components/icons'
 import { pictureOf } from '../../utils/thumbnail'
+import { roomTitle } from '../../utils/room'
 
 export function ConversationHead({ room, onPlayAll }: { room: Room; onPlayAll?: () => void }) {
   const owner = room.role === 'owner'
@@ -71,16 +72,17 @@ export function ConversationHead({ room, onPlayAll }: { room: Room; onPlayAll?: 
           aria-label="Conversation name"
           value={title}
           maxLength={120}
+          placeholder={roomTitle({ title: '', number: room.number })}
           onChange={(event) => setTitle(event.target.value)}
           onBlur={() => {
             const next = title.trim()
-            if (!next || next === room.title) return
+            if (next === room.title) return
             void update.mutateAsync({ title: next }).catch((error: unknown) => fail(error, 'Could not rename'))
           }}
           onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
         />
       ) : (
-        <h1 className="room-head-title">{room.title}</h1>
+        <h1 className="room-head-title">{roomTitle(room)}</h1>
       )}
       {owner ? (
         <textarea

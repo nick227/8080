@@ -313,7 +313,7 @@
 }
 .room-desk-card .media-container,
 .room-desk-card .media-view,
-.room-desk-card .audio-waveform { width: 100%; }
+.room-desk-card .audio-waveform { width: 100%; justify-content: center; align-items: center; }
 .room-desk-card img,
 .room-desk-card video { width: 100%; height: 100%; max-height: none; object-fit: cover; }
 .room-desk-wave {

@@ -41,12 +41,7 @@ test.describe('Main Integration Path', () => {
     const playBtn = alice.getByRole('button', { name: 'Play', exact: true }).first();
     await expect(playBtn).toBeVisible({ timeout: 10000 });
 
-    // A conversation needs a name, a description and a picture (an audio take has no still).
-    await alice.getByRole('textbox', { name: 'Conversation title' }).fill('Integration test');
-    await alice.getByRole('textbox', { name: 'Conversation description' }).fill('Recorded by integration.spec.ts');
-    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
-    await alice.locator('.room-desk-identity input[type="file"]').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: png });
-
+    // Name, description and picture are all optional: save with every field blank.
     // 5. Save and upload (this tests the upload to volume and create item API)
     const saveBtn = alice.getByRole('button', { name: /Save|Send/ });
     await expect(saveBtn).toBeVisible();

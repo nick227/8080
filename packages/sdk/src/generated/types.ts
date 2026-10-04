@@ -581,11 +581,12 @@ export interface components {
             data: components["schemas"]["Room"][];
             meta: components["schemas"]["PaginatedMeta"];
         };
+        /** @description Every field is optional; a conversation may have no name, description or thumbnail. */
         CreateRoomInput: {
-            title: string;
-            description: string;
+            title?: string;
+            description?: string;
             /** @description The caller's own image, or a YouTube video they added. 400 INVALID_THUMBNAIL otherwise. */
-            thumbnailId: string;
+            thumbnailId?: string;
             topic?: string;
             visibility?: components["schemas"]["RoomVisibility"];
         };

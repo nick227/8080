@@ -20,6 +20,7 @@ import { RecordSurface } from '../features/room/RecordSurface'
 import { Playback, isPlayable } from '../features/room/Playback'
 import { useRoomPost } from '../features/room/useRoomPost'
 import { pictureOf } from '../utils/thumbnail'
+import { roomTitle } from '../utils/room'
 import '../features/room/room.css'
 
 function roomPeopleFrom(items: Item[], meId: string | undefined, meName: string, activity: PresenceActivity) {
@@ -74,7 +75,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   useEffect(() => {
     const data = room.data
     if (!data) return
-    useShell.getState().setRoom({ title: data.title, number: data.number, visibility: data.visibility })
+    useShell.getState().setRoom({ title: roomTitle(data), number: data.number, visibility: data.visibility })
     return () => useShell.getState().setRoom(null)
   }, [room.data])
 
@@ -159,7 +160,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   return (
     <Panel as="main" variant="shell" className="room-shell">
       {roomId && <RoomItemsSync roomId={roomId} onError={setItemsError} onSuccess={onItemsSuccess} />}
-      <SEO title={data?.title ? `${data.title} - Voice Chat` : 'Room - Voice Chat'} description={`Join ${data?.title ?? 'this room'} on Voice Chat.`} />
+      <SEO title={data ? `${roomTitle(data)} - Voice Chat` : 'Room - Voice Chat'} description={`Join ${data ? roomTitle(data) : 'this room'} on Voice Chat.`} />
       <StageChrome />
       {(ui.error || resolved.error || itemsError) && (
         <Label variant="status" className="error" role="alert">

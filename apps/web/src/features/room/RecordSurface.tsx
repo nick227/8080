@@ -53,7 +53,7 @@ function IdentityField({ identity }: { identity: ConversationIdentity }) {
           onChange={(event) => setValue(event.target.value)}
           onBlur={(event) => {
             const next = event.currentTarget.value.trim()
-            if (next && next !== identity.title) identity.onTitle(next)
+            if (next !== identity.title) identity.onTitle(next)
           }}
           onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
         />

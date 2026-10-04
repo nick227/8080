@@ -5,6 +5,7 @@ import { Stack } from './Stack'
 import { Label } from './Label'
 import { Control } from './Control'
 import { useRoomRef } from '../app/useRoomRef'
+import { roomTitle } from '../utils/room'
 
 type Props = {
   messageId: string
@@ -60,7 +61,7 @@ export function ShareMenu({ messageId, onClose }: Props) {
             >
               <span>
                 <span style={{ marginRight: 8 }}>{isSelected ? '✓' : '○'}</span>
-                {room.title}
+                {roomTitle(room)}
               </span>
               <Label variant="caption" style={{ opacity: 0.5 }}>
                 {room.visibility.toUpperCase()}

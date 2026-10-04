@@ -79,9 +79,7 @@ export function Home() {
     // A reply still in progress (started in a room, then navigated here) goes to its parent, not a new post.
     if (await replyFromUIState(input)) return
     const thumb = picked ?? still ?? attachmentThumb(input.media)
-    const missing = [!title.trim() && 'a name', !description.trim() && 'a description', !thumb && 'a picture'].filter(Boolean)
-    if (missing.length) throw new Error(`Give the conversation ${missing.join(', ').replace(/, ([^,]*)$/, ' and $1')}`)
-    const room = await createConversation({ title, description, thumb: thumb! }, input, progress.current)
+    const room = await createConversation({ title, description, thumb }, input, progress.current)
     resetDraft()
     navigate(`/room/${room.id}`)
   }

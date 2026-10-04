@@ -91,13 +91,14 @@ describe('createRoom', () => {
     })
   })
 
-  it('a conversation needs a name, a description and a thumbnail', async () => {
-    const thumb = await seedImage(testUserId)
+  it('name, description and thumbnail are all optional', async () => {
     const post = (payload: object) => app.inject({ method: 'POST', url: '/rooms', headers: asAuth(testUserId), payload })
-    expect((await post({ title: 'No picture', description: 'x' })).statusCode).toBe(400)
-    expect((await post({ title: 'No description', thumbnailId: thumb.id })).statusCode).toBe(400)
-    expect((await post({ title: 'Blank', description: '   ', thumbnailId: thumb.id })).json().code).toBe('INVALID_ROOM')
-    expect((await post({ title: '   ', description: 'x', thumbnailId: thumb.id })).json().code).toBe('INVALID_ROOM')
+    const empty = await post({})
+    expect(empty.statusCode).toBe(201)
+    expect(empty.json().data).toMatchObject({ title: '', description: '', thumbnail: null })
+    const blank = await post({ title: '   ', description: '' })
+    expect(blank.statusCode).toBe(201)
+    expect(blank.json().data).toMatchObject({ title: '', description: '' })
   })
 
   it('the thumbnail is the caller\'s own image or YouTube video', async () => {
@@ -112,12 +113,11 @@ describe('createRoom', () => {
     expect(ok.json().data.thumbnail.poster).toContain('dQw4w9WgXcQ')
   })
 
-  it('an update cannot blank the name or description', async () => {
+  it('an update may blank the name or description', async () => {
     const room = await seedRoom(app, testUserId)
     const patch = (payload: object) => app.inject({ method: 'PATCH', url: `/rooms/${room.id}`, headers: asAuth(testUserId), payload })
-    expect((await patch({ description: '' })).statusCode).toBe(400)
-    expect((await patch({ description: '  ' })).json().code).toBe('INVALID_ROOM')
-    expect((await patch({ title: '  ' })).json().code).toBe('INVALID_ROOM')
+    expect((await patch({ description: '' })).json().data.description).toBe('')
+    expect((await patch({ title: '  ' })).json().data.title).toBe('')
     expect((await patch({ description: 'Sharper' })).json().data.description).toBe('Sharper')
   })
 
@@ -132,10 +132,6 @@ describe('createRoom', () => {
     expect(b.number).toBeGreaterThan(a.number)
   })
 
-  it('rejects an empty title', async () => {
-    const res = await app.inject({ method: 'POST', url: '/rooms', headers: asAuth(testUserId), payload: { title: '' } })
-    expect(res.statusCode).toBe(400)
-  })
 })
 
 describe('listMyRooms', () => {

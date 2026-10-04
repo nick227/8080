@@ -187,7 +187,7 @@ function StoredMedia({ type = 'image', preview = false, name, poster, src, aspec
   
   if (type === 'audio') {
     return (
-      <div className={`media-view loaded audio-waveform ${playing ? 'playing' : ''}`} style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', alignItems: 'center' }}>
+      <div className={`media-view loaded audio-waveform ${playing ? 'playing' : ''}`} style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', alignItems: 'center', justifyContent: 'center' }}>
         <audio 
           ref={mediaRef as React.RefObject<HTMLAudioElement>} 
           src={src} 

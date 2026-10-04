@@ -908,10 +908,10 @@ components:
     CreateRoomInput:
       type: object
       additionalProperties: false
-      required: [title, description, thumbnailId]
+      description: Every field is optional; a conversation may have no name, description or thumbnail.
       properties:
-        title: { type: string, minLength: 1, maxLength: 120 }
-        description: { type: string, minLength: 1, maxLength: 4000 }
+        title: { type: string, maxLength: 120 }
+        description: { type: string, maxLength: 4000 }
         thumbnailId:
           type: string
           minLength: 1
@@ -924,8 +924,8 @@ components:
       type: object
       additionalProperties: false
       properties:
-        title: { type: string, minLength: 1, maxLength: 120 }
-        description: { type: string, minLength: 1, maxLength: 4000 }
+        title: { type: string, maxLength: 120 }
+        description: { type: string, maxLength: 4000 }
         thumbnailId: { type: string, minLength: 1, maxLength: 64 }
         topic: { type: [string, 'null'], minLength: 1, maxLength: 40 }
         visibility: { $ref: '#/components/schemas/RoomVisibility' }

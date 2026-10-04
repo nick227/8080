@@ -3,14 +3,14 @@ import { parseYouTubeVideoId, youTubeThumbnailUrl } from '@project/shared'
 import { resolveMediaIds } from '../../api/sendMedia'
 import { isLocalMedia, isYouTubeDraft, type SendInput } from '../../api/types'
 
-// A new conversation needs a name, a description and a thumbnail. The thumbnail is
-// either one of the opening piece's own attachments (an image or a YouTube video —
+// A new conversation may have a name, a description and a thumbnail (all optional).
+// The thumbnail is either one of the opening piece's own attachments (an image or a YouTube video —
 // reused, not uploaded twice) or an image file (picked, or a still from a capture).
 export type ThumbChoice =
   | { kind: 'attachment'; index: number; preview: string }
   | { kind: 'file'; file: Blob; preview: string }
 
-export type ConversationDetails = { title: string; description: string; thumb: ThumbChoice }
+export type ConversationDetails = { title: string; description: string; thumb: ThumbChoice | null }
 
 // The server stores only these (MediaService allow-list). Saying so up front beats a
 // 415 after Send — iPhones default to HEIC.
@@ -61,7 +61,7 @@ export async function createConversation(details: ConversationDetails, opening: 
   // A different take since the last attempt: its uploads don't apply (and an
   // attachment thumbnail pointed into them). A different thumbnail: likewise.
   const draft = draftKey(opening)
-  const thumbFrom = details.thumb.kind === 'file' ? details.thumb.file : `attachment:${details.thumb.index}`
+  const thumbFrom = !details.thumb ? null : details.thumb.kind === 'file' ? details.thumb.file : `attachment:${details.thumb.index}`
   const stale: string[] = []
   if (progress.draft && !sameKey(progress.draft, draft)) {
     stale.push(...(progress.mediaIds ?? []))
@@ -78,7 +78,7 @@ export async function createConversation(details: ConversationDetails, opening: 
   progress.thumbFrom = thumbFrom
   progress.mediaIds ??= await resolveMediaIds(opening.media)
   const mediaIds = progress.mediaIds
-  if (!progress.thumbnailId) {
+  if (!progress.thumbnailId && details.thumb) {
     if (details.thumb.kind === 'attachment') {
       progress.thumbnailId = mediaIds[details.thumb.index]
     } else {
@@ -90,7 +90,7 @@ export async function createConversation(details: ConversationDetails, opening: 
   const client = getApiClient()
   progress.room ??= unwrap(
     await client.POST('/rooms', {
-      body: { title: details.title.trim(), description: details.description.trim(), thumbnailId: progress.thumbnailId!, visibility: 'public' },
+      body: { title: details.title.trim(), description: details.description.trim(), thumbnailId: progress.thumbnailId, visibility: 'public' },
     }),
   ).data
 
