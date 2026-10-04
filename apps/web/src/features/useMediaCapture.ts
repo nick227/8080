@@ -70,7 +70,7 @@ export function useMediaCapture() {
       let recordStream = stream
       if (effect !== 'original') {
         const seg = await loadSegmenter()
-        const compositor = startCompositor(seg, stream, { mode: effect, photoUrl: useBackground.getState().photo?.url ?? null, mirror: facingUser(stream) },
+        const compositor = startCompositor(seg, stream, { mode: effect, photoUrl: useBackground.getState().photo?.url ?? null, mirror: facingUser(stream), fixedSize: true },
           (message) => useBackground.getState().setStatus('unavailable', message))
         compositorRef.current = compositor
         recordStream = new MediaStream([...compositor.stream.getVideoTracks(), ...stream.getAudioTracks()])
