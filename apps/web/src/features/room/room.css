@@ -16,7 +16,28 @@
   grid-template-rows: minmax(0, 1fr);
   flex: 1;
   min-height: 0;
+  position: relative;
 }
+.room-chat[data-chat="closed"] { grid-template-columns: minmax(0, 1fr) 0; }
+.room-chat-toggle {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: start;
+  align-self: center;
+  z-index: 8;
+  width: 18px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  margin-left: -9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+}
+.room-chat[data-chat="open"] .room-chat-toggle svg { transform: rotate(180deg); }
+.room-chat[data-chat="closed"] .room-chat-toggle { justify-self: end; margin-left: 0; margin-right: 8px; }
+.room-chat[data-chat="closed"] .room-rail { visibility: hidden; padding: 0; border: 0; }
 .room-live {
   grid-column: 1;
   grid-row: 1;
@@ -989,6 +1010,10 @@ p.room-head-description {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(220px, 42vh) minmax(0, 1fr);
   }
+  .room-chat[data-chat="closed"] {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) 0;
+  }
   .room-live { grid-row: 1; grid-column: 1; }
   .room-head { grid-row: 1; grid-column: 1; }
   .room-rail {
@@ -998,6 +1023,16 @@ p.room-head-description {
     padding: 0 12px;
     border-top: 1px solid var(--line);
   }
+  .room-chat-toggle {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: center;
+    align-self: start;
+    margin: -14px 0 0;
+  }
+  .room-chat[data-chat="open"] .room-chat-toggle svg { transform: rotate(-90deg); }
+  .room-chat[data-chat="closed"] .room-chat-toggle { justify-self: center; margin: 0 0 8px; align-self: end; }
+  .room-chat[data-chat="closed"] .room-chat-toggle svg { transform: rotate(90deg); }
 }
 
 @media (max-width: 720px) {
