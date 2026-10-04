@@ -1,18 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { publishSpectrum, useCapture } from '../state/capture'
-import { pausePreview, publishLiveStream, resumePreview } from './previewStream'
+import { cameraConstraints, pausePreview, publishLiveStream, resumePreview } from './previewStream'
 
 const getConstraints = (kind: 'audio' | 'video', deviceId: string): MediaStreamConstraints => {
   if (kind === 'audio') return { audio: deviceId ? { deviceId: { exact: deviceId } } : true }
 
-  const video: MediaTrackConstraints = {
-    width: { ideal: 1280 },
-    height: { ideal: 720 },
-    frameRate: { ideal: 30, max: 30 },
-  }
-  if (deviceId) video.deviceId = { exact: deviceId }
-  else video.facingMode = localStorage.getItem('camera_facing') || 'user'
-  return { audio: true, video }
+  return { audio: true, video: cameraConstraints(deviceId) }
 }
 
 export function useMediaCapture() {

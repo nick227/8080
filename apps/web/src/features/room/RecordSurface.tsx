@@ -300,7 +300,7 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
               )}
             </div>
           )}
-          {showCamera && <CameraPreview recording={recording} />}
+          {showCamera && <CameraPreview deviceId={choice.deviceId} recording={recording} />}
           {showWave && <VoiceWave deviceId={choice.deviceId} recording={recording} />}
         </div>
         <Control variant="record" type="button" active={recording} data-mass={recording ? 'dense' : 'rest'} aria-label={recording ? 'Stop' : 'Record'} onClick={() => (recording ? capture.stop() : void begin())}>

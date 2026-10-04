@@ -1,5 +1,18 @@
 // The recorder's live stream (shown by CameraPreview) and the idle microphone
-// monitor. The camera is opened only by the recorder; nothing holds it between takes.
+// monitor. CameraPreview opens its own framing stream only while it's mounted and
+// not recording; nothing holds the camera after Stop, Save or closing.
+
+/** Camera constraints shared by the framing preview and the recorder. */
+export function cameraConstraints(deviceId: string): MediaTrackConstraints {
+  const video: MediaTrackConstraints = {
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    frameRate: { ideal: 30, max: 30 },
+  }
+  if (deviceId) video.deviceId = { exact: deviceId }
+  else video.facingMode = localStorage.getItem('camera_facing') || 'user'
+  return video
+}
 
 let paused = false
 
