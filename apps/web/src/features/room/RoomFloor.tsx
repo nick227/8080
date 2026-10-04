@@ -24,7 +24,11 @@ function FaceTile({ seat }: { seat: Seat }) {
   )
 }
 
-function Floor({ view, seats, item, next, onEnded, onView, self, bar, stack }: {
+function messageOnly(item?: Item) {
+  return !!item && !item.media?.some((media) => (media.type === 'video' || media.type === 'audio' || media.type === 'image') && !!media.url)
+}
+
+function Floor({ view, seats, item, next, onEnded, onView, self, bar, stack, paused }: {
   view: RoomView
   seats: Seat[]
   item?: Item
@@ -34,19 +38,20 @@ function Floor({ view, seats, item, next, onEnded, onView, self, bar, stack }: {
   self: () => ReactNode
   bar: ReactNode
   stack?: ReactNode
+  paused?: boolean
 }) {
   const me = seats.find((seat) => seat.self)
   const showAir = view === 'screen' || !!item
 
   return (
-    <section className="room-live" data-layout={view} data-density={tileDensity(seats.length)} data-playing={item ? '' : undefined} aria-label={VIEW_LABEL[view]}>
+    <section className="room-live" data-layout={view} data-density={tileDensity(seats.length)} data-playing={item ? '' : undefined} data-broadcast={messageOnly(item) ? 'message' : undefined} aria-label={VIEW_LABEL[view]}>
       <div className="room-cast">
         {me && self()}
         {seats.filter((seat) => !seat.self).map((seat) => (
           <FaceTile key={seat.id} seat={seat} />
         ))}
       </div>
-      {showAir && <RoomAir item={item} next={next} onEnded={onEnded} />}
+      {showAir && <RoomAir item={item} next={next} onEnded={onEnded} paused={paused} />}
       {bar}
       {stack}
     </section>
@@ -65,7 +70,7 @@ export function RoomFloor({ view, seats, item, next, onEnded, onSend, onActivity
   onPost: () => void
   deskOpen?: boolean
 }) {
-  const shared = { view, seats, item, next, onEnded, onView }
+  const shared = { view, seats, item, next, onEnded, onView, paused: deskOpen }
   if (deskOpen) {
     return (
       <Floor
