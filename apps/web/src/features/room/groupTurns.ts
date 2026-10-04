@@ -5,6 +5,7 @@ const WINDOW_MS = 5 * 60 * 1000
 export type Turn = {
   id: string
   author: string
+  tag?: string
   avatarUrl?: string
   postedAt?: string
   rows: StreamRow[]
@@ -32,6 +33,7 @@ export function groupTurns(rows: StreamRow[], unreadId?: string): Turn[] {
     turns.push({
       id: row.id,
       author: row.author,
+      tag: row.tag,
       avatarUrl: row.avatarUrl,
       postedAt: row.postedAt,
       rows: [row],

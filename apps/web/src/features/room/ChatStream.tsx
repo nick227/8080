@@ -1,6 +1,7 @@
 import { memo, useLayoutEffect, useRef, useState } from 'react'
 import type { Media, MediaType } from '../../api/types'
 import { Media as MediaView } from '../../components/Media'
+import { PersonName } from '../../components/PersonName'
 import { controllerWithin } from '../../media/controller'
 import { countAfter, groupTurns } from './groupTurns'
 
@@ -17,6 +18,7 @@ export type StreamRow = {
   id: string
   authorId?: string
   author: string
+  tag?: string
   avatarUrl?: string
   postedAt?: string
   text?: string
@@ -236,7 +238,7 @@ export function ChatStream({ rows, pin, anchorId, onCaughtUp, hasOlder, loadingO
             </span>
             <div className="room-body">
               <header className="room-byline">
-                <span className="room-who">{turn.author}</span>
+                <PersonName className="room-who" name={turn.author} tag={turn.tag} />
                 <When iso={turn.postedAt} />
               </header>
               {turn.rows.map((row) => <Entry key={row.id} row={row} />)}

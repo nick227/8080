@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useCapture } from '../state/capture'
-import { uploadMedia, useDeleteItem, useRoom, useRoomItems, useRoomStream, useUpdateRoom } from '@project/sdk'
+import { uploadMedia, useDeleteItem, useRoom, useRoomItems, useRoomParticipants, useRoomStream, useUpdateRoom } from '@project/sdk'
+import { isHumanAuthored } from '@project/shared'
 import { Panel } from '../components/Panel'
 import { Label } from '../components/Label'
 import { Control } from '../components/Control'
@@ -154,6 +155,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
     const row: StreamRow = {
       id: item.id,
       authorId: item.author.id,
+      tag: item.author.tag,
       author: item.author.name,
       avatarUrl: item.author.avatarUrl,
       postedAt: item.createdAt,
@@ -190,8 +192,10 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
     setReadMark((n) => n + 1)
   }, [meId, roomId, latestNumber])
   const stored = meId && roomId ? readNumber(meId, roomId) : null
-  const anchorId = stored == null || readMark < 0 ? undefined : visible.find((item) => item.number > stored)?.id
-  const people = roomPeopleFrom(visible, meId, meName, meAvatar, activity)
+  const anchorId = stored == null || readMark < 0 ? undefined : visible.find((item) => item.number > stored && isHumanAuthored(item))?.id
+  // Bot items never make a room unread (doc/08 I6); the roster seats people and bots alike.
+  const participants = useRoomParticipants(roomId).data
+  const people = roomPeopleFrom(visible, meId, meName, meAvatar, activity, participants)
 
   const data = room.data
   const openPost = () => {
