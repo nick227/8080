@@ -30,7 +30,7 @@ export function RecordButton({ session, label, onRecord, onStop, onSubmit }: {
 }
 
 // Same vertical order as the desk: background, the round button, then the
-// device, then Cancel / Play / RETRY under it. A take leaves only Stop.
+// device, then Cancel. Review adds Play and RETRY beside it. A take leaves only Stop.
 export function RecordStack({ session, onCancel, onRetry, onSubmit }: {
   session: RecordSession
   onCancel: () => void
@@ -51,13 +51,13 @@ export function RecordStack({ session, onCancel, onRetry, onSubmit }: {
         onSubmit={onSubmit}
       />
       {framing && <DevicePicker />}
-      {review && (
+      {!session.recording && (
         <div className="room-desk-actions">
           <button type="button" className="room-desk-cancel" onClick={onCancel}>Cancel</button>
-          {session.showPlay && (
+          {review && session.showPlay && (
             <button type="button" onClick={session.togglePlay}>{session.playing ? 'Pause' : 'Play'}</button>
           )}
-          {session.showRetry && <button type="button" onClick={onRetry}>RETRY</button>}
+          {review && session.showRetry && <button type="button" onClick={onRetry}>RETRY</button>}
         </div>
       )}
     </div>
