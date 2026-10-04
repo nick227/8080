@@ -34,6 +34,7 @@ export type Item = {
   number: number
   parentId?: string
   anchorStartMs?: number // moment (ms) in the parent's media this reply anchors to
+  chat?: boolean // room chat; not played on the stage
   author: Author
   text?: string
   media?: Media[]

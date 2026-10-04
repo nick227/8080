@@ -149,6 +149,7 @@ export function toItem(item: ItemRow, viewerId: string | null) {
     number: item.number,
     parentId: item.parentId,
     anchorStartMs: item.anchorStartMs,
+    chat: item.chat,
     message: toMessage(item.message, deleted),
     reactions,
     createdAt: item.createdAt,

@@ -669,6 +669,8 @@ export interface components {
             parentId: string | null;
             /** @description Moment (ms) in the parent's media this reply anchors to; null when un-anchored. A point, not a range. */
             anchorStartMs: number | null;
+            /** @description Posted from the room chat. These stay in the chat and are not played on the stage. */
+            chat: boolean;
             message: components["schemas"]["Message"];
             reactions: components["schemas"]["ReactionSummary"][];
             /** Format: date-time */
@@ -686,6 +688,8 @@ export interface components {
         SendMessageInput: {
             text?: string;
             mediaIds?: string[];
+            /** @description Room chat message. Not a stage broadcast, and not a reply. */
+            chat?: boolean;
         };
         ReplyToItemInput: {
             text?: string;

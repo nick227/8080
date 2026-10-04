@@ -11,7 +11,7 @@ const rooms = new RoomService()
 
 type ItemCursor = { n: number }
 type Tx = Prisma.TransactionClient
-type ContentInput = { text?: string; mediaIds?: string[] }
+type ContentInput = { text?: string; mediaIds?: string[]; chat?: boolean }
 
 // Message = reusable content; Item = its placement in one room.
 //   send  → new Message + first Item (top-level)
@@ -50,7 +50,7 @@ export class ItemService {
 
     const item = await db.$transaction(async (tx) => {
       const msg = await this.createMessage(tx, viewerId, content)
-      return this.place(tx, { roomId, messageId: msg.id, parentId: null })
+      return this.place(tx, { roomId, messageId: msg.id, parentId: null, chat: input.chat === true })
     })
     return this.publishCreated(viewerId, item)
   }
@@ -180,14 +180,14 @@ export class ItemService {
   }
 
   // Row lock on the room serializes numbering within a room.
-  private async place(tx: Tx, p: { roomId: string; messageId: string; parentId: string | null; anchorStartMs?: number | null }) {
+  private async place(tx: Tx, p: { roomId: string; messageId: string; parentId: string | null; anchorStartMs?: number | null; chat?: boolean }) {
     const { itemCount } = await tx.room.update({
       where: { id: p.roomId },
       data: { itemCount: { increment: 1 }, lastActivityAt: new Date() },
       select: { itemCount: true },
     })
     const item = await tx.item.create({
-      data: { roomId: p.roomId, messageId: p.messageId, number: itemCount, parentId: p.parentId, anchorStartMs: p.anchorStartMs ?? null },
+      data: { roomId: p.roomId, messageId: p.messageId, number: itemCount, parentId: p.parentId, anchorStartMs: p.anchorStartMs ?? null, chat: p.chat === true },
       include: itemInclude,
     })
     await recountRooms(tx, [p.roomId])

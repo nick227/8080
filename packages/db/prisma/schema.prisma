@@ -143,6 +143,8 @@ model Item {
   // to — a point, not a range. Placement-level: the same Message shared into another
   // room has its own, independent anchors (none are copied).
   anchorStartMs Int?
+  // Room chat, not a stage broadcast. Share and replies do not copy it.
+  chat          Boolean   @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?

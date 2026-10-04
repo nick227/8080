@@ -1011,7 +1011,7 @@ components:
       description: |
         Placement of a Message inside one room. The same Message can be placed in many
         rooms (share); each placement has its own number, thread position and reactions.
-      required: [id, roomId, messageId, number, parentId, anchorStartMs, message, reactions, createdAt, deletedAt]
+      required: [id, roomId, messageId, number, parentId, anchorStartMs, chat, message, reactions, createdAt, deletedAt]
       properties:
         id: { type: string }
         roomId: { type: string }
@@ -1022,6 +1022,9 @@ components:
           type: [integer, 'null']
           minimum: 0
           description: Moment (ms) in the parent's media this reply anchors to; null when un-anchored. A point, not a range.
+        chat:
+          type: boolean
+          description: Posted from the room chat. These stay in the chat and are not played on the stage.
         message: { $ref: '#/components/schemas/Message' }
         reactions:
           type: array
@@ -1055,6 +1058,9 @@ components:
           maxItems: 10
           uniqueItems: true
           items: { type: string, minLength: 1, maxLength: 64 }
+        chat:
+          type: boolean
+          description: Room chat message. Not a stage broadcast, and not a reply.
 
     ReplyToItemInput:
       type: object

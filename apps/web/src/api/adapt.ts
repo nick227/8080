@@ -34,6 +34,7 @@ export function toItem(i: SdkItem): Item {
     messageId: i.messageId,
     parentId: i.parentId ?? undefined,
     anchorStartMs: i.anchorStartMs ?? undefined,
+    chat: i.chat || undefined,
     author: {
       id: i.message.author.id,
       name: i.message.author.name,

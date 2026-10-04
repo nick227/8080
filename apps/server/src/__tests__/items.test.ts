@@ -80,6 +80,19 @@ describe('sendMessage', () => {
     expect(await db.message.count()).toBe(1)
   })
 
+  it('chat: true places a chat item; the default is a stage item', async () => {
+    const room = await seedRoom(app, testUserId)
+    const post = (payload: object) => app.inject({ method: 'POST', url: `/rooms/${room.id}/items`, headers: asAuth(testUserId), payload })
+    const chat = await post({ text: 'in the rail', chat: true })
+    expect(chat.statusCode).toBe(201)
+    await validateResponse('sendMessage', 201, chat.json())
+    expect(chat.json().data.chat).toBe(true)
+    expect((await post({ text: 'on stage' })).json().data.chat).toBe(false)
+
+    const list = await app.inject({ method: 'GET', url: `/rooms/${room.id}/items`, headers: asAuth(testUserId) })
+    expect(list.json().data.map((i: any) => [i.message.text, i.chat])).toEqual([['in the rail', true], ['on stage', false]])
+  })
+
   it('rejects unknown fields (no silent parentId / author spoofing)', async () => {
     const room = await seedRoom(app, testUserId)
     const parent = await seedItem(app, testUserId, room.id)
