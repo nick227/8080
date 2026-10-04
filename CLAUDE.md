@@ -113,6 +113,12 @@ The in-lobby River (playing posts and replies inline) was retired: the Lobby onl
 - **Save remuxes once** (`edit/remuxSoundtrack.ts`, mediabunny, lazy-loaded): video packets copied unchanged (bit-exact; WebM for vp8/vp9/av1, else MP4), voice + looped music mixed once in `OfflineAudioContext`, encoded as the only audio track, length = the video's own (writes a real duration, fixing Firefox's duration-less webm). ~0.1–0.3s instead of real-time canvas re-encode.
 - `composeClip` (canvas + MediaRecorder) remains only for a **still image + audio**, which has no video stream to copy. Never route video through it again.
 
+## Virtual background (2026-10-03) — spec: `doc/07-virtual-background-plan.md`
+
+- Chosen while framing (strip under the camera: ORIGINAL · BLUR · photos · +); baked in while recording, never re-rendered after. `features/virtualCamera.ts` (lazy MediaPipe `selfie_segmenter`, CPU delegate, self-hosted runtime via the `mediapipe-runtime` Vite plugin) + `state/background.ts` (own photo in IndexedDB).
+- The compositor never opens/stops the camera: `CameraPreview` (framing) and `useMediaCapture` (recording: canvas video + mic) own it. Preview canvas is separate from the recording canvas so a mirrored front camera keeps the photo readable while the recording stays unmirrored.
+- Record is disabled until the segmenter is ready (ORIGINAL escape hatch). Degrade: full → every 2nd frame → Original; masks older than 500 ms → raw camera.
+
 ## Key Design Decisions
 
 - Items numbered per room: `Room.itemCount` incremented inside the createItem transaction; `@@unique([roomId, number])`.

@@ -21,6 +21,8 @@ import { imageFile } from '../edit/stillTake'
 import { takePicture, useStockEdit } from '../edit/useStockEdit'
 import type { PresenceActivity } from './PeopleStrip'
 import { THUMB_ACCEPT, thumbFileProblem } from '../conversation/newConversation'
+import { BackgroundStrip } from './BackgroundStrip'
+import { useBackground } from '../../state/background'
 
 function IdentityField({ identity }: { identity: ConversationIdentity }) {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -129,6 +131,9 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
   const pasted = useMemo(() => findYouTubeVideoId(ytText), [ytText])
 
   const recording = phase === 'arming' || phase === 'recording' || phase === 'stopping'
+  // Blur/Photo chosen but the segmenter isn't ready: Record waits (ORIGINAL is the escape hatch),
+  // so a take never silently records something other than what's on screen.
+  const bgBlocking = useBackground((s) => s.mode !== 'original' && s.status !== 'ready' && s.status !== 'unavailable') && kind === 'video' && frame !== 'text'
   const take = !recording && !!(blob || upload)
   const ytReady = !!pasted && yt.status !== 'loading' && yt.status !== 'unavailable'
 
@@ -148,6 +153,7 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
 
   const begin = async () => {
     if (useCapture.getState().phase === 'arming' || useCapture.getState().phase === 'recording') return
+    if (bgBlocking) return
     const soundLayer = frame === 'text'
     setYtText('')
     setYt({ status: 'loading' })
@@ -330,7 +336,8 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
           {showCamera && <CameraPreview deviceId={choice.deviceId} recording={recording} />}
           {showWave && <VoiceWave deviceId={choice.deviceId} recording={recording} />}
         </div>
-        <Control variant="record" type="button" active={recording} data-mass={recording ? 'dense' : 'rest'} aria-label={recording ? 'Stop' : 'Record'} onClick={() => (recording ? capture.stop() : void begin())}>
+        {showCamera && !recording && <BackgroundStrip />}
+        <Control variant="record" type="button" disabled={bgBlocking && !recording} active={recording} data-mass={recording ? 'dense' : 'rest'} aria-label={recording ? 'Stop' : 'Record'} onClick={() => (recording ? capture.stop() : void begin())}>
           <span style={{ display: 'grid', placeItems: 'center', width: '1em', height: '1em' }}>
             {recording ? '◉' : '●'}
           </span>

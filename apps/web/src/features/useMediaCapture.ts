@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { publishSpectrum, useCapture } from '../state/capture'
-import { cameraConstraints, pausePreview, publishLiveStream, resumePreview } from './previewStream'
+import { useBackground } from '../state/background'
+import { cameraConstraints, pausePreview, publishLiveCompositor, publishLiveStream, resumePreview } from './previewStream'
+import { effectiveMode, facingUser, loadSegmenter, startCompositor, type Compositor } from './virtualCamera'
 
 const getConstraints = (kind: 'audio' | 'video', deviceId: string): MediaStreamConstraints => {
   if (kind === 'audio') return { audio: deviceId ? { deviceId: { exact: deviceId } } : true }
@@ -18,11 +20,15 @@ export function useMediaCapture() {
 
   const audioCtxRef = useRef<AudioContext | null>(null)
   const animRef = useRef<number>(0)
+  const compositorRef = useRef<Compositor | null>(null)
 
   const disposeStream = useCallback(() => {
     const stream = streamRef.current
     streamRef.current = null
     publishLiveStream(null)
+    compositorRef.current?.stop()
+    compositorRef.current = null
+    publishLiveCompositor(null)
     stream?.getTracks().forEach(track => track.stop())
     resumePreview()
     if (audioCtxRef.current) {
@@ -58,7 +64,18 @@ export function useMediaCapture() {
         return false
       }
 
-      const recorder = new MediaRecorder(stream)
+      // Virtual background: record the compositor's canvas (+ the mic), not the raw camera.
+      // RecordSurface keeps Record disabled until the segmenter is ready, so this is instant.
+      const effect = kind === 'video' ? effectiveMode() : 'original'
+      let recordStream = stream
+      if (effect !== 'original') {
+        const seg = await loadSegmenter()
+        const compositor = startCompositor(seg, stream, { mode: effect, photoUrl: useBackground.getState().photo?.url ?? null, mirror: facingUser(stream) },
+          (message) => useBackground.getState().setStatus('unavailable', message))
+        compositorRef.current = compositor
+        recordStream = new MediaStream([...compositor.stream.getVideoTracks(), ...stream.getAudioTracks()])
+      }
+      const recorder = new MediaRecorder(recordStream)
       
       if (kind === 'audio') {
         const audioCtx = new AudioContext()
@@ -82,7 +99,8 @@ export function useMediaCapture() {
       chunksRef.current = []
       cancelledRef.current = false
       streamRef.current = stream
-      if (kind === 'video') publishLiveStream(stream)
+      if (compositorRef.current) publishLiveCompositor(compositorRef.current)
+      else if (kind === 'video') publishLiveStream(stream)
       recorderRef.current = recorder
       startedAtRef.current = performance.now()
       

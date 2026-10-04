@@ -282,3 +282,19 @@ body:has(.reply-instrument.is-active) .feed { transform: translateX(-60px); }
   body:has(.reply-instrument.is-active) .shell,
   body:has(.reply-instrument.is-active) .feed { transform: translateY(-20vh); }
 }
+/* Virtual background: the compositor's canvas replaces the raw camera video. */
+.cam-composite { display: none; }
+.cam-preview[data-composite] video { display: none; }
+.cam-preview[data-composite] .cam-composite { display: block; width: 100%; height: 100%; }
+.cam-composite canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Camera background strip (features/room/BackgroundStrip.tsx). */
+.bg-strip { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+.bg-strip-row { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.bg-chip { height: 32px; padding: 0 6px; font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.bg-chip:hover, .bg-chip:focus-visible { color: var(--ink); }
+.bg-chip[aria-pressed="true"] { color: var(--signal); }
+.bg-thumb { width: 44px; height: 32px; padding: 0; border: 1px solid var(--line); overflow: hidden; }
+.bg-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bg-thumb[aria-pressed="true"] { border-color: var(--signal); outline: 1px solid var(--signal); }
+.bg-strip-note { margin: 0; font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.record-button:disabled { opacity: .35; cursor: progress; }

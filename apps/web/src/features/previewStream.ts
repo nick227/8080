@@ -1,3 +1,5 @@
+import type { Compositor } from './virtualCamera'
+
 // The recorder's live stream (shown by CameraPreview) and the idle microphone
 // monitor. CameraPreview opens its own framing stream only while it's mounted and
 // not recording; nothing holds the camera after Stop, Save or closing.
@@ -31,6 +33,20 @@ export function getLiveStream() {
 export function publishLiveStream(stream: MediaStream | null) {
   if (live === stream) return
   live = stream
+  listeners.forEach((listener) => listener())
+}
+
+// The recorder's compositor while a virtual-background take is live (its preview
+// canvas replaces the raw stream in CameraPreview).
+let liveCompositor: Compositor | null = null
+
+export function getLiveCompositor() {
+  return liveCompositor
+}
+
+export function publishLiveCompositor(compositor: Compositor | null) {
+  if (liveCompositor === compositor) return
+  liveCompositor = compositor
   listeners.forEach((listener) => listener())
 }
 

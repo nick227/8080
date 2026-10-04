@@ -1,0 +1,351 @@
+import type { ImageSegmenter } from '@mediapipe/tasks-vision'
+import { useBackground, type BackgroundMode } from '../state/background'
+
+// Virtual background (doc/07-virtual-background-plan.md). One canvas per compositor is
+// the recording source; a second canvas is the on-screen preview (mirrored like a
+// selfie view, with a replacement photo kept readable). The compositor never opens or
+// stops the camera: its owner does (framing in CameraPreview, recording in useMediaCapture).
+
+// Gecko by feature, not user agent (UAs get overridden): Firefox starts at the lighter tier.
+export const isFirefox = typeof CSS !== 'undefined' && CSS.supports('-moz-appearance', 'none')
+
+/** Front cameras are shown mirrored while framing; recordings never are. */
+export const facingUser = (stream: MediaStream) =>
+  stream.getVideoTracks()[0]?.getSettings().facingMode === 'user'
+
+// ─── segmenter: one per page, self-hosted runtime, loaded on first use ─────────
+let segmenter: Promise<ImageSegmenter> | null = null
+
+export function loadSegmenter(): Promise<ImageSegmenter> {
+  segmenter ??= (async () => {
+    const { FilesetResolver, ImageSegmenter } = await import('@mediapipe/tasks-vision')
+    const fileset = await FilesetResolver.forVisionTasks('/mediapipe')
+    const create = (delegate: 'CPU') => ImageSegmenter.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: '/models/selfie_segmenter.tflite', delegate },
+      runningMode: 'VIDEO',
+      outputConfidenceMasks: true,
+      outputCategoryMask: false,
+    })
+    // CPU (XNNPACK) everywhere: the selfie model is tiny (~15 ms/frame measured even in
+    // headless Chromium), it avoids GPU→CPU mask readback, and MediaPipe's GPU delegate
+    // is unreliable in Firefox. Measured GPU in headless (software GL): ~190 ms/frame.
+    return create('CPU')
+  })().catch((error: unknown) => {
+    segmenter = null
+    throw error
+  })
+  return segmenter
+}
+
+/** Loads the segmenter for the chosen mode, reflecting progress in the background store. */
+export function ensureSegmenter() {
+  const store = useBackground.getState()
+  if (store.mode === 'original' || store.status === 'ready' || store.status === 'loading' || store.status === 'unavailable') return
+  store.setStatus('loading')
+  loadSegmenter().then(
+    () => { if (useBackground.getState().status === 'loading') useBackground.getState().setStatus('ready') },
+    () => useBackground.getState().setStatus('unavailable', 'Background effects aren’t available on this device'),
+  )
+}
+
+/** What the camera should show now: the chosen mode, unless effects are unavailable. */
+export function effectiveMode(): BackgroundMode {
+  const { mode, status } = useBackground.getState()
+  return status === 'unavailable' ? 'original' : mode
+}
+
+// ─── compositor ───────────────────────────────────────────────────────────────
+export type CompositorOptions = { mode: 'blur' | 'photo'; photoUrl: string | null; mirror: boolean }
+
+export type Compositor = {
+  /** The composited video for MediaRecorder (no audio). */
+  stream: MediaStream
+  /** The on-screen canvas (mirrored for a front camera, photo kept readable). */
+  preview: HTMLCanvasElement
+  setOptions: (options: Partial<CompositorOptions>) => void
+  stop: () => void
+}
+
+const MAX_W = 1280
+const MASK_W = 256
+const NEW = 0.6 // temporal smoothing: weight of the newest mask
+const STALE_MS = 500 // a mask older than this is not trusted: show the raw camera
+const WINDOW_MS = 2000 // quality is judged over this window
+
+// The last smoothed mask, so a new compositor (framing → recording) starts with a
+// cutout instead of a frame or two of the real room.
+let lastMask: { data: Float32Array; w: number; h: number; at: number } | null = null
+
+const smoothstep = (lo: number, hi: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - lo) / (hi - lo)))
+  return t * t * (3 - 2 * t)
+}
+
+function canvas(w = 2, h = 2) {
+  const el = document.createElement('canvas')
+  el.width = w
+  el.height = h
+  return el
+}
+
+function ctx2d(el: HTMLCanvasElement) {
+  const ctx = el.getContext('2d', { willReadFrequently: false })
+  if (!ctx) throw new Error('Canvas unavailable')
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  return ctx
+}
+
+// Cover-fit `img` into w×h.
+function cover(ctx: CanvasRenderingContext2D, img: CanvasImageSource & { width: number; height: number }, w: number, h: number) {
+  const scale = Math.max(w / img.width, h / img.height)
+  const dw = img.width * scale
+  const dh = img.height * scale
+  ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh)
+}
+
+export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initial: CompositorOptions, onUnavailable: (message: string) => void): Compositor {
+  let options = { ...initial }
+  let stopped = false
+  let failed = false // too slow or broken: raw camera from here on
+
+  const video = document.createElement('video')
+  video.muted = true
+  video.playsInline = true
+  video.srcObject = camera
+  void video.play().catch(() => undefined)
+
+  const out = canvas()
+  const preview = canvas()
+  const outCtx = ctx2d(out)
+  const previewCtx = ctx2d(preview)
+  const person = canvas()
+  const personCtx = ctx2d(person)
+  const segIn = canvas()
+  const segCtx = ctx2d(segIn)
+  const maskCanvas = canvas()
+  const maskCtx = ctx2d(maskCanvas)
+  const blurSmall = canvas()
+  const blurSmallCtx = ctx2d(blurSmall)
+  const blurMid = canvas()
+  const blurMidCtx = ctx2d(blurMid)
+  const photo = canvas()
+  const photoCtx = ctx2d(photo)
+  let photoImage: HTMLImageElement | null = null
+
+  let W = 0
+  let H = 0
+  let smooth: Float32Array | null = null
+  let shaped: Float32Array | null = null
+  let maskImage: ImageData | null = null
+  let maskAt = 0
+
+  const ensureSize = () => {
+    const vw = video.videoWidth
+    const vh = video.videoHeight
+    if (!vw || !vh) return false
+    const scale = Math.min(1, MAX_W / vw)
+    const w = Math.round(vw * scale)
+    const h = Math.round(vh * scale)
+    if (w === W && h === H) return true
+    W = w
+    H = h
+    for (const el of [out, preview, person, photo]) { el.width = W; el.height = H }
+    segIn.width = MASK_W
+    segIn.height = Math.max(2, Math.round((MASK_W * H) / W))
+    blurSmall.width = Math.max(2, Math.round(W / 24))
+    blurSmall.height = Math.max(2, Math.round(H / 24))
+    blurMid.width = Math.max(2, Math.round(W / 6))
+    blurMid.height = Math.max(2, Math.round(H / 6))
+    for (const c of [outCtx, previewCtx, personCtx, segCtx, maskCtx, blurSmallCtx, blurMidCtx, photoCtx]) {
+      c.imageSmoothingEnabled = true
+      c.imageSmoothingQuality = 'high'
+    }
+    paintPhoto()
+    return true
+  }
+
+  const paintPhoto = () => {
+    if (!photoImage || !W) return
+    photoCtx.clearRect(0, 0, W, H)
+    cover(photoCtx, photoImage, W, H)
+  }
+
+  const loadPhoto = (url: string | null) => {
+    if (!url) { photoImage = null; return }
+    const img = new Image()
+    img.src = url
+    void img.decode().then(() => {
+      if (stopped || options.photoUrl !== url) return
+      photoImage = img
+      paintPhoto()
+    }).catch(() => undefined)
+  }
+  loadPhoto(options.photoUrl)
+
+  // ── mask: smooth over time, soften the confidence edge, feather a little ──
+  const takeMask = (floats: Float32Array, w: number, h: number) => {
+    if (!smooth || smooth.length !== w * h) {
+      const seed = lastMask && lastMask.w === w && lastMask.h === h && performance.now() - lastMask.at < 1000 ? lastMask.data : null
+      smooth = seed ? Float32Array.from(seed) : Float32Array.from(floats)
+      shaped = new Float32Array(w * h)
+      maskCanvas.width = w
+      maskCanvas.height = h
+      maskImage = maskCtx.createImageData(w, h)
+    }
+    const s = smooth
+    const sh = shaped!
+    for (let i = 0; i < s.length; i++) {
+      s[i] = NEW * floats[i]! + (1 - NEW) * s[i]!
+      sh[i] = smoothstep(0.3, 0.7, s[i]!)
+    }
+    // 3×3 box blur at mask resolution ≈ a few pixels of feather at output size.
+    const px = maskImage!.data
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let sum = 0
+        let n = 0
+        for (let dy = -1; dy <= 1; dy++) {
+          const yy = y + dy
+          if (yy < 0 || yy >= h) continue
+          for (let dx = -1; dx <= 1; dx++) {
+            const xx = x + dx
+            if (xx < 0 || xx >= w) continue
+            sum += sh[yy * w + xx]!
+            n++
+          }
+        }
+        px[(y * w + x) * 4 + 3] = Math.round((sum / n) * 255)
+      }
+    }
+    maskCtx.putImageData(maskImage!, 0, 0)
+    maskAt = performance.now()
+    lastMask = { data: s, w, h, at: maskAt }
+  }
+
+  // ── quality: full → every 2nd frame → raw camera ──
+  let tier = isFirefox ? 1 : 0
+  let frameNo = 0
+  let windowStart = performance.now()
+  let windowFrames = 0
+  let windowSegMs = 0
+  let windowSegs = 0
+  let errors = 0
+
+  const giveUp = (message: string) => {
+    if (failed) return
+    failed = true
+    onUnavailable(message)
+  }
+
+  const judge = (now: number) => {
+    if (now - windowStart < WINDOW_MS) return
+    const fps = (windowFrames * 1000) / (now - windowStart)
+    const segMs = windowSegs ? windowSegMs / windowSegs : 0
+    if (tier === 0 && (segMs > 35 || fps < 20)) tier = 1
+    else if (tier === 1 && (segMs > 60 || fps < 12)) giveUp('Background effects are too slow on this device')
+    windowStart = now
+    windowFrames = 0
+    windowSegMs = 0
+    windowSegs = 0
+  }
+
+  const segment = (now: number) => {
+    segCtx.drawImage(video, 0, 0, segIn.width, segIn.height)
+    const t0 = performance.now()
+    try {
+      seg.segmentForVideo(segIn, now, (result) => {
+        const mask = result.confidenceMasks?.[0]
+        if (mask) takeMask(mask.getAsFloat32Array(), mask.width, mask.height)
+      })
+      errors = 0
+    } catch {
+      if (++errors >= 3) giveUp('Background effects stopped working')
+    }
+    windowSegMs += performance.now() - t0
+    windowSegs++
+  }
+
+  const drawBlur = (target: CanvasRenderingContext2D) => {
+    blurSmallCtx.drawImage(video, 0, 0, blurSmall.width, blurSmall.height)
+    blurMidCtx.drawImage(blurSmall, 0, 0, blurMid.width, blurMid.height)
+    target.drawImage(blurMid, 0, 0, W, H)
+  }
+
+  const draw = (now: number) => {
+    const mirror = options.mirror
+    const stale = failed || !maskAt || now - maskAt > STALE_MS
+    if (stale) {
+      // Raw camera (no mask yet, or segmentation stopped): never a frozen cutout.
+      outCtx.drawImage(video, 0, 0, W, H)
+      previewCtx.save()
+      if (mirror) { previewCtx.translate(W, 0); previewCtx.scale(-1, 1) }
+      previewCtx.drawImage(video, 0, 0, W, H)
+      previewCtx.restore()
+      return
+    }
+    personCtx.globalCompositeOperation = 'copy'
+    personCtx.drawImage(video, 0, 0, W, H)
+    personCtx.globalCompositeOperation = 'destination-in'
+    personCtx.drawImage(maskCanvas, 0, 0, W, H)
+    personCtx.globalCompositeOperation = 'source-over'
+
+    const photoMode = options.mode === 'photo' && photoImage
+    if (photoMode) outCtx.drawImage(photo, 0, 0)
+    else drawBlur(outCtx)
+    outCtx.drawImage(person, 0, 0)
+
+    if (!mirror) {
+      previewCtx.drawImage(out, 0, 0)
+      return
+    }
+    // Mirrored selfie view: the person (and a blurred room) flip; a photo stays readable.
+    if (photoMode) previewCtx.drawImage(photo, 0, 0)
+    previewCtx.save()
+    previewCtx.translate(W, 0)
+    previewCtx.scale(-1, 1)
+    if (!photoMode) previewCtx.drawImage(blurMid, 0, 0, W, H)
+    previewCtx.drawImage(person, 0, 0)
+    previewCtx.restore()
+  }
+  // ── frame loop: one composite per camera frame where supported ──
+  const hasRvfc = 'requestVideoFrameCallback' in HTMLVideoElement.prototype
+  let handle = 0
+  const schedule = () => {
+    if (stopped) return
+    if (hasRvfc) handle = video.requestVideoFrameCallback(() => frame())
+    else handle = requestAnimationFrame(() => frame())
+  }
+  const frame = () => {
+    if (stopped) return
+    const now = performance.now()
+    if (video.readyState >= 2 && ensureSize()) {
+      if (!failed && frameNo % (tier + 1) === 0) segment(now)
+      frameNo++
+      draw(now)
+      windowFrames++
+      if (!failed) judge(now)
+    }
+    schedule()
+  }
+  schedule()
+
+  const stream = out.captureStream(30)
+
+  return {
+    stream,
+    preview,
+    setOptions: (next) => {
+      const photoChanged = next.photoUrl !== undefined && next.photoUrl !== options.photoUrl
+      options = { ...options, ...next }
+      if (photoChanged) loadPhoto(options.photoUrl)
+    },
+    stop: () => {
+      stopped = true
+      if (hasRvfc) video.cancelVideoFrameCallback(handle)
+      else cancelAnimationFrame(handle)
+      stream.getTracks().forEach((track) => track.stop())
+      video.srcObject = null
+    },
+  }
+}
