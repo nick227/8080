@@ -98,7 +98,11 @@ let lastMask: { data: Float32Array; w: number; h: number; at: number } | null = 
 // recording one (which then never changes size mid-take). Budget ladder when a frame
 // doesn't fit: polish off → quarter-size blur → canvas ≤1280 wide → segment every 2nd
 // frame → Original.
-const learned = { maxW: MAX_W, polish: true, blurHalf: true }
+// The ladder also climbs back: once frames have headroom, the most recently dropped
+// step (canvas size first) is retried for one window; if it doesn't fit, it's reverted
+// and not retried for 30 s. Startup is expensive, so one-way steps stuck too low.
+type Step = 'canvas' | 'blur' | 'polish'
+const learned = { maxW: MAX_W, polish: true, blurHalf: true, blockedUntil: { canvas: 0, blur: 0, polish: 0 } as Record<Step, number> }
 
 const smoothstep = (lo: number, hi: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - lo) / (hi - lo)))
@@ -134,6 +138,19 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
   let polish = tune.polish && learned.polish
   let maxW = learned.maxW
   let blurHalf = tune.blurRes === 'half' && learned.blurHalf
+  let trial: Step | null = null
+  let calm = 0 // consecutive windows with headroom
+  const setStep = (step: Step, on: boolean) => {
+    if (step === 'canvas') { maxW = on ? MAX_W : 1280; learned.maxW = maxW }
+    if (step === 'blur') { blurHalf = on; learned.blurHalf = on }
+    if (step === 'polish') { polish = on; learned.polish = on; bakePhoto() }
+  }
+  const restorable = (step: Step, now: number) => {
+    if (now < learned.blockedUntil[step]) return false
+    if (step === 'canvas') return maxW < MAX_W && video.videoWidth > maxW
+    if (step === 'blur') return tune.blurRes === 'half' && !blurHalf && options.mode === 'blur' && nativeBlur
+    return tune.polish && !polish && nativeBlur
+  }
   let stopped = false
   let failed = false // too slow or broken: raw camera from here on
 
@@ -475,19 +492,32 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     const cameraFps = camera.getVideoTracks()[0]?.getSettings().frameRate || 30
     const budget = 1000 / Math.min(30, cameraFps) - 3
     const over = segMs > 35 || fps < 20 || segMs + drawMs > budget
-    if (tier === 0 && over) {
+    if (tier === 0 && trial) {
+      // A climb-back trial ran this window: keep it if it fit, else revert and wait.
+      if (over) {
+        setStep(trial, false)
+        learned.blockedUntil[trial] = now + 30_000
+      }
+      trial = null
+      calm = 0
+    } else if (tier === 0 && over) {
+      calm = 0
       // Keep full-rate segmentation (it's what tracks moving hands) as long as possible.
-      if (polish) {
-        polish = false
-        learned.polish = false
-        bakePhoto()
-      } else if (blurHalf && options.mode === 'blur') {
-        blurHalf = false // half-size blur costs ~7 ms more than quarter (Firefox, 720p)
-        learned.blurHalf = false
-      } else if (W > 1280 && !options.fixedSize) {
-        maxW = 1280
-        learned.maxW = 1280
-      } else tier = 1
+      if (polish) setStep('polish', false)
+      else if (blurHalf && options.mode === 'blur') setStep('blur', false) // half-size blur ≈ +7 ms (Firefox, 720p)
+      else if (W > 1280 && !options.fixedSize) setStep('canvas', false)
+      else tier = 1
+    } else if (tier === 0) {
+      // Headroom: after two calm windows, retry the most valuable dropped step. Never
+      // while recording (fixedSize) — a take shouldn't change cost mid-way.
+      if (!options.fixedSize && ++calm >= 2 && segMs + drawMs < budget - 4) {
+        const step = (['canvas', 'blur', 'polish'] as Step[]).find((s) => restorable(s, now))
+        if (step) {
+          setStep(step, true)
+          trial = step
+          calm = 0
+        }
+      }
     } else if (tier === 1 && segMs + drawMs < budget - 2) tier = 0 // a full-rate frame fits again
     else if (tier === 1 && (segMs > 60 || fps < 12)) giveUp('Background effects are too slow on this device')
     windowStart = now
