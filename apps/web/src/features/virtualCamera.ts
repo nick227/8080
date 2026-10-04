@@ -132,6 +132,12 @@ function cover(ctx: CanvasRenderingContext2D, img: CanvasImageSource & { width: 
   ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh)
 }
 
+/** The size the compositor will record for a camera of this size (what the ladder allows now). */
+export function compositorOutputSize(width: number, height: number) {
+  const scale = Math.min(1, learned.maxW / (width || 1))
+  return { width: Math.round(width * scale), height: Math.round(height * scale) }
+}
+
 export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initial: CompositorOptions, onUnavailable: (message: string) => void): Compositor {
   let options = { ...initial }
   const tune = readTune()
@@ -212,9 +218,12 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
   let maskImage: ImageData | null = null
   let maskAt = 0
 
-  const ensureSize = () => {
-    const vw = video.videoWidth
-    const vh = video.videoHeight
+  // Sized from the track's reported size up front (then from the video once it plays),
+  // so a recorder never starts on a placeholder canvas: Firefox's MediaRecorder can lock
+  // onto the starting size.
+  const ensureSize = (reported?: { width?: number; height?: number }) => {
+    const vw = reported?.width ?? video.videoWidth
+    const vh = reported?.height ?? video.videoHeight
     if (!vw || !vh) return false
     const scale = Math.min(1, maxW / vw)
     const w = Math.round(vw * scale)
@@ -296,6 +305,8 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     }).catch(() => undefined)
   }
   loadPhoto(options.photoUrl)
+
+  ensureSize(camera.getVideoTracks()[0]?.getSettings())
 
   // ── mask: smooth over time, soften the confidence edge, feather a little ──
   let eroded: Float32Array | null = null

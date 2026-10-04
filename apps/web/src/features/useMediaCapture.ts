@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { publishSpectrum, useCapture } from '../state/capture'
 import { useBackground } from '../state/background'
 import { cameraConstraints, pausePreview, publishLiveCompositor, publishLiveStream, resumePreview } from './previewStream'
-import { effectiveMode, facingUser, loadSegmenter, setVbgRecording, startCompositor, type Compositor } from './virtualCamera'
+import { compositorOutputSize, effectiveMode, facingUser, loadSegmenter, setVbgRecording, startCompositor, type Compositor } from './virtualCamera'
 
 const getConstraints = (kind: 'audio' | 'video', deviceId: string): MediaStreamConstraints => {
   if (kind === 'audio') return { audio: deviceId ? { deviceId: { exact: deviceId } } : true }
@@ -75,10 +75,14 @@ export function useMediaCapture() {
         compositorRef.current = compositor
         recordStream = new MediaStream([...compositor.stream.getVideoTracks(), ...stream.getAudioTracks()])
       }
-      // Explicit video bitrate: browser defaults are conservative and soften the picture.
+      // Explicit, generous video bitrate for what is actually recorded (the compositor's
+      // canvas when an effect is on, else the camera): quality first, upload size last.
+      // 8 Mbps at 720p, 12 Mbps at 1080p (≈ 100 MB cap: ~95 s / ~65 s).
       const settings = stream.getVideoTracks()[0]?.getSettings()
-      const pixels = (settings?.width ?? 0) * (settings?.height ?? 0)
-      const videoBitsPerSecond = pixels > 1280 * 720 ? 10_000_000 : pixels > 640 * 480 ? 6_000_000 : 2_500_000
+      const cam = { width: settings?.width ?? 0, height: settings?.height ?? 0 }
+      const output = compositorRef.current ? compositorOutputSize(cam.width, cam.height) : cam
+      const pixels = output.width * output.height
+      const videoBitsPerSecond = pixels > 1280 * 720 ? 12_000_000 : pixels > 640 * 480 ? 8_000_000 : 3_000_000
       const recorder = kind === 'video'
         ? new MediaRecorder(recordStream, { videoBitsPerSecond, audioBitsPerSecond: 128_000 })
         : new MediaRecorder(recordStream)

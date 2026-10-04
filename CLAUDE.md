@@ -117,7 +117,8 @@ The in-lobby River (playing posts and replies inline) was retired: the Lobby onl
 
 - Chosen while framing (strip under the camera: ORIGINAL · BLUR · photos · +); baked in while recording, never re-rendered after. `features/virtualCamera.ts` (lazy MediaPipe `selfie_segmenter`, CPU delegate, self-hosted runtime via the `mediapipe-runtime` Vite plugin) + `state/background.ts` (own photo in IndexedDB).
 - The compositor never opens/stops the camera: `CameraPreview` (framing) and `useMediaCapture` (recording: canvas video + mic) own it. Preview canvas is separate from the recording canvas so a mirrored front camera keeps the photo readable while the recording stays unmirrored.
-- Record is disabled until the segmenter is ready (ORIGINAL escape hatch). Degrade: full → every 2nd frame → Original; masks older than 500 ms → raw camera.
+- Record is disabled until the segmenter is ready (ORIGINAL escape hatch). Masks older than 500 ms → raw camera.
+- **Quality-first order (locked 2026-10-04):** clean subject extraction → full-rate segmentation (temporal responsiveness) → artifact-free background → best *sustainable* output resolution → generous bitrate → upload size last. Never trade segmentation cadence for 1080p. Budget ladder (`virtualCamera.ts`): polish → half-size blur → canvas ≤1280 → every 2nd frame → Original, with trial climb-back. Bitrate follows the recorded output: 8 Mbps at 720p, 12 Mbps at 1080p. Judge quality from a saved recording, not the scaled preview.
 
 ## Key Design Decisions
 

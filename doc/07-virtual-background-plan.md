@@ -120,3 +120,8 @@ Measured on a 1280×720 person clip (headless Chromium), readout numbers:
 - Now, after two calm windows with ≥ 4 ms headroom, the most valuable dropped step is retried for one window (canvas size → half blur → polish); if that window is over budget it's reverted and blocked for 30 s. No trials while recording (`fixedSize`); recordings inherit what framing learned.
 - Measured (headless Firefox, 1080p source, Blur): drops at 6/8/10 s; trial of 1920×1080 at 14 s cost 13 + 22 ms (budget ~30) → reverted at 16 s. A 1080p canvas draws ≈ 1.6× the 720p cost here.
 - Recording bitrate follows the camera: 10 Mbps for a 1080p camera (even when the canvas falls back to 720p).
+
+## Bitrate follows the output; quality-first order (2026-10-04)
+- Recording bitrate is chosen for what is actually recorded — the compositor's canvas when an effect is on (`compositorOutputSize`, from the ladder's current canvas cap), else the camera: **8 Mbps at 720p, 12 Mbps at 1080p** (3 Mbps below). Generous on purpose: quality first, upload size last (≈ 95 s / 65 s under the 100 MB cap). Verified: 1080p camera + Photo with the ladder at 1280 → 8 Mbps; 1080p raw → 12 Mbps.
+- The compositor sizes its canvases from the camera track's reported size immediately, so a recorder never starts on the 2×2 placeholder canvas (Firefox may lock onto the starting size). Verified: Firefox and Chromium composited takes are 1280×720.
+- Locked order (also in CLAUDE.md): clean extraction → full-rate segmentation → artifact-free background → best sustainable resolution → generous bitrate → upload size.
