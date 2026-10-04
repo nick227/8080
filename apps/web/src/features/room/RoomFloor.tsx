@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { useCapture } from '../../state/capture'
 import { useUI } from '../../state/ui'
 import { PersonIcon } from '../../components/icons'
@@ -41,11 +41,12 @@ function Floor({ view, seats, item, next, onEnded, onView, self, bar, stack, pau
   paused?: boolean
 }) {
   const me = seats.find((seat) => seat.self)
-  const showAir = view === 'screen' || !!item
+  const showAir = !!item
+  const castStyle = { '--n': String(Math.max(seats.length, 1)) } as CSSProperties
 
   return (
     <section className="room-live" data-layout={view} data-density={tileDensity(seats.length)} data-playing={item ? '' : undefined} data-broadcast={messageOnly(item) ? 'message' : undefined} aria-label={VIEW_LABEL[view]}>
-      <div className="room-cast">
+      <div className="room-cast" style={castStyle}>
         {me && self()}
         {seats.filter((seat) => !seat.self).map((seat) => (
           <FaceTile key={seat.id} seat={seat} />
@@ -103,11 +104,6 @@ function ArmedFloor({ view, seats, item, next, onEnded, onSend, onActivity, onVi
 }) {
   const [armed, setArmed] = useState(false)
   const session = useRecordSession({ onSend, onActivity, onClose: () => setArmed(false) })
-  const armCamera = () => {
-    if (session.recording) return
-    session.chooseFrame('camera')
-    setArmed(true)
-  }
   const submit = async () => {
     if (!session.canSend || session.sending) return
     await session.send()
@@ -125,7 +121,7 @@ function ArmedFloor({ view, seats, item, next, onEnded, onSend, onActivity, onVi
       onView={onView}
       self={() => {
         const me = seats.find((seat) => seat.self)
-        return me ? <SelfTile seat={me} armed={armed} session={session} onGoLive={armCamera} /> : null
+        return me ? <SelfTile seat={me} armed={armed} session={session} /> : null
       }}
       bar={<LiveBar session={session} armed={armed} setArmed={setArmed} onPost={onPost} view={view} onView={onView} />}
       stack={armed ? (

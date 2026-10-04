@@ -1,11 +1,12 @@
 import type { RoomPerson } from './PeopleStrip'
 
-export type RoomView = 'screen' | 'grid'
+export type RoomView = 'screen' | 'medium' | 'grid'
 
-export const ROOM_VIEWS: RoomView[] = ['screen', 'grid']
+export const ROOM_VIEWS: RoomView[] = ['screen', 'medium', 'grid']
 
 export const VIEW_LABEL: Record<RoomView, string> = {
   screen: 'Full screen',
+  medium: 'Medium',
   grid: 'Grid',
 }
 
@@ -15,6 +16,7 @@ export function loadRoomView(): RoomView {
   try {
     const stored = localStorage.getItem(KEY)
     if (stored === 'grid' || stored === 'gallery') return 'grid'
+    if (stored === 'medium') return 'medium'
     return 'screen'
   } catch {
     return 'screen'
@@ -38,8 +40,8 @@ export type TileDensity = 'few' | 'some' | 'many' | 'crowd'
 
 export function tileDensity(count: number): TileDensity {
   if (count <= 2) return 'few'
-  if (count <= 4) return 'some'
-  if (count <= 8) return 'many'
+  if (count <= 6) return 'some'
+  if (count <= 12) return 'many'
   return 'crowd'
 }
 

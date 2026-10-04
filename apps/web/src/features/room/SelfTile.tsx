@@ -51,26 +51,16 @@ function Feed({ session }: { session: RecordSession }) {
   )
 }
 
-export function SelfTile({ seat, dominant, armed, session, onGoLive }: {
+export function SelfTile({ seat, armed, session }: {
   seat: Seat
-  dominant?: boolean
   armed: boolean
   session: RecordSession | null
-  onGoLive: () => void
 }) {
-  const className = dominant ? 'room-cast-face room-self is-dominant' : 'room-cast-face room-self'
   const feed = armed && session ? <Feed session={session} /> : null
-  if (!feed) {
-    return (
-      <button type="button" className={className} aria-label={`${seat.name}, go live`} onClick={onGoLive}>
-        <Face seat={seat} />
-      </button>
-    )
-  }
   return (
-    <div className={`${className} is-live`} data-recording={session?.recording || undefined}>
-      {feed}
-      <span className="room-seat-name">{seat.name}</span>
+    <div className={feed ? 'room-cast-face room-self is-live' : 'room-cast-face room-self'} data-recording={feed ? session?.recording || undefined : undefined}>
+      {feed ?? <Face seat={seat} />}
+      {feed && <span className="room-seat-name">{seat.name}</span>}
     </div>
   )
 }
