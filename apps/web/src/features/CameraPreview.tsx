@@ -1,50 +1,26 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { useCapture } from '../state/capture'
-import { getLiveStream, openPreviewStream, releasePreviewStream, subscribeLive } from './previewStream'
+import { getLiveStream, subscribeLive } from './previewStream'
 
 const facingUser = (stream: MediaStream) =>
   stream.getVideoTracks()[0]?.getSettings().facingMode === 'user'
 
-export function CameraPreview({ deviceId, recording }: { deviceId: string; recording: boolean }) {
+// Shows the recorder's own stream while a take is live. It never opens the camera
+// itself: the camera is held only while recording, so its light goes off with the
+// take (permission stays granted, so the next Record reconnects without a prompt).
+export function CameraPreview({ recording }: { recording: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const live = useSyncExternalStore(subscribeLive, getLiveStream)
-  const phase = useCapture((s) => s.phase)
-  const hold = phase === 'arming' || phase === 'recording' || phase === 'stopping'
   const [mirror, setMirror] = useState(false)
 
   useEffect(() => {
     const video = videoRef.current
-    if (!video) return
-
-    const attach = (stream: MediaStream) => {
-      video.srcObject = stream
-      video.muted = true
-      setMirror(facingUser(stream))
-      void video.play().catch(() => {})
-    }
-
-    if (live) {
-      attach(live)
-      return () => { video.srcObject = null }
-    }
-    if (hold) return
-
-    let gone = false
-    void openPreviewStream(deviceId).then((stream) => {
-      if (!stream || gone) return
-      attach(stream)
-    })
-    
-    return () => {
-      gone = true
-      // Only release the stream if we are genuinely unmounting or changing devices.
-      // If we are just transitioning to 'hold' (arming/recording), keep the hardware warm.
-      if (!useCapture.getState().phase.match(/arming|recording|stopping/)) {
-        void releasePreviewStream()
-      }
-      video.srcObject = null
-    }
-  }, [deviceId, live, hold])
+    if (!video || !live) return
+    video.srcObject = live
+    video.muted = true
+    setMirror(facingUser(live))
+    void video.play().catch(() => {})
+    return () => { video.srcObject = null }
+  }, [live])
 
   return (
     <div className="cam-preview" data-recording={recording || undefined} data-mirror={mirror || undefined}>
