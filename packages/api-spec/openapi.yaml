@@ -700,12 +700,21 @@ paths:
     parameters:
       - $ref: '#/components/parameters/RoomId'
     get:
+      parameters:
+        - in: query
+          name: cursor
+          schema: { type: string, pattern: '^(0|[1-9][0-9]*)$' }
+        - in: header
+          name: Last-Event-ID
+          schema: { type: string }
       operationId: streamRoomEvents
       summary: Server-Sent Events for a room
       description: |
         `text/event-stream`. Each message's `event:` field is the StreamEvent `type`
-        and `data:` is a JSON-encoded StreamEvent. On `item.created`, `id:` is the item's
-        number; on reconnect, call listRoomItems with `after` = highest number seen to catch up.
+        and `data:` is a hydrated StreamEvent. Every item change has a durable room
+        sequence in `id:`. Resume with Last-Event-ID or the cursor query parameter
+        from listRoomItems meta.changeCursor. Replay uses bounded batches of current
+        item state, including tombstones and viewer-specific reactions.
         A `ping` comment is sent every 25s to keep proxies from closing the connection.
       tags: [stream]
       responses:
@@ -808,6 +817,7 @@ components:
       type: object
       required: [hasMore, nextCursor]
       properties:
+        changeCursor: { type: string, description: Durable room change sequence for item pages }
         hasMore: { type: boolean }
         nextCursor: { type: [string, 'null'] }
 
@@ -1187,11 +1197,12 @@ components:
       type: object
       description: |
         Payload of each SSE message. `item.updated` covers reactions and tombstones.
-        Instead of a fully hydrated Item, this payload only contains the itemId and itemNumber.
-        The client must fetch the item to get the full state.
-      required: [type, actorId, itemId, itemNumber]
+        Contains current item state and viewer-specific reactions; no item GET is needed.
+      required: [type, actorId, itemId, itemNumber, cursor, item]
       properties:
         type: { $ref: '#/components/schemas/StreamEventType' }
         actorId: { type: string, description: User whose action produced this event }
         itemId: { type: string }
         itemNumber: { type: integer }
+        cursor: { type: string }
+        item: { $ref: '#/components/schemas/Item' }

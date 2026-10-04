@@ -199,7 +199,10 @@ export function Item({ item, parentNumber, replyCount = 0, onReply, onReact, onE
         ))}
         <Stack direction="row" gap="medium" className="item-actions" aria-label={`Actions for item ${label(item.number)}`} style={{ justifyContent: 'space-between', alignItems: 'center', width: '100%', marginTop: 0 }}>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase' }}>{item.media?.[0]?.title || item.media?.[0]?.name || ''}</span>
-          {onReply && <Control aria-label={`Reply to item ${label(item.number)}`} onClick={() => onReply(item.id)}>REPLY</Control>}
+          <Stack direction="row" gap="small">
+            <Control aria-label={`Share item ${label(item.number)}`} onClick={() => setShowShareMenu(v => !v)}>SHARE</Control>
+            {onReply && <Control aria-label={`Reply to item ${label(item.number)}`} onClick={() => onReply(item.id)}>REPLY</Control>}
+          </Stack>
         </Stack>
         
         {showShareMenu && !isActive && (

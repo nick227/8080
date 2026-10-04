@@ -1,77 +1,62 @@
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { getApiBaseUrl, getApiClient } from '../client'
+import { getApiBaseUrl } from '../client'
 import type { StreamEvent } from '../models'
 import { keys } from './keys'
-import { upsertCachedItem } from './useItems'
+import { upsertCachedItem, type ItemsCache } from './useItems'
 
-// Live room updates over SSE, merged into the useRoomItems cache.
-// onEvent lets apps with their own store (e.g. zustand) mirror events too.
+// The cursor lives with the loaded pages: remounts resume without losing history.
 export function useRoomStream(roomId: string | undefined, opts: { onEvent?: (event: StreamEvent) => void } = {}) {
   const queryClient = useQueryClient()
   const { onEvent } = opts
-
   useEffect(() => {
     if (!roomId || typeof EventSource === 'undefined') return
-    const source = new EventSource(`${getApiBaseUrl()}/rooms/${roomId}/stream`, { withCredentials: true })
-    let dropped = false
-    const pendingFetches = new Map<string, ReturnType<typeof setTimeout>>()
-
-    const handle = (message: MessageEvent<string>) => {
-      let event: StreamEvent
+    let source: EventSource | undefined
+    let cursor = -1
+    let flushing = false
+    const pending: StreamEvent[] = []
+    const flush = () => {
+      if (flushing || queryClient.getQueryState(keys.items(roomId))?.fetchStatus === 'fetching') return
+      flushing = true
       try {
-        event = JSON.parse(message.data)
-      } catch {
-        return
+        for (const event of pending.splice(0)) {
+          const next = Number(event.cursor)
+          if (next <= cursor) continue
+          upsertCachedItem(queryClient, event.item)
+          cursor = next
+          queryClient.setQueryData<ItemsCache>(keys.items(roomId), cache => {
+            if (!cache?.pages[0]) return cache
+            const pages = [...cache.pages]
+            pages[0] = { ...pages[0]!, meta: { ...pages[0]!.meta, changeCursor: event.cursor } }
+            return { ...cache, pages }
+          })
+          onEvent?.(event)
+        }
+      } finally { flushing = false }
+    }
+    const start = () => {
+      if (source) return
+      const cache = queryClient.getQueryData<ItemsCache>(keys.items(roomId))
+      const initial = cache?.pages[0]?.meta.changeCursor
+      if (initial === undefined) return
+      cursor = Number(initial)
+      source = new EventSource(`${getApiBaseUrl()}/rooms/${roomId}/stream?cursor=${encodeURIComponent(initial)}`, { withCredentials: true })
+      const handle = (message: MessageEvent<string>) => {
+        let event: StreamEvent
+        try { event = JSON.parse(message.data) } catch { return }
+        const next = Number(event.cursor)
+        if (!event.item || event.item.roomId !== roomId || !Number.isSafeInteger(next) || next <= cursor) return
+        pending.push(event)
+        flush()
       }
-
-      // Debounce rapid events for the same item (e.g. multiple reactions in <100ms)
-      // to avoid race conditions and redundant DB queries.
-      const timer = pendingFetches.get(event.itemId)
-      if (timer) clearTimeout(timer)
-
-      pendingFetches.set(
-        event.itemId,
-        setTimeout(async () => {
-          pendingFetches.delete(event.itemId)
-          try {
-            const res = await queryClient.fetchQuery({
-              queryKey: keys.item(event.itemId),
-              queryFn: () => getApiClient().GET('/items/{itemId}', { params: { path: { itemId: event.itemId } } }),
-              staleTime: 0, // Always fetch, but dedupes if multiple concurrent fetchQuery happen
-            })
-            if (res.data?.data) {
-              upsertCachedItem(queryClient, res.data.data, { keepReacted: true })
-            }
-          } catch (e) {
-            // Ignore fetch errors
-          }
-        }, 100)
-      )
-
-      onEvent?.(event)
+      source.addEventListener('item.created', handle as EventListener)
+      source.addEventListener('item.updated', handle as EventListener)
+      const roster = () => { void queryClient.invalidateQueries({ queryKey: keys.participants(roomId) }) }
+      source.addEventListener('participants.updated', roster)
+      source.onopen = roster
     }
-
-    source.addEventListener('item.created', handle as EventListener)
-    source.addEventListener('item.updated', handle as EventListener)
-    // Someone arrived/left, or a bot was seated/kicked: refetch the roster.
-    const roster = () => queryClient.invalidateQueries({ queryKey: keys.participants(roomId) })
-    source.addEventListener('participants.updated', roster)
-    source.onerror = () => {
-      dropped = true
-    }
-    source.onopen = () => {
-      // Refresh a bounded recent window until durable change-cursor recovery exists.
-      if (dropped) {
-        void queryClient.resetQueries({ queryKey: keys.items(roomId), exact: true })
-        roster()
-      }
-      dropped = false
-    }
-    return () => {
-      source.close()
-      pendingFetches.forEach(clearTimeout)
-      pendingFetches.clear()
-    }
+    const unsubscribe = queryClient.getQueryCache().subscribe(() => { start(); flush() })
+    start()
+    return () => { unsubscribe(); source?.close() }
   }, [roomId, queryClient, onEvent])
 }

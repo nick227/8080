@@ -2,13 +2,6 @@
 // ## Phase 2: Redis pub/sub so multiple server instances share events.
 // ## Phase 2: drop a member's open streams when they leave a private room.
 
-export type StreamEvent = {
-  type: 'item.created' | 'item.updated'
-  actorId: string
-  itemId: string
-  itemNumber: number
-}
-
 type Client = { userId: string; write: (frame: string) => boolean; close: () => void }
 
 class StreamHub {
@@ -22,11 +15,6 @@ class StreamHub {
       set!.delete(client)
       if (set!.size === 0) this.rooms.delete(roomId)
     }
-  }
-
-  publish(roomId: string, event: StreamEvent) {
-    const id = event.type === 'item.created' ? `id: ${event.itemNumber}\n` : ''
-    this.write(roomId, `${id}event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
   }
 
   private write(roomId: string, frame: string) {

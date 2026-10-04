@@ -1,3 +1,4 @@
+import { recordChange } from './roomChanges'
 import { db } from '@project/db'
 import { storage } from '../providers/storage'
 import { recountRooms } from './roomStats'
@@ -16,7 +17,7 @@ export async function purgeCapture(messageId: string, media: StoredMedia[]) {
       await tx.room.updateMany({ where: { thumbnailId: { in: mediaIds } }, data: { thumbnailId: null } })
       await tx.media.deleteMany({ where: { id: { in: mediaIds } } })
     }
-    await tx.message.update({ where: { id: messageId }, data: { text: null, deletedAt: new Date() } })
+    const message = await tx.message.update({ where: { id: messageId }, data: { text: null, deletedAt: new Date() } })
     const live = await tx.item.findMany({
       where: { messageId, deletedAt: null },
       select: { id: true, roomId: true, number: true },
@@ -24,6 +25,9 @@ export async function purgeCapture(messageId: string, media: StoredMedia[]) {
     if (live.length) {
       await tx.item.updateMany({ where: { id: { in: live.map((row) => row.id) } }, data: { deletedAt: new Date() } })
       await recountRooms(tx, live.map((row) => row.roomId))
+    }
+    for (const item of [...live].sort((a, b) => a.roomId.localeCompare(b.roomId))) {
+      await recordChange(tx, item.roomId, item.id, message.authorId)
     }
     return live
   })

@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query'
 import { getApiClient, unwrap } from '../client'
 import type { SendMessageInput, ShareMessageInput, Item, PaginatedMeta, ReplyToItemInput } from '../models'
@@ -6,8 +7,7 @@ import { keys } from './keys'
 type ItemsPage = { data: Item[]; meta: PaginatedMeta }
 export type ItemsCache = InfiniteData<ItemsPage>
 
-// Room items ascending by number. Pages are fetched automatically until exhausted,
-// because branch derivation (parentId → tree) needs the whole room.
+// Fetch newest pages first, exposing only the loaded window in chronological order.
 export function useRoomItems(roomId: string | undefined, opts: { pageSize?: number } = {}) {
   const query = useInfiniteQuery({
     queryKey: keys.items(roomId ?? ''),
@@ -16,20 +16,26 @@ export function useRoomItems(roomId: string | undefined, opts: { pageSize?: numb
     queryFn: async ({ pageParam }) =>
       unwrap(
         await getApiClient().GET('/rooms/{roomId}/items', {
-          params: { path: { roomId: roomId! }, query: { cursor: pageParam, limit: opts.pageSize ?? 100 } },
+          params: { path: { roomId: roomId! }, query: { cursor: pageParam, limit: opts.pageSize ?? 50, order: 'desc' } },
         }),
       ),
     getNextPageParam: (last) => last.meta.nextCursor ?? undefined,
-    // The stream (useRoomStream) keeps this cache live and refetches after a dropped
+    // The stream (useRoomStream) keeps this cache live and replays changes after a dropped
     // connection. Refetching every page of every mounted room on tab focus is pure cost.
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   })
-  if (query.hasNextPage && !query.isFetchingNextPage && !query.isError) void query.fetchNextPage()
-  return { ...query, items: flattenItems(query.data) }
+  const items = useMemo(() => flattenItems(query.data), [query.data])
+  return { ...query, items }
 }
 
 export function flattenItems(data: ItemsCache | undefined): Item[] {
-  return data?.pages.flatMap((p) => p.data) ?? []
+  const items = new Map<string, Item>()
+  for (const page of data?.pages ?? []) {
+    for (const item of page.data) if (!items.has(item.id)) items.set(item.id, item)
+  }
+  return [...items.values()].sort((a, b) => a.number - b.number)
 }
 
 // Broadcast payloads carry reacted=false; keep this viewer's own state.
@@ -50,8 +56,8 @@ export function upsertCachedItem(queryClient: QueryClient, item: Item, opts: { k
       return { ...cache, pages: next }
     }
 
-    // Recent items (the usual update) live in the last pages: search from the end.
-    for (let p = pages.length - 1; p >= 0; p--) {
+    // The first page contains the newest items.
+    for (let p = 0; p < pages.length; p++) {
       const at = pages[p]!.data.findIndex((existing) => existing.id === item.id)
       if (at < 0) continue
       const data = [...pages[p]!.data]
@@ -59,15 +65,13 @@ export function upsertCachedItem(queryClient: QueryClient, item: Item, opts: { k
       return replacePage(p, data)
     }
 
-    // New item: append once every page is loaded; while still paging, a later page brings it.
-    const lastIndex = pages.length - 1
-    const last = pages[lastIndex]
-    if (!last || last.meta.hasMore) return cache
-    const tail = last.data[last.data.length - 1]
-    const data = !tail || tail.number < item.number
-      ? [...last.data, item]
-      : [...last.data, item].sort((a, b) => a.number - b.number)
-    return replacePage(lastIndex, data)
+    // Events for unloaded older items must not expand the history window.
+    const first = pages[0]
+    if (!first) return cache
+    const oldest = pages.at(-1)
+    const oldestNumber = oldest?.data.reduce((min, entry) => Math.min(min, entry.number), Infinity) ?? Infinity
+    if (oldest?.meta.hasMore && item.number < oldestNumber) return cache
+    return replacePage(0, [...first.data, item].sort((a, b) => b.number - a.number))
   })
   queryClient.setQueryData(keys.item(item.id), item)
 }

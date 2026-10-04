@@ -3,25 +3,27 @@ import { test, expect } from '@playwright/test';
 test.describe('Playback Engine', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/room/demo');
-    const joinButton = page.locator('text=Join as Guest');
-    if (await joinButton.isVisible()) {
-      await joinButton.click();
+    await expect(page.locator('text=Join as Guest').or(page.locator('[aria-label="Microphone"]'))).toBeVisible();
+    if (await page.locator('text=Join as Guest').isVisible()) {
+      await page.locator('text=Join as Guest').click();
     }
   });
 
   test('advances through feed items sequentially', async ({ page }) => {
+    const mediumBtn = page.locator('button', { hasText: 'Medium' });
+    if (await mediumBtn.isVisible()) await mediumBtn.click();
+
     // 1. Seed items
     for (let i = 1; i <= 3; i++) {
-      await page.locator('button:has-text("Aa")').click();
-      await page.locator('textarea[placeholder="Write something."]').fill(`Playback Test Item ${i}`);
-      await page.locator('button:has-text("Send")').click();
+      await page.getByPlaceholder('Message').fill(`Playback Test Item ${i}`);
+      await page.getByRole('button', { name: 'Send' }).click();
     }
     
     await expect(page.locator('text=Playback Test Item 3').first()).toBeVisible();
 
     // 2. Click the first item to trigger playback
-    const firstItem = page.locator('article.item', { hasText: 'Playback Test Item 1' }).first();
-    await firstItem.click(); // Assuming clicking the item triggers playback
+    const firstItem = page.locator('article', { hasText: 'Playback Test Item 1' }).first();
+    await firstItem.click({ force: true }); // Assuming clicking the item triggers playback
 
     // Verify it dwells (we have an active class or HELD label, etc.)
     // Note: Items without media use DWELL timers to advance.

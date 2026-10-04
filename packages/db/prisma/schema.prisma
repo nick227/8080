@@ -91,6 +91,8 @@ model Room {
   inviteCode     String?        @unique @db.VarChar(32)
   ownerId        String
   // Per-room item sequence counter; incremented in the createItem transaction
+  changeCount    Int            @default(0)
+  changes        RoomChange[]
   itemCount      Int            @default(0)
   responseCount  Int            @default(0)
   durationMs     Int            @default(0)
@@ -398,4 +400,15 @@ model UserMute {
 
   @@unique([userId, mutedUserId])
   @@index([mutedUserId])
+}
+
+// Content-free durable journal: replay hydrates current state, including tombstones.
+model RoomChange {
+  roomId String
+  sequence Int
+  itemId String
+  actorId String
+  type String @db.VarChar(32)
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  @@id([roomId, sequence])
 }

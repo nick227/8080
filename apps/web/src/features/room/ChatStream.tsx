@@ -109,11 +109,14 @@ const Entry = memo(function Entry({ row }: { row: StreamRow }) {
   )
 })
 
-export function ChatStream({ rows, pin, anchorId, onCaughtUp }: {
+export function ChatStream({ rows, pin, anchorId, onCaughtUp, hasOlder, loadingOlder, onLoadOlder }: {
   rows: StreamRow[]
   pin: number
   anchorId?: string
   onCaughtUp?: () => void
+  hasOlder?: boolean
+  loadingOlder?: boolean
+  onLoadOlder?: () => void
 }) {
   const scroller = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
@@ -129,6 +132,25 @@ export function ChatStream({ rows, pin, anchorId, onCaughtUp }: {
   const [fresh, setFresh] = useState(0)
   const tail = `${rows.length}:${rows.at(-1)?.id ?? ''}`
   const turns = groupTurns(rows, anchorId)
+  const previousHead = useRef<{ id: string; offset: number } | undefined>(undefined)
+
+  // Keep the existing first row in place when an older page is prepended.
+  useLayoutEffect(() => {
+    const el = scroller.current
+    if (!el) return
+    const entries = Array.from(el.querySelectorAll<HTMLElement>('[data-item-id]'))
+    const offset = (node: HTMLElement) => node.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop
+    const previous = previousHead.current
+    if (previous && rows[0]?.id !== previous.id) {
+      const node = entries.find((entry) => entry.dataset.itemId === previous.id)
+      if (node) {
+        nearBottom.current = false
+        el.scrollTop += offset(node) - previous.offset
+      }
+    }
+    const head = entries[0]
+    previousHead.current = head ? { id: head.dataset.itemId!, offset: offset(head) } : undefined
+  }, [rows])
 
   const settle = (bottom: boolean) => {
     nearBottom.current = bottom
@@ -201,6 +223,11 @@ export function ChatStream({ rows, pin, anchorId, onCaughtUp }: {
   return (
     <div className="room-stream" ref={scroller} onScroll={onScroll}>
       <div ref={content}>
+        {hasOlder && (
+          <button type="button" className="room-load-older" disabled={loadingOlder} onClick={onLoadOlder}>
+            {loadingOlder ? 'Loading older messages…' : 'Load older messages'}
+          </button>
+        )}
         {turns.map((turn) => (
           <article key={turn.id} className="room-turn" data-unread={turn.unread || undefined}>
             {turn.unread && <p className="room-unread">New messages</p>}

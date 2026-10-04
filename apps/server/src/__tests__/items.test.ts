@@ -51,6 +51,24 @@ describe('listRoomItems', () => {
     expect(numbers).toEqual([1, 2, 3, 4, 5])
   })
 
+  it('pages backward from the newest window without shifting when new items arrive', async () => {
+    const room = await seedRoom(app, testUserId)
+    for (let i = 0; i < 5; i++) await seedItem(app, testUserId, room.id, { text: `m${i}` })
+    const get = (query: string) => app.inject({ method: 'GET', url: `/rooms/${room.id}/items?order=desc&limit=2${query}`, headers: asAuth(testUserId) })
+    const first = await get('')
+    expect(first.statusCode).toBe(200)
+    await validateResponse('listRoomItems', 200, first.json())
+    expect(first.json().data.map((i: any) => i.number)).toEqual([5, 4])
+    await seedItem(app, testUserId, room.id, { text: 'new arrival' })
+    const second = await get(`&cursor=${encodeURIComponent(first.json().meta.nextCursor)}`)
+    expect(second.json().data.map((i: any) => i.number)).toEqual([3, 2])
+    const third = await get(`&cursor=${encodeURIComponent(second.json().meta.nextCursor)}`)
+    expect(third.json().data.map((i: any) => i.number)).toEqual([1])
+    expect(third.json().meta).toEqual({ hasMore: false, nextCursor: null, changeCursor: '6' })
+    const recent = await get('&after=4')
+    expect(recent.json().data.map((i: any) => i.number)).toEqual([6, 5])
+  })
+
   it('404 for a private room the caller is not in', async () => {
     const room = await seedRoom(app, testUserId, { visibility: 'private' })
     const res = await app.inject({ method: 'GET', url: `/rooms/${room.id}/items`, headers: asAuth(testOtherUserId) })

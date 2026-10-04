@@ -280,10 +280,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Items in a room, ascending by number
+         * Items in a room, ordered by number
          * @description Flat list; build branches client-side from `parentId`.
          *     Pass `after` (an item number) to fetch only items newer than one you already have —
-         *     used to catch up after a stream reconnect.
+         *     recovers newly created items only, not updates or deletions.
+         *     Use `order=desc` for the newest window, then follow nextCursor for older pages.
          */
         get: operations["listRoomItems"];
         put?: never;
@@ -496,8 +497,10 @@ export interface paths {
         /**
          * Server-Sent Events for a room
          * @description `text/event-stream`. Each message's `event:` field is the StreamEvent `type`
-         *     and `data:` is a JSON-encoded StreamEvent. On `item.created`, `id:` is the item's
-         *     number; on reconnect, call listRoomItems with `after` = highest number seen to catch up.
+         *     and `data:` is a hydrated StreamEvent. Every item change has a durable room
+         *     sequence in `id:`. Resume with Last-Event-ID or the cursor query parameter
+         *     from listRoomItems meta.changeCursor. Replay uses bounded batches of current
+         *     item state, including tombstones and viewer-specific reactions.
          *     A `ping` comment is sent every 25s to keep proxies from closing the connection.
          */
         get: operations["streamRoomEvents"];
@@ -521,6 +524,8 @@ export interface components {
             data: null;
         };
         PaginatedMeta: {
+            /** @description Durable room change sequence for item pages */
+            changeCursor?: string;
             hasMore: boolean;
             nextCursor: string | null;
         };
@@ -782,8 +787,7 @@ export interface components {
         };
         /**
          * @description Payload of each SSE message. `item.updated` covers reactions and tombstones.
-         *     Instead of a fully hydrated Item, this payload only contains the itemId and itemNumber.
-         *     The client must fetch the item to get the full state.
+         *     Contains current item state and viewer-specific reactions; no item GET is needed.
          */
         StreamEvent: {
             type: components["schemas"]["StreamEventType"];
@@ -791,6 +795,8 @@ export interface components {
             actorId: string;
             itemId: string;
             itemNumber: number;
+            cursor: string;
+            item: components["schemas"]["Item"];
         };
     };
     responses: {
@@ -1337,6 +1343,8 @@ export interface operations {
                 /** @description Opaque cursor returned by the previous page. */
                 cursor?: components["parameters"]["Cursor"];
                 limit?: components["parameters"]["Limit"];
+                /** @description Number ordering; desc starts with the newest items and pages backward. */
+                order?: "asc" | "desc";
                 /** @description Only return items with number greater than this. */
                 after?: number;
             };
@@ -1691,8 +1699,12 @@ export interface operations {
     };
     streamRoomEvents: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                cursor?: string;
+            };
+            header?: {
+                "Last-Event-ID"?: string;
+            };
             path: {
                 roomId: components["parameters"]["RoomId"];
             };

@@ -15,6 +15,7 @@ export type PendingPost = {
   media: StreamMedia[]
   previewUrl?: string
   status: 'sending' | 'failed'
+  chat?: boolean
   input: SendInput
 }
 
@@ -53,12 +54,13 @@ export function useRoomPost(roomId: string | undefined) {
     })
   }
 
-  const post = async (input: SendInput, retryId?: string) => {
-    const ui = useUI.getState()
-    const parentId = REPLY_STATES.has(ui.state) ? ui.activeItemId : undefined
+  const post = async (input: SendInput, retryId?: string, options?: { chat?: boolean }) => {
     const existing = retryId ? pending.find((item) => item.id === retryId) : undefined
+    const chat = existing?.chat === true || options?.chat === true
+    const ui = useUI.getState()
+    const parentId = chat ? undefined : (REPLY_STATES.has(ui.state) ? ui.activeItemId : undefined)
     const id = existing?.id ?? `pending-${crypto.randomUUID()}`
-    const shown = existing ?? { id, parentId, author: me, avatarUrl: meAvatar, text: input.text, ...previewMedia(input), status: 'sending' as const, input }
+    const shown = existing ?? { id, parentId, author: me, avatarUrl: meAvatar, text: input.text, ...previewMedia(input), status: 'sending' as const, chat, input }
 
     setPending((prev) => {
       const without = prev.filter((item) => item.id !== id)
@@ -67,16 +69,19 @@ export function useRoomPost(roomId: string | undefined) {
 
     try {
       const mediaIds = await resolveMediaIds(input.media)
-      const body = { text: input.text, mediaIds: mediaIds.length ? mediaIds : undefined }
+      const text = input.text
+      const ids = mediaIds.length ? mediaIds : undefined
       const target = existing?.parentId ?? parentId
-      if (target) await replyToItem.mutateAsync({ itemId: target, ...body })
-      else await sendMessage.mutateAsync(body)
+      if (target) await replyToItem.mutateAsync({ itemId: target, text, mediaIds: ids })
+      else await sendMessage.mutateAsync({ text, mediaIds: ids, ...(chat ? { chat: true } : {}) })
       drop(id)
-      useUI.getState().setIdle()
+      if (!chat) useUI.getState().setIdle()
+      return true
     } catch (error) {
       setPending((prev) => prev.map((item) => item.id === id ? { ...item, status: 'failed' } : item))
       const message = error instanceof Error ? error.message : 'Send failed'
       useUI.getState().setError(message)
+      return false
     }
   }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useCapture } from '../state/capture'
 import { uploadMedia, useDeleteItem, useRoom, useRoomItems, useRoomStream, useUpdateRoom } from '@project/sdk'
 import { Panel } from '../components/Panel'
@@ -8,10 +8,9 @@ import { StageChrome } from '../components/StageChrome'
 import { SEO } from '../components/SEO'
 import { toItem } from '../api/adapt'
 import { useRoomRef } from '../app/useRoomRef'
-import { useData, selectAllItems } from '../state/data'
 import { useUI } from '../state/ui'
 import { useShell } from '../state/shell'
-import { useShallow } from 'zustand/react/shallow'
+import { useData } from '../state/data'
 import type { Item, SendInput } from '../api/types'
 import { ConversationHead } from '../features/room/ConversationHead'
 import { roomPeopleFrom, type PresenceActivity } from '../features/room/PeopleStrip'
@@ -19,6 +18,7 @@ import { ChatShell } from '../features/room/ChatShell'
 import { RoomFloor } from '../features/room/RoomFloor'
 import { loadRoomView, saveRoomView, seatsFrom, type RoomView } from '../features/room/roomViews'
 import { ChatStream, stillsFrom, type StreamRow } from '../features/room/ChatStream'
+import { ChatBox } from '../features/room/ChatBox'
 import { RecordSurface } from '../features/room/RecordSurface'
 import { Playback, isPlayable } from '../features/room/Playback'
 import { useRoomPost } from '../features/room/useRoomPost'
@@ -29,9 +29,7 @@ import '../features/room/room.css'
 
 export function Room({ roomId: roomRef }: { roomId: string }) {
   const ui = useUI()
-  const items = useData(useShallow(selectAllItems))
-  const itemsById = useData((s) => s.itemsById)
-  const replaceItems = useData((s) => s.replaceItems)
+
   const [desk, setDesk] = useState(false)
   const [compose, setCompose] = useState(false)
   const [pin, setPin] = useState(0)
@@ -49,17 +47,31 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const [view, setView] = useState<RoomView>(loadRoomView)
   const [queue, setQueue] = useState<Item[]>([])
   const knownIds = useRef<Set<string> | null>(null)
+  const newestSeen = useRef(0)
+  useEffect(() => {
+    knownIds.current = null
+    newestSeen.current = 0
+    setQueue([])
+  }, [roomId])
   const chooseView = (next: RoomView) => {
     setView(next)
     saveRoomView(next)
   }
   const removeItem = useDeleteItem()
 
-  const [itemsError, setItemsError] = useState<string>()
-  const [itemsSuccess, setItemsSuccess] = useState(false)
-  // Stable: RoomItemsSync re-mirrors the room whenever this changes.
-  const onItemsSuccess = useCallback(() => setItemsSuccess(true), [])
-  useEffect(() => () => { replaceItems([]); setItemsSuccess(false) }, [roomId, replaceItems])
+  const roomItemsResult = useRoomItems(roomId)
+  const itemsError = roomItemsResult.error?.message
+  const itemsSuccess = roomItemsResult.isSuccess
+  const items = useMemo(() => (roomItemsResult.items || []).map(toItem), [roomItemsResult.items])
+  const captureError = useCapture((s) => s.error)
+  const itemsById = useMemo(() => {
+    const map: Record<string, Item> = {}
+    for (const item of items) map[item.id] = item
+    return map
+  }, [items])
+
+  const replaceItems = useData((s) => s.replaceItems)
+  useEffect(() => () => { replaceItems([]) }, [roomId, replaceItems])
   useLayoutEffect(() => {
     if (!roomId) return
     const params = new URLSearchParams(window.location.search)
@@ -81,28 +93,35 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
 
   useRoomStream(roomId)
 
-  const visible = items.filter((item) => item.text?.trim() || item.media?.length).sort((a, b) => a.number - b.number)
+  const visible = useMemo(() => items.filter((item) => item.text?.trim() || item.media?.length).sort((a, b) => a.number - b.number), [items])
   useEffect(() => {
     if (!itemsSuccess) return
     if (!knownIds.current) {
       knownIds.current = new Set(visible.map((item) => item.id))
+      newestSeen.current = visible.at(-1)?.number ?? 0
       return
     }
     const arrived = visible.filter((item) => !knownIds.current?.has(item.id))
     if (!arrived.length) return
     for (const item of arrived) knownIds.current.add(item.id)
-    setQueue((current) => [...current, ...arrived])
+    const staged = arrived.filter((item) => !item.chat && item.number > newestSeen.current)
+    newestSeen.current = Math.max(newestSeen.current, visible.at(-1)?.number ?? 0)
+    if (staged.length) setQueue((current) => [...current, ...staged])
   }, [visible, itemsSuccess])
   const replying = ui.state === 'replying' || ui.state === 'composing' || ui.state === 'recording' || ui.state === 'reviewing'
   const replyName = replying && ui.activeItemId ? itemsById[ui.activeItemId]?.author.name : undefined
-  const fresh = Boolean(roomId) && itemsSuccess && visible.length === 0 && pending.length === 0
+  const fresh = Boolean(roomId) && itemsSuccess && !roomItemsResult.hasNextPage && visible.length === 0 && pending.length === 0
   const showDesk = desk
   const playing = ui.state === 'playback' && ui.activeItemId ? itemsById[ui.activeItemId] : undefined
 
-  const send = async (input: SendInput, retryId?: string) => {
+  const send = useCallback(async (input: SendInput, retryId?: string) => {
     setPin((n) => n + 1)
     await post(input, retryId)
-  }
+  }, [post])
+  const chat = useCallback(async (input: SendInput) => {
+    setPin((n) => n + 1)
+    return post(input, undefined, { chat: true })
+  }, [post])
 
   const playAll = () => {
     const firstPlayable = visible.find(isPlayable)
@@ -129,7 +148,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   // One row object per item, reused while the item (and who is viewing) is unchanged,
   // so a live event re-renders only the row it touched.
   const rowCache = useRef(new WeakMap<Item, { meId: string | undefined; row: StreamRow }>())
-  const rowFor = (item: Item): StreamRow => {
+  const rowFor = useCallback((item: Item): StreamRow => {
     const cached = rowCache.current.get(item)
     if (cached && cached.meId === meId) return cached.row
     const row: StreamRow = {
@@ -145,21 +164,23 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
     }
     rowCache.current.set(item, { meId, row })
     return row
-  }
+  }, [meId])
 
-  const rows: StreamRow[] = [
+  const pendingRows: StreamRow[] = useMemo(() => pending.map((item) => ({
+    id: item.id,
+    authorId: meId,
+    author: item.author,
+    avatarUrl: item.avatarUrl,
+    text: item.text,
+    media: item.media,
+    status: item.status,
+    onRetry: item.status === 'failed' ? () => void send(item.input, item.id) : undefined,
+  })), [pending, meId, send])
+
+  const rows: StreamRow[] = useMemo(() => [
     ...visible.map(rowFor),
-    ...pending.map((item) => ({
-      id: item.id,
-      authorId: meId,
-      author: item.author,
-      avatarUrl: item.avatarUrl,
-      text: item.text,
-      media: item.media,
-      status: item.status,
-      onRetry: item.status === 'failed' ? () => void send(item.input, item.id) : undefined,
-    })),
-  ]
+    ...pendingRows,
+  ], [visible, pendingRows, rowFor])
 
   const latestNumber = visible.at(-1)?.number
   const catchUp = useCallback(() => {
@@ -182,13 +203,16 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
 
   return (
     <Panel as="main" variant="shell" className="room-shell">
-      {roomId && <RoomItemsSync roomId={roomId} onError={setItemsError} onSuccess={onItemsSuccess} />}
+      {roomId && <RoomItemsSync roomId={roomId} />}
       <SEO title={data ? `${roomTitle(data)} - Voice Chat` : 'Room - Voice Chat'} description={`Join ${data ? roomTitle(data) : 'this room'} on Voice Chat.`} />
       <StageChrome />
-      {(ui.error || resolved.error || itemsError) && (
+      {(ui.error || resolved.error || itemsError || captureError) && (
         <Label variant="status" className="error" role="alert">
-          {ui.error ?? resolved.error?.message ?? itemsError ?? 'Unable to load'}
-          <Control onClick={() => ui.setError(undefined)}>×</Control>
+          {ui.error ?? resolved.error?.message ?? itemsError ?? captureError ?? 'Unable to load'}
+          <Control onClick={() => {
+            ui.setError(undefined)
+            if (captureError) useCapture.setState({ error: undefined })
+          }}>×</Control>
         </Label>
       )}
       <ChatShell
@@ -213,6 +237,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
             deskOpen={showDesk}
           />
         )}
+        composer={<ChatBox onSend={chat} />}
         stream={(
           <ChatStream
             key={`${roomId ?? 'pending'}:${itemsSuccess ? 'ready' : 'wait'}`}
@@ -220,6 +245,11 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
             pin={pin}
             anchorId={itemsSuccess ? anchorId : undefined}
             onCaughtUp={catchUp}
+            hasOlder={roomItemsResult.hasNextPage}
+            loadingOlder={roomItemsResult.isFetchingNextPage}
+            onLoadOlder={() => {
+              if (!roomItemsResult.isFetching) void roomItemsResult.fetchNextPage()
+            }}
           />
         )}
       />
@@ -274,20 +304,14 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   )
 }
 
-function RoomItemsSync({ roomId, onError, onSuccess }: { roomId: string; onError: (message?: string) => void; onSuccess: () => void }) {
+function RoomItemsSync({ roomId }: { roomId: string }) {
   const roomItems = useRoomItems(roomId)
   const replaceItems = useData((s) => s.replaceItems)
   useEffect(() => {
     if (roomItems.isSuccess) {
       replaceItems(roomItems.items.map(toItem))
-      onSuccess()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomItems.dataUpdatedAt])
-  const message = roomItems.error?.message
-  useEffect(() => {
-    if (message !== undefined) onError(message)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [message])
   return null
 }

@@ -5,7 +5,7 @@ import { badRequest, forbidden, notFound } from '../lib/errors'
 import { humanAuthoredWhere } from '../lib/authorship'
 import { BOT_LIMITS } from '../bots/limits'
 import { RoomService, type Actor } from './RoomService'
-import { streamHub } from './StreamHub'
+import { recordChange } from './roomChanges'
 import { events } from './events'
 import { purgeCapture } from './purgeCapture'
 import { recountRooms } from './roomStats'
@@ -42,14 +42,15 @@ export class ItemService {
     const descending = opts.order === 'desc'
     const floor = Math.max(opts.after ?? 0, descending ? 0 : c?.n ?? 0)
 
-    const rows = await db.item.findMany({
-      where: { roomId, number: { gt: floor, ...(descending && c ? { lt: c.n } : {}) } },
-      orderBy: { number: descending ? 'desc' : 'asc' },
-      take: limit + 1,
-      include: itemInclude,
-    })
-    const result = page(rows, limit, (last) => encodeKeyCursor<ItemCursor>({ n: last.number }))
-    return { data: result.data.map((i) => toItem(i, viewerId)), meta: result.meta }
+    return db.$transaction(async (tx) => {
+      const room = await tx.room.findUniqueOrThrow({ where: { id: roomId }, select: { changeCount: true } })
+      const rows = await tx.item.findMany({
+        where: { roomId, number: { gt: floor, ...(descending && c ? { lt: c.n } : {}) } },
+        orderBy: { number: descending ? 'desc' : 'asc' }, take: limit + 1, include: itemInclude,
+      })
+      const result = page(rows, limit, (last) => encodeKeyCursor<ItemCursor>({ n: last.number }))
+      return { data: result.data.map((i) => toItem(i, viewerId)), meta: { ...result.meta, changeCursor: String(room.changeCount) } }
+    }, { isolationLevel: 'RepeatableRead' })
   }
 
 
@@ -176,10 +177,7 @@ export class ItemService {
     await rooms.authorizeActor(viewerId, item.roomId)
     if (item.message.authorId !== viewerId) throw forbidden('Only the author can delete this item')
 
-    const placements = await purgeCapture(item.messageId, item.message.media)
-    for (const placement of placements) {
-      streamHub.publish(placement.roomId, { type: 'item.updated', actorId: viewerId, itemId: placement.id, itemNumber: placement.number })
-    }
+    await purgeCapture(item.messageId, item.message.media)
 
     const updated = await db.item.findUniqueOrThrow({ where: { id: itemId }, include: itemInclude })
     return toItem(updated, viewerId)
@@ -251,6 +249,7 @@ export class ItemService {
       include: itemInclude,
     })
     const humanItems = (await recountRooms(tx, [p.roomId])).get(p.roomId) ?? 0
+    await recordChange(tx, p.roomId, item.id, actor.id, 'item.created')
     return { item, firstHumanItem: human && humanItems === 1 }
   }
 
@@ -279,7 +278,6 @@ export class ItemService {
 
   private publishCreated(actor: Actor, placed: { item: Placed; firstHumanItem: boolean }, roomOwnerId: string) {
     const { item } = placed
-    streamHub.publish(item.roomId, { type: 'item.created', actorId: actor.id, itemId: item.id, itemNumber: item.number })
     events.emit('item.created', {
       roomId: item.roomId,
       itemId: item.id,
