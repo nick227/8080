@@ -24,7 +24,7 @@ canvas   ${s.canvas}
 seg      ${s.seg}
 seg      ${s.segMs} ms · ${s.segFps}/s · tier ${s.tier}${s.failed ? ' · FAILED' : ''}
 draw     ${s.drawMs} ms · ${s.fps} fps · matte ${s.matte} · polish ${s.polish ? 'on' : 'off'} · ${s.engine}
-mask     fg ${s.fg}%
+mask     fg ${s.fg}% · blur ${s.blur}
 rec      ${vbgRecording ? `${vbgRecording.mime} · ${(vbgRecording.videoBitsPerSecond / 1e6).toFixed(1)} Mbps` : '—'}`}
     </pre>
   )

@@ -72,18 +72,18 @@ const NEW = 0.6 // v1 temporal smoothing: weight of the newest mask
 // Tuning (temporary, for A/B against real webcams): localStorage '8080.vbg-tune' =
 // {"seg":256|384|512,"matte":"v1"|"v2"|"v2-fixed"}. Defaults: 384 px, v2 (adaptive erosion);
 // v2-fixed erodes everywhere (the previous v2).
-type Tune = { seg: number; matte: 'v1' | 'v2' | 'v2-fixed'; polish: boolean }
+type Tune = { seg: number; matte: 'v1' | 'v2' | 'v2-fixed'; polish: boolean; blurRes: 'half' | 'quarter' }
 function readTune(): Tune {
   try {
     const raw = JSON.parse(localStorage.getItem('8080.vbg-tune') ?? 'null') as Partial<Tune> | null
-    return { seg: [256, 384, 512].includes(raw?.seg ?? 0) ? raw!.seg! : 384, matte: raw?.matte === 'v1' || raw?.matte === 'v2-fixed' ? raw.matte : 'v2', polish: raw?.polish !== false }
+    return { seg: [256, 384, 512].includes(raw?.seg ?? 0) ? raw!.seg! : 384, matte: raw?.matte === 'v1' || raw?.matte === 'v2-fixed' ? raw.matte : 'v2', polish: raw?.polish !== false, blurRes: raw?.blurRes === 'quarter' ? 'quarter' : 'half' }
   } catch {
-    return { seg: 384, matte: 'v2', polish: true }
+    return { seg: 384, matte: 'v2', polish: true, blurRes: 'half' }
   }
 }
 
 /** Live numbers for the developer readout (features/room/VbgReadout.tsx). */
-export type VbgStats = { camera: string; canvas: string; seg: string; segMs: number; segFps: number; drawMs: number; fps: number; tier: number; matte: string; engine: string; fg: number; polish: boolean; failed: boolean }
+export type VbgStats = { camera: string; canvas: string; seg: string; segMs: number; segFps: number; drawMs: number; fps: number; tier: number; matte: string; engine: string; fg: number; polish: boolean; blur: string; failed: boolean }
 export let vbgStats: VbgStats | null = null
 export let vbgRecording: { mime: string; videoBitsPerSecond: number } | null = null
 export function setVbgRecording(info: typeof vbgRecording) { vbgRecording = info }
@@ -96,8 +96,9 @@ let lastMask: { data: Float32Array; w: number; h: number; at: number } | null = 
 
 // What this device can afford, learned by the framing compositor and inherited by the
 // recording one (which then never changes size mid-take). Budget ladder when a frame
-// doesn't fit: polish off → canvas ≤1280 wide → segment every 2nd frame → Original.
-const learned = { maxW: MAX_W, polish: true }
+// doesn't fit: polish off → quarter-size blur → canvas ≤1280 wide → segment every 2nd
+// frame → Original.
+const learned = { maxW: MAX_W, polish: true, blurHalf: true }
 
 const smoothstep = (lo: number, hi: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - lo) / (hi - lo)))
@@ -132,6 +133,7 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
   const tune = readTune()
   let polish = tune.polish && learned.polish
   let maxW = learned.maxW
+  let blurHalf = tune.blurRes === 'half' && learned.blurHalf
   let stopped = false
   let failed = false // too slow or broken: raw camera from here on
 
@@ -162,6 +164,8 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
   const eighthCtx = ctx2d(eighthC)
   const sixteenthC = canvas()
   const sixteenthCtx = ctx2d(sixteenthC)
+  const blurHalfC = canvas() // the blurred background at half size (2× upscale only)
+  const blurHalfCtx = ctx2d(blurHalfC)
   const nativeBlur = (() => { quarterCtx.filter = 'blur(2px)'; const ok = quarterCtx.filter === 'blur(2px)'; quarterCtx.filter = 'none'; return ok })()
   let blurSource: HTMLCanvasElement = quarterC
   const photoBase = canvas() // softened once per photo/size
@@ -209,8 +213,8 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     segIn.width = Math.min(tune.seg, W)
     segIn.height = Math.max(2, Math.round((segIn.width * H) / W))
     const fit = (el: HTMLCanvasElement, d: number) => { el.width = Math.max(2, Math.round(W / d)); el.height = Math.max(2, Math.round(H / d)) }
-    fit(halfC, 2); fit(quarterC, 4); fit(eighthC, 8); fit(sixteenthC, 16); fit(softC, 4); fit(shadowC, 4)
-    for (const c of [outCtx, previewCtx, personCtx, segCtx, maskCtx, halfCtx, quarterCtx, eighthCtx, sixteenthCtx, photoCtx, photoBaseCtx, ringCtx, softCtx, shadowCtx]) {
+    fit(halfC, 2); fit(blurHalfC, 2); fit(quarterC, 4); fit(eighthC, 8); fit(sixteenthC, 16); fit(softC, 4); fit(shadowC, 4)
+    for (const c of [outCtx, previewCtx, personCtx, segCtx, maskCtx, halfCtx, blurHalfCtx, quarterCtx, eighthCtx, sixteenthCtx, photoCtx, photoBaseCtx, ringCtx, softCtx, shadowCtx]) {
       c.imageSmoothingEnabled = true
       c.imageSmoothingQuality = 'high'
     }
@@ -225,7 +229,7 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     if (!photoImage || !W) return
     const soft = Math.max(1, W / 900)
     photoBaseCtx.save()
-    photoBaseCtx.globalCompositeOperation = 'copy'
+    photoBaseCtx.clearRect(0, 0, W, H) // clear + draw, not 'copy' + filter (see blurInto)
     photoBaseCtx.filter = nativeBlur ? `blur(${soft}px) contrast(0.92)` : 'none'
     // Overscan so the softening never pulls in transparent edge pixels.
     const pad = soft * 3
@@ -463,6 +467,7 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
       tier,
       matte: tune.matte,
       polish,
+      blur: `${nativeBlur ? 'filter' : 'fallback'} ${blurSource.width}×${blurSource.height}`,
       failed,
     }
     const drawMs = windowFrames ? windowDrawMs / windowFrames : 0
@@ -476,6 +481,9 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
         polish = false
         learned.polish = false
         bakePhoto()
+      } else if (blurHalf && options.mode === 'blur') {
+        blurHalf = false // half-size blur costs ~7 ms more than quarter (Firefox, 720p)
+        learned.blurHalf = false
       } else if (W > 1280 && !options.fixedSize) {
         maxW = 1280
         learned.maxW = 1280
@@ -507,21 +515,29 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     windowSegs++
   }
 
-  // Overscan by the blur radius so the canvas edge (transparent) never bleeds inward.
+  // Overscan by twice the radius so the canvas edge (transparent) never bleeds inward.
+  // An opaque fill + normal 'source-over' drawing, not 'copy' + filter: GPU canvases
+  // (Firefox/Direct2D) may not honour a filter together with 'copy'.
   const blurInto = (ctx: CanvasRenderingContext2D, el: HTMLCanvasElement, source: CanvasImageSource, radius: number) => {
     ctx.save()
-    ctx.globalCompositeOperation = 'copy'
+    ctx.globalCompositeOperation = 'source-over'
     ctx.globalAlpha = 1
+    ctx.filter = 'none'
+    ctx.fillStyle = '#000'
+    ctx.fillRect(0, 0, el.width, el.height)
     ctx.filter = `blur(${radius}px)`
     ctx.drawImage(source, -radius * 2, -radius * 2, el.width + radius * 4, el.height + radius * 4)
     ctx.restore()
   }
   const drawBlur = (target: CanvasRenderingContext2D) => {
-    // Quarter-size blur measured 12 ms/frame in Firefox at 1280×720; a full-size
-    // blur(18px) cost 36 ms for the same look.
+    // Blur at half size from a 2× averaged copy of the raw camera, then a 2× upscale:
+    // little enough enlargement that no pixel structure (blocks) can show.
     halfCtx.drawImage(video, 0, 0, halfC.width, halfC.height)
-    if (nativeBlur) {
-      blurInto(quarterCtx, quarterC, halfC, 5) // ≈ 20 px at full size
+    if (nativeBlur && blurHalf) {
+      blurInto(blurHalfCtx, blurHalfC, halfC, 10) // ≈ 20 px at full size
+      blurSource = blurHalfC
+    } else if (nativeBlur) {
+      blurInto(quarterCtx, quarterC, halfC, 5)
       blurSource = quarterC
     } else {
       // No ctx.filter (Safari): keep averaging down; the bilinear upscale is the blur.
@@ -561,7 +577,7 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
       // foreground colour (alpha-weighted), so over the edge ring it replaces the old
       // room's colour in the fringe without shrinking the person.
       softCtx.save()
-      softCtx.globalCompositeOperation = 'copy'
+      softCtx.clearRect(0, 0, softC.width, softC.height)
       softCtx.filter = 'blur(1.5px)' // quarter size ≈ 6 px at full
       softCtx.drawImage(person, 0, 0, softC.width, softC.height)
       softCtx.filter = 'none'
@@ -578,7 +594,7 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     if (withShadow) {
       // Soft contact shadow, a few pixels down-right: seats the person in the room.
       shadowCtx.save()
-      shadowCtx.globalCompositeOperation = 'copy'
+      shadowCtx.clearRect(0, 0, shadowC.width, shadowC.height)
       shadowCtx.filter = 'blur(4px)'
       shadowCtx.drawImage(maskCanvas, 0, 0, shadowC.width, shadowC.height)
       shadowCtx.filter = 'none'
