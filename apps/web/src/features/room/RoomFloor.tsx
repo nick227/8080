@@ -2,6 +2,7 @@ import { useState, type CSSProperties, type ReactNode } from 'react'
 import { useCapture } from '../../state/capture'
 import { useUI } from '../../state/ui'
 import { PersonIcon } from '../../components/icons'
+import { PersonName } from '../../components/PersonName'
 import type { Item, SendInput } from '../../api/types'
 import { Control } from '../../components/Control'
 import { SelfTile } from './SelfTile'
@@ -19,7 +20,7 @@ function FaceTile({ seat }: { seat: Seat }) {
       <span className="room-seat" data-photo={seat.avatarUrl ? '' : undefined}>
         {seat.avatarUrl ? <img src={seat.avatarUrl} alt="" /> : <PersonIcon guest={seat.guest} />}
       </span>
-      <span className="room-seat-name">{seat.name}</span>
+      <PersonName className="room-seat-name" name={seat.name} tag={seat.tag} />
     </div>
   )
 }

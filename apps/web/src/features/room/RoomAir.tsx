@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { dwellMs } from '../../components/Item'
 import type { Item, Media } from '../../api/types'
+import { nameWithTag } from '../../components/PersonName'
 
 function direct(item: Item): Media | undefined {
   return item.media?.find((media) => (media.type === 'video' || media.type === 'audio' || media.type === 'image') && !!media.url && !media.externalId)
@@ -8,7 +9,8 @@ function direct(item: Item): Media | undefined {
 
 function line(item: Item) {
   const text = item.text?.trim()
-  return text ? `${item.author.name}: ${text}` : item.author.name
+  const name = nameWithTag(item.author.name, item.author.tag)
+  return text ? `${name}: ${text}` : name
 }
 
 export function RoomAir({ item, next, onEnded, paused }: { item?: Item; next: Item[]; onEnded: () => void; paused?: boolean }) {

@@ -5,6 +5,8 @@ export type Author = {
   id: string
   name: string
   avatarUrl?: string
+  kind?: 'human' | 'bot' // data only (human-authored rules) — components render `tag`
+  tag?: string // disclosure suffix, e.g. BOT (doc/08 I7)
 }
 
 export type Media = {

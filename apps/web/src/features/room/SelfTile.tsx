@@ -2,6 +2,7 @@ import { CameraPreview } from '../CameraPreview'
 import { EditPreview } from '../edit/EditPreview'
 import { Media } from '../../components/Media'
 import { PersonIcon } from '../../components/icons'
+import { PersonName } from '../../components/PersonName'
 import { VoiceWave } from './VoiceWave'
 import type { RecordSession } from './useRecordSession'
 import type { Seat } from './roomViews'
@@ -12,7 +13,7 @@ function Face({ seat }: { seat: Seat }) {
       <span className="room-seat" data-photo={seat.avatarUrl ? '' : undefined} data-activity={seat.activity ?? undefined}>
         {seat.avatarUrl ? <img src={seat.avatarUrl} alt="" /> : <PersonIcon guest={seat.guest} />}
       </span>
-      <span className="room-seat-name">{seat.name}</span>
+      <PersonName className="room-seat-name" name={seat.name} tag={seat.tag} />
     </>
   )
 }
@@ -60,7 +61,7 @@ export function SelfTile({ seat, armed, session }: {
   return (
     <div className={feed ? 'room-cast-face room-self is-live' : 'room-cast-face room-self'} data-recording={feed ? session?.recording || undefined : undefined}>
       {feed ?? <Face seat={seat} />}
-      {feed && <span className="room-seat-name">{seat.name}</span>}
+      {feed && <PersonName className="room-seat-name" name={seat.name} tag={seat.tag} />}
     </div>
   )
 }

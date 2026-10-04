@@ -39,6 +39,8 @@ export function toItem(i: SdkItem): Item {
       id: i.message.author.id,
       name: i.message.author.name,
       avatarUrl: i.message.author.avatarUrl ?? undefined,
+      kind: i.message.author.kind,
+      tag: i.message.author.tag ?? undefined,
     },
     text: i.message.text ?? undefined,
     media: i.message.media.length ? i.message.media.map(toMedia) : undefined,

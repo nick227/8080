@@ -56,6 +56,8 @@ a.media-view.file::before { content: 'FILE  '; color: var(--muted); }
 audio.media-view { width: min(520px, 100%); }
 
 .ref { margin-top: 10px; color: var(--muted); }
+/* Name tag (doc/08 I7): quiet mono suffix after any participant name, e.g. BOT. */
+.person-tag { margin-left: .45em; font-family: var(--mono); font-size: .72em; letter-spacing: .1em; opacity: .55; }
 .control-inline { position: relative; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 25; padding: 24px 0; }
 .control-inline > * { pointer-events: auto; }
 .control-hud { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; display: flex; flex-direction: column; align-items: center; padding-bottom: 32px; padding-top: 32px; background: var(--bg); border-top: 1px solid var(--line); pointer-events: auto; }

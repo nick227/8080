@@ -48,6 +48,7 @@ export function tileDensity(count: number): TileDensity {
 export type Seat = {
   id: string
   name: string
+  tag?: string
   avatarUrl?: string
   self: boolean
   guest: boolean
@@ -60,6 +61,7 @@ export function seatsFrom(people: RoomPerson[], meId: string | undefined, meGues
     return {
       id: person.id,
       name: person.name,
+      tag: person.tag,
       avatarUrl: person.avatarUrl,
       self,
       guest: self && meGuest,

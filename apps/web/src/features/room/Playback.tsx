@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { PersonName, nameWithTag } from '../../components/PersonName'
 import type { Item } from '../../api/types'
 import { Media } from '../../components/Media'
 import { dwellMs, getWaveform } from '../../components/Item'
@@ -6,7 +7,9 @@ import { controllerWithin } from '../../media/controller'
 
 const PLAYABLE = new Set(['audio', 'video'])
 
+// Chat items stay in the chat: never part of Play All or stage advance (doc/08 I3).
 export function isPlayable(item: Item) {
+  if (item.chat) return false
   return item.media?.some((media) => PLAYABLE.has(media.type) && media.embeddable !== false) ?? false
 }
 
@@ -46,13 +49,13 @@ export function Playback({ item, onClose, onEnded, onReply }: {
   const initial = (item.author.name.trim().charAt(0) || '?').toUpperCase()
 
   return (
-    <div className="room-stage" role="dialog" aria-label={`Playing ${item.author.name}`}>
+    <div className="room-stage" role="dialog" aria-label={`Playing ${nameWithTag(item.author.name, item.author.tag)}`}>
       <div className="room-stage-bar">
         <span className="room-byline">
           <span className="room-avatar" data-photo={item.author.avatarUrl ? '' : undefined}>
             {item.author.avatarUrl ? <img src={item.author.avatarUrl} alt="" /> : initial}
           </span>
-          <span className="room-who">{item.author.name}</span>
+          <PersonName className="room-who" name={item.author.name} tag={item.author.tag} />
         </span>
         <div className="room-actions">
           {playable && <button type="button" onClick={replay}>Replay</button>}

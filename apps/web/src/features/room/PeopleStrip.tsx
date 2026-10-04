@@ -1,26 +1,36 @@
 import { useState } from 'react'
+import type { Participant } from '@project/sdk'
 import type { Item } from '../../api/types'
+import { nameWithTag } from '../../components/PersonName'
 
 export type PresenceActivity = 'here' | 'typing' | 'recording'
 
 export type RoomPerson = {
   id: string
   name: string
+  tag?: string
   avatarUrl?: string
   activity: PresenceActivity | null
 }
 
+// Everyone who has spoken, plus everyone the roster says is here now — present
+// people and seated bots alike (doc/08 §2.3), so a participant holds a seat
+// before saying anything. No kind checks: the roster decides who is present.
 export function roomPeopleFrom(
   items: Item[],
   meId: string | undefined,
   meName: string,
   meAvatar: string | undefined,
   activity: PresenceActivity,
+  participants: Participant[] = [],
 ): RoomPerson[] {
-  const seen = new Map<string, { name: string; avatarUrl?: string }>()
+  const seen = new Map<string, { name: string; tag?: string; avatarUrl?: string }>()
+  for (const p of participants) {
+    if (p.present) seen.set(p.user.id, { name: p.user.name, tag: p.user.tag ?? undefined, avatarUrl: p.user.avatarUrl ?? undefined })
+  }
   for (const item of items) {
     const prev = seen.get(item.author.id)
-    seen.set(item.author.id, { name: item.author.name, avatarUrl: item.author.avatarUrl ?? prev?.avatarUrl })
+    seen.set(item.author.id, { name: item.author.name, tag: item.author.tag ?? prev?.tag, avatarUrl: item.author.avatarUrl ?? prev?.avatarUrl })
   }
   if (meId) {
     const prev = seen.get(meId)
@@ -29,6 +39,7 @@ export function roomPeopleFrom(
   return [...seen].map(([id, person]) => ({
     id,
     name: person.name,
+    tag: person.tag,
     avatarUrl: person.avatarUrl,
     activity: id === meId ? activity : null,
   }))
@@ -37,7 +48,7 @@ export function roomPeopleFrom(
 const mark = (name: string) => (name.trim().charAt(0) || '?').toUpperCase()
 
 function label(person: RoomPerson, meId: string | undefined) {
-  const name = person.id === meId ? 'You' : person.name
+  const name = person.id === meId ? 'You' : nameWithTag(person.name, person.tag)
   if (person.activity === 'recording') return `${name}, recording`
   if (person.activity === 'typing') return `${name}, typing`
   return name
