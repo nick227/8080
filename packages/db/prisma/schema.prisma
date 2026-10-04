@@ -419,7 +419,8 @@ model BotRoute {
   id            String   @id @default(cuid())
   roomId        String
   itemId        String
-  mode          String   @db.VarChar(16) // shadow
+  mode          String   @db.VarChar(16) // shadow (the only mode — AI is observational, doc/08 §4.9)
+  trigger       String   @db.VarChar(32) // what caused the request: item.created (human)
   provider      String   @db.VarChar(32)
   model         String?  @db.VarChar(80)
   reason        String   @db.VarChar(24) // mentioned (control sample) | unmentioned
@@ -430,6 +431,10 @@ model BotRoute {
   error         String?  @db.VarChar(120)
   agree         Boolean?
   latencyMs     Int?
+  inputChars    Int      @default(0) // size of what was sent
+  promptTokens     Int?
+  completionTokens Int?
+  costUsd       Float?   // estimate from AI_PRICE_*_PER_M; summed for the daily budget
   // Human ground truth (dev labeling): { agent, shouldRespond } — what should have happened.
   label         Json?
   labeledAt     DateTime?

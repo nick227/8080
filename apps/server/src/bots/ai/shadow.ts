@@ -5,6 +5,7 @@
 import { db } from '@project/db'
 import { routerConfig } from './config'
 import { routerProvider, type RouterInput } from './router'
+import { roomPresence } from '../../services/presence'
 import { rngFrom, seedOf } from '../rng'
 import type { Classified } from '../classify'
 import type { SeededBot } from '../seed'
@@ -39,20 +40,23 @@ export async function shadowRoute(a: ShadowArgs) {
   if (!provider || a.seated.length === 0 || !a.text.trim()) return
   const cfg = routerConfig()
 
-  // Deterministic prefilter.
-  // Selective: the router exists for unmentioned requests; mentions are a control.
-  const mentioned = a.mentioned.size > 0
-  if (rngFrom(seedOf('route', a.itemId))() >= (mentioned ? cfg.mentionSample : cfg.sample)) return
-  const reason = mentioned ? 'mentioned' : 'unmentioned'
+  // Policy (doc/08 §4.9): explicit mentions are deterministic and never call the
+  // model; no AI in empty rooms; only sampled unmentioned human messages.
+  if (a.mentioned.size > 0) return
+  if (roomPresence.here(a.roomId).length === 0) return
+  if (rngFrom(seedOf('route', a.itemId))() >= cfg.sample) return
+  const reason = 'unmentioned'
   const since10 = new Date(Date.now() - 600_000)
   const sinceDay = new Date(Date.now() - 86_400_000)
-  const [inRoom, today] = await Promise.all([
+  const [inRoom, today, spent] = await Promise.all([
     db.botRoute.count({ where: { roomId: a.roomId, at: { gte: since10 } } }),
     db.botRoute.count({ where: { at: { gte: sinceDay } } }),
+    db.botRoute.aggregate({ where: { at: { gte: sinceDay } }, _sum: { costUsd: true } }),
   ])
   const now = Date.now()
   const mine = recentCalls(a.roomId, now)
   if (Math.max(inRoom, mine.room) >= cfg.perRoomPer10Min || Math.max(today, mine.day) >= cfg.perDay) return
+  if ((spent._sum.costUsd ?? 0) >= cfg.dailyUsd) return
   calls.push({ roomId: a.roomId, at: now })
   await callAndLog(a, provider, cfg, reason)
 }
@@ -75,7 +79,7 @@ async function callAndLog(a: ShadowArgs, provider: NonNullable<ReturnType<typeof
 
   const started = Date.now()
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), cfg.shadowTimeoutMs)
+  const timer = setTimeout(() => controller.abort(), cfg.timeoutMs)
   const cold = !warmed
   warmed = true
   let ai: Awaited<ReturnType<typeof provider.route>> | null = null
@@ -90,7 +94,10 @@ async function callAndLog(a: ShadowArgs, provider: NonNullable<ReturnType<typeof
   await db.botRoute.create({
     data: {
       roomId: a.roomId, itemId: a.itemId, mode: 'shadow', provider: provider.name, model: provider.model, reason,
-      input, deterministic, ai: ai ?? undefined, error,
+      trigger: 'item.created', inputChars: JSON.stringify(input).length,
+      promptTokens: ai?.usage?.promptTokens ?? null, completionTokens: ai?.usage?.completionTokens ?? null,
+      costUsd: ai?.usage ? (ai.usage.promptTokens * cfg.priceInPerM + ai.usage.completionTokens * cfg.priceOutPerM) / 1_000_000 : null,
+      input, deterministic, ai: ai ? { agent: ai.agent, intent: ai.intent, confidence: ai.confidence, shouldRespond: ai.shouldRespond } : undefined, error,
       agree: ai ? ai.agent === deterministic.agent && ai.shouldRespond === deterministic.shouldRespond : null,
       latencyMs: Date.now() - started,
       cold,

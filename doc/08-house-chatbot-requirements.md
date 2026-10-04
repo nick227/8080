@@ -567,6 +567,45 @@ The `choose` and `act` step types are where AI plugs in. Nothing else changes:
   falling back to a library `choose`. Its output goes through the same rails and the same
   `ItemService` path, and is logged in the same `BotDecision`.
 
+### 4.9 AI policy — observational only (binding, 2026-10-04)
+
+> **Until the agent action model and the permission system are designed, OpenAI is
+> observational only. It may classify and recommend, but it cannot create
+> user-visible content or mutate workspace state.**
+
+Concretely:
+- **Router only.** No AI-written replies and no AI-chosen actions. A router answer is
+  logged (`BotRoute`) and nothing acts on it.
+- **Explicit bot mentions are deterministic and never call the model.**
+- **Only sampled, unmentioned human messages** (`item.created` by a person) in a room
+  where someone is present may be routed, in shadow.
+- **No tool/function calls**, no CRM/task/project mutations, no sending of messages or
+  emails, no record edits.
+- **No autonomous timers trigger AI calls** (idle nudges, greetings and openings stay
+  deterministic). No AI calls from tests, background jobs or empty rooms.
+- **Hard caps stay on:** per-room (`AI_ROUTER_ROOM_MAX`/10 min), per-day calls
+  (`AI_ROUTER_DAILY_MAX`), per-day spend (`AI_ROUTER_DAILY_USD`, estimated), timeout
+  (`AI_ROUTER_TIMEOUT_MS`), and kill switches (`AI_ROUTER` unset/off, and `BOTS=off`).
+- **Every AI request logs** trigger, room, input size, model, latency, result, error,
+  token usage and estimated cost.
+- **AI stays optional:** with `AI_ROUTER` off the product is fully functional. There is
+  no "live" mode value; anything but `shadow` means off.
+
+How it is enforced in code, so that it can't erode:
+- `routerConfig()` is off under `NODE_ENV=test`, with `BOTS=off`, or without
+  `AI_ROUTER=shadow` + key + model. vitest also pins `AI_ROUTER=off` and an empty key.
+- `shadowRoute()` returns early on any mention, an empty room, an unsampled message or
+  any cap.
+- Static architecture tests (`ai-router.test.ts`) check that:
+  - the AI module (`bots/ai/*`) imports nothing that can post, react, seat, mute or
+    publish;
+  - it writes only `BotRoute`;
+  - only the shadow recorder uses the router;
+  - only the runtime calls the recorder.
+
+**Slice 2 (AI-written replies) is blocked by this policy**, not just by the shadow
+stats, until the agent action model and permission system exist.
+
 ## 5. Phasing
 
 ### Phase 1a — Plumbing + POC (target: today)
@@ -622,8 +661,10 @@ Slices, each gated on the previous one's logs:
    (`BotRoute`, agree/disagree) so the two can be compared. A deterministic prefilter
    decides whether to call at all (mentioned → always; otherwise sampled), with
    per-room and per-day caps, a timeout, and AI off by default.
-2. **One AI agent (chatbot).** It generates text only, through the same workflow, rails
-   and posting path. A timeout or error falls back to the deterministic line.
+2. **One AI agent (chatbot).** *Blocked by §4.9 until the agent action model and
+   permission system are designed.* It would generate text only, through the same
+   workflow, rails and posting path. A timeout or error falls back to the deterministic
+   line.
 3. **Optional bots** (marketing / technical / buddy) with distinct context. Only after
    that: richer context windows, tools, TTS, image/media generation.
 
@@ -637,14 +678,15 @@ human-to-human talk already agree with deterministic routing. The router adds va
 - ambiguous / unmentioned request (deterministic prefilter: question / help / task /
   complaint intent, no bot named) → **AI router**;
 - router timeout or error → **deterministic fallback**;
-- live budget `AI_ROUTER_LIVE_TIMEOUT_MS` (default 2s), kept separate from the shadow
-  budget (5s) so the latter never drifts into the live path.
+- a live budget of ~1.5–2.5s, defined separately when (and if) a live path is
+  permitted; the shadow timeout (5s) must never become it by inertia.
 
 **Shadow measurement before going live** (`/dev/bots/routes/stats`; label rows with
 `POST /dev/bots/routes/:id/label`): disagreement rate on unmentioned messages, handoff
 precision against labels, none false positives / negatives (router vs labels, with the
 deterministic baseline on the same rows), and warm p50/p95 (cold calls are flagged and
-excluded). Unmentioned messages are routed by default and mentions are a 10% control.
+excluded). Unmentioned messages are routed by default. Mentions are never routed
+(§4.9). The deterministic agreement baseline comes from the labeled rows instead.
 
 **Intent taxonomy:** `task` (produce or do something: write, draft, give me) was added to
 the router and to every pack's classifier (c2), so generic requests no longer fall into

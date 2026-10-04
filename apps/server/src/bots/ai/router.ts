@@ -12,10 +12,12 @@ export type RouterInput = {
   bots: { handle: string; name: string; persona: string }[]
 }
 export type RouterOutput = { agent: string | null; intent: string; confidence: number; shouldRespond: boolean }
+export type Usage = { promptTokens: number; completionTokens: number }
 export interface RouterProvider {
   readonly name: string
   readonly model: string | null
-  route(input: RouterInput, signal: AbortSignal): Promise<RouterOutput>
+  /** A recommendation only — callers log it; nothing acts on it (doc/08 §4.9). */
+  route(input: RouterInput, signal: AbortSignal): Promise<RouterOutput & { usage?: Usage }>
 }
 
 const SYSTEM = [
@@ -33,7 +35,7 @@ export class OpenAIRouter implements RouterProvider {
   constructor(private readonly cfg = routerConfig()) {}
   get model() { return this.cfg.model }
 
-  async route(input: RouterInput, signal: AbortSignal): Promise<RouterOutput> {
+  async route(input: RouterInput, signal: AbortSignal): Promise<RouterOutput & { usage?: Usage }> {
     const handles = input.bots.map((b) => b.handle)
     const res = await fetch(`${this.cfg.baseUrl}/chat/completions`, {
       method: 'POST',
@@ -69,7 +71,8 @@ export class OpenAIRouter implements RouterProvider {
     const body: any = await res.json()
     const content = body?.choices?.[0]?.message?.content
     if (typeof content !== 'string') throw new Error('openai: no content')
-    return validate(JSON.parse(content), handles)
+    const usage = body?.usage ? { promptTokens: Number(body.usage.prompt_tokens) || 0, completionTokens: Number(body.usage.completion_tokens) || 0 } : undefined
+    return { ...validate(JSON.parse(content), handles), usage }
   }
 }
 
@@ -89,6 +92,8 @@ export function setRouterProvider(provider: RouterProvider | null | undefined) {
 
 /** The active provider, or null when AI routing is off / unconfigured. */
 export function routerProvider(): RouterProvider | null {
+  // A test override is honoured even under NODE_ENV=test (it's a fake); a real
+  // provider never is (config is off in tests).
   if (override !== undefined) return override
   const cfg = routerConfig()
   if (cfg.mode === 'off' || !cfg.apiKey || !cfg.model) return null
