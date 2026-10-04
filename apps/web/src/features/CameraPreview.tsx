@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useCapture } from '../state/capture'
 import { useBackground } from '../state/background'
 import { cameraConstraints, getLiveCompositor, getLiveStream, subscribeLive } from './previewStream'
-import { ensureSegmenter, facingUser, loadSegmenter, startCompositor, type Compositor } from './virtualCamera'
+import { currentMaskSource, ensureMaskSource, facingUser, loadMaskSource, startCompositor, type Compositor } from './virtualCamera'
 import { VbgReadout } from './room/VbgReadout'
 
 const stopAll = (stream: MediaStream) => stream.getTracks().forEach((track) => track.stop())
@@ -28,7 +28,7 @@ export function CameraPreview({ deviceId, recording }: { deviceId: string; recor
   const shown = liveCompositor ?? framing
   const raw = live ?? own
 
-  useEffect(() => { if (mode !== 'original') ensureSegmenter() }, [mode])
+  useEffect(() => { if (mode !== 'original') ensureMaskSource() }, [mode])
 
   // The framing stream: open while there's no take holding the camera.
   useEffect(() => {
@@ -66,10 +66,11 @@ export function CameraPreview({ deviceId, recording }: { deviceId: string; recor
     if (!own || !effect || !ready) return
     let gone = false
     let compositor: Compositor | null = null
-    void loadSegmenter().then((seg) => {
+    void loadMaskSource().then((loaded) => {
+      const source = currentMaskSource() ?? loaded
       if (gone) return
       const { photo } = useBackground.getState()
-      compositor = startCompositor(seg, own, { mode: effect, photoUrl: photo?.url ?? null, mirror: facingUser(own) },
+      compositor = startCompositor(source, own, { mode: effect, photoUrl: photo?.url ?? null, mirror: facingUser(own) },
         (message) => useBackground.getState().setStatus('unavailable', message))
       setFraming(compositor)
     })

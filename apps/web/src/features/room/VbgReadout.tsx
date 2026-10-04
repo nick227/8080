@@ -19,13 +19,13 @@ export function VbgReadout() {
   const s = vbgStats
   return (
     <pre className="vbg-readout" aria-hidden>
-      {`camera   ${s.camera}
-canvas   ${s.canvas}
-seg      ${s.seg}
-seg      ${s.segMs} ms · ${s.segFps}/s · tier ${s.tier}${s.failed ? ' · FAILED' : ''}
-draw     ${s.drawMs} ms · ${s.fps} fps · matte ${s.matte} · polish ${s.polish ? 'on' : 'off'} · ${s.engine}
-mask     fg ${s.fg}% · flicker ${s.flicker}% · blur ${s.blur}
-rec      ${vbgRecording ? `${vbgRecording.mime} · ${(vbgRecording.videoBitsPerSecond / 1e6).toFixed(1)} Mbps` : '—'}`}
+      {`backend  ${s.backend}${s.failed ? ' · FAILED' : ''}
+camera   ${s.camera} → canvas ${s.canvas}
+mask     in ${s.maskInput} → ${s.mask}
+infer    ${s.inferMs} ms · ${s.maskFps} masks/s · main ${s.mainSegMs} ms · tier ${s.tier}
+draw     ${s.drawMs} ms · ${s.fps} fps · polish ${s.polish ? 'on' : 'off'} · blur ${s.blur}
+edge     fg ${s.fg}% · flicker ${s.flicker}%
+rec      ${vbgRecording ? `${vbgRecording.mime} · ${(vbgRecording.videoBitsPerSecond / 1e6).toFixed(1)} Mbps` : '—'}${s.fallbacks ? `\nfallback ${s.fallbacks}` : ''}`}
     </pre>
   )
 }
