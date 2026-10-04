@@ -72,18 +72,18 @@ const NEW = 0.6 // v1 temporal smoothing: weight of the newest mask
 // Tuning (temporary, for A/B against real webcams): localStorage '8080.vbg-tune' =
 // {"seg":256|384|512,"matte":"v1"|"v2"|"v2-fixed"}. Defaults: 384 px, v2 (adaptive erosion);
 // v2-fixed erodes everywhere (the previous v2).
-type Tune = { seg: number; matte: 'v1' | 'v2' | 'v2-fixed'; polish: boolean; blurRes: 'half' | 'quarter' }
+type Tune = { seg: number; matte: 'v1' | 'v2' | 'v2-fixed' | 'v3'; polish: boolean; blurRes: 'half' | 'quarter'; grow: boolean }
 function readTune(): Tune {
   try {
     const raw = JSON.parse(localStorage.getItem('8080.vbg-tune') ?? 'null') as Partial<Tune> | null
-    return { seg: [256, 384, 512].includes(raw?.seg ?? 0) ? raw!.seg! : 384, matte: raw?.matte === 'v1' || raw?.matte === 'v2-fixed' ? raw.matte : 'v2', polish: raw?.polish !== false, blurRes: raw?.blurRes === 'quarter' ? 'quarter' : 'half' }
+    return { seg: [256, 384, 512].includes(raw?.seg ?? 0) ? raw!.seg! : 384, matte: raw?.matte === 'v1' || raw?.matte === 'v2' || raw?.matte === 'v2-fixed' ? raw.matte : 'v3', polish: raw?.polish !== false, blurRes: raw?.blurRes === 'quarter' ? 'quarter' : 'half', grow: raw?.grow === true }
   } catch {
-    return { seg: 384, matte: 'v2', polish: true, blurRes: 'half' }
+    return { seg: 384, matte: 'v3', polish: true, blurRes: 'half', grow: false }
   }
 }
 
 /** Live numbers for the developer readout (features/room/VbgReadout.tsx). */
-export type VbgStats = { camera: string; canvas: string; seg: string; segMs: number; segFps: number; drawMs: number; fps: number; tier: number; matte: string; engine: string; fg: number; polish: boolean; blur: string; failed: boolean }
+export type VbgStats = { camera: string; canvas: string; seg: string; segMs: number; segFps: number; drawMs: number; fps: number; tier: number; matte: string; engine: string; fg: number; flicker: number; polish: boolean; blur: string; failed: boolean }
 export let vbgStats: VbgStats | null = null
 export let vbgRecording: { mime: string; videoBitsPerSecond: number } | null = null
 export function setVbgRecording(info: typeof vbgRecording) { vbgRecording = info }
@@ -312,7 +312,89 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
   let eroded: Float32Array | null = null
   let prevRaw: Float32Array | null = null
   let movedMap: Uint8Array | null = null
-  const takeMask = (floats: Float32Array, w: number, h: number) => tune.matte === 'v1' ? takeMaskV1(floats, w, h) : takeMaskV2(floats, w, h)
+  const takeMask = (floats: Float32Array, w: number, h: number) => {
+    const before = prevAlpha && prevAlpha.length === w * h ? Uint8Array.from(maskImage!.data.filter((_, k) => k % 4 === 3)) : null
+    if (tune.matte === 'v1') takeMaskV1(floats, w, h)
+    else if (tune.matte === 'v3') takeMaskV3(floats, w, h)
+    else takeMaskV2(floats, w, h)
+    const px = maskImage!.data
+    if (!prevAlpha || prevAlpha.length !== w * h) prevAlpha = new Uint8Array(w * h)
+    if (before) {
+      let sum = 0
+      let n = 0
+      for (let i = 0; i < w * h; i++) {
+        const a = px[i * 4 + 3]!
+        const b = before[i]!
+        if ((a > 0 && a < 255) || (b > 0 && b < 255)) { sum += Math.abs(a - b); n++ }
+      }
+      if (n) { windowFlicker += sum / n / 255; windowFlickerN++ }
+    }
+    for (let i = 0; i < w * h; i++) prevAlpha[i] = px[i * 4 + 3]!
+  }
+  let prevAlpha: Uint8Array | null = null
+
+  // v3 matte (default): favour inclusion and calm over tightness. Hysteresis — a pixel
+  // becomes person above 0.5 confidence but only stops being person below 0.3, so one
+  // uncertain frame can't remove it; no erosion; a small feather. Optional ('grow' in
+  // the tuning switch) one-pixel outward growth: on noisy dim footage it latched chunks
+  // of the real room where the model rates them ~50% person, so it's off by default.
+  let held: Uint8Array | null = null
+  const takeMaskV3 = (floats: Float32Array, w: number, h: number) => {
+    prepare(floats, w, h)
+    if (!held || held.length !== w * h) held = new Uint8Array(w * h)
+    const s = smooth!
+    const sh = shaped!
+    const er = eroded! // reused as the grown alpha
+    for (let i = 0; i < s.length; i++) {
+      const next = floats[i]!
+      const change = Math.abs(next - s[i]!)
+      const certainty = Math.abs(s[i]! - 0.5) * 2
+      const keep = change > 0.25 ? 0 : 0.75 * certainty * (1 - change * 4)
+      s[i] = next * (1 - keep) + s[i]! * keep
+      if (s[i]! > 0.5) held[i] = 1
+      else if (s[i]! < 0.3) held[i] = 0
+      // Held pixels ramp in a little earlier; others need real confidence. (A wider
+      // band — release at 0.2, ramp from 0.1 — latched chunks of the real room.)
+      sh[i] = held[i] ? smoothstep(0.25, 0.5, s[i]!) : smoothstep(0.5, 0.8, s[i]!)
+    }
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let max = 0
+        for (let dy = -1; dy <= 1; dy++) {
+          const yy = Math.min(h - 1, Math.max(0, y + dy))
+          for (let dx = -1; dx <= 1; dx++) {
+            const v = sh[yy * w + Math.min(w - 1, Math.max(0, x + dx))]!
+            if (v > max) max = v
+          }
+        }
+        er[y * w + x] = tune.grow ? max : sh[y * w + x]!
+      }
+    }
+    const px = maskImage!.data
+    const rp = ringImage!.data
+    let fg = 0
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let sum = 0
+        for (let dy = -1; dy <= 1; dy++) {
+          const yy = Math.min(h - 1, Math.max(0, y + dy))
+          for (let dx = -1; dx <= 1; dx++) sum += er[yy * w + Math.min(w - 1, Math.max(0, x + dx))]!
+        }
+        const i = y * w + x
+        const a = Math.round((sum / 9) * 255)
+        px[i * 4 + 3] = a
+        rp[i * 4 + 3] = a < 5 ? 0 : Math.round((1 - smoothstep(0.6, 0.98, a / 255)) * 255)
+        if (a > 127) fg++
+      }
+    }
+    ringCtx.putImageData(ringImage!, 0, 0)
+    if (polish && ++maskNo % 15 === 0) matchBrightness(sh, w, h)
+    windowFg += fg / (w * h)
+    windowFgN++
+    maskCtx.putImageData(maskImage!, 0, 0)
+    maskAt = performance.now()
+    lastMask = { data: s, w, h, at: maskAt }
+  }
 
   const prepare = (floats: Float32Array, w: number, h: number) => {
     if (!smooth || smooth.length !== w * h) {
@@ -470,6 +552,10 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
   let windowDrawMs = 0
   let windowFg = 0 // share of mask pixels that are person (alpha > 50%), averaged per mask
   let windowFgN = 0
+  // Edge calm: mean |Δalpha| between consecutive masks over pixels that are edge in
+  // either (0 < alpha < 1), in % — lower is calmer ("breathing" shows up here).
+  let windowFlicker = 0
+  let windowFlickerN = 0
   let errors = 0
 
   const giveUp = (message: string) => {
@@ -491,6 +577,7 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
       drawMs: Math.round((windowFrames ? windowDrawMs / windowFrames : 0) * 10) / 10,
       engine: isFirefox ? 'gecko' : 'other',
       fg: Math.round((windowFgN ? windowFg / windowFgN : 0) * 1000) / 10,
+      flicker: Math.round((windowFlickerN ? windowFlicker / windowFlickerN : 0) * 1000) / 10,
       fps: Math.round(fps * 10) / 10,
       tier,
       matte: tune.matte,
@@ -537,6 +624,8 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     windowSegs = 0
     windowDrawMs = 0
     windowFg = 0
+    windowFlicker = 0
+    windowFlickerN = 0
     windowFgN = 0
   }
 
@@ -546,7 +635,8 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     try {
       seg.segmentForVideo(segIn, now, (result) => {
         const mask = result.confidenceMasks?.[0]
-        if (mask) takeMask(mask.getAsFloat32Array(), mask.width, mask.height)
+        if (!mask) return
+        takeMask(mask.getAsFloat32Array(), mask.width, mask.height)
       })
       errors = 0
     } catch {
