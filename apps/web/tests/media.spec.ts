@@ -97,9 +97,9 @@ test.describe('Media Capture State Machine', () => {
     const stopButton = page.getByRole('button', { name: 'Stop' });
     await expect(stopButton).toBeVisible();
     
-    // Click cancel
-    const cancelButton = page.getByRole('button', { name: 'Cancel' });
-    await cancelButton.click();
+    // Cancel is hidden while recording; Escape aborts the take
+    await expect(page.getByRole('button', { name: 'Cancel' })).toBeHidden();
+    await page.keyboard.press('Escape');
 
     // Play button should NOT exist after cancelling
     await expect(page.getByRole('button', { name: 'Play', exact: true }).first()).not.toBeVisible();

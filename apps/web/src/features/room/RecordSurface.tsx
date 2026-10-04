@@ -322,14 +322,14 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
           </div>
 
           <div className="room-desk-actions">
-            {/* Stays usable while recording: it aborts the take. */}
-            <button type="button" className="room-desk-cancel" onClick={back}>Cancel</button>
             <span className="room-desk-take-actions" style={{
               opacity: recording ? 0 : 1,
               pointerEvents: recording ? 'none' : 'auto',
               transition: 'opacity 0.2s',
               visibility: recording ? 'hidden' : 'visible'
             }}>
+            {/* Hidden while recording like the rest; Escape still aborts a take. */}
+            <button type="button" className="room-desk-cancel" onClick={back}>Cancel</button>
             {showPlay && (
               <button type="button" onClick={togglePlay}>{playing ? 'Pause' : 'Play'}</button>
             )}
