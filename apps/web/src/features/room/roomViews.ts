@@ -1,28 +1,15 @@
 import type { RoomPerson } from './PeopleStrip'
 
-export type RoomView = 'room' | 'you' | 'log'
+export type RoomView = 'room' | 'you'
 
-export const ROOM_VIEWS: { id: RoomView; label: string }[] = [
-  { id: 'room', label: 'Room' },
-  { id: 'you', label: 'You' },
-  { id: 'log', label: 'Log' },
-]
+export const ROOM_VIEWS: RoomView[] = ['room', 'you']
 
 const KEY = 'vc-room-view'
-
-const known: Record<string, RoomView> = {
-  room: 'room',
-  you: 'you',
-  log: 'log',
-  stage: 'room',
-  gallery: 'room',
-  speaker: 'room',
-}
 
 export function loadRoomView(): RoomView {
   try {
     const stored = localStorage.getItem(KEY)
-    return (stored && known[stored]) || 'room'
+    return stored === 'you' ? 'you' : 'room'
   } catch {
     return 'room'
   }
@@ -34,6 +21,11 @@ export function saveRoomView(view: RoomView) {
   } catch {
     // The choice still applies for this visit.
   }
+}
+
+export function nextView(view: RoomView): RoomView {
+  const index = ROOM_VIEWS.indexOf(view)
+  return ROOM_VIEWS[(index + 1) % ROOM_VIEWS.length]
 }
 
 export type Seat = {

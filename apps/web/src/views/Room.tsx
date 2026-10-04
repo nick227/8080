@@ -17,7 +17,6 @@ import { ConversationHead } from '../features/room/ConversationHead'
 import { PeopleStrip, roomPeopleFrom, type PresenceActivity } from '../features/room/PeopleStrip'
 import { ChatShell } from '../features/room/ChatShell'
 import { RoomFloor } from '../features/room/RoomFloor'
-import { ViewSwitch } from '../features/room/ViewSwitch'
 import { loadRoomView, saveRoomView, seatsFrom, type RoomView } from '../features/room/roomViews'
 import { ChatStream, stillsFrom, type StreamRow } from '../features/room/ChatStream'
 import { RecordSurface } from '../features/room/RecordSurface'
@@ -48,6 +47,8 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const updateRoom = useUpdateRoom(roomId ?? '')
   const { pending, post, meId, meName, meAvatar, meGuest } = useRoomPost(roomId)
   const [view, setView] = useState<RoomView>(loadRoomView)
+  const [queue, setQueue] = useState<Item[]>([])
+  const knownIds = useRef<Set<string> | null>(null)
   const chooseView = (next: RoomView) => {
     setView(next)
     saveRoomView(next)
@@ -81,17 +82,22 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   useRoomStream(roomId)
 
   const visible = items.filter((item) => item.text?.trim() || item.media?.length).sort((a, b) => a.number - b.number)
+  useEffect(() => {
+    if (!itemsSuccess) return
+    if (!knownIds.current) {
+      knownIds.current = new Set(visible.map((item) => item.id))
+      return
+    }
+    const arrived = visible.filter((item) => !knownIds.current?.has(item.id))
+    if (!arrived.length) return
+    for (const item of arrived) knownIds.current.add(item.id)
+    setQueue((current) => [...current, ...arrived])
+  }, [visible, itemsSuccess])
   const replying = ui.state === 'replying' || ui.state === 'composing' || ui.state === 'recording' || ui.state === 'reviewing'
   const replyName = replying && ui.activeItemId ? itemsById[ui.activeItemId]?.author.name : undefined
   const fresh = Boolean(roomId) && itemsSuccess && visible.length === 0 && pending.length === 0
   const showDesk = desk
   const playing = ui.state === 'playback' && ui.activeItemId ? itemsById[ui.activeItemId] : undefined
-
-  const startMessage = () => {
-    ui.setIdle()
-    setCompose(false)
-    setDesk(true)
-  }
 
   const send = async (input: SendInput, retryId?: string) => {
     setPin((n) => n + 1)
@@ -189,13 +195,21 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
           <ConversationHead
             room={data}
             onPlayAll={visible.some(isPlayable) ? playAll : undefined}
-            views={<ViewSwitch value={view} onChange={chooseView} />}
-            people={<PeopleStrip people={people} meId={meId} inviteUrl={inviteUrl} faces={view === 'log'} />}
+            people={<PeopleStrip people={people} meId={meId} inviteUrl={inviteUrl} faces={false} />}
           />
         )}
         view={view}
-        stage={view === 'log' ? null : (
-          <RoomFloor view={view} seats={seatsFrom(people, meId, meGuest)} />
+        stage={(
+          <RoomFloor
+            view={view}
+            seats={seatsFrom(people, meId, meGuest)}
+            item={queue[0]}
+            next={queue.slice(1)}
+            onEnded={() => setQueue((current) => current.slice(1))}
+            onSend={send}
+            onActivity={onActivity}
+            onView={chooseView}
+          />
         )}
         stream={(
           <ChatStream
@@ -205,11 +219,6 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
             anchorId={itemsSuccess ? anchorId : undefined}
             onCaughtUp={catchUp}
           />
-        )}
-        dock={(
-          <div className="room-dock">
-            <button type="button" className="room-new" onClick={startMessage}>New message</button>
-          </div>
         )}
       />
       {showDesk && (
