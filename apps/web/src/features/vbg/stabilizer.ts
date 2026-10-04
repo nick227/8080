@@ -1,11 +1,14 @@
-import { smoothstep, type MaskFrame } from './types'
+import { DEFAULT_TUNING, smoothstep, type MaskFrame, type StabilizerTuning } from './types'
 
 // Temporal stabilizer: owns everything about time. Confidence-weighted smoothing,
 // hysteresis, previous-mask retention and the stale timeout, so the edge stays calm and
 // favours keeping the subject over clipping it. Stable edges beat accurate edges.
 //
-// - Smoothing: confident, steady pixels keep up to 75% of their history; uncertain or
-//   changing pixels follow the new mask at once (no ghost trails).
+// - Smoothing: steady pixels keep up to `keep` of their history, weighted by certainty
+//   (with a per-source `floor` so edge pixels get smoothed too); a change above
+//   `threshold` is motion and is followed at once (no ghost trails). Tuned per source
+//   (doc/07): settings that calmed still edges were kept only if lag on a slow-motion
+//   clip rose ≤ ~3%.
 // - Hysteresis: a pixel becomes person above 0.5 and stops only below 0.3, so one
 //   uncertain frame can't remove it. No erosion. A small (3×3) feather.
 // - Retention: a new stabilizer (framing → recording) is seeded with the last mask
@@ -25,7 +28,8 @@ function canvas() {
 
 export type Stabilizer = ReturnType<typeof createStabilizer>
 
-export function createStabilizer() {
+export function createStabilizer(initial: Partial<StabilizerTuning> = {}) {
+  let tuning: StabilizerTuning = { ...DEFAULT_TUNING, ...initial }
   const alpha = canvas() // mask resolution; alpha channel = the matte
   const ring = canvas() // the matte's edge band (for colour decontamination)
   const alphaCtx = alpha.getContext('2d')!
@@ -68,8 +72,8 @@ export function createStabilizer() {
     for (let i = 0; i < s.length; i++) {
       const next = raw[i]!
       const change = Math.abs(next - s[i]!)
-      const certainty = Math.abs(s[i]! - 0.5) * 2
-      const keep = change > 0.25 ? 0 : 0.75 * certainty * (1 - change * 4)
+      const certainty = Math.max(tuning.floor, Math.abs(s[i]! - 0.5) * 2)
+      const keep = change > tuning.threshold ? 0 : tuning.keep * certainty * (1 - change / tuning.threshold)
       s[i] = next * (1 - keep) + s[i]! * keep
       if (s[i]! > 0.5) hd[i] = 1
       else if (s[i]! < 0.3) hd[i] = 0
@@ -116,6 +120,8 @@ export function createStabilizer() {
 
   return {
     update,
+    /** A different source took over (framing upgrade): use its tuning from now on. */
+    setTuning: (next: Partial<StabilizerTuning> = {}) => { tuning = { ...DEFAULT_TUNING, ...next } },
     alpha,
     ring,
     /** Smoothed + shaped person confidence at mask resolution (for brightness matching). */

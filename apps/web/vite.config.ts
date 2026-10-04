@@ -8,11 +8,25 @@ import react from '@vitejs/plugin-react'
 // Self-hosted MediaPipe runtime for the virtual background (features/virtualCamera.ts):
 // served from node_modules in dev and copied into the build — no CDN at runtime and
 // nothing committed. FilesetResolver picks the SIMD or no-SIMD pair itself.
-const MEDIAPIPE_BASE = 'mediapipe'
+const require = createRequire(import.meta.url)
+// Not every package exports ./package.json: walk up from its entry file instead.
+const pkgVersion = (name: string) => {
+  for (let dir = dirname(require.resolve(name)); dir !== dirname(dir); dir = dirname(dir)) {
+    const file = join(dir, 'package.json')
+    if (!existsSync(file)) continue
+    const pkg = JSON.parse(readFileSync(file, 'utf8')) as { name?: string; version: string }
+    if (pkg.name === name) return pkg.version
+  }
+  throw new Error(`version of ${name} not found`)
+}
+
+// Large runtime assets live at versioned URLs, so production can cache them forever
+// (`immutable`, see longCache below) and a dependency/model bump changes the URL.
+const MEDIAPIPE_BASE = `vendor/mediapipe-${pkgVersion('@mediapipe/tasks-vision')}`
 const MEDIAPIPE_FILES = ['vision_wasm_internal.js', 'vision_wasm_internal.wasm', 'vision_wasm_nosimd_internal.js', 'vision_wasm_nosimd_internal.wasm']
 
 function mediapipeRuntime(): Plugin {
-  const wasmDir = join(dirname(createRequire(import.meta.url).resolve('@mediapipe/tasks-vision')), 'wasm')
+  const wasmDir = join(dirname(require.resolve('@mediapipe/tasks-vision')), 'wasm')
   return {
     name: 'mediapipe-runtime',
     configureServer(server) {
@@ -35,14 +49,15 @@ function mediapipeRuntime(): Plugin {
 // node_modules in dev and copied into the build at /ort/ — self-hosted like MediaPipe.
 // The WebGPU build (onnxruntime-web/webgpu) loads exactly the asyncify pair.
 const ORT_FILES = ['ort-wasm-simd-threaded.asyncify.mjs', 'ort-wasm-simd-threaded.asyncify.wasm']
+const ORT_BASE = `vendor/ort-${pkgVersion('onnxruntime-web')}`
 
 function ortRuntime(): Plugin {
-  const dist = join(dirname(createRequire(import.meta.url).resolve('onnxruntime-web')), '..', 'dist')
-  const distDir = existsSync(join(dist, ORT_FILES[0]!)) ? dist : dirname(createRequire(import.meta.url).resolve('onnxruntime-web'))
+  const dist = join(dirname(require.resolve('onnxruntime-web')), '..', 'dist')
+  const distDir = existsSync(join(dist, ORT_FILES[0]!)) ? dist : dirname(require.resolve('onnxruntime-web'))
   return {
     name: 'ort-runtime',
     configureServer(server) {
-      server.middlewares.use('/ort/', (req, res, next) => {
+      server.middlewares.use(`/${ORT_BASE}/`, (req, res, next) => {
         const name = (req.url ?? '').split('?')[0]!.replace(/^\//, '')
         if (!ORT_FILES.includes(name)) return next()
         res.setHeader('Content-Type', name.endsWith('.wasm') ? 'application/wasm' : 'text/javascript')
@@ -50,7 +65,7 @@ function ortRuntime(): Plugin {
       })
     },
     generateBundle() {
-      for (const name of ORT_FILES) this.emitFile({ type: 'asset', fileName: `ort/${name}`, source: readFileSync(join(distDir, name)) })
+      for (const name of ORT_FILES) this.emitFile({ type: 'asset', fileName: `${ORT_BASE}/${name}`, source: readFileSync(join(distDir, name)) })
     },
   }
 }
@@ -59,13 +74,18 @@ function ortRuntime(): Plugin {
 // (26 MB). Fetched once from a pinned revision, checked against its SHA-256, cached in
 // node_modules/.cache, then served by the dev server and emitted into the build — so
 // production self-hosts it and nothing third-party is requested at runtime. If the
-// download fails the build still succeeds without it, and the app falls back to
-// MediaPipe (loudly warned here).
+// download fails, CI/production builds fail (requireModel); local builds continue
+// without it and the app falls back to MediaPipe (loudly warned).
 const MODNET = {
   url: 'https://huggingface.co/Xenova/modnet/resolve/fa2fa546052fba4c08921230a26cc69a333fca12/onnx/model.onnx',
   sha256: '07c308cf0fc7e6e8b2065a12ed7fc07e1de8febb7dc7839d7b7f15dd66584df9',
-  path: 'models/modnet.onnx',
 }
+const MODNET_PATH = `models/modnet-${MODNET.sha256.slice(0, 12)}.onnx`
+
+// A missing model is a hard build error in CI and on Railway (or with
+// VBG_REQUIRE_MODEL=1): otherwise an upstream outage would silently ship an app that
+// only has MediaPipe. Local builds warn and continue.
+const requireModel = () => !!(process.env.CI || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_ENVIRONMENT_NAME || process.env.VBG_REQUIRE_MODEL === '1')
 
 function modnetModel(): Plugin {
   const cacheFile = join(__dirname, 'node_modules', '.cache', 'models', `modnet-${MODNET.sha256.slice(0, 12)}.onnx`)
@@ -90,7 +110,7 @@ function modnetModel(): Plugin {
   return {
     name: 'modnet-model',
     configureServer(server) {
-      server.middlewares.use(`/${MODNET.path}`, (_req, res, next) => {
+      server.middlewares.use(`/${MODNET_PATH}`, (_req, res, next) => {
         void ensure().then((file) => {
           if (!file) return next()
           res.setHeader('Content-Type', 'application/octet-stream')
@@ -101,7 +121,8 @@ function modnetModel(): Plugin {
     },
     async generateBundle() {
       const file = await ensure()
-      if (file) this.emitFile({ type: 'asset', fileName: MODNET.path, source: readFileSync(file) })
+      if (file) this.emitFile({ type: 'asset', fileName: MODNET_PATH, source: readFileSync(file) })
+      else if (requireModel()) this.error('MODNet model could not be fetched or verified (required in CI/production; set nothing to change this, or fix the network/pin)')
     },
   }
 }
@@ -124,8 +145,27 @@ function devModels(): Plugin {
   }
 }
 
+// Production (`vite preview`): versioned runtime assets and Vite's hashed /assets/ are
+// cached for a year as immutable, so returning users never re-download the ~53 MB.
+function longCache(): Plugin {
+  const immutable = (url: string) => url.startsWith('/vendor/') || url.startsWith('/assets/') || /^\/models\/modnet-[0-9a-f]{12}\.onnx/.test(url)
+  return {
+    name: 'long-cache',
+    configurePreviewServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (immutable(req.url ?? '')) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+        next()
+      })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), mediapipeRuntime(), ortRuntime(), modnetModel(), devModels()],
+  plugins: [react(), mediapipeRuntime(), ortRuntime(), modnetModel(), devModels(), longCache()],
+  // The app reads these versioned asset URLs (features/vbg) — one source of truth.
+  define: {
+    __VBG_ASSETS__: JSON.stringify({ mediapipe: `/${MEDIAPIPE_BASE}`, ort: `/${ORT_BASE}/`, modnet: `/${MODNET_PATH}` }),
+  },
   // ONNX Runtime loads its own WASM glue at runtime from /ort/; don't pre-bundle it.
   optimizeDeps: { exclude: ['onnxruntime-web'] },
   server: {
