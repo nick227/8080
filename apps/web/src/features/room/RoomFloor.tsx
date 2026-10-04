@@ -3,6 +3,7 @@ import { useCapture } from '../../state/capture'
 import { useUI } from '../../state/ui'
 import { PersonIcon } from '../../components/icons'
 import type { Item, SendInput } from '../../api/types'
+import { Control } from '../../components/Control'
 import { SelfTile } from './SelfTile'
 import { RoomAir } from './RoomAir'
 import { LiveBar } from './LiveBar'
@@ -20,25 +21,6 @@ function FaceTile({ seat }: { seat: Seat }) {
       </span>
       <span className="room-seat-name">{seat.name}</span>
     </div>
-  )
-}
-
-function InviteButton({ inviteUrl }: { inviteUrl?: string }) {
-  const [copied, setCopied] = useState(false)
-  if (!inviteUrl) return null
-  const copy = async () => {
-    await navigator.clipboard.writeText(inviteUrl)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1600)
-  }
-  return (
-    <button type="button" className="room-bar-invite" aria-label={copied ? 'Invite link copied' : 'Copy invite link'} onClick={() => void copy()}>
-      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-        {copied
-          ? <path d="M3.5 8.2 6.4 11 12.5 4.8" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
-          : <path d="M8 3.25v9.5M3.25 8h9.5" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />}
-      </svg>
-    </button>
   )
 }
 
@@ -71,7 +53,7 @@ function Floor({ view, seats, item, next, onEnded, onView, self, bar, stack }: {
   )
 }
 
-export function RoomFloor({ view, seats, item, next, onEnded, onSend, onActivity, onView, inviteUrl, deskOpen }: {
+export function RoomFloor({ view, seats, item, next, onEnded, onSend, onActivity, onView, onPost, deskOpen }: {
   view: RoomView
   seats: Seat[]
   item?: Item
@@ -80,10 +62,9 @@ export function RoomFloor({ view, seats, item, next, onEnded, onSend, onActivity
   onSend: (input: SendInput) => Promise<void>
   onActivity: (activity: PresenceActivity) => void
   onView: (view: RoomView) => void
-  inviteUrl?: string
+  onPost: () => void
   deskOpen?: boolean
 }) {
-  const invite = <InviteButton inviteUrl={inviteUrl} />
   const shared = { view, seats, item, next, onEnded, onView }
   if (deskOpen) {
     return (
@@ -93,14 +74,18 @@ export function RoomFloor({ view, seats, item, next, onEnded, onSend, onActivity
           const me = seats.find((seat) => seat.self)
           return me ? <FaceTile seat={me} /> : null
         }}
-        bar={<div className="room-bar">{invite}<ViewSwitch value={view} onChange={onView} /></div>}
+        bar={<div className="room-bar"><PostControl onPost={onPost} /><ViewSwitch value={view} onChange={onView} /></div>}
       />
     )
   }
-  return <ArmedFloor {...shared} onSend={onSend} onActivity={onActivity} invite={invite} />
+  return <ArmedFloor {...shared} onSend={onSend} onActivity={onActivity} onPost={onPost} />
 }
 
-function ArmedFloor({ view, seats, item, next, onEnded, onSend, onActivity, onView, invite }: {
+function PostControl({ onPost }: { onPost: () => void }) {
+  return <Control variant="default" className="sub-control" type="button" aria-label="Post" onClick={onPost}>Aa</Control>
+}
+
+function ArmedFloor({ view, seats, item, next, onEnded, onSend, onActivity, onView, onPost }: {
   view: RoomView
   seats: Seat[]
   item?: Item
@@ -109,7 +94,7 @@ function ArmedFloor({ view, seats, item, next, onEnded, onSend, onActivity, onVi
   onSend: (input: SendInput) => Promise<void>
   onActivity: (activity: PresenceActivity) => void
   onView: (view: RoomView) => void
-  invite: ReactNode
+  onPost: () => void
 }) {
   const [armed, setArmed] = useState(false)
   const session = useRecordSession({ onSend, onActivity, onClose: () => setArmed(false) })
@@ -137,7 +122,7 @@ function ArmedFloor({ view, seats, item, next, onEnded, onSend, onActivity, onVi
         const me = seats.find((seat) => seat.self)
         return me ? <SelfTile seat={me} armed={armed} session={session} onGoLive={armCamera} /> : null
       }}
-      bar={<LiveBar session={session} armed={armed} setArmed={setArmed} invite={invite} view={view} onView={onView} />}
+      bar={<LiveBar session={session} armed={armed} setArmed={setArmed} onPost={onPost} view={view} onView={onView} />}
       stack={armed ? (
         <RecordStack
           session={session}

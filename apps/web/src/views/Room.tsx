@@ -119,7 +119,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   // Row actions go through a ref so cached rows never hold stale closures.
   const actions = useRef({ reply: (_id: string) => {}, remove: (_id: string) => {} })
   actions.current = {
-    reply: (id) => { ui.startReply(id); setDesk(true) },
+    reply: (id) => { setCompose(false); ui.startReply(id); setDesk(true) },
     remove: (id) => {
       void removeItem.mutateAsync(id).catch((error: unknown) => {
         ui.setError(error instanceof Error ? error.message : 'Could not delete')
@@ -173,11 +173,12 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const people = roomPeopleFrom(visible, meId, meName, meAvatar, activity)
 
   const data = room.data
-  const inviteUrl = data
-    ? data.visibility === 'private' && data.inviteCode
-      ? `${window.location.origin}/room/${data.id}?invite=${data.inviteCode}`
-      : `${window.location.origin}/room/${data.id}`
-    : undefined
+  const openPost = () => {
+    ui.setIdle()
+    ui.startComposing()
+    setCompose(true)
+    setDesk(true)
+  }
 
   return (
     <Panel as="main" variant="shell" className="room-shell">
@@ -208,7 +209,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
             onSend={send}
             onActivity={onActivity}
             onView={chooseView}
-            inviteUrl={inviteUrl}
+            onPost={openPost}
             deskOpen={showDesk}
           />
         )}
@@ -248,12 +249,14 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
             useCapture.getState().cancel()
             onActivity('here')
             ui.setIdle()
+            setCompose(false)
             setDesk(false)
           }}
           onSend={async (input) => {
             await send(input)
             if (useUI.getState().error) return
             useCapture.getState().complete()
+            setCompose(false)
             setDesk(false)
           }}
         />
@@ -264,7 +267,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
           item={playing}
           onClose={() => ui.setIdle()}
           onEnded={() => advance(playing.id)}
-          onReply={() => { ui.startReply(playing.id); setDesk(true) }}
+          onReply={() => { setCompose(false); ui.startReply(playing.id); setDesk(true) }}
         />
       )}
     </Panel>
