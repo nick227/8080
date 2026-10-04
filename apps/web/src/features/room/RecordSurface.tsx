@@ -22,6 +22,7 @@ import { takePicture, useStockEdit } from '../edit/useStockEdit'
 import type { PresenceActivity } from './PeopleStrip'
 import { THUMB_ACCEPT, thumbFileProblem } from '../conversation/newConversation'
 import { BackgroundStrip } from './BackgroundStrip'
+import { mainAction } from './deskAction'
 import { useBackground } from '../../state/background'
 
 function IdentityField({ identity }: { identity: ConversationIdentity }) {
@@ -115,6 +116,7 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
   const choice = useDevice((s) => s.choice)
   const kind = captureKind(choice)
   const fileRef = useRef<HTMLInputElement>(null)
+  const deskRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const actionsRef = useRef<HTMLDivElement>(null)
   const [text, setText] = useState('')
@@ -154,18 +156,27 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
   const begin = async () => {
     if (useCapture.getState().phase === 'arming' || useCapture.getState().phase === 'recording') return
     if (bgBlocking) return
-    const soundLayer = frame === 'text'
     setYtText('')
     setYt({ status: 'loading' })
     if (useCapture.getState().blob) capture.cancel()
-    if (!soundLayer) {
-      clearUpload()
-      setFrame(kind === 'video' ? 'camera' : 'mic')
-    } else if (upload && upload.type !== 'image') clearUpload()
-    const recordKind = soundLayer ? 'audio' : kind
-    const deviceId = recordKind === 'audio' && choice.kind !== 'audioinput' ? '' : choice.deviceId
-    const ok = await capture.start(recordKind, deviceId)
+    clearUpload()
+    setFrame(kind === 'video' ? 'camera' : 'mic')
+    const deviceId = kind === 'audio' && choice.kind !== 'audioinput' ? '' : choice.deviceId
+    const ok = await capture.start(kind, deviceId)
     if (!ok) ui.setError(useCapture.getState().error ?? 'Recording unavailable')
+  }
+
+  // Leaving a type drops the take, the file, and a pending link, so the
+  // switch lands on that type instead of keeping the previous post on screen.
+  const chooseFrame = (next: Frame) => {
+    if (recording || next === frame) return
+    capture.cancel()
+    clearUpload()
+    setYtText('')
+    setYt({ status: 'loading' })
+    setFrame(next)
+    if (next === 'mic') void chooseKind('audio')
+    if (next === 'camera') void chooseKind('video')
   }
 
   const back = () => {
@@ -246,6 +257,8 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
   const showCamera = frame === 'camera' && !showTake && !showFile
   const showWave = frame === 'mic' && !showTake && !showFile
   const canSend = !!(text.trim() || take || blob || ytReady || edit.fitted?.buffer || edit.fitted?.imageUrl)
+  const action = mainAction({ frame, recording, hasTake: !!(blob || upload) })
+  const submitLabel = rendering ? 'Rendering' : sending ? (replyName ? 'Sending' : 'Saving') : (replyName ? 'Send' : 'Save')
   const showPlay = showTake && (previewType !== 'image' || !!edit.fitted?.buffer)
   const showRetry = showTake && previewType !== 'image'
 
@@ -293,8 +306,13 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
     }
   }
 
+  useEffect(() => {
+    if (compose) return
+    deskRef.current?.querySelector<HTMLButtonElement>('.record-button')?.focus()
+  }, [compose])
+
   return (
-    <div className="room-desk" role="dialog" aria-label={replyName ? `Reply to ${replyName}` : 'Record'} data-review={showTake || (showFile && !!upload) || undefined}>
+    <div ref={deskRef} className="room-desk" role="dialog" aria-label={replyName ? `Reply to ${replyName}` : 'Record'} data-review={showTake || (showFile && !!upload) || undefined}>
       <div className="room-desk-stack">
         <div className="room-desk-anchor">
         <div className="room-desk-meta">
@@ -303,7 +321,18 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
         <div className="room-desk-stage" ref={stageRef}>
           {frame === 'text' && (
             <div className="room-desk-write-wrap">
-              <textarea className="room-desk-write" value={text} autoFocus placeholder="Write something." onChange={(event) => setText(event.target.value)} />
+              <textarea
+                className="room-desk-write"
+                value={text}
+                autoFocus
+                placeholder="Write something."
+                onChange={(event) => setText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' || !(event.metaKey || event.ctrlKey) || !canSend) return
+                  event.preventDefault()
+                  void send()
+                }}
+              />
             </div>
           )}
           {frame === 'link' && (
@@ -337,9 +366,18 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
           {showWave && <VoiceWave deviceId={choice.deviceId} recording={recording} />}
         </div>
         {showCamera && !recording && <BackgroundStrip />}
-        <Control variant="record" type="button" disabled={bgBlocking && !recording} active={recording} data-mass={recording ? 'dense' : 'rest'} aria-label={recording ? 'Stop' : 'Record'} onClick={() => (recording ? capture.stop() : void begin())}>
-          <span style={{ display: 'grid', placeItems: 'center', width: '1em', height: '1em' }}>
-            {recording ? '◉' : '●'}
+        <Control
+          variant="record"
+          type="button"
+          disabled={(action === 'record' && bgBlocking) || (action === 'submit' && (sending || edit.fitting || !canSend))}
+          active={action === 'stop'}
+          data-mass={action === 'stop' ? 'dense' : action === 'submit' ? 'present' : 'rest'}
+          data-action={action}
+          aria-label={action === 'stop' ? 'Stop' : action === 'record' ? 'Record' : submitLabel}
+          onClick={() => (action === 'stop' ? capture.stop() : action === 'record' ? void begin() : void send())}
+        >
+          <span className="room-desk-verb">
+            {action === 'stop' ? '◉' : action === 'record' ? '●' : submitLabel}
           </span>
         </Control>
         </div>
@@ -348,9 +386,9 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
           <div className="sub-controls" style={{ opacity: recording ? 0 : 1, pointerEvents: recording ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
             <DevicePicker />
             <div className="room-desk-subs">
-              <Control variant="default" className="sub-control" type="button" aria-label="Microphone" active={frame === 'mic'} onClick={() => { setFrame('mic'); void chooseKind('audio') }}><KindMark kind="audio" /></Control>
-              <Control variant="default" className="sub-control" type="button" aria-label="Camera" active={frame === 'camera'} onClick={() => { setFrame('camera'); void chooseKind('video') }}><KindMark kind="video" /></Control>
-              <Control variant="default" className="sub-control" type="button" aria-label="Write" active={frame === 'text'} onClick={() => setFrame('text')}>Aa</Control>
+              <Control variant="default" className="sub-control" type="button" aria-label="Microphone" active={frame === 'mic'} onClick={() => chooseFrame('mic')}><KindMark kind="audio" /></Control>
+              <Control variant="default" className="sub-control" type="button" aria-label="Camera" active={frame === 'camera'} onClick={() => chooseFrame('camera')}><KindMark kind="video" /></Control>
+              <Control variant="default" className="sub-control" type="button" aria-label="Write" active={frame === 'text'} onClick={() => chooseFrame('text')}>Aa</Control>
               <Control variant="default" className="sub-control" type="button" aria-label="Upload" onClick={() => fileRef.current?.click()}>+</Control>
             </div>
           </div>
@@ -368,7 +406,6 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
               <button type="button" onClick={togglePlay}>{playing ? 'Pause' : 'Play'}</button>
             )}
             {showRetry && <button type="button" onClick={() => { capture.cancel(); clearUpload(); void begin() }}>RETRY</button>}
-            <button type="button" disabled={sending || edit.fitting || !canSend} onClick={() => void send()}>{rendering ? 'Rendering' : sending ? (replyName ? 'Sending' : 'Saving') : (replyName ? 'Send' : 'Save')}</button>
             </span>
           </div>
         </div>

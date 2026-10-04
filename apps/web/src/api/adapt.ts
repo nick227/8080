@@ -34,7 +34,11 @@ export function toItem(i: SdkItem): Item {
     messageId: i.messageId,
     parentId: i.parentId ?? undefined,
     anchorStartMs: i.anchorStartMs ?? undefined,
-    author: { id: i.message.author.id, name: i.message.author.name },
+    author: {
+      id: i.message.author.id,
+      name: i.message.author.name,
+      avatarUrl: i.message.author.avatarUrl ?? undefined,
+    },
     text: i.message.text ?? undefined,
     media: i.message.media.length ? i.message.media.map(toMedia) : undefined,
     reactions: i.reactions.map(({ type, count, reacted }) => ({ type, count, reacted })),

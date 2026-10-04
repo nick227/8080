@@ -277,7 +277,7 @@ function StoredMedia({ type = 'image', preview = false, name, poster, src, aspec
             style={{ height: 40, width: '100%', background: 'var(--bg-elevated)', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', cursor: 'pointer', position: 'relative', overflow: 'hidden' }}
           >
             <div aria-hidden style={{ position: 'absolute', inset: 0, width: `${progress * 100}%`, background: 'var(--signal)', opacity: 0.25, transition: 'width 0.25s linear' }} />
-            <span aria-hidden style={{ position: 'relative' }}>{playing ? '❚❚' : '▶'}</span>
+            {!hidePlayButton && <span aria-hidden style={{ position: 'relative' }}>{playing ? '❚❚' : '▶'}</span>}
             <span style={{ position: 'relative', fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '0.08em' }}>
               {error ? 'UNAVAILABLE' : blocked ? 'TAP TO CONTINUE' : duration ? `${Math.floor(duration / 60)}:${String(Math.floor(duration % 60)).padStart(2, '0')}` : 'AUDIO'}
             </span>

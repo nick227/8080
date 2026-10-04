@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { uploadMedia, useDeleteRoom, useUpdateRoom, type Room } from '@project/sdk'
 import { useUI } from '../../state/ui'
@@ -7,7 +7,11 @@ import { PlayIcon } from '../../components/icons'
 import { pictureOf } from '../../utils/thumbnail'
 import { roomTitle } from '../../utils/room'
 
-export function ConversationHead({ room, onPlayAll }: { room: Room; onPlayAll?: () => void }) {
+export function ConversationHead({ room, onPlayAll, people }: {
+  room: Room
+  onPlayAll?: () => void
+  people?: ReactNode
+}) {
   const owner = room.role === 'owner'
   const update = useUpdateRoom(room.id)
   const remove = useDeleteRoom()
@@ -43,15 +47,98 @@ export function ConversationHead({ room, onPlayAll }: { room: Room; onPlayAll?: 
 
   return (
     <header className="room-head">
-      {(cover || owner) && (
-        owner ? (
-          <button type="button" className="room-cover" aria-label="Change cover" onClick={() => fileRef.current?.click()}>
-            {cover ? <img src={cover} alt="" /> : <span>Add cover</span>}
-          </button>
-        ) : (
-          <div className="room-cover">{cover && <img src={cover} alt="" />}</div>
-        )
-      )}
+      <div className="room-head-row">
+        {(cover || owner) && (
+          owner ? (
+            <button type="button" className="room-cover" aria-label="Change cover" onClick={() => fileRef.current?.click()}>
+              {cover ? <img src={cover} alt="" /> : <span>+</span>}
+            </button>
+          ) : (
+            <div className="room-cover">{cover && <img src={cover} alt="" />}</div>
+          )
+        )}
+        <div className="room-head-main">
+          {owner ? (
+            <input
+              className="room-head-title"
+              aria-label="Conversation name"
+              value={title}
+              maxLength={120}
+              placeholder={roomTitle({ title: '', number: room.number })}
+              onChange={(event) => setTitle(event.target.value)}
+              onBlur={() => {
+                const next = title.trim()
+                if (next === room.title) return
+                void update.mutateAsync({ title: next }).catch((error: unknown) => fail(error, 'Could not rename'))
+              }}
+              onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
+            />
+          ) : (
+            <h1 className="room-head-title">{roomTitle(room)}</h1>
+          )}
+        </div>
+        {(onPlayAll || owner || room.description.trim()) && (
+          <details className="room-menu">
+            <summary aria-label="Conversation options">···</summary>
+            <div className="room-menu-panel">
+              {owner ? (
+                <textarea
+                  className="room-head-description"
+                  aria-label="Description"
+                  value={description}
+                  maxLength={4000}
+                  rows={2}
+                  placeholder="Description"
+                  onChange={(event) => setDescription(event.target.value)}
+                  onBlur={() => {
+                    const next = description.trim()
+                    if (next === room.description) return
+                    void update.mutateAsync({ description: next }).catch((error: unknown) => fail(error, 'Could not save description'))
+                  }}
+                />
+              ) : (
+                room.description.trim() ? <p className="room-head-description">{room.description}</p> : null
+              )}
+              {(onPlayAll || owner) && (
+                <div className="room-head-actions">
+                  {onPlayAll && (
+                    <button type="button" className="room-play-all" onClick={onPlayAll}>
+                      <PlayIcon /> Play all
+                    </button>
+                  )}
+                  {owner && (
+                    <>
+                      <button
+                        type="button"
+                        aria-pressed={room.visibility === 'private'}
+                        onClick={() => {
+                          const visibility = room.visibility === 'private' ? 'public' : 'private'
+                          void update.mutateAsync({ visibility }).catch((error: unknown) => fail(error, 'Could not update visibility'))
+                        }}
+                      >
+                        {room.visibility === 'private' ? 'Private' : 'Public'}
+                      </button>
+                      <button
+                        type="button"
+                        data-armed={armed || undefined}
+                        onClick={() => {
+                          if (!armed) { setArmed(true); return }
+                          void remove.mutateAsync(room.id).then(() => {
+                            useShell.getState().enterHome(true)
+                            navigate('/')
+                          }).catch((error: unknown) => fail(error, 'Could not delete'))
+                        }}
+                      >
+                        {armed ? 'Confirm delete' : 'Delete'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </details>
+        )}
+      </div>
       {owner && (
         <input
           ref={fileRef}
@@ -66,78 +153,7 @@ export function ConversationHead({ room, onPlayAll }: { room: Room; onPlayAll?: 
           }}
         />
       )}
-      {owner ? (
-        <input
-          className="room-head-title"
-          aria-label="Conversation name"
-          value={title}
-          maxLength={120}
-          placeholder={roomTitle({ title: '', number: room.number })}
-          onChange={(event) => setTitle(event.target.value)}
-          onBlur={() => {
-            const next = title.trim()
-            if (next === room.title) return
-            void update.mutateAsync({ title: next }).catch((error: unknown) => fail(error, 'Could not rename'))
-          }}
-          onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
-        />
-      ) : (
-        <h1 className="room-head-title">{roomTitle(room)}</h1>
-      )}
-      {owner ? (
-        <textarea
-          className="room-head-description"
-          aria-label="Description"
-          value={description}
-          maxLength={4000}
-          rows={2}
-          placeholder="Description"
-          onChange={(event) => setDescription(event.target.value)}
-          onBlur={() => {
-            const next = description.trim()
-            if (next === room.description) return
-            void update.mutateAsync({ description: next }).catch((error: unknown) => fail(error, 'Could not save description'))
-          }}
-        />
-      ) : (
-        room.description.trim() ? <p className="room-head-description">{room.description}</p> : null
-      )}
-      {(onPlayAll || owner) && (
-        <div className="room-head-actions">
-          {onPlayAll && (
-            <button type="button" className="room-play-all" onClick={onPlayAll}>
-              <PlayIcon /> Play all
-            </button>
-          )}
-          {owner && (
-            <>
-              <button
-                type="button"
-                aria-pressed={room.visibility === 'private'}
-                onClick={() => {
-                  const visibility = room.visibility === 'private' ? 'public' : 'private'
-                  void update.mutateAsync({ visibility }).catch((error: unknown) => fail(error, 'Could not update visibility'))
-                }}
-              >
-                {room.visibility === 'private' ? 'Private' : 'Public'}
-              </button>
-              <button
-                type="button"
-                data-armed={armed || undefined}
-                onClick={() => {
-                  if (!armed) { setArmed(true); return }
-                  void remove.mutateAsync(room.id).then(() => {
-                    useShell.getState().enterHome(true)
-                    navigate('/')
-                  }).catch((error: unknown) => fail(error, 'Could not delete'))
-                }}
-              >
-                {armed ? 'Confirm delete' : 'Delete'}
-              </button>
-            </>
-          )}
-        </div>
-      )}
+      {people}
     </header>
   )
 }

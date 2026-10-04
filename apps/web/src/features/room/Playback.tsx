@@ -49,7 +49,7 @@ export function Playback({ item, onClose, onEnded, onReply }: {
     <div className="room-stage" role="dialog" aria-label={`Playing ${item.author.name}`}>
       <div className="room-stage-bar">
         <span className="room-byline">
-          <span className="room-avatar">
+          <span className="room-avatar" data-photo={item.author.avatarUrl ? '' : undefined}>
             {item.author.avatarUrl ? <img src={item.author.avatarUrl} alt="" /> : initial}
           </span>
           <span className="room-who">{item.author.name}</span>
