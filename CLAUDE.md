@@ -107,6 +107,12 @@ The in-lobby River (playing posts and replies inline) was retired: the Lobby onl
 - `replyFromUIState` stays on Home: in the SPA a reply started in a room can still be in progress when you reach Home.
 - Browser suite `iso/create.cjs` (scratchpad, pair :3002/:5174, TEST DB): 12/12 ×2.
 
+## Video soundtrack = preview layers, Save remuxes (2026-10-03)
+
+- **Preview renders nothing**: `EditPreview` → `VideoPreview` / `useLayeredPlayback` plays the take as-is (voice audible) as the only clock; the stock track loops under it via the shared preview AudioContext at `MUSIC_GAIN` (`edit/soundtrack.ts`), cued to `video.currentTime` on play/seek and re-cued past 80ms drift. Cancel is free.
+- **Save remuxes once** (`edit/remuxSoundtrack.ts`, mediabunny, lazy-loaded): video packets copied unchanged (bit-exact; WebM for vp8/vp9/av1, else MP4), voice + looped music mixed once in `OfflineAudioContext`, encoded as the only audio track, length = the video's own (writes a real duration, fixing Firefox's duration-less webm). ~0.1–0.3s instead of real-time canvas re-encode.
+- `composeClip` (canvas + MediaRecorder) remains only for a **still image + audio**, which has no video stream to copy. Never route video through it again.
+
 ## Key Design Decisions
 
 - Items numbered per room: `Room.itemCount` incremented inside the createItem transaction; `@@unique([roomId, number])`.

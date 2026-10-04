@@ -3,7 +3,7 @@ import type { LocalMedia, MediaType } from '../../api/types'
 import { useUI } from '../../state/ui'
 import { composeClip } from './composeClip'
 import { encodeWav } from './encodeWav'
-import { bufferDurationMs, decodeStock, fitAudio, readDurationMs, waveformPeaks } from './fitAudio'
+import { bufferDurationMs, decodeStock, waveformPeaks } from './fitAudio'
 import { imageFile, stillTake } from './stillTake'
 import { STOCK_IMAGES, stockImage, stockTrack } from './stock'
 
@@ -124,12 +124,13 @@ export function useStockEdit(picture: TakePicture | null) {
           return
         }
         if (token !== request.current) return
-        const durationMs = current.kind === 'image'
-          ? bufferDurationMs(stock)
-          : current.durationMs > 0 ? current.durationMs : await readDurationMs(current.url, current.kind)
-        if (token !== request.current) return
-        const buffer = current.kind === 'image' ? stock : fitAudio(stock, durationMs)
-        commit(token, { trackId: id, buffer, durationMs, waveform: waveformPeaks(buffer) }, null)
+        if (current.kind === 'video') {
+          // Nothing is fitted or rendered for video: the preview layers the raw track
+          // under the take, and Save mixes + remuxes once (remuxSoundtrack.ts).
+          commit(token, { trackId: id, buffer: stock, durationMs: current.durationMs, waveform: waveformPeaks(stock) }, null)
+          return
+        }
+        commit(token, { trackId: id, buffer: stock, durationMs: bufferDurationMs(stock), waveform: waveformPeaks(stock) }, null)
       } catch (cause) {
         fail(token, null, cause)
       } finally {
@@ -178,8 +179,15 @@ export function useStockEdit(picture: TakePicture | null) {
       const ext = file.type === 'video/mp4' ? 'mp4' : 'webm'
       return { file, type: 'video', name: `edit.${ext}`, duration: edit.durationMs / 1000 }
     }
+    if (current.kind === 'video') {
+      // Loaded on demand: the muxer is only needed at Save.
+      const [{ remuxWithSoundtrack }, take] = await Promise.all([import('./remuxSoundtrack'), fetch(current.url).then((r) => r.blob())])
+      const { file, durationMs } = await remuxWithSoundtrack(take, edit.buffer)
+      const ext = file.type === 'video/mp4' ? 'mp4' : 'webm'
+      return { file, type: 'video', name: `edit.${ext}`, duration: durationMs / 1000 }
+    }
     if (!audioCtx) throw new Error('Could not render the clip')
-    const file = await composeClip({ kind: current.kind, url: current.url }, edit.buffer, edit.durationMs, audioCtx)
+    const file = await composeClip({ kind: 'image', url: current.url }, edit.buffer, edit.durationMs, audioCtx)
     const ext = file.type === 'video/mp4' ? 'mp4' : 'webm'
     return { file, type: 'video', name: `edit.${ext}`, duration: edit.durationMs / 1000 }
   }

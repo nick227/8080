@@ -22,6 +22,7 @@
     "react-router-dom": "^7.18.4",
     "zustand": "^5.0.15",
     "@tanstack/react-query": "^5.104.0",
+    "mediabunny": "^1.61.1",
     "motion": "^13.4.6",
     "react-helmet-async": "^2.0.5",
     "@project/sdk": "workspace:*",
