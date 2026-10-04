@@ -3,6 +3,7 @@ import { useBackground } from '../../state/background'
 import { STOCK_IMAGES } from '../edit/stock'
 import { THUMB_ACCEPT, thumbFileProblem } from '../conversation/newConversation'
 import { useUI } from '../../state/ui'
+import { useMaskUpgrade } from '../vbg/maskSource'
 
 // Camera background, chosen while framing (it's baked in while recording):
 // ORIGINAL · BLUR · [photos] · +. The user's own photo is kept in the browser.
@@ -16,7 +17,10 @@ export function BackgroundStrip() {
   const choose = useBackground((s) => s.choose)
   const uploadMine = useBackground((s) => s.uploadMine)
   const photos = mine ? [...STOCK_IMAGES, { id: mine.id, name: 'Yours', url: mine.url }] : STOCK_IMAGES
+  const upgrade = useMaskUpgrade()
+  // MediaPipe is ready at once; MODNet's sharper edges arrive when its download finishes.
   const note = mode !== 'original' && status === 'loading' ? 'Loading background…'
+    : mode !== 'original' && upgrade.state === 'loading' ? `Sharper edges loading… ${upgrade.pct}%`
     : status === 'unavailable' ? (message ?? 'Background unavailable') + ' — using original'
     : null
 

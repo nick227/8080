@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { publishSpectrum, useCapture } from '../state/capture'
 import { useBackground } from '../state/background'
 import { cameraConstraints, pausePreview, publishLiveCompositor, publishLiveStream, resumePreview } from './previewStream'
-import { compositorOutputSize, effectiveMode, facingUser, loadSegmenter, setVbgRecording, startCompositor, type Compositor } from './virtualCamera'
+import { compositorOutputSize, currentMaskSource, effectiveMode, facingUser, loadMaskSource, setVbgRecording, startCompositor, type Compositor } from './virtualCamera'
 
 const getConstraints = (kind: 'audio' | 'video', deviceId: string): MediaStreamConstraints => {
   if (kind === 'audio') return { audio: deviceId ? { deviceId: { exact: deviceId } } : true }
@@ -69,8 +69,9 @@ export function useMediaCapture() {
       const effect = kind === 'video' ? effectiveMode() : 'original'
       let recordStream = stream
       if (effect !== 'original') {
-        const seg = await loadSegmenter()
-        const compositor = startCompositor(seg, stream, { mode: effect, photoUrl: useBackground.getState().photo?.url ?? null, mirror: facingUser(stream), fixedSize: true },
+        // The best source available now (MODNet if its background load finished).
+        const source = currentMaskSource() ?? await loadMaskSource()
+        const compositor = startCompositor(source, stream, { mode: effect, photoUrl: useBackground.getState().photo?.url ?? null, mirror: facingUser(stream), fixedSize: true },
           (message) => useBackground.getState().setStatus('unavailable', message))
         compositorRef.current = compositor
         recordStream = new MediaStream([...compositor.stream.getVideoTracks(), ...stream.getAudioTracks()])

@@ -130,3 +130,47 @@ Measured on a 1280×720 person clip (headless Chromium), readout numbers:
 - **v3 (default):** no erosion; hysteresis (person above 0.5, released only below 0.3) so one uncertain frame can't remove a pixel; confidence-weighted temporal smoothing; small feather. Readout adds **flicker** = mean |Δalpha| between consecutive masks over edge pixels.
 - Measured on a noisy, underexposed still clip (cheap-webcam proxy): flicker **10.6% (v2) → 4.7% (v3)**, coverage 22.4% → 24.5%. With an extra 1-pixel outward growth: flicker 5.5%, coverage 25.5%, but it latched chunks of the real room the model rates ~50% person (off by default; `grow` in the tuning switch).
 - **The ceiling is the model.** Biasing inward clips the person, outward shows the room; filters only move the artifact. MediaPipe's heavier `selfie_multiclass_256x256` (16 MB) was tried as a drop-in: **~177 ms (Chromium) / ~210 ms (Firefox) per frame on CPU** vs 7–8 ms for `selfie_segmenter` — unusable without GPU inference. Next step is a real matting model on the GPU (see the proposal in the conversation of 2026-10-04): RVM (temporal, GPL-3.0) or MODNet (Apache-2.0) via WebGL/WebGPU.
+
+## Phase 1 pipeline: pluggable mask sources (2026-10-04)
+Goal: real-time client-side room replacement at ~85–90% of Teams quality, pluggable to go higher. Key principle: stable edges beat accurate edges — the stabilizer matters more than the model.
+
+**Stages** (`features/vbg/`): camera frame → **mask source** (`types.ts` `MaskSource`: person alpha 0–1 at its own resolution; `backend`, `sync`, `inputSize`, `run`) → **temporal stabilizer** (`stabilizer.ts`: confidence-weighted smoothing, hysteresis 0.5/0.3, no erosion, 3×3 feather, last-mask seeding, 500 ms stale → raw camera, flicker/coverage metrics) → **compositor** (`virtualCamera.ts`: Blur/Photo, polish, budget ladder; one inference in flight, GPU sources run off the main thread while frames keep drawing).
+
+**Sources** (`maskSource.ts`, chosen once per page; framing and recording share it — never switched mid-recording):
+1. **MODNet** (`modnetSource.ts`, production default) on **WebGPU only**, input 512×288, ONNX Runtime Web (MIT) self-hosted at `/ort/` (asyncify build, 27 MB WASM) + `/models/modnet.onnx` (fp32, 26 MB; **not in git** — the `modnet-model` Vite plugin fetches it from a pinned Hugging Face revision, verifies SHA-256, caches it in `node_modules/.cache/models`, serves it in dev and emits it into the build; notice in `public/models/MODNET-NOTICE.txt`). Rejected at load if the warm median exceeds 40 ms (≥ ~24 masks/s); one timed run 3× over budget aborts early. WebGL is not practical (ORT's WebGL backend: "int64 is not supported"); CPU WASM measured 360–570 ms.
+2. **MediaPipe** selfie_segmenter (fallback), CPU, 384×216, 7–8 ms.
+3. **RVM** (`rvmSourceDevOnly.ts`) — **evaluation only**, see licence.
+
+Fallback events are logged and shown in the readout (`fallback modnet/webgpu: …`). Overrides: `localStorage['8080.vbg-source'] = 'modnet' | 'mediapipe'` (+ `'rvm'` in dev builds); dev-only `8080.vbg-nogate = '1'` skips the speed gate for quality comparison on slow machines.
+
+**Licence position (recorded 2026-10-04; not legal advice):**
+- MODNet — official ZHKKKe/MODNet states code, models and demos are Apache-2.0; ONNX conversion Xenova/modnet is Apache-2.0. Cleared for production; keep `MODNET-NOTICE.txt` intact.
+- RVM — official PeterL1n/RobustVideoMatting is GPL-3.0. Evaluation only: shipping it client-side would likely trigger GPL obligations. Excluded at build time (reachable only through an `import.meta.env.DEV` branch; production `dist/` verified to contain no RVM code, tensor names or dev-model paths); weights only in `apps/web/.dev-models/` (gitignored), served by the dev server, never emitted. No RVM code is shared into production paths (it depends on the generic `ort.ts`, not the reverse). Build-time exclusion is hygiene, not a legal safe harbour — don't distribute a dev build containing it without legal review. Weights licences should be checked separately from code licences for both.
+
+**Offline comparison** (same 16 noisy, underexposed 720p frames, same metric and stabilizer; ORT CPU in Node / MediaPipe in Chromium):
+
+| | raw flicker | stabilized flicker | coverage |
+|---|---|---|---|
+| MediaPipe | 6.8% | 4.9% | 24.6% |
+| MODNet | 12.7% | 6.3% | 23.0% |
+| RVM (recurrent) | 6.6% | 3.7% | 23.6% |
+
+Visual (alpha of the last frame): MediaPipe is blobby with room chunks (flag/curtain) attached; MODNet is a clean, crisp silhouette with none; RVM is crisp but kept some background at the head. MODNet's flicker number is inflated by its genuinely soft (wider) edge band. Live speed could not be measured here (no GPU; software WebGPU ran MODNet at 15.6 s/frame).
+
+**Acceptance test (gates the phase, on a real webcam + GPU):** still pose, head turn, arms up, fast hand wave, move toward/away. Pass if edges are calm, limbs stay attached, room chunks are limited, Blur has no artifacts; targets 30 fps output, ≥ 24 masks/s, 720p minimum (1080p only when sustained). Compare `modnet` vs `mediapipe` (and `rvm` in dev) with the readout's backend, infer ms, masks/s, draw ms, fps, flicker, fallbacks.
+
+**Decision after evaluation:** RVM much better on motion → legal review / permissive recurrent alternative / flow-based propagation on MODNet (Phase 2). RVM only slightly better → stay on MODNet.
+
+### Normalized metric (supersedes the raw-flicker table above)
+The first flicker metric penalized MODNet's genuinely wider soft edge. Now: every model's alpha resampled to 384×216; flicker measured only inside a fixed ±3 px band around the 0.5 contour of each frame pair (same geometric band for every model); reported as mean |Δα| in the band and as **edge shift** (Σ|Δα| in the band ÷ contour length ≈ pixels the edge moves per frame). 48 frames per clip.
+
+| noisy still clip (edge shift px/frame) | raw | stabilized |
+|---|---|---|
+| MediaPipe | 0.317 | 0.173 |
+| MODNet | 0.218 (31% calmer) | 0.188 |
+| RVM (recurrent) | 0.185 (42% calmer) | **0.068** (≈ 2.5× calmer) |
+
+On the fast-motion clip all three move ≈ 4.5–5.3 px/frame (real motion dominates; the metric doesn't separate it). Findings: recurrence matters — RVM's frame-to-frame noise is small and consistent, so the stabilizer absorbs it; MODNet's raw output is calmer than MediaPipe's but its noise passes through our stabilizer more (stabilized ≈ MediaPipe) — a per-source stabilizer tuning is a candidate. MODNet's lasting advantage is shape (no room chunks). Speed on real GPUs is the open gate: if typical laptops fail the 24 masks/s check, most users stay on MediaPipe.
+
+### First-use download UX (progressive upgrade)
+`auto` starts on MediaPipe immediately (Record usable in ~0.3 s), then loads MODNet in the background — model + runtime fetched with byte progress (shown as "Sharper edges loading… N%"), handed to ORT (`env.wasm.wasmBinary`, no second download). Devices without WebGPU never download it. When it passes the speed gate it becomes the current source: **framing compositors switch to it; a recording keeps the source it started with**; the next framing view uses the upgrade. Explicit `8080.vbg-source` values load that engine directly (clean evaluation runs).

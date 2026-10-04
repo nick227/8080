@@ -1,48 +1,31 @@
-import type { ImageSegmenter } from '@mediapipe/tasks-vision'
 import { useBackground, type BackgroundMode } from '../state/background'
+import { currentMaskSource, fallbacks, loadMaskSource, subscribeMaskSource } from './vbg/maskSource'
+import { createStabilizer } from './vbg/stabilizer'
+import type { MaskSource } from './vbg/types'
 
-// Virtual background (doc/07-virtual-background-plan.md). One canvas per compositor is
-// the recording source; a second canvas is the on-screen preview (mirrored like a
-// selfie view, with a replacement photo kept readable). The compositor never opens or
-// stops the camera: its owner does (framing in CameraPreview, recording in useMediaCapture).
+// Virtual background (doc/07-virtual-background-plan.md). Four replaceable stages:
+// camera frame → mask source (vbg/maskSource.ts) → temporal stabilizer (vbg/stabilizer.ts)
+// → this compositor (Blur / Photo rendering, polish, frame budget). One canvas per
+// compositor is the recording source; a second canvas is the on-screen preview
+// (mirrored like a selfie view, with a replacement photo kept readable). The compositor
+// never opens or stops the camera: its owner does (framing in CameraPreview, recording
+// in useMediaCapture).
 
-// Gecko by feature, not user agent (UAs get overridden): Firefox starts at the lighter tier.
+// Gecko by feature, not user agent (UAs get overridden).
 export const isFirefox = typeof CSS !== 'undefined' && CSS.supports('-moz-appearance', 'none')
 
 /** Front cameras are shown mirrored while framing; recordings never are. */
 export const facingUser = (stream: MediaStream) =>
   stream.getVideoTracks()[0]?.getSettings().facingMode === 'user'
 
-// ─── segmenter: one per page, self-hosted runtime, loaded on first use ─────────
-let segmenter: Promise<ImageSegmenter> | null = null
+export { currentMaskSource, loadMaskSource }
 
-export function loadSegmenter(): Promise<ImageSegmenter> {
-  segmenter ??= (async () => {
-    const { FilesetResolver, ImageSegmenter } = await import('@mediapipe/tasks-vision')
-    const fileset = await FilesetResolver.forVisionTasks('/mediapipe')
-    const create = (delegate: 'CPU') => ImageSegmenter.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: '/models/selfie_segmenter.tflite', delegate },
-      runningMode: 'VIDEO',
-      outputConfidenceMasks: true,
-      outputCategoryMask: false,
-    })
-    // CPU (XNNPACK) everywhere: the selfie model is tiny (~15 ms/frame measured even in
-    // headless Chromium), it avoids GPU→CPU mask readback, and MediaPipe's GPU delegate
-    // is unreliable in Firefox. Measured GPU in headless (software GL): ~190 ms/frame.
-    return create('CPU')
-  })().catch((error: unknown) => {
-    segmenter = null
-    throw error
-  })
-  return segmenter
-}
-
-/** Loads the segmenter for the chosen mode, reflecting progress in the background store. */
-export function ensureSegmenter() {
+/** Loads the mask source for the chosen mode, reflecting progress in the background store. */
+export function ensureMaskSource() {
   const store = useBackground.getState()
   if (store.mode === 'original' || store.status === 'ready' || store.status === 'loading' || store.status === 'unavailable') return
   store.setStatus('loading')
-  loadSegmenter().then(
+  loadMaskSource().then(
     () => { if (useBackground.getState().status === 'loading') useBackground.getState().setStatus('ready') },
     () => useBackground.getState().setStatus('unavailable', 'Background effects aren’t available on this device'),
   )
@@ -67,32 +50,30 @@ export type Compositor = {
 }
 
 const MAX_W = 1920 // never downscale a 720p/1080p camera; the canvas is the camera's size
-const NEW = 0.6 // v1 temporal smoothing: weight of the newest mask
 
-// Tuning (temporary, for A/B against real webcams): localStorage '8080.vbg-tune' =
-// {"seg":256|384|512,"matte":"v1"|"v2"|"v2-fixed"}. Defaults: 384 px, v2 (adaptive erosion);
-// v2-fixed erodes everywhere (the previous v2).
-type Tune = { seg: number; matte: 'v1' | 'v2' | 'v2-fixed' | 'v3'; polish: boolean; blurRes: 'half' | 'quarter'; grow: boolean }
+// Tuning (temporary, for evaluation): localStorage '8080.vbg-tune' =
+// {"polish":bool,"blurRes":"half"|"quarter"}. The mask source is chosen separately
+// (localStorage '8080.vbg-source', see vbg/maskSource.ts).
+type Tune = { polish: boolean; blurRes: 'half' | 'quarter' }
 function readTune(): Tune {
   try {
     const raw = JSON.parse(localStorage.getItem('8080.vbg-tune') ?? 'null') as Partial<Tune> | null
-    return { seg: [256, 384, 512].includes(raw?.seg ?? 0) ? raw!.seg! : 384, matte: raw?.matte === 'v1' || raw?.matte === 'v2' || raw?.matte === 'v2-fixed' ? raw.matte : 'v3', polish: raw?.polish !== false, blurRes: raw?.blurRes === 'quarter' ? 'quarter' : 'half', grow: raw?.grow === true }
+    return { polish: raw?.polish !== false, blurRes: raw?.blurRes === 'quarter' ? 'quarter' : 'half' }
   } catch {
-    return { seg: 384, matte: 'v3', polish: true, blurRes: 'half', grow: false }
+    return { polish: true, blurRes: 'half' }
   }
 }
 
-/** Live numbers for the developer readout (features/room/VbgReadout.tsx). */
-export type VbgStats = { camera: string; canvas: string; seg: string; segMs: number; segFps: number; drawMs: number; fps: number; tier: number; matte: string; engine: string; fg: number; flicker: number; polish: boolean; blur: string; failed: boolean }
+/** Live numbers for the developer readout (features/room/VbgReadout.tsx), per backend. */
+export type VbgStats = {
+  backend: string; camera: string; canvas: string; maskInput: string; mask: string
+  inferMs: number; maskFps: number; mainSegMs: number; drawMs: number; fps: number; tier: number
+  fg: number; flicker: number; polish: boolean; blur: string; fallbacks: string; failed: boolean
+}
 export let vbgStats: VbgStats | null = null
 export let vbgRecording: { mime: string; videoBitsPerSecond: number } | null = null
 export function setVbgRecording(info: typeof vbgRecording) { vbgRecording = info }
-const STALE_MS = 500 // a mask older than this is not trusted: show the raw camera
 const WINDOW_MS = 2000 // quality is judged over this window
-
-// The last smoothed mask, so a new compositor (framing → recording) starts with a
-// cutout instead of a frame or two of the real room.
-let lastMask: { data: Float32Array; w: number; h: number; at: number } | null = null
 
 // What this device can afford, learned by the framing compositor and inherited by the
 // recording one (which then never changes size mid-take). Budget ladder when a frame
@@ -103,11 +84,6 @@ let lastMask: { data: Float32Array; w: number; h: number; at: number } | null = 
 // and not retried for 30 s. Startup is expensive, so one-way steps stuck too low.
 type Step = 'canvas' | 'blur' | 'polish'
 const learned = { maxW: MAX_W, polish: true, blurHalf: true, blockedUntil: { canvas: 0, blur: 0, polish: 0 } as Record<Step, number> }
-
-const smoothstep = (lo: number, hi: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - lo) / (hi - lo)))
-  return t * t * (3 - 2 * t)
-}
 
 function canvas(w = 2, h = 2) {
   const el = document.createElement('canvas')
@@ -138,7 +114,8 @@ export function compositorOutputSize(width: number, height: number) {
   return { width: Math.round(width * scale), height: Math.round(height * scale) }
 }
 
-export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initial: CompositorOptions, onUnavailable: (message: string) => void): Compositor {
+export function startCompositor(initialSource: MaskSource, camera: MediaStream, initial: CompositorOptions, onUnavailable: (message: string) => void): Compositor {
+  let source = initialSource
   let options = { ...initial }
   const tune = readTune()
   let polish = tune.polish && learned.polish
@@ -172,10 +149,11 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
   const previewCtx = ctx2d(preview)
   const person = canvas()
   const personCtx = ctx2d(person)
-  const segIn = canvas()
+  const segIn = canvas() // the frame resized to the mask source's input size
   const segCtx = ctx2d(segIn)
-  const maskCanvas = canvas()
-  const maskCtx = ctx2d(maskCanvas)
+  const stabilizer = createStabilizer()
+  const maskCanvas = stabilizer.alpha
+  const ringCanvas = stabilizer.ring
   // Blur background: built from the raw camera only, opaque, redrawn every frame.
   // Halving steps average pixels (one big downscale aliases in Firefox: thin dark
   // details became solid black blocks), then a real blur at quarter size.
@@ -200,9 +178,6 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
   let bright = 1 // brightness applied to the photo, eased toward the camera's
   // Polish layers: an edge ring (where the matte isn't fully opaque), a foreground-only
   // soft copy for colour decontamination, and a soft contact shadow.
-  const ringCanvas = canvas()
-  const ringCtx = ctx2d(ringCanvas)
-  let ringImage: ImageData | null = null
   const softC = canvas()
   const softCtx = ctx2d(softC)
   const shadowC = canvas()
@@ -213,10 +188,6 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
 
   let W = 0
   let H = 0
-  let smooth: Float32Array | null = null
-  let shaped: Float32Array | null = null
-  let maskImage: ImageData | null = null
-  let maskAt = 0
 
   // Sized from the track's reported size up front (then from the video once it plays),
   // so a recorder never starts on a placeholder canvas: Firefox's MediaRecorder can lock
@@ -236,11 +207,12 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     PH = Math.round((PW * H) / W)
     preview.width = PW
     preview.height = PH
-    segIn.width = Math.min(tune.seg, W)
-    segIn.height = Math.max(2, Math.round((segIn.width * H) / W))
+    const input = source.inputSize(W, H)
+    segIn.width = input.width
+    segIn.height = input.height
     const fit = (el: HTMLCanvasElement, d: number) => { el.width = Math.max(2, Math.round(W / d)); el.height = Math.max(2, Math.round(H / d)) }
     fit(halfC, 2); fit(blurHalfC, 2); fit(quarterC, 4); fit(eighthC, 8); fit(sixteenthC, 16); fit(softC, 4); fit(shadowC, 4)
-    for (const c of [outCtx, previewCtx, personCtx, segCtx, maskCtx, halfCtx, blurHalfCtx, quarterCtx, eighthCtx, sixteenthCtx, photoCtx, photoBaseCtx, ringCtx, softCtx, shadowCtx]) {
+    for (const c of [outCtx, previewCtx, personCtx, segCtx, halfCtx, blurHalfCtx, quarterCtx, eighthCtx, sixteenthCtx, photoCtx, photoBaseCtx, softCtx, shadowCtx]) {
       c.imageSmoothingEnabled = true
       c.imageSmoothingQuality = 'high'
     }
@@ -308,116 +280,13 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
 
   ensureSize(camera.getVideoTracks()[0]?.getSettings())
 
-  // ── mask: smooth over time, soften the confidence edge, feather a little ──
-  let eroded: Float32Array | null = null
-  let prevRaw: Float32Array | null = null
-  let movedMap: Uint8Array | null = null
-  const takeMask = (floats: Float32Array, w: number, h: number) => {
-    const before = prevAlpha && prevAlpha.length === w * h ? Uint8Array.from(maskImage!.data.filter((_, k) => k % 4 === 3)) : null
-    if (tune.matte === 'v1') takeMaskV1(floats, w, h)
-    else if (tune.matte === 'v3') takeMaskV3(floats, w, h)
-    else takeMaskV2(floats, w, h)
-    const px = maskImage!.data
-    if (!prevAlpha || prevAlpha.length !== w * h) prevAlpha = new Uint8Array(w * h)
-    if (before) {
-      let sum = 0
-      let n = 0
-      for (let i = 0; i < w * h; i++) {
-        const a = px[i * 4 + 3]!
-        const b = before[i]!
-        if ((a > 0 && a < 255) || (b > 0 && b < 255)) { sum += Math.abs(a - b); n++ }
-      }
-      if (n) { windowFlicker += sum / n / 255; windowFlickerN++ }
-    }
-    for (let i = 0; i < w * h; i++) prevAlpha[i] = px[i * 4 + 3]!
-  }
-  let prevAlpha: Uint8Array | null = null
-
-  // v3 matte (default): favour inclusion and calm over tightness. Hysteresis — a pixel
-  // becomes person above 0.5 confidence but only stops being person below 0.3, so one
-  // uncertain frame can't remove it; no erosion; a small feather. Optional ('grow' in
-  // the tuning switch) one-pixel outward growth: on noisy dim footage it latched chunks
-  // of the real room where the model rates them ~50% person, so it's off by default.
-  let held: Uint8Array | null = null
-  const takeMaskV3 = (floats: Float32Array, w: number, h: number) => {
-    prepare(floats, w, h)
-    if (!held || held.length !== w * h) held = new Uint8Array(w * h)
-    const s = smooth!
-    const sh = shaped!
-    const er = eroded! // reused as the grown alpha
-    for (let i = 0; i < s.length; i++) {
-      const next = floats[i]!
-      const change = Math.abs(next - s[i]!)
-      const certainty = Math.abs(s[i]! - 0.5) * 2
-      const keep = change > 0.25 ? 0 : 0.75 * certainty * (1 - change * 4)
-      s[i] = next * (1 - keep) + s[i]! * keep
-      if (s[i]! > 0.5) held[i] = 1
-      else if (s[i]! < 0.3) held[i] = 0
-      // Held pixels ramp in a little earlier; others need real confidence. (A wider
-      // band — release at 0.2, ramp from 0.1 — latched chunks of the real room.)
-      sh[i] = held[i] ? smoothstep(0.25, 0.5, s[i]!) : smoothstep(0.5, 0.8, s[i]!)
-    }
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        let max = 0
-        for (let dy = -1; dy <= 1; dy++) {
-          const yy = Math.min(h - 1, Math.max(0, y + dy))
-          for (let dx = -1; dx <= 1; dx++) {
-            const v = sh[yy * w + Math.min(w - 1, Math.max(0, x + dx))]!
-            if (v > max) max = v
-          }
-        }
-        er[y * w + x] = tune.grow ? max : sh[y * w + x]!
-      }
-    }
-    const px = maskImage!.data
-    const rp = ringImage!.data
-    let fg = 0
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        let sum = 0
-        for (let dy = -1; dy <= 1; dy++) {
-          const yy = Math.min(h - 1, Math.max(0, y + dy))
-          for (let dx = -1; dx <= 1; dx++) sum += er[yy * w + Math.min(w - 1, Math.max(0, x + dx))]!
-        }
-        const i = y * w + x
-        const a = Math.round((sum / 9) * 255)
-        px[i * 4 + 3] = a
-        rp[i * 4 + 3] = a < 5 ? 0 : Math.round((1 - smoothstep(0.6, 0.98, a / 255)) * 255)
-        if (a > 127) fg++
-      }
-    }
-    ringCtx.putImageData(ringImage!, 0, 0)
-    if (polish && ++maskNo % 15 === 0) matchBrightness(sh, w, h)
-    windowFg += fg / (w * h)
-    windowFgN++
-    maskCtx.putImageData(maskImage!, 0, 0)
-    maskAt = performance.now()
-    lastMask = { data: s, w, h, at: maskAt }
-  }
-
-  const prepare = (floats: Float32Array, w: number, h: number) => {
-    if (!smooth || smooth.length !== w * h) {
-      const seed = lastMask && lastMask.w === w && lastMask.h === h && performance.now() - lastMask.at < 1000 ? lastMask.data : null
-      smooth = seed ? Float32Array.from(seed) : Float32Array.from(floats)
-      shaped = new Float32Array(w * h)
-      eroded = new Float32Array(w * h)
-      prevRaw = Float32Array.from(floats)
-      maskCanvas.width = w
-      maskCanvas.height = h
-      maskImage = maskCtx.createImageData(w, h)
-      ringCanvas.width = w
-      ringCanvas.height = h
-      ringImage = ringCtx.createImageData(w, h)
-      movedMap = new Uint8Array(w * h)
-    }
-  }
-
   // Ease the photo's brightness toward the light on the person (person-weighted mean
   // luminance of the segmentation frame), part-way and clamped: a match, not a flood.
   let maskNo = 0
-  const matchBrightness = (m: Float32Array, w: number, h: number) => {
-    if (!photoImage || !photoMean || segIn.width !== w || segIn.height !== h) return
+  const matchBrightness = () => {
+    const m = stabilizer.confidence()
+    const { width: w, height: h } = stabilizer.size()
+    if (!m || !photoImage || !photoMean || segIn.width !== w || segIn.height !== h) return
     const d = segCtx.getImageData(0, 0, w, h).data
     let sum = 0
     let weight = 0
@@ -433,113 +302,6 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     if (Math.abs(bright - bakedBright) > 0.02) bakePhoto()
   }
 
-  // v2 matte: smooth over time where the mask is steady but follow it at once where it
-  // moves (no ghost trails); a firm confidence curve; contract the edge by one mask
-  // pixel (min filter) so background pixels can't survive in the soft edge (the halo);
-  // then only a small feather. Adaptive (default): where the raw mask moved since the
-  // previous segmentation (a hand or forearm in motion), the contraction is skipped
-  // around it — thin fast limbs would otherwise erode away first — and comes back as
-  // soon as that region is still. Static edges (hair, shoulders) keep it: no halo.
-  const MOVED = 0.15
-  const takeMaskV2 = (floats: Float32Array, w: number, h: number) => {
-    prepare(floats, w, h)
-    const s = smooth!
-    const sh = shaped!
-    const er = eroded!
-    const prev = prevRaw!
-    const adaptive = tune.matte === 'v2'
-    for (let i = 0; i < s.length; i++) {
-      const next = floats[i]!
-      const change = Math.abs(next - s[i]!)
-      // Confident, steady pixels (torso, head interior) smooth heavily; uncertain
-      // (near 0.5) or changing pixels follow the new mask at once.
-      const certainty = Math.abs(s[i]! - 0.5) * 2
-      const keep = change > 0.25 ? 0 : 0.75 * certainty * (1 - change * 4)
-      s[i] = next * (1 - keep) + s[i]! * keep
-      sh[i] = smoothstep(0.4, 0.8, s[i]!)
-    }
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        let min = 1
-        let moved = false
-        for (let dy = -1; dy <= 1; dy++) {
-          const yy = Math.min(h - 1, Math.max(0, y + dy))
-          for (let dx = -1; dx <= 1; dx++) {
-            const j = yy * w + Math.min(w - 1, Math.max(0, x + dx))
-            const v = sh[j]!
-            if (v < min) min = v
-            if (adaptive && Math.abs(floats[j]! - prev[j]!) > MOVED) moved = true
-          }
-        }
-        er[y * w + x] = moved ? sh[y * w + x]! : min
-        movedMap![y * w + x] = moved ? 1 : 0
-      }
-    }
-    prev.set(floats)
-    const px = maskImage!.data
-    const rp = ringImage!.data
-    let fg = 0
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const i = y * w + x
-        let a: number
-        if (movedMap![i]) {
-          a = Math.round(er[i]! * 255) // moving: firm edge, no feather (no smear)
-        } else {
-          let sum = 0
-          for (let dy = -1; dy <= 1; dy++) {
-            const yy = Math.min(h - 1, Math.max(0, y + dy))
-            for (let dx = -1; dx <= 1; dx++) sum += er[yy * w + Math.min(w - 1, Math.max(0, x + dx))]!
-          }
-          a = Math.round((sum / 9) * 255) // still: small feather
-        }
-        px[i * 4 + 3] = a
-        // Edge ring for decontamination: zero outside and in the solid interior.
-        rp[i * 4 + 3] = a < 5 ? 0 : Math.round((1 - smoothstep(0.6, 0.98, a / 255)) * 255)
-        if (a > 127) fg++
-      }
-    }
-    ringCtx.putImageData(ringImage!, 0, 0)
-    if (polish && ++maskNo % 15 === 0) matchBrightness(sh, w, h)
-    windowFg += fg / (w * h)
-    windowFgN++
-    maskCtx.putImageData(maskImage!, 0, 0)
-    maskAt = performance.now()
-    lastMask = { data: s, w, h, at: maskAt }
-  }
-
-  const takeMaskV1 = (floats: Float32Array, w: number, h: number) => {
-    prepare(floats, w, h)
-    const s = smooth!
-    const sh = shaped!
-    for (let i = 0; i < s.length; i++) {
-      s[i] = NEW * floats[i]! + (1 - NEW) * s[i]!
-      sh[i] = smoothstep(0.3, 0.7, s[i]!)
-    }
-    // 3×3 box blur at mask resolution ≈ a few pixels of feather at output size.
-    const px = maskImage!.data
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        let sum = 0
-        let n = 0
-        for (let dy = -1; dy <= 1; dy++) {
-          const yy = y + dy
-          if (yy < 0 || yy >= h) continue
-          for (let dx = -1; dx <= 1; dx++) {
-            const xx = x + dx
-            if (xx < 0 || xx >= w) continue
-            sum += sh[yy * w + xx]!
-            n++
-          }
-        }
-        px[(y * w + x) * 4 + 3] = Math.round((sum / n) * 255)
-      }
-    }
-    maskCtx.putImageData(maskImage!, 0, 0)
-    maskAt = performance.now()
-    lastMask = { data: s, w, h, at: maskAt }
-  }
-
   // ── quality: every frame ⇄ every 2nd frame → raw camera ──
   // Every browser starts at full rate; the measured cost decides (a real Firefox webcam
   // test ran 20 ms segmentation, so the old Firefox-starts-halved guess threw frames away).
@@ -547,16 +309,12 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
   let frameNo = 0
   let windowStart = performance.now()
   let windowFrames = 0
-  let windowSegMs = 0
-  let windowSegs = 0
+  let windowMainSegMs = 0 // main-thread time spent starting/running inference
+  let windowInferMs = 0 // wall time per inference (GPU sources run off the main thread)
+  let windowMasks = 0
   let windowDrawMs = 0
-  let windowFg = 0 // share of mask pixels that are person (alpha > 50%), averaged per mask
-  let windowFgN = 0
-  // Edge calm: mean |Δalpha| between consecutive masks over pixels that are edge in
-  // either (0 < alpha < 1), in % — lower is calmer ("breathing" shows up here).
-  let windowFlicker = 0
-  let windowFlickerN = 0
   let errors = 0
+  let inFlight = false
 
   const giveUp = (message: string) => {
     if (failed) return
@@ -567,22 +325,29 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
   const judge = (now: number) => {
     if (now - windowStart < WINDOW_MS) return
     const fps = (windowFrames * 1000) / (now - windowStart)
-    const segMs = windowSegs ? windowSegMs / windowSegs : 0
+    const masksPerSec = (windowMasks * 1000) / (now - windowStart)
+    const inferMs = windowMasks ? windowInferMs / windowMasks : 0
+    // Main-thread cost per frame from inference (all of it for a sync source).
+    const segMs = windowFrames ? windowMainSegMs / Math.max(1, windowMasks) : 0
+    const { fg, flicker } = stabilizer.takeStats()
+    const mask = stabilizer.size()
     vbgStats = {
+      backend: source.backend,
       camera: `${video.videoWidth}×${video.videoHeight}`,
       canvas: `${W}×${H}`,
-      seg: `${segIn.width}×${segIn.height} → mask ${maskCanvas.width}×${maskCanvas.height}`,
-      segMs: Math.round(segMs * 10) / 10,
-      segFps: Math.round((windowSegs * 10000) / (now - windowStart)) / 10,
+      maskInput: `${segIn.width}×${segIn.height}`,
+      mask: `${mask.width}×${mask.height}`,
+      inferMs: Math.round(inferMs * 10) / 10,
+      maskFps: Math.round(masksPerSec * 10) / 10,
+      mainSegMs: Math.round(segMs * 10) / 10,
       drawMs: Math.round((windowFrames ? windowDrawMs / windowFrames : 0) * 10) / 10,
-      engine: isFirefox ? 'gecko' : 'other',
-      fg: Math.round((windowFgN ? windowFg / windowFgN : 0) * 1000) / 10,
-      flicker: Math.round((windowFlickerN ? windowFlicker / windowFlickerN : 0) * 1000) / 10,
       fps: Math.round(fps * 10) / 10,
       tier,
-      matte: tune.matte,
+      fg: Math.round(fg * 10) / 10,
+      flicker: Math.round(flicker * 10) / 10,
       polish,
       blur: `${nativeBlur ? 'filter' : 'fallback'} ${blurSource.width}×${blurSource.height}`,
+      fallbacks: fallbacks.map((f) => `${f.source}: ${f.reason}`).join('; '),
       failed,
     }
     const drawMs = windowFrames ? windowDrawMs / windowFrames : 0
@@ -620,30 +385,40 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     else if (tier === 1 && (segMs > 60 || fps < 12)) giveUp('Background effects are too slow on this device')
     windowStart = now
     windowFrames = 0
-    windowSegMs = 0
-    windowSegs = 0
+    windowMainSegMs = 0
+    windowInferMs = 0
+    windowMasks = 0
     windowDrawMs = 0
-    windowFg = 0
-    windowFlicker = 0
-    windowFlickerN = 0
-    windowFgN = 0
   }
 
+  // One inference in flight at a time. A GPU source runs off the main thread, so frames
+  // keep drawing (with the last stabilized mask) while it works; a sync source runs here.
   const segment = (now: number) => {
+    if (inFlight) return
     segCtx.drawImage(video, 0, 0, segIn.width, segIn.height)
     const t0 = performance.now()
+    let pending: Promise<unknown>
     try {
-      seg.segmentForVideo(segIn, now, (result) => {
-        const mask = result.confidenceMasks?.[0]
+      inFlight = true
+      pending = source.run(segIn, now).then((mask) => {
+        // A sync source's work happened inside run(); its settle time would include drawing.
+        if (!source.sync) windowInferMs += performance.now() - t0
+        windowMasks++
         if (!mask) return
-        takeMask(mask.getAsFloat32Array(), mask.width, mask.height)
+        stabilizer.update(mask)
+        if (polish && ++maskNo % 15 === 0) matchBrightness()
+        errors = 0
       })
-      errors = 0
-    } catch {
-      if (++errors >= 3) giveUp('Background effects stopped working')
+    } catch (error) {
+      pending = Promise.reject(error)
     }
-    windowSegMs += performance.now() - t0
-    windowSegs++
+    const mainMs = performance.now() - t0
+    windowMainSegMs += mainMs
+    if (source.sync) windowInferMs += mainMs
+    pending.catch(() => {
+      // Hold the last mask (the stabilizer goes stale → raw camera); give up after 3.
+      if (++errors >= 3) giveUp('Background effects stopped working')
+    }).finally(() => { inFlight = false })
   }
 
   // Overscan by twice the radius so the canvas edge (transparent) never bleeds inward.
@@ -687,7 +462,7 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
 
   const draw = (now: number) => {
     const mirror = options.mirror
-    const stale = failed || !maskAt || now - maskAt > STALE_MS
+    const stale = failed || !stabilizer.usable(now)
     if (stale) {
       // Raw camera (no mask yet, or segmentation stopped): never a frozen cutout.
       outCtx.drawImage(video, 0, 0, W, H)
@@ -787,6 +562,19 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
 
   const stream = out.captureStream(30)
 
+  // A better source (MODNet finished loading) is adopted while framing only; a
+  // recording keeps the source it started with. The stabilizer re-seeds on the new
+  // mask size; an inference already in flight on the old source just completes.
+  const unsubscribe = options.fixedSize ? () => {} : subscribeMaskSource((next) => {
+    source = next
+    if (!W) return
+    const input = source.inputSize(W, H)
+    segIn.width = input.width
+    segIn.height = input.height
+    segCtx.imageSmoothingEnabled = true
+    segCtx.imageSmoothingQuality = 'high'
+  })
+
   return {
     stream,
     preview,
@@ -797,6 +585,7 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     },
     stop: () => {
       stopped = true
+      unsubscribe()
       if (hasRvfc) video.cancelVideoFrameCallback(handle)
       else cancelAnimationFrame(handle)
       stream.getTracks().forEach((track) => track.stop())

@@ -1,4 +1,5 @@
-import { createReadStream, readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
@@ -30,8 +31,103 @@ function mediapipeRuntime(): Plugin {
   }
 }
 
+// ONNX Runtime Web's WASM binaries (MIT), for the MODNet mask source: served from
+// node_modules in dev and copied into the build at /ort/ — self-hosted like MediaPipe.
+// The WebGPU build (onnxruntime-web/webgpu) loads exactly the asyncify pair.
+const ORT_FILES = ['ort-wasm-simd-threaded.asyncify.mjs', 'ort-wasm-simd-threaded.asyncify.wasm']
+
+function ortRuntime(): Plugin {
+  const dist = join(dirname(createRequire(import.meta.url).resolve('onnxruntime-web')), '..', 'dist')
+  const distDir = existsSync(join(dist, ORT_FILES[0]!)) ? dist : dirname(createRequire(import.meta.url).resolve('onnxruntime-web'))
+  return {
+    name: 'ort-runtime',
+    configureServer(server) {
+      server.middlewares.use('/ort/', (req, res, next) => {
+        const name = (req.url ?? '').split('?')[0]!.replace(/^\//, '')
+        if (!ORT_FILES.includes(name)) return next()
+        res.setHeader('Content-Type', name.endsWith('.wasm') ? 'application/wasm' : 'text/javascript')
+        createReadStream(join(distDir, name)).pipe(res)
+      })
+    },
+    generateBundle() {
+      for (const name of ORT_FILES) this.emitFile({ type: 'asset', fileName: `ort/${name}`, source: readFileSync(join(distDir, name)) })
+    },
+  }
+}
+
+// MODNet weights (Apache-2.0; notice in public/models/MODNET-NOTICE.txt): not in git
+// (26 MB). Fetched once from a pinned revision, checked against its SHA-256, cached in
+// node_modules/.cache, then served by the dev server and emitted into the build — so
+// production self-hosts it and nothing third-party is requested at runtime. If the
+// download fails the build still succeeds without it, and the app falls back to
+// MediaPipe (loudly warned here).
+const MODNET = {
+  url: 'https://huggingface.co/Xenova/modnet/resolve/fa2fa546052fba4c08921230a26cc69a333fca12/onnx/model.onnx',
+  sha256: '07c308cf0fc7e6e8b2065a12ed7fc07e1de8febb7dc7839d7b7f15dd66584df9',
+  path: 'models/modnet.onnx',
+}
+
+function modnetModel(): Plugin {
+  const cacheFile = join(__dirname, 'node_modules', '.cache', 'models', `modnet-${MODNET.sha256.slice(0, 12)}.onnx`)
+  let pending: Promise<string | null> | null = null
+  const verified = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex') === MODNET.sha256
+  const ensure = () => (pending ??= (async () => {
+    if (existsSync(cacheFile) && verified(readFileSync(cacheFile))) return cacheFile
+    try {
+      const response = await fetch(MODNET.url)
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const bytes = Buffer.from(await response.arrayBuffer())
+      if (!verified(bytes)) throw new Error('checksum mismatch')
+      mkdirSync(dirname(cacheFile), { recursive: true })
+      writeFileSync(cacheFile, bytes)
+      return cacheFile
+    } catch (error) {
+      console.warn(`\n[modnet-model] could not fetch MODNet (${(error as Error).message}); the app will use MediaPipe.\n`)
+      pending = null
+      return null
+    }
+  })())
+  return {
+    name: 'modnet-model',
+    configureServer(server) {
+      server.middlewares.use(`/${MODNET.path}`, (_req, res, next) => {
+        void ensure().then((file) => {
+          if (!file) return next()
+          res.setHeader('Content-Type', 'application/octet-stream')
+          res.setHeader('Content-Length', String(statSync(file).size))
+          createReadStream(file).pipe(res)
+        })
+      })
+    },
+    async generateBundle() {
+      const file = await ensure()
+      if (file) this.emitFile({ type: 'asset', fileName: MODNET.path, source: readFileSync(file) })
+    },
+  }
+}
+
+// Evaluation-only weights (GPL-3.0 RVM): served by the dev server from .dev-models/
+// (gitignored) and never emitted into a build.
+function devModels(): Plugin {
+  return {
+    name: 'dev-models',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/__dev-models/', (req, res, next) => {
+        const name = (req.url ?? '').split('?')[0]!.replace(/^\//, '')
+        const file = join(__dirname, '.dev-models', name)
+        if (!/^[\w.-]+\.onnx$/.test(name) || !existsSync(file)) return next()
+        res.setHeader('Content-Type', 'application/octet-stream')
+        createReadStream(file).pipe(res)
+      })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), mediapipeRuntime()],
+  plugins: [react(), mediapipeRuntime(), ortRuntime(), modnetModel(), devModels()],
+  // ONNX Runtime loads its own WASM glue at runtime from /ort/; don't pre-bundle it.
+  optimizeDeps: { exclude: ['onnxruntime-web'] },
   server: {
     allowedHosts: true,
   },
