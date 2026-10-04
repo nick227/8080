@@ -144,10 +144,19 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
   const segCtx = ctx2d(segIn)
   const maskCanvas = canvas()
   const maskCtx = ctx2d(maskCanvas)
-  const blurSmall = canvas()
-  const blurSmallCtx = ctx2d(blurSmall)
-  const blurMid = canvas()
-  const blurMidCtx = ctx2d(blurMid)
+  // Blur background: built from the raw camera only, opaque, redrawn every frame.
+  // Halving steps average pixels (one big downscale aliases in Firefox: thin dark
+  // details became solid black blocks), then a real blur at quarter size.
+  const halfC = canvas()
+  const halfCtx = ctx2d(halfC)
+  const quarterC = canvas()
+  const quarterCtx = ctx2d(quarterC)
+  const eighthC = canvas()
+  const eighthCtx = ctx2d(eighthC)
+  const sixteenthC = canvas()
+  const sixteenthCtx = ctx2d(sixteenthC)
+  const nativeBlur = (() => { quarterCtx.filter = 'blur(2px)'; const ok = quarterCtx.filter === 'blur(2px)'; quarterCtx.filter = 'none'; return ok })()
+  let blurSource: HTMLCanvasElement = quarterC
   const photo = canvas()
   const photoCtx = ctx2d(photo)
   let photoImage: HTMLImageElement | null = null
@@ -172,11 +181,9 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     for (const el of [out, preview, person, photo]) { el.width = W; el.height = H }
     segIn.width = Math.min(tune.seg, W)
     segIn.height = Math.max(2, Math.round((segIn.width * H) / W))
-    blurSmall.width = Math.max(2, Math.round(W / 24))
-    blurSmall.height = Math.max(2, Math.round(H / 24))
-    blurMid.width = Math.max(2, Math.round(W / 6))
-    blurMid.height = Math.max(2, Math.round(H / 6))
-    for (const c of [outCtx, previewCtx, personCtx, segCtx, maskCtx, blurSmallCtx, blurMidCtx, photoCtx]) {
+    const fit = (el: HTMLCanvasElement, d: number) => { el.width = Math.max(2, Math.round(W / d)); el.height = Math.max(2, Math.round(H / d)) }
+    fit(halfC, 2); fit(quarterC, 4); fit(eighthC, 8); fit(sixteenthC, 16)
+    for (const c of [outCtx, previewCtx, personCtx, segCtx, maskCtx, halfCtx, quarterCtx, eighthCtx, sixteenthCtx, photoCtx]) {
       c.imageSmoothingEnabled = true
       c.imageSmoothingQuality = 'high'
     }
@@ -379,10 +386,35 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     windowSegs++
   }
 
+  // Overscan by the blur radius so the canvas edge (transparent) never bleeds inward.
+  const blurInto = (ctx: CanvasRenderingContext2D, el: HTMLCanvasElement, source: CanvasImageSource, radius: number) => {
+    ctx.save()
+    ctx.globalCompositeOperation = 'copy'
+    ctx.globalAlpha = 1
+    ctx.filter = `blur(${radius}px)`
+    ctx.drawImage(source, -radius * 2, -radius * 2, el.width + radius * 4, el.height + radius * 4)
+    ctx.restore()
+  }
   const drawBlur = (target: CanvasRenderingContext2D) => {
-    blurSmallCtx.drawImage(video, 0, 0, blurSmall.width, blurSmall.height)
-    blurMidCtx.drawImage(blurSmall, 0, 0, blurMid.width, blurMid.height)
-    target.drawImage(blurMid, 0, 0, W, H)
+    // Quarter-size blur measured 12 ms/frame in Firefox at 1280×720; a full-size
+    // blur(18px) cost 36 ms for the same look.
+    halfCtx.drawImage(video, 0, 0, halfC.width, halfC.height)
+    if (nativeBlur) {
+      blurInto(quarterCtx, quarterC, halfC, 5) // ≈ 20 px at full size
+      blurSource = quarterC
+    } else {
+      // No ctx.filter (Safari): keep averaging down; the bilinear upscale is the blur.
+      quarterCtx.drawImage(halfC, 0, 0, quarterC.width, quarterC.height)
+      eighthCtx.drawImage(quarterC, 0, 0, eighthC.width, eighthC.height)
+      sixteenthCtx.drawImage(eighthC, 0, 0, sixteenthC.width, sixteenthC.height)
+      blurSource = sixteenthC
+    }
+    target.save()
+    target.globalCompositeOperation = 'source-over'
+    target.globalAlpha = 1
+    target.filter = 'none'
+    target.drawImage(blurSource, 0, 0, W, H)
+    target.restore()
   }
 
   const draw = (now: number) => {
@@ -417,7 +449,7 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     previewCtx.save()
     previewCtx.translate(W, 0)
     previewCtx.scale(-1, 1)
-    if (!photoMode) previewCtx.drawImage(blurMid, 0, 0, W, H)
+    if (!photoMode) previewCtx.drawImage(blurSource, 0, 0, W, H)
     previewCtx.drawImage(person, 0, 0)
     previewCtx.restore()
   }
