@@ -1,0 +1,25 @@
+# Deterministic Phase 1 classifier (doc/08 R15). Bump `version` on any change so
+# logged decisions can be replayed against the rules that made them.
+version: c1
+rules:
+  - intent: greeting
+    score: 0.9
+    patterns: ['\b(hi|hey|hello|hiya|yo|howdy|morning|evening|sup)\b', "what'?s up"]
+  - intent: question
+    score: 0.7
+    patterns: ['\?\s*$', '^(who|what|when|where|why|how|can|could|should|would|is|are|do|does)\b']
+  - intent: help
+    score: 0.95
+    patterns: ['\b(help|how do i|how to|stuck|can.?t figure|explain|show me)\b']
+  - intent: praise
+    score: 0.85
+    patterns: ['\b(thanks|thank you|thx|nice|great|awesome|love (it|this)|good bot|cool)\b']
+  - intent: complaint
+    score: 0.85
+    patterns: ['\b(broken|bug|annoying|hate|doesn.?t work|not working|bad bot|stop|shut up|quiet)\b']
+  - intent: media-request
+    score: 0.8
+    patterns: ['\b(play|show|share|send) (me )?(a |some )?(song|music|clip|video|picture|photo|something)\b']
+  - intent: smalltalk
+    score: 0.4
+    patterns: ['\b(how are you|what are you|who are you|bored|weather|weekend|lol|haha)\b']

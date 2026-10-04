@@ -22,7 +22,7 @@ export type DomainEvents = {
   'member.joined': { roomId: string; userId: string }
   'presence.arrived': { roomId: string; userId: string }
   'presence.left': { roomId: string; userId: string }
-  'seating.changed': { roomId: string; botId: string }
+  'seating.changed': { roomId: string; botId: string; seated: boolean; byUserId: string }
 }
 
 type Name = keyof DomainEvents

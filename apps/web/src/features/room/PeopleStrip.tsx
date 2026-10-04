@@ -13,23 +13,28 @@ export type RoomPerson = {
   activity: PresenceActivity | null
 }
 
-// Everyone who has spoken, plus everyone the roster says is here now — present
-// people and seated bots alike (doc/08 §2.3), so a participant holds a seat
-// before saying anything. No kind checks: the roster decides who is present.
+// Who holds a seat. With the live roster (doc/08 §2.3): whoever is present now —
+// people and seated bots alike, so a participant is seated before speaking and
+// leaves the seats when they go (or are removed). Items only refresh names and
+// avatars. Until the roster loads: everyone who has spoken (the old rule).
+// No kind checks: the roster decides.
 export function roomPeopleFrom(
   items: Item[],
   meId: string | undefined,
   meName: string,
   meAvatar: string | undefined,
   activity: PresenceActivity,
-  participants: Participant[] = [],
+  participants?: Participant[],
 ): RoomPerson[] {
   const seen = new Map<string, { name: string; tag?: string; avatarUrl?: string }>()
-  for (const p of participants) {
-    if (p.present) seen.set(p.user.id, { name: p.user.name, tag: p.user.tag ?? undefined, avatarUrl: p.user.avatarUrl ?? undefined })
+  if (participants) {
+    for (const p of participants) {
+      if (p.present) seen.set(p.user.id, { name: p.user.name, tag: p.user.tag ?? undefined, avatarUrl: p.user.avatarUrl ?? undefined })
+    }
   }
   for (const item of items) {
     const prev = seen.get(item.author.id)
+    if (participants && !prev) continue
     seen.set(item.author.id, { name: item.author.name, tag: item.author.tag ?? prev?.tag, avatarUrl: item.author.avatarUrl ?? prev?.avatarUrl })
   }
   if (meId) {

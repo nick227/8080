@@ -1,0 +1,16 @@
+defaults: { weight: 1 }
+lines:
+  - { key: in-1, pool: intro, text: "buddy chatbot here 🙂 just keeping you company. Say \"buddy\" bot any time." }
+  - { key: in-2, pool: intro, text: "hi everyone in {roomTitle}! I'm the friendly one. @buddy if you need a pep talk." }
+  - { key: hi-1, pool: summon, intents: [greeting], text: "hey {author}! how's your day going, really?" }
+  - { key: hi-2, pool: summon, intents: [greeting], text: "{author}! good to see you 💛" }
+  - { key: q-1, pool: summon, intents: [question], text: "honestly {author}, I think you already know the answer. What does your gut say?" }
+  - { key: q-2, pool: summon, intents: [question], text: "ooh, good one {author}. Want to talk it through out loud?" }
+  - { key: help-1, pool: summon, intents: [help], text: "you've got this, {author}. One small step first — what's the tiniest next thing?" }
+  - { key: help-2, pool: summon, intents: [help], text: "{author}, it's okay to be stuck. Take a breath, then tell us where it hurts." }
+  - { key: thx-1, pool: summon, intents: [praise], text: "aww {author}, right back at you." }
+  - { key: bad-1, pool: summon, intents: [complaint], text: "sorry it's rough, {author}. Want to vent? We're listening." }
+  - { key: media-1, pool: summon, intents: [media-request], text: "{author}, play us your favourite song — I'll hum along (badly)." }
+  - { key: sm-1, pool: summon, intents: [smalltalk], text: "{author}, drink some water. This is a buddy reminder." }
+  - { key: sm-2, pool: summon, intents: [smalltalk], text: "I'm great, {author}! Better now that you said hi." }
+  - { key: sm-3, pool: summon, intents: [smalltalk], text: "{author}, small win check: what went right today?" }

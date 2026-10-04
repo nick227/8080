@@ -1,0 +1,18 @@
+- id: intro
+  on: [bot.seated]                  # the owner just added this bot
+  key: "intro"
+  steps:
+    - wait: { min: 1s, max: 3s }
+    - guard: [seated, roomHasHumanItem]
+    - choose: { pool: intro }
+    - act: { say: chat }
+
+- id: answerSummon
+  on: [item.created]
+  when: { mentions: self, actor: human }
+  key: "summon:{itemId}"
+  steps:
+    - wait: { min: 1.5s, max: 4s }
+    - guard: [seated, itemLive]
+    - choose: { pool: summon, byIntents: true, fallback: smalltalk }
+    - act: { reply: sameSurface }

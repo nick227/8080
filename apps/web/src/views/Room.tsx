@@ -20,6 +20,7 @@ import { RoomFloor } from '../features/room/RoomFloor'
 import { loadRoomView, saveRoomView, seatsFrom, type RoomView } from '../features/room/roomViews'
 import { ChatStream, stillsFrom, type StreamRow } from '../features/room/ChatStream'
 import { ChatBox } from '../features/room/ChatBox'
+import { RoomPeople } from '../features/room/RoomPeople'
 import { RecordSurface } from '../features/room/RecordSurface'
 import { Playback, isPlayable } from '../features/room/Playback'
 import { useRoomPost } from '../features/room/useRoomPost'
@@ -241,7 +242,10 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
             deskOpen={showDesk}
           />
         )}
-        composer={<ChatBox onSend={chat} />}
+        composer={<>
+          {roomId && <RoomPeople roomId={roomId} meId={meId} owner={data?.role === 'owner'} />}
+          <ChatBox onSend={chat} />
+        </>}
         stream={(
           <ChatStream
             key={`${roomId ?? 'pending'}:${itemsSuccess ? 'ready' : 'wait'}`}

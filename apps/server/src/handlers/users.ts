@@ -2,6 +2,7 @@ import { UserService } from '../services/UserService'
 import { MediaService, type StoredFile } from '../services/MediaService'
 import { toUser } from '../lib/serialize'
 import { badRequest, forbidden } from '../lib/errors'
+import { mutes } from '../services/MuteService'
 
 const userService = new UserService()
 const mediaService = new MediaService()
@@ -31,4 +32,17 @@ export async function uploadAvatar(request: any, reply: any) {
     if (stored) await mediaService.discard(stored)
     throw err
   }
+}
+
+export async function listMutes(request: any, reply: any) {
+  return reply.send({ data: await mutes.list(request.user.id) })
+}
+
+export async function muteUser(request: any, reply: any) {
+  return reply.send({ data: await mutes.mute(request.user.id, request.params.userId) })
+}
+
+export async function unmuteUser(request: any, reply: any) {
+  await mutes.unmute(request.user.id, request.params.userId)
+  return reply.send({ data: null })
 }

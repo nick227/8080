@@ -190,6 +190,38 @@ export class RoomService {
     return all.filter((p) => p.present).concat(all.filter((p) => !p.present))
   }
 
+  // Every enabled bot with its seat here (house default seated; optional only if added).
+  async listBots(viewerId: string, roomId: string) {
+    await this.viewable(viewerId, roomId)
+    const [bots, seated] = await Promise.all([
+      db.bot.findMany({ where: { enabled: true }, include: { user: { include: { profile: true } } }, orderBy: { createdAt: 'asc' } }),
+      seatedBots(roomId),
+    ])
+    const on = new Set(seated.map((b) => b.id))
+    return bots.map((b) => ({ user: toAuthor(b.user), handle: b.handle, kind: b.kind, seated: on.has(b.id) }))
+  }
+
+  // Owner only: seat (add) or kick a bot. A kicked bot stops at once — the runtime
+  // listens for seating.changed, and authorizeActor refuses it from here on (I1).
+  async setBotSeat(viewerId: string, roomId: string, botUserId: string, seated: boolean) {
+    const room = await this.viewable(viewerId, roomId)
+    if (room.ownerId !== viewerId) throw forbidden('Only the owner can add or remove bots')
+    const bot = await db.bot.findFirst({ where: { userId: botUserId, enabled: true }, include: { user: { include: { profile: true } } } })
+    if (!bot) throw notFound('Bot not found')
+    const state = seated ? 'seated' : 'kicked'
+    const before = await isSeated(bot, roomId)
+    await db.roomBot.upsert({
+      where: { roomId_botId: { roomId, botId: bot.id } },
+      create: { roomId, botId: bot.id, state, addedById: viewerId },
+      update: { state, addedById: viewerId },
+    })
+    if (before !== seated) {
+      events.emit('seating.changed', { roomId, botId: bot.id, seated, byUserId: viewerId })
+      streamHub.publishParticipants(roomId)
+    }
+    return { user: toAuthor(bot.user), handle: bot.handle, kind: bot.kind, seated }
+  }
+
   private async addMember(roomId: string, userId: string) {
     const existing = await db.roomMember.findUnique({ where: { roomId_userId: { roomId, userId } }, select: { id: true } })
     if (existing) return

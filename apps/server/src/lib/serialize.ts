@@ -132,13 +132,17 @@ export type ItemRow = Prisma.ItemGetPayload<{ include: typeof itemInclude }>
 const REACTION_ORDER: ReactionType[] = ['like', 'ack', 'laugh']
 
 // viewerId null → broadcast payload (SSE): `reacted` is always false.
-export function toItem(item: ItemRow, viewerId: string | null) {
+// `muted` = user ids this viewer muted (doc/08 I5): their items render in the hidden
+// (tombstone) shape and their reactions are left out of this viewer's counts.
+export function toItem(item: ItemRow, viewerId: string | null, muted?: ReadonlySet<string>) {
   const deleted = item.deletedAt !== null
+  const hidden = deleted || (muted?.has(item.message.authorId) ?? false)
   let reactions: any[] = []
-  if (!deleted && item.reactions.length > 0) {
+  if (!hidden && item.reactions.length > 0) {
     const counts: Record<string, number> = { like: 0, ack: 0, laugh: 0 }
     const reacted: Record<string, boolean> = { like: false, ack: false, laugh: false }
     for (const r of item.reactions) {
+      if (muted?.has(r.userId)) continue
       counts[r.type] = (counts[r.type] || 0) + 1
       if (viewerId !== null && r.userId === viewerId) reacted[r.type] = true
     }
@@ -157,7 +161,7 @@ export function toItem(item: ItemRow, viewerId: string | null) {
     parentId: item.parentId,
     anchorStartMs: item.anchorStartMs,
     chat: item.chat,
-    message: toMessage(item.message, deleted),
+    message: toMessage(item.message, hidden),
     reactions,
     createdAt: item.createdAt,
     deletedAt: item.deletedAt,

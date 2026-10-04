@@ -1,0 +1,6 @@
+# Library clips (doc/08 I2): YouTube references — never downloaded. Each staging
+# places a new Item for the same bot-authored Message.
+assets:
+  - { key: clip-zoo, pool: clips, youtube: jNQXAC9IVRw, title: "Me at the zoo", caption: "history lesson: the very first YouTube video. 19 seconds of elephants.", intents: [media-request], cooldownSec: 3600 }
+  - { key: clip-rick, pool: clips, youtube: dQw4w9WgXcQ, title: "Never Gonna Give You Up", caption: "you asked for something to watch. I regret nothing.", intents: [media-request], cooldownSec: 3600 }
+  - { key: clip-gangnam, pool: clips, youtube: 9bZkp7q19f0, title: "Gangnam Style", caption: "the first video to hit a billion views. Stretch first.", intents: [media-request], cooldownSec: 3600 }

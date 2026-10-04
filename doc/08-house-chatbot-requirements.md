@@ -2,7 +2,8 @@
 
 Status: requirements, amended after review 2026-10-04 (§2.5 invariants I1–I7 are binding;
 §4 is the detailed design for the complex parts).
-Scope: build all of Phase 1 (1a + 1b) end to end. No code yet.
+Scope: all of Phase 1 (1a + 1b). **Status 2026-10-04: Phase 1 built.** Server 213/213;
+browser 7/7 (1a) and 14/14 (1b realtime/mute) on an isolated pair.
 
 ## 1. Goal
 
@@ -81,11 +82,13 @@ explicitly opts in (for example, bot-to-bot banter later).
 item authors**, plus "me". `seatsFrom()` builds seats from that list. As a result, a bot
 that hasn't posted is invisible, and so is a silent human.
 
-Fix it generically, not for bots: the room (or a new `GET /rooms/{id}/people`) returns
-**participants**, meaning members plus seated bots, and optionally live presence from
-`StreamHub.connectionCount`. `roomPeopleFrom` merges participants with authors. A bot
-then occupies a seat before it speaks, the same way a quiet person does. The open
-"Live presence for Blobs" item in CLAUDE.md is the same work.
+Fix it generically, not for bots: `GET /rooms/{id}/participants` returns members,
+present visitors and seated bots, with deduplicated presence. **As built, the seat rule
+is:** once the roster has loaded, seats = participants who are present (plus you), and
+items only refresh names and avatars. Before the roster loads, the old rule (everyone
+who has spoken) applies. So a bot is seated before it speaks, and a removed bot, or a
+person who left, gives up their seat, the same for everyone. This closes the open "Live
+presence for Blobs" item in CLAUDE.md.
 
 Typing/recording activity: `PresenceActivity` exists only for "me" today. A bot
 "typing…" pause before it posts is a nice-to-have. It needs a presence event on the SSE
@@ -227,10 +230,12 @@ utilities only (the human-authored predicate, §4.6). Components never branch on
     no media). The graph stays intact (replies keep their parent), and the client already
     drops content-less items from chat, stage and traversal (locked behaviour). Reactions
     by muted users are left out of counts for that viewer.
-  - **SSE:** `StreamHub.publish` skips `item.created` / `item.updated` frames whose
-    `actorId` the receiving client has muted. Each `Client` already carries `userId`,
-    and an in-memory mute set per user is refreshed on mute change. A muted post never
-    reaches that viewer's stage queue, even briefly.
+  - **SSE (as built):** the stream is a per-viewer journal (each frame's item is
+    serialized for that viewer), so a muted author's frame goes out in the **hidden
+    shape**: no text and no media. It isn't skipped, which keeps the journal cursor
+    advancing and the cache consistent. No muted content crosses the wire, and the
+    client drops content-less items before they reach chat or stage. Mute sets are
+    cached per viewer for 5s and invalidated on change.
   - **On mute/unmute:** the response invalidates the viewer's cached room items, so items
     already loaded are refetched in the new shape.
   - The participant roster still lists a muted person (they're still in the room). Mute
@@ -290,8 +295,9 @@ utilities only (the human-authored predicate, §4.6). Components never branch on
 - R13. **Backfill** from seed files checked into the repo (`apps/server/bots/<handle>/*.yaml`)
   and loaded by a script (`pnpm --filter server bots:seed`). They are idempotent and
   editable without code changes.
-- R14. **Media library:** `BotAsset` → a bot-authored Message, with media uploaded once
-  by the seed script. Each time the bot stages it, `placeExisting` creates a new Item
+- R14. **Media library:** `BotAsset` → a bot-authored Message. As built, the pack's
+  `assets.yaml` lists YouTube clips by id, which are referenced and never downloaded,
+  so no binaries go in the repo. The seed creates each Message + Media once. Each time the bot stages it, `placeExisting` creates a new Item
   (I2). Repeats are allowed and controlled only by cooldown/recency policy.
 - R15. **Classification of incoming messages (Phase 1):** a deterministic classifier
   made of keyword/regex/rule tables in seed files. It produces `intents[]`
@@ -337,7 +343,9 @@ utilities only (the human-authored predicate, §4.6). Components never branch on
 
 ### 3.7 Developer / tuning controls (Phase 1)
 
-- R25. Dev-only endpoints or a script to: list bots, seat or kick a bot, fire a trigger
+- R25. (As built: `BOTS_DEV=1`, never in production — `GET /dev/bots`, `POST
+  /dev/bots/dry-run`, `POST /dev/bots/fire`, `POST /dev/bots/seat`, `GET
+  /dev/bots/decisions`; see `plugins/devBots.ts`.) Dev-only endpoints or a script to: list bots, seat or kick a bot, fire a trigger
   manually (`greet <user> in <room>`), dry-run a message through the classifier and
   decision engine (shows the candidates and weights, posts nothing), and tail the
   decision log.

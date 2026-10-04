@@ -11,13 +11,13 @@ import { parseDurationValue } from './time'
 
 export const PACKS_DIR = resolve(__dirname, '../../bots')
 
-export type Trigger = 'item.created' | 'member.joined' | 'presence.arrived'
+export type Trigger = 'item.created' | 'member.joined' | 'presence.arrived' | 'bot.seated' | 'room.idle'
 export type GuardSpec = { name: string; arg?: unknown; final: boolean }
 export type Step =
   | { kind: 'wait'; minMs: number; maxMs: number; collectMs: number }
   | { kind: 'guard'; guards: GuardSpec[] }
-  | { kind: 'choose'; pool: string; byIntents: boolean; fallback?: string }
-  | { kind: 'act'; say?: 'chat' | 'stage'; reply?: 'sameSurface' | 'chat' | 'stage' }
+  | { kind: 'choose'; from: 'lines' | 'assets'; pool: string; byIntents: boolean; fallback?: string }
+  | { kind: 'act'; say?: 'chat' | 'stage'; reply?: 'sameSurface' | 'chat' | 'stage'; place?: 'stage' | 'chat'; asReply?: boolean }
   | { kind: 'branch'; if: GuardSpec[]; then: Step[]; else: Step[] }
 export type Workflow = {
   id: string
@@ -29,6 +29,8 @@ export type Workflow = {
 }
 export type LineDef = { key: string; pool: string; intents: string[]; tags: string[]; text: string; weight: number; cooldownSec: number; minGapSec: number; enabled: boolean }
 export type ClassifierRule = { intent: string; score: number; patterns: RegExp[] }
+/** Library media (doc/08 I2): a YouTube clip referenced by id, never downloaded. */
+export type AssetDef = LineDef & { youtube: string; title: string }
 export type Pack = {
   handle: string
   displayName: string
@@ -37,11 +39,12 @@ export type Pack = {
   persona: string
   classifier: { version: string; rules: ClassifierRule[] }
   lines: LineDef[]
+  assets: AssetDef[]
   workflows: Workflow[]
   version: string
 }
 
-const TRIGGERS: Trigger[] = ['item.created', 'member.joined', 'presence.arrived']
+const TRIGGERS: Trigger[] = ['item.created', 'member.joined', 'presence.arrived', 'bot.seated', 'room.idle']
 
 function fail(handle: string, what: string): never {
   throw new Error(`[bots] pack "${handle}": ${what}`)
@@ -65,7 +68,9 @@ function guards(raw: unknown, handle: string): GuardSpec[] {
   })
 }
 
-function steps(raw: unknown, handle: string, pools: Set<string>): Step[] {
+type Pools = { lines: Set<string>; assets: Set<string> }
+
+function steps(raw: unknown, handle: string, pools: Pools): Step[] {
   if (!Array.isArray(raw) || raw.length === 0) fail(handle, 'steps must be a non-empty list')
   return raw.map((s: any): Step => {
     if (s.wait) {
@@ -76,17 +81,20 @@ function steps(raw: unknown, handle: string, pools: Set<string>): Step[] {
     }
     if (s.guard) return { kind: 'guard', guards: guards(s.guard, handle) }
     if (s.choose) {
+      const from = s.choose.from === 'assets' ? 'assets' : 'lines'
+      const known = pools[from]
       const pool = String(s.choose.pool ?? '')
-      const resolved = pool.includes('{') ? [...pools].filter((p) => p.startsWith(pool.split('{')[0]!)) : [pool]
-      if (!pool || resolved.length === 0 || resolved.some((p) => !pools.has(p))) fail(handle, `choose.pool "${pool}" has no lines`)
-      return { kind: 'choose', pool, byIntents: s.choose.byIntents === true, fallback: s.choose.fallback }
+      const resolved = pool.includes('{') ? [...known].filter((p) => p.startsWith(pool.split('{')[0]!)) : [pool]
+      if (!pool || resolved.length === 0 || resolved.some((p) => !known.has(p))) fail(handle, `choose.pool "${pool}" has no ${from}`)
+      return { kind: 'choose', from, pool, byIntents: s.choose.byIntents === true, fallback: s.choose.fallback }
     }
     if (s.act) {
-      const { say, reply } = s.act
-      if (!!say === !!reply) fail(handle, 'act needs exactly one of say / reply')
+      const { say, reply, place } = s.act
+      if ([say, reply, place].filter(Boolean).length !== 1) fail(handle, 'act needs exactly one of say / reply / place')
       if (say && !['chat', 'stage'].includes(say)) fail(handle, `act.say ${say}`)
       if (reply && !['sameSurface', 'chat', 'stage'].includes(reply)) fail(handle, `act.reply ${reply}`)
-      return { kind: 'act', say, reply }
+      if (place && !['chat', 'stage'].includes(place)) fail(handle, `act.place ${place}`)
+      return { kind: 'act', say, reply, place, asReply: s.act.asReply === true }
     }
     if (s.branch) {
       const inner = [...(s.branch.then ?? []), ...(s.branch.else ?? [])]
@@ -101,8 +109,9 @@ const read = (dir: string, file: string) => readFileSync(join(dir, file), 'utf8'
 
 export function loadPack(dir: string): Pack {
   const files = ['bot.yaml', 'classifier.yaml', 'lines.yaml', 'workflows.yaml']
+  if (existsSync(join(dir, 'assets.yaml'))) files.push('assets.yaml')
   const texts = files.map((f) => read(dir, f))
-  const [bot, classifier, lines, workflows] = texts.map((t) => load(t)) as any[]
+  const [bot, classifier, lines, workflows, assets] = texts.map((t) => load(t)) as any[]
   const handle = String(bot?.handle ?? '')
   if (!/^[a-z][a-z0-9-]{1,39}$/.test(handle)) fail(handle || dir, 'handle must be lowercase, 2–40 chars')
   if (!['house', 'optional'].includes(bot.kind)) fail(handle, 'kind must be house | optional')
@@ -126,7 +135,18 @@ export function loadPack(dir: string): Pack {
       minGapSec: Number(l.minGapSec ?? d.minGapSec ?? 0), enabled: l.enabled !== false,
     }
   })
-  const pools = new Set(lineDefs.map((l) => l.pool))
+  const assetDefs: AssetDef[] = (assets?.assets ?? []).map((a: any) => {
+    if (!a.key || seen.has(a.key)) fail(handle, `duplicate or missing asset key ${a.key}`)
+    seen.add(a.key)
+    if (!/^[A-Za-z0-9_-]{11}$/.test(String(a.youtube ?? ''))) fail(handle, `asset ${a.key}: youtube must be an 11-char video id`)
+    if (!a.pool || !a.caption) fail(handle, `asset ${a.key} needs pool and caption`)
+    return {
+      key: String(a.key), pool: String(a.pool), intents: a.intents ?? [], tags: a.tags ?? [], text: String(a.caption),
+      weight: Number(a.weight ?? 1), cooldownSec: Number(a.cooldownSec ?? 0), minGapSec: Number(a.minGapSec ?? 0),
+      enabled: a.enabled !== false, youtube: String(a.youtube), title: String(a.title ?? a.caption),
+    }
+  })
+  const pools: Pools = { lines: new Set(lineDefs.map((l) => l.pool)), assets: new Set(assetDefs.map((a) => a.pool)) }
 
   const ids = new Set<string>()
   const flows: Workflow[] = (workflows ?? []).map((w: any) => {
@@ -141,7 +161,7 @@ export function loadPack(dir: string): Pack {
   const version = createHash('sha256').update(texts.join('\0')).digest('hex').slice(0, 12)
   return {
     handle, displayName: String(bot.displayName ?? handle), kind: bot.kind, aliases: (bot.aliases ?? [handle]).map(String),
-    persona: String(bot.persona ?? ''), classifier: { version: String(classifier.version), rules }, lines: lineDefs, workflows: flows, version,
+    persona: String(bot.persona ?? ''), classifier: { version: String(classifier.version), rules }, lines: lineDefs, assets: assetDefs, workflows: flows, version,
   }
 }
 

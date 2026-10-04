@@ -47,10 +47,13 @@ type Run = {
   subjects: Set<string>
   collecting: boolean
   aborted: boolean
+  /** Set when the run must end now (e.g. the bot was kicked); logged as the reason. */
+  cancelled?: string
+  wake?: () => void
   done: Promise<void>
   // decision accumulators
   classified?: Classified
-  choice?: { line: LineDef; text: string }
+  choice?: { line: LineDef; text: string; asset: boolean }
   candidates: Candidate[]
   filtered: Filtered[]
   seed?: string
@@ -68,8 +71,10 @@ class Skip extends Error {
 
 export type RuntimeOptions = {
   packs: Pack[]
-  /** Multiplies every wait (0 = no waiting). Default BOT_TIME_SCALE or 1. */
+  /** Multiplies every wait and the idle window (0 = no waiting). Default BOT_TIME_SCALE or 1. */
   timeScale?: number
+  /** No human item for this long while someone is here → room.idle. Default BOT_IDLE_SEC or 240s. */
+  idleMs?: number
 }
 
 export class BotRuntime {
@@ -78,6 +83,7 @@ export class BotRuntime {
   private lanes = new Map<string, Promise<void>>()
   private timers = new Set<{ timer: NodeJS.Timeout; resolve: () => void }>()
   private unsubscribe: (() => void)[] = []
+  private idleTimers = new Map<string, NodeJS.Timeout>()
   private pendingTriggers = 0
   private stopped = false
   private seq = 0
@@ -91,11 +97,12 @@ export class BotRuntime {
   async start() {
     this.bots = await seedPacks(this.opts.packs)
     await this.prune()
-    const on = <K extends 'item.created' | 'member.joined' | 'presence.arrived'>(name: K, fn: (e: DomainEvents[K]) => Promise<void>) =>
+    const on = <K extends 'item.created' | 'member.joined' | 'presence.arrived' | 'seating.changed'>(name: K, fn: (e: DomainEvents[K]) => Promise<void>) =>
       this.unsubscribe.push(events.on(name, (e) => this.track(() => fn(e))))
     on('item.created', (e) => this.onItem(e))
     on('member.joined', (e) => this.onArrival('member.joined', e.roomId, e.userId))
     on('presence.arrived', (e) => this.onArrival('presence.arrived', e.roomId, e.userId))
+    on('seating.changed', (e) => this.onSeating(e))
     return this
   }
 
@@ -106,6 +113,8 @@ export class BotRuntime {
     this.unsubscribe = []
     for (const t of this.timers) { clearTimeout(t.timer); t.resolve() }
     this.timers.clear()
+    for (const t of this.idleTimers.values()) clearTimeout(t)
+    this.idleTimers.clear()
     for (const run of this.runs.values()) run.aborted = true
     await Promise.allSettled([...this.runs.values()].map((r) => r.done))
   }
@@ -141,6 +150,7 @@ export class BotRuntime {
 
   private async onItem(e: DomainEvents['item.created']) {
     if (e.actorKind === 'bot') return // loop guard
+    this.armIdle(e.roomId)
     const trigger: TriggerInfo = { type: 'item.created', eventId: `item:${e.itemId}`, itemId: e.itemId, actorId: e.actorId, chat: e.chat, text: e.text, roomOwnerId: e.roomOwnerId }
     const seated = await this.seatedIn(e.roomId)
     const mentioned = e.text ? mentionedBots(e.text, seated.map((b) => ({ id: b.botId, aliases: b.pack.aliases }))) : new Set<string>()
@@ -159,12 +169,84 @@ export class BotRuntime {
   private async onArrival(type: 'member.joined' | 'presence.arrived', roomId: string, userId: string) {
     const user = await db.user.findUnique({ where: { id: userId }, select: { kind: true } })
     if (!user || user.kind !== 'human') return
+    if (type === 'presence.arrived') this.armIdle(roomId)
     const trigger: TriggerInfo = { type, eventId: `${type}:${userId}:${Date.now()}` }
     for (const bot of await this.seatedIn(roomId)) {
       for (const wf of bot.pack.workflows) {
         if (wf.on.includes(type)) await this.startRun(bot, wf, roomId, trigger, [userId])
       }
     }
+  }
+
+  // Kicked → every live run of that bot in the room ends now ('kicked'). Seated →
+  // that bot's bot.seated workflows (an introduction).
+  private async onSeating(e: DomainEvents['seating.changed']) {
+    const bot = this.bots.find((b) => b.botId === e.botId)
+    if (!bot) return
+    if (!e.seated) {
+      for (const run of this.runs.values()) {
+        if (run.bot.botId !== e.botId || run.roomId !== e.roomId) continue
+        run.cancelled = 'kicked'
+        run.wake?.()
+      }
+      return
+    }
+    const trigger: TriggerInfo = { type: 'bot.seated', eventId: `seated:${e.botId}:${Date.now()}`, actorId: e.byUserId }
+    for (const wf of bot.pack.workflows) if (wf.on.includes('bot.seated')) await this.startRun(bot, wf, e.roomId, trigger, [])
+  }
+
+  // room.idle: someone is here but no human has posted for the idle window. Armed by
+  // human items and arrivals; fires once per quiet spell (not re-armed by bot posts).
+  private armIdle(roomId: string) {
+    if (this.stopped) return
+    const env = Number(process.env.BOT_IDLE_SEC)
+    const idleMs = this.opts.idleMs ?? (Number.isFinite(env) && env > 0 ? env * 1000 : 240_000)
+    clearTimeout(this.idleTimers.get(roomId))
+    const timer = setTimeout(() => {
+      this.idleTimers.delete(roomId)
+      void this.track(async () => {
+        if (roomPresence.here(roomId).length === 0) return
+        const trigger: TriggerInfo = { type: 'room.idle', eventId: `idle:${roomId}:${Date.now()}` }
+        for (const bot of await this.seatedIn(roomId)) {
+          for (const wf of bot.pack.workflows) if (wf.on.includes('room.idle')) await this.startRun(bot, wf, roomId, trigger, [])
+        }
+      })
+    }, idleMs * this.timeScale)
+    timer.unref?.()
+    this.idleTimers.set(roomId, timer)
+  }
+
+  // ─── dev tools (doc/08 R25) ────────────────────────────────────────────────
+
+  /** Start a workflow by hand — it runs (and posts) exactly as if triggered. */
+  async fire(handle: string, workflowId: string, roomId: string, opts: { userId?: string; itemId?: string } = {}) {
+    const bot = this.bots.find((b) => b.pack.handle === handle)
+    const wf = bot?.pack.workflows.find((w) => w.id === workflowId)
+    if (!bot || !wf) throw { statusCode: 404, message: 'Unknown bot or workflow' }
+    let trigger: TriggerInfo = { type: wf.on[0]!, eventId: `fire:${Date.now()}` }
+    if (opts.itemId) {
+      const item = await db.item.findUniqueOrThrow({ where: { id: opts.itemId }, include: { message: true, room: { select: { ownerId: true } } } })
+      trigger = { ...trigger, itemId: item.id, actorId: item.message.authorId, chat: item.chat, text: item.message.text, roomOwnerId: item.room.ownerId }
+    }
+    await this.startRun(bot, wf, roomId, trigger, opts.userId ? [opts.userId] : [])
+  }
+
+  /** Classify + score a pool for some text, against this room's history. Posts nothing. */
+  async dryRun(handle: string, roomId: string, text: string, pool = 'summon') {
+    const bot = this.bots.find((b) => b.pack.handle === handle)
+    if (!bot) throw { statusCode: 404, message: 'Unknown bot' }
+    const run = { bot, roomId, subjects: new Set<string>(), trigger: { type: 'item.created', eventId: 'dry-run', text } } as unknown as Run
+    const vars = await this.vars(run)
+    vars.author = vars.author ?? 'you'
+    const classified = classify(text, bot.pack.classifier)
+    const { candidates, filtered } = score(bot.pack.lines.filter((l) => l.pool === pool), {
+      intentScores: new Map(classified.intents.map((i) => [i.intent, i.score])),
+      fallback: 'smalltalk',
+      history: await this.history(run),
+      now: new Date(),
+      fillable: (line) => fill(line.text, vars) !== null,
+    })
+    return { intents: classified.intents, candidates, filtered, packVersion: bot.pack.version }
   }
 
   private async seatedIn(roomId: string) {
@@ -243,12 +325,15 @@ export class BotRuntime {
     const ms = Math.max(delay, step.collectMs) * this.timeScale
     if (step.collectMs > 0) run.collecting = true
     await new Promise<void>((resolve) => {
-      const entry = { timer: setTimeout(() => { this.timers.delete(entry); resolve() }, ms), resolve }
+      const entry = { timer: setTimeout(() => done(), ms), resolve }
+      const done = () => { clearTimeout(entry.timer); this.timers.delete(entry); run.wake = undefined; resolve() }
       entry.timer.unref?.()
       this.timers.add(entry)
+      run.wake = done
     })
     run.collecting = false
     if (run.aborted || this.stopped) throw new Skip('stopped')
+    if (run.cancelled) throw new Skip(run.cancelled)
   }
 
   private lane<T>(roomId: string, fn: () => Promise<T>): Promise<T> {
@@ -265,6 +350,7 @@ export class BotRuntime {
   private async runSegment(run: Run, steps: Step[], offset: number): Promise<void> {
     for (const [n, step] of steps.entries()) {
       if (run.aborted || this.stopped) throw new Skip('stopped')
+      if (run.cancelled) throw new Skip(run.cancelled)
       const index = offset + n
       switch (step.kind) {
         case 'guard':
@@ -292,7 +378,7 @@ export class BotRuntime {
   }
 
   private guard(run: Run, g: GuardSpec, index: number) {
-    const ctx: GuardCtx = { botId: run.bot.botId, roomId: run.roomId, subjects: run.subjects, trigger: run.trigger, rng: this.rng(run, index).next }
+    const ctx: GuardCtx = { botId: run.bot.botId, roomId: run.roomId, subjects: run.subjects, trigger: run.trigger, rng: this.rng(run, index).next, classifier: run.bot.pack.classifier }
     return GUARDS[g.name]!(ctx, g.arg)
   }
 
@@ -301,7 +387,8 @@ export class BotRuntime {
   private async choose(run: Run, step: Extract<Step, { kind: 'choose' }>, index: number) {
     const vars = await this.vars(run)
     const pool = step.pool.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''))
-    const lines = run.bot.pack.lines.filter((l) => l.pool === pool)
+    const source: LineDef[] = step.from === 'assets' ? run.bot.pack.assets : run.bot.pack.lines
+    const lines = source.filter((l) => l.pool === pool)
     let intentScores: Map<string, number> | undefined
     if (step.byIntents) {
       run.classified = classify(run.trigger.text ?? '', run.bot.pack.classifier)
@@ -323,7 +410,7 @@ export class BotRuntime {
     const id = draw(candidates, u)
     if (!id) throw new Skip('no-candidates')
     const line = lines.find((l) => l.key === id)!
-    run.choice = { line, text: fill(line.text, vars)! }
+    run.choice = { line, text: fill(line.text, vars)!, asset: step.from === 'assets' }
   }
 
   private async history(run: Run): Promise<History> {
@@ -378,7 +465,12 @@ export class BotRuntime {
     }
     try {
       let created: { id: string }
-      if (step.say) {
+      if (step.place) {
+        const messageId = run.choice.asset ? run.bot.assets.get(run.choice.line.key) : undefined
+        if (!messageId) throw new Skip('no-asset')
+        const parentId = step.asReply ? run.trigger.itemId : undefined
+        created = await items.placeExisting(run.bot.userId, run.roomId, messageId, { chat: step.place === 'chat', parentId }, { onPlaced })
+      } else if (step.say) {
         created = await items.send(run.bot.userId, run.roomId, { text, chat: step.say === 'chat' }, { onPlaced })
       } else {
         if (!run.trigger.itemId) throw new Skip('no-item')
@@ -487,4 +579,9 @@ export async function startBots(packs: Pack[]) {
 
 export function stopBots() {
   return running?.stop()
+}
+
+/** The running runtime (dev tools). */
+export function botRuntime() {
+  return running
 }

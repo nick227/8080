@@ -216,7 +216,7 @@ describe('decision log', () => {
 describe('pack + helpers', () => {
   it('the shipped chatbot pack loads and validates', () => {
     const pack = loadPack(join(PACKS_DIR, 'chatbot'))
-    expect(pack.workflows.map((w) => w.id)).toEqual(['greet', 'opening', 'answerSummon'])
+    expect(pack.workflows.map((w) => w.id)).toEqual(['greet', 'opening', 'answerSummon', 'idleNudge'])
     expect(pack.version).toMatch(/^[0-9a-f]{12}$/)
   })
 

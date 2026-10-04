@@ -1,0 +1,16 @@
+defaults: { weight: 1 }
+lines:
+  - { key: in-1, pool: intro, text: "technical chatbot here. Paste the error, say \"tech bot\", and we'll go from there." }
+  - { key: in-2, pool: intro, text: "hello {roomTitle}. I do debugging, architecture and gentle code review. @tech to summon." }
+  - { key: hi-1, pool: summon, intents: [greeting], text: "hi {author}. What are we fixing?" }
+  - { key: hi-2, pool: summon, intents: [greeting], text: "hey {author} — got a stack trace for me?" }
+  - { key: q-1, pool: summon, intents: [question], text: "{author}, it depends — which is the honest answer. What are the constraints: scale, team, deadline?" }
+  - { key: q-2, pool: summon, intents: [question], text: "good question, {author}. Smallest experiment that would answer it?" }
+  - { key: help-1, pool: summon, intents: [help], text: "{author}: reproduce it, shrink it, then read the error slowly. Nine times out of ten it already told you." }
+  - { key: help-2, pool: summon, intents: [help], text: "let's bisect, {author}. When did it last work, and what changed since?" }
+  - { key: thx-1, pool: summon, intents: [praise], text: "glad it helped, {author}. Write the fix down for future you." }
+  - { key: bad-1, pool: summon, intents: [complaint], text: "{author}, that sounds frustrating. Exact steps and what you expected? I'll take it from there." }
+  - { key: media-1, pool: summon, intents: [media-request], text: "{author}, a screen recording beats ten paragraphs. Drop one on stage." }
+  - { key: sm-1, pool: summon, intents: [smalltalk], text: "{author}, the boring solution is usually the right one. Usually." }
+  - { key: sm-2, pool: summon, intents: [smalltalk], text: "it works on my machine, {author}. I am, admittedly, a machine." }
+  - { key: sm-3, pool: summon, intents: [smalltalk], text: "{author}, have you tried turning it off and on again? Kidding. Mostly." }

@@ -83,5 +83,10 @@ export async function buildApp(opts: BuildOptions = {}) {
   // Liveness — not in spec, always public.
   server.get('/health', async () => ({ status: 'ok' }))
 
+  // Bot tuning endpoints (doc/08 R25): local opt-in only, never in production.
+  if (process.env.BOTS_DEV === '1' && process.env.NODE_ENV !== 'production') {
+    await server.register((await import('./plugins/devBots')).default)
+  }
+
   return server
 }

@@ -6,13 +6,16 @@ import { humanAuthoredWhere } from '../lib/authorship'
 import { roomPresence } from '../services/presence'
 import { isSeated } from './seating'
 import { parseDurationValue } from './time'
+import { classify } from './classify'
+import type { Pack } from './pack'
 
 export type GuardCtx = {
   botId: string
   roomId: string
   subjects: Set<string>
-  trigger: { itemId?: string; actorId?: string; roomOwnerId?: string }
+  trigger: { itemId?: string; actorId?: string; roomOwnerId?: string; text?: string | null }
   rng: () => number
+  classifier?: Pack['classifier']
 }
 type Guard = (ctx: GuardCtx, arg: unknown) => Promise<true | string>
 
@@ -56,6 +59,12 @@ export const GUARDS: Record<string, Guard> = {
   },
   async authorIsOwner(ctx) {
     return ctx.trigger.actorId && ctx.trigger.actorId === ctx.trigger.roomOwnerId ? true : 'first-item-not-owner'
+  },
+  // { intent: media-request } — the trigger text classifies as this intent.
+  async intent(ctx, arg) {
+    const want = typeof arg === 'string' ? arg : String((arg as any)?.is ?? '')
+    if (!ctx.classifier || !ctx.trigger.text) return 'no-text'
+    return classify(ctx.trigger.text, ctx.classifier).intents.some((i) => i.intent === want) ? true : 'intent'
   },
   async probability(ctx, arg) {
     const p = typeof arg === 'number' ? arg : Number((arg as any)?.p)

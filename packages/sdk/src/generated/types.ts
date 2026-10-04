@@ -109,6 +109,43 @@ export interface paths {
         patch: operations["updateCurrentUser"];
         trace?: never;
     };
+    "/users/me/mutes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** People (and bots) I have muted — personal and global (doc/08 I5) */
+        get: operations["listMutes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/me/mutes/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Mute someone everywhere. Their items reach you content-less; others are unaffected. Idempotent. */
+        put: operations["muteUser"];
+        post?: never;
+        /** Unmute. Idempotent. */
+        delete: operations["unmuteUser"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/me/avatar": {
         parameters: {
             query?: never;
@@ -203,6 +240,46 @@ export interface paths {
         /** Join a room. Private rooms require a valid inviteCode. Idempotent. */
         post: operations["joinRoom"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rooms/{roomId}/bots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: components["parameters"]["RoomId"];
+            };
+            cookie?: never;
+        };
+        /** Every available bot and whether it is seated in this room */
+        get: operations["listRoomBots"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rooms/{roomId}/bots/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: components["parameters"]["RoomId"];
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Add (seat) a bot in this room — owner only. Idempotent. */
+        put: operations["seatRoomBot"];
+        post?: never;
+        /** Remove (kick) a bot from this room — owner only; it stops at once. Its past items stay. Idempotent. */
+        delete: operations["kickRoomBot"];
         options?: never;
         head?: never;
         patch?: never;
@@ -587,6 +664,28 @@ export interface components {
             /** @description Connected to this room now (deduplicated; a refresh does not flip it) */
             present: boolean;
         };
+        AuthorList: {
+            data: components["schemas"]["Author"][];
+        };
+        AuthorResponse: {
+            data: components["schemas"]["Author"];
+        };
+        RoomBot: {
+            user: components["schemas"]["Author"];
+            handle: string;
+            /**
+             * @description house = seated by default; optional = only when added
+             * @enum {string}
+             */
+            kind: "house" | "optional";
+            seated: boolean;
+        };
+        RoomBotList: {
+            data: components["schemas"]["RoomBot"][];
+        };
+        RoomBotResponse: {
+            data: components["schemas"]["RoomBot"];
+        };
         ParticipantList: {
             data: components["schemas"]["Participant"][];
         };
@@ -862,6 +961,7 @@ export interface components {
         /** @description Simple text search within this resource. */
         SearchQuery: string;
         RoomId: string;
+        UserId: string;
         ItemId: string;
         ReactionTypeParam: components["schemas"]["ReactionType"];
     };
@@ -1025,6 +1125,75 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listMutes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Muted users */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthorList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    muteUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Muted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthorResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    unmuteUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unmuted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
             401: components["responses"]["Unauthorized"];
         };
     };
@@ -1259,6 +1428,82 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listRoomBots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: components["parameters"]["RoomId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bots with their seat in this room */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomBotList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    seatRoomBot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: components["parameters"]["RoomId"];
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Seated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomBotResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    kickRoomBot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: components["parameters"]["RoomId"];
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Kicked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomBotResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };

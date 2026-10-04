@@ -4,7 +4,7 @@
 import { db } from '@project/db'
 import type { Pack } from './pack'
 
-export type SeededBot = { botId: string; userId: string; pack: Pack }
+export type SeededBot = { botId: string; userId: string; pack: Pack; assets: Map<string, string> /* asset key → messageId */ }
 
 export async function seedPack(pack: Pack): Promise<SeededBot> {
   let bot = await db.bot.findUnique({ where: { handle: pack.handle } })
@@ -30,7 +30,35 @@ export async function seedPack(pack: Pack): Promise<SeededBot> {
     await db.botLine.upsert({ where: { botId_key: { botId: bot.id, key: line.key } }, create: { botId: bot.id, key: line.key, ...data }, update: data })
   }
   await db.botLine.updateMany({ where: { botId: bot.id, key: { notIn: pack.lines.map((l) => l.key) } }, data: { enabled: false } })
-  return { botId: bot.id, userId: bot.userId, pack }
+
+  // Library assets: one bot-authored Message per clip, created once and placed again
+  // and again (doc/08 I2). A changed video id gets a new Message; the old one stays
+  // with the Items that already show it.
+  const assets = new Map<string, string>()
+  for (const a of pack.assets) {
+    const data = { intents: a.intents, tags: a.tags, weight: a.weight, cooldownSec: a.cooldownSec, enabled: a.enabled }
+    const existing = await db.botAsset.findUnique({ where: { botId_key: { botId: bot.id, key: a.key } } })
+    const current = existing
+      ? await db.message.findFirst({ where: { id: existing.messageId, deletedAt: null }, include: { media: { select: { externalId: true } } } })
+      : null
+    let messageId = current && current.media[0]?.externalId === a.youtube ? current.id : null
+    if (!messageId) {
+      const message = await db.message.create({
+        data: {
+          authorId: bot.userId,
+          text: a.text,
+          media: { create: { ownerId: bot.userId, kind: 'video', source: 'youtube', externalId: a.youtube, title: a.title, embeddable: true, mimeType: 'video/x-youtube', size: 0 } },
+        },
+      })
+      messageId = message.id
+    } else if (current!.text !== a.text) {
+      await db.message.update({ where: { id: messageId }, data: { text: a.text } })
+    }
+    await db.botAsset.upsert({ where: { botId_key: { botId: bot.id, key: a.key } }, create: { botId: bot.id, key: a.key, messageId, ...data }, update: { messageId, ...data } })
+    assets.set(a.key, messageId)
+  }
+  await db.botAsset.updateMany({ where: { botId: bot.id, key: { notIn: pack.assets.map((a) => a.key) } }, data: { enabled: false } })
+  return { botId: bot.id, userId: bot.userId, pack, assets }
 }
 
 export async function seedPacks(packs: Pack[]) {

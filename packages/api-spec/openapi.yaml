@@ -169,6 +169,47 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /users/me/mutes:
+    get:
+      operationId: listMutes
+      summary: People (and bots) I have muted — personal and global (doc/08 I5)
+      tags: [users]
+      responses:
+        '200':
+          description: Muted users
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthorList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /users/me/mutes/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    put:
+      operationId: muteUser
+      summary: Mute someone everywhere. Their items reach you content-less; others are unaffected. Idempotent.
+      tags: [users]
+      responses:
+        '200':
+          description: Muted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthorResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: unmuteUser
+      summary: Unmute. Idempotent.
+      tags: [users]
+      responses:
+        '200':
+          description: Unmuted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /users/me/avatar:
     post:
       operationId: uploadAvatar
@@ -332,6 +373,53 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/RoomResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /rooms/{roomId}/bots:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    get:
+      operationId: listRoomBots
+      summary: Every available bot and whether it is seated in this room
+      tags: [rooms]
+      responses:
+        '200':
+          description: Bots with their seat in this room
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoomBotList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /rooms/{roomId}/bots/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+      - $ref: '#/components/parameters/UserId'
+    put:
+      operationId: seatRoomBot
+      summary: Add (seat) a bot in this room — owner only. Idempotent.
+      tags: [rooms]
+      responses:
+        '200':
+          description: Seated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoomBotResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: kickRoomBot
+      summary: Remove (kick) a bot from this room — owner only; it stops at once. Its past items stay. Idempotent.
+      tags: [rooms]
+      responses:
+        '200':
+          description: Kicked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoomBotResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
   /rooms/{roomId}/participants:
@@ -755,6 +843,11 @@ components:
       name: roomId
       required: true
       schema: { type: string, minLength: 1, maxLength: 64 }
+    UserId:
+      in: path
+      name: userId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
     ItemId:
       in: path
       name: itemId
@@ -903,6 +996,43 @@ components:
         user: { $ref: '#/components/schemas/Author' }
         role: { $ref: '#/components/schemas/ParticipantRole' }
         present: { type: boolean, description: Connected to this room now (deduplicated; a refresh does not flip it) }
+
+    AuthorList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Author' }
+
+    AuthorResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Author' }
+
+    RoomBot:
+      type: object
+      required: [user, handle, kind, seated]
+      properties:
+        user: { $ref: '#/components/schemas/Author' }
+        handle: { type: string }
+        kind: { type: string, enum: [house, optional], description: 'house = seated by default; optional = only when added' }
+        seated: { type: boolean }
+
+    RoomBotList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/RoomBot' }
+
+    RoomBotResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/RoomBot' }
 
     ParticipantList:
       type: object

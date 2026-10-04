@@ -48,3 +48,10 @@ lines:
   - { key: s-small-4, pool: summon, intents: [smalltalk], text: "{author}, fun fact: every reply here can branch. Conversations are trees, not lines." }
   - { key: s-small-5, pool: summon, intents: [smalltalk], text: "still here, {author}. Always here, actually. It's kind of my thing." }
   - { key: s-small-6, pool: summon, intents: [smalltalk], text: "beep boop — sorry, reflex. What's on your mind, {author}?" }
+  # ── starter: the room went quiet while people are here (idleNudge) ──
+  - { key: st-1, pool: starter, text: "quiet in here. Quick round: what's the best thing you heard this week?", cooldownSec: 7200 }
+  - { key: st-2, pool: starter, text: "I'll start: if this room had a theme song, what would it be?", cooldownSec: 7200 }
+  - { key: st-3, pool: starter, text: "{peopleCount} of us and nobody talking — classic. Someone hit record and tell us something true.", cooldownSec: 7200 }
+  - { key: st-4, pool: starter, text: "hot take time. Pineapple on pizza: yes or no? Defend it out loud.", cooldownSec: 7200 }
+  - { key: st-5, pool: starter, text: "tip while it's calm: reply to a moment in a clip and your answer pins to that exact second.", cooldownSec: 7200 }
+  - { key: st-6, pool: starter, text: "what are you all working on right now? Thirty seconds each, go.", cooldownSec: 7200 }

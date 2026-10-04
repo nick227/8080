@@ -27,5 +27,26 @@
   steps:
     - wait: { min: 1.5s, max: 4s }
     - guard: [seated, itemLive]
-    - choose: { pool: summon, byIntents: true, fallback: smalltalk }
-    - act: { reply: sameSurface }
+    - branch:                       # "chatbot, play something" → a clip on stage
+        if: [{ intent: media-request }]
+        then:
+          - choose: { from: assets, pool: clips }
+          - act: { place: stage, asReply: true }
+        else:
+          - choose: { pool: summon, byIntents: true, fallback: smalltalk }
+          - act: { reply: sameSurface }
+
+- id: idleNudge
+  on: [room.idle]                   # no human post for BOT_IDLE_SEC while someone is here
+  key: "idle"
+  steps:
+    - wait: { min: 1s, max: 4s }
+    - guard: [seated, humanPresent, roomHasHumanItem, { probability: 0.6 }]
+    - branch:
+        if: [{ probability: 0.3 }]
+        then:
+          - choose: { from: assets, pool: clips }
+          - act: { place: stage }
+        else:
+          - choose: { pool: starter }
+          - act: { say: chat }

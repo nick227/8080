@@ -9,6 +9,7 @@ import { recordChange } from './roomChanges'
 import { events } from './events'
 import { purgeCapture } from './purgeCapture'
 import { recountRooms } from './roomStats'
+import { mutes } from './MuteService'
 
 const rooms = new RoomService()
 
@@ -42,6 +43,7 @@ export class ItemService {
     const descending = opts.order === 'desc'
     const floor = Math.max(opts.after ?? 0, descending ? 0 : c?.n ?? 0)
 
+    const muted = await mutes.mutedBy(viewerId)
     return db.$transaction(async (tx) => {
       const room = await tx.room.findUniqueOrThrow({ where: { id: roomId }, select: { changeCount: true } })
       const rows = await tx.item.findMany({
@@ -49,7 +51,7 @@ export class ItemService {
         orderBy: { number: descending ? 'desc' : 'asc' }, take: limit + 1, include: itemInclude,
       })
       const result = page(rows, limit, (last) => encodeKeyCursor<ItemCursor>({ n: last.number }))
-      return { data: result.data.map((i) => toItem(i, viewerId)), meta: { ...result.meta, changeCursor: String(room.changeCount) } }
+      return { data: result.data.map((i) => toItem(i, viewerId, muted)), meta: { ...result.meta, changeCursor: String(room.changeCount) } }
     }, { isolationLevel: 'RepeatableRead' })
   }
 
@@ -57,7 +59,7 @@ export class ItemService {
 
   async get(viewerId: string, itemId: string) {
     const item = await this.loadViewable(viewerId, itemId)
-    return toItem(item, viewerId)
+    return toItem(item, viewerId, await mutes.mutedBy(viewerId))
   }
 
   async send(viewerId: string, roomId: string, input: ContentInput, opts: InternalOpts = {}) {

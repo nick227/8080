@@ -4,6 +4,7 @@ import { RoomService } from '../services/RoomService'
 import { streamHub } from '../services/StreamHub'
 import { roomPresence } from '../services/presence'
 import { toItem } from '../lib/serialize'
+import { mutes } from '../services/MuteService'
 
 const roomService = new RoomService()
 
@@ -65,10 +66,13 @@ export async function streamRoomEvents(request: any, reply: any) {
     try {
       await roomService.viewable(request.user.id, roomId)
       const batch = await readRoomChanges(roomId, cursor)
+      // Per-viewer mute (doc/08 I5): a muted author's item goes out in the hidden
+      // shape, so no muted content crosses the wire and the cursor still advances.
+      const muted = batch.changes.length ? await mutes.mutedBy(request.user.id) : undefined
       for (const change of batch.changes) {
         const row = batch.items.find(i => i.id === change.itemId)
         if (!row) throw new Error('Change journal item missing')
-        const event = { type: change.type, actorId: change.actorId, itemId: row.id, itemNumber: row.number, cursor: String(change.sequence), item: toItem(row, request.user.id) }
+        const event = { type: change.type, actorId: change.actorId, itemId: row.id, itemNumber: row.number, cursor: String(change.sequence), item: toItem(row, request.user.id, muted) }
         if (!await send(`id: ${event.cursor}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)) return
         cursor = change.sequence
       }

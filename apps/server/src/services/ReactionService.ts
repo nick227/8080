@@ -3,6 +3,7 @@ import { itemInclude, toItem } from '../lib/serialize'
 import { ItemService } from './ItemService'
 import { RoomService } from './RoomService'
 import { recordChange } from './roomChanges'
+import { mutes } from './MuteService'
 
 const items = new ItemService()
 const rooms = new RoomService()
@@ -31,6 +32,6 @@ export class ReactionService {
 
   private async publish(viewerId: string, itemId: string) {
     const item = await db.item.findUniqueOrThrow({ where: { id: itemId }, include: itemInclude })
-    return toItem(item, viewerId)
+    return toItem(item, viewerId, await mutes.mutedBy(viewerId))
   }
 }

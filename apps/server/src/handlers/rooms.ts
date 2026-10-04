@@ -45,3 +45,15 @@ export async function rotateInviteCode(request: any, reply: any) {
 export async function listRoomParticipants(request: any, reply: any) {
   return reply.send({ data: await roomService.participants(request.user.id, request.params.roomId) })
 }
+
+export async function listRoomBots(request: any, reply: any) {
+  return reply.send({ data: await roomService.listBots(request.user.id, request.params.roomId) })
+}
+
+export async function seatRoomBot(request: any, reply: any) {
+  return reply.send({ data: await roomService.setBotSeat(request.user.id, request.params.roomId, request.params.userId, true) })
+}
+
+export async function kickRoomBot(request: any, reply: any) {
+  return reply.send({ data: await roomService.setBotSeat(request.user.id, request.params.roomId, request.params.userId, false) })
+}
