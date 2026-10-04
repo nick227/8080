@@ -12,23 +12,15 @@ import { useRecordSession } from './useRecordSession'
 import type { PresenceActivity } from './PeopleStrip'
 import { tileDensity, VIEW_LABEL, type RoomView, type Seat } from './roomViews'
 
-function FaceTile({ seat, dominant, active, onPick }: {
-  seat: Seat
-  dominant?: boolean
-  active?: boolean
-  onPick?: () => void
-}) {
-  const className = dominant ? 'room-cast-face is-dominant' : 'room-cast-face'
-  const body = (
-    <>
-      <span className="room-seat" data-photo={seat.avatarUrl ? '' : undefined} data-active={active || undefined}>
+function FaceTile({ seat }: { seat: Seat }) {
+  return (
+    <div className="room-cast-face">
+      <span className="room-seat" data-photo={seat.avatarUrl ? '' : undefined}>
         {seat.avatarUrl ? <img src={seat.avatarUrl} alt="" /> : <PersonIcon guest={seat.guest} />}
       </span>
       <span className="room-seat-name">{seat.name}</span>
-    </>
+    </div>
   )
-  if (!onPick) return <div className={className}>{body}</div>
-  return <button type="button" className={className} aria-label={seat.name} onClick={onPick}>{body}</button>
 }
 
 function InviteButton({ inviteUrl }: { inviteUrl?: string }) {
@@ -57,44 +49,21 @@ function Floor({ view, seats, item, next, onEnded, onView, self, bar, stack }: {
   next: Item[]
   onEnded: () => void
   onView: (view: RoomView) => void
-  self: (dominant: boolean) => ReactNode
+  self: () => ReactNode
   bar: ReactNode
   stack?: ReactNode
 }) {
-  const [focusId, setFocusId] = useState<string | null>(null)
   const me = seats.find((seat) => seat.self)
-  const focus = seats.find((seat) => seat.id === focusId) ?? me ?? seats[0]
-  const selfLarge = view === 'person' && focus?.id === me?.id
-  const showAir = view === 'stage' || view === 'focus' || (view === 'gallery' && !!item)
-  const pick = (id: string) => {
-    setFocusId(id)
-    if (view !== 'person') onView('person')
-  }
-  const step = (dir: number) => {
-    if (!focus || seats.length < 2) return
-    const index = seats.findIndex((seat) => seat.id === focus.id)
-    setFocusId(seats[(index + dir + seats.length) % seats.length].id)
-  }
+  const showAir = view === 'screen' || !!item
 
   return (
     <section className="room-live" data-layout={view} data-density={tileDensity(seats.length)} data-playing={item ? '' : undefined} aria-label={VIEW_LABEL[view]}>
       <div className="room-cast">
-        {me && !selfLarge && self(false)}
-        {seats.filter((seat) => !seat.self && !(view === 'person' && seat.id === focus?.id)).map((seat) => (
-          <FaceTile key={seat.id} seat={seat} active={view === 'focus' && item?.author.id === seat.id} onPick={() => pick(seat.id)} />
+        {me && self()}
+        {seats.filter((seat) => !seat.self).map((seat) => (
+          <FaceTile key={seat.id} seat={seat} />
         ))}
       </div>
-      {view === 'person' && focus && (
-        <div className="room-dominant">
-          {selfLarge && me ? self(true) : <FaceTile seat={focus} dominant />}
-          {seats.length > 1 && !stack && (
-            <div className="room-person-nav">
-              <button type="button" aria-label="Previous person" onClick={() => step(-1)}>‹</button>
-              <button type="button" aria-label="Next person" onClick={() => step(1)}>›</button>
-            </div>
-          )}
-        </div>
-      )}
       {showAir && <RoomAir item={item} next={next} onEnded={onEnded} />}
       {bar}
       {stack}
@@ -120,9 +89,9 @@ export function RoomFloor({ view, seats, item, next, onEnded, onSend, onActivity
     return (
       <Floor
         {...shared}
-        self={(dominant) => {
+        self={() => {
           const me = seats.find((seat) => seat.self)
-          return me ? <FaceTile seat={me} dominant={dominant} /> : null
+          return me ? <FaceTile seat={me} /> : null
         }}
         bar={<div className="room-bar">{invite}<ViewSwitch value={view} onChange={onView} /></div>}
       />
@@ -164,9 +133,9 @@ function ArmedFloor({ view, seats, item, next, onEnded, onSend, onActivity, onVi
       next={next}
       onEnded={onEnded}
       onView={onView}
-      self={(dominant) => {
+      self={() => {
         const me = seats.find((seat) => seat.self)
-        return me ? <SelfTile seat={me} dominant={dominant} armed={armed} session={session} onGoLive={armCamera} /> : null
+        return me ? <SelfTile seat={me} armed={armed} session={session} onGoLive={armCamera} /> : null
       }}
       bar={<LiveBar session={session} armed={armed} setArmed={setArmed} invite={invite} view={view} onView={onView} />}
       stack={armed ? (

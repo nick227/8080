@@ -1,14 +1,7 @@
 import { nextView, VIEW_LABEL, type RoomView } from './roomViews'
 
 function Mark({ id }: { id: RoomView }) {
-  if (id === 'person') {
-    return (
-      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-        <rect x="3" y="2" width="10" height="12" fill="none" stroke="currentColor" strokeWidth="1.25" />
-      </svg>
-    )
-  }
-  if (id === 'gallery') {
+  if (id === 'grid') {
     return (
       <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
         <rect x="2" y="2" width="5" height="5" fill="none" stroke="currentColor" strokeWidth="1.25" />
@@ -18,20 +11,9 @@ function Mark({ id }: { id: RoomView }) {
       </svg>
     )
   }
-  if (id === 'focus') {
-    return (
-      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-        <rect x="2" y="2" width="3" height="12" fill="none" stroke="currentColor" strokeWidth="1.25" />
-        <rect x="7" y="2" width="7" height="12" fill="none" stroke="currentColor" strokeWidth="1.25" />
-      </svg>
-    )
-  }
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-      <rect x="2" y="2" width="3" height="3" fill="none" stroke="currentColor" strokeWidth="1.25" />
-      <rect x="6.5" y="2" width="3" height="3" fill="none" stroke="currentColor" strokeWidth="1.25" />
-      <rect x="11" y="2" width="3" height="3" fill="none" stroke="currentColor" strokeWidth="1.25" />
-      <rect x="2" y="7" width="12" height="7" fill="none" stroke="currentColor" strokeWidth="1.25" />
+      <rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.25" />
     </svg>
   )
 }
