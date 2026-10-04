@@ -11,11 +11,19 @@ datasource db {
 // Guest-first: POST /auth/guest creates a User with no email/password.
 // POST /auth/register upgrades the current guest in place (keeps history).
 
+// human = a person (guest or registered). bot = a house/optional chatbot: a real
+// user that posts through the normal services, never logs in (doc/08 I1, I7).
+enum UserKind {
+  human
+  bot
+}
+
 model User {
   id           String    @id @default(cuid())
   email        String?   @unique
   passwordHash String?
   isGuest      Boolean   @default(true)
+  kind         UserKind  @default(human)
   suspendedAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -28,6 +36,11 @@ model User {
   messages    Message[]
   media       Media[]
   reactions   Reaction[]
+  bot         Bot?
+  mutes       UserMute[]   @relation("Muter")
+  mutedBy     UserMute[]   @relation("Muted")
+
+  @@index([kind])
 }
 
 model Profile {
@@ -92,6 +105,7 @@ model Room {
   thumbnail Media?       @relation("RoomThumbnail", fields: [thumbnailId], references: [id])
   members   RoomMember[]
   items     Item[]
+  bots      RoomBot[]
 
   @@index([visibility, lastActivityAt, id])
   @@index([topic])
@@ -227,4 +241,161 @@ model Reaction {
 
   @@unique([itemId, userId, type])
   @@index([userId])
+}
+
+// ─── Bots (doc/08) ───────────────────────────────────────────────────────────
+// A bot's content and behaviour come from its pack (apps/server/bots/<handle>/),
+// loaded into these tables by the idempotent seed. Seating authorizes a bot to act
+// in a room; bots never get RoomMember rows (I1).
+
+enum BotKind {
+  house    // seated in every room unless kicked
+  optional // seated only when the owner adds it
+}
+
+model Bot {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  handle      String   @unique @db.VarChar(40)
+  kind        BotKind
+  persona     String?  @db.Text
+  enabled     Boolean  @default(true)
+  packVersion String   @db.VarChar(64)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rooms     RoomBot[]
+  lines     BotLine[]
+  assets    BotAsset[]
+  decisions BotDecision[]
+  onces     BotOnce[]
+}
+
+enum BotSeat {
+  seated
+  kicked
+}
+
+// No row = the bot's default (house → seated, optional → not seated).
+model RoomBot {
+  id        String   @id @default(cuid())
+  roomId    String
+  botId     String
+  state     BotSeat
+  addedById String?
+  updatedAt DateTime @updatedAt
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  bot  Bot  @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, botId])
+  @@index([botId])
+}
+
+// One statement in a pack. Text lines create a fresh Message on every use.
+model BotLine {
+  id          String   @id @default(cuid())
+  botId       String
+  key         String   @db.VarChar(80) // stable id within the pack
+  pool        String   @db.VarChar(40)
+  intents     Json     // string[]
+  tags        Json     // string[]
+  text        String   @db.Text // may contain {slots}
+  assetKey    String?  @db.VarChar(80)
+  weight      Float    @default(1)
+  cooldownSec Int      @default(0)
+  minGapSec   Int      @default(0)
+  enabled     Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+
+  bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@unique([botId, key])
+  @@index([botId, pool])
+}
+
+// Library media: a bot-authored Message uploaded once. Each staging places a new
+// Item for it (I2) — the asset itself is never placed.
+model BotAsset {
+  id          String   @id @default(cuid())
+  botId       String
+  key         String   @db.VarChar(80)
+  messageId   String
+  intents     Json
+  tags        Json
+  weight      Float    @default(1)
+  cooldownSec Int      @default(0)
+  enabled     Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+
+  bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@unique([botId, key])
+}
+
+// Every run's outcome, posted or skipped, with the scored candidates so an exact
+// replay reproduces the choice (doc/08 §4.4). Cooldowns read this; pruning keeps
+// at least BOT_DECISION_RETENTION_DAYS (≥ the longest cooldown).
+model BotDecision {
+  id                String   @id @default(cuid())
+  botId             String
+  roomId            String
+  workflow          String   @db.VarChar(40)
+  runKey            String   @db.VarChar(120)
+  trigger           Json
+  subjects          Json     // userIds this run was about (greet cooldown)
+  packVersion       String   @db.VarChar(64)
+  classifierVersion String?  @db.VarChar(40)
+  inputs            Json
+  candidates        Json     // [{ id, score, factors }]
+  filtered          Json     // [{ id, reason }]
+  rngSeed           String?  @db.VarChar(64)
+  draw              Float?
+  chosen            String?  @db.VarChar(80)
+  skippedReason     String?  @db.VarChar(60)
+  itemId            String?
+  at                DateTime @default(now())
+
+  bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@index([botId, roomId, workflow, at])
+  @@index([roomId, at])
+  @@index([at])
+}
+
+enum BotOnceOutcome {
+  posted
+  skipped
+}
+
+// Once-ever keys (e.g. opening:{roomId}). Claimed in the same transaction that
+// places the Item, so it survives restarts and is race-safe (doc/08 §4.3).
+model BotOnce {
+  id      String         @id @default(cuid())
+  botId   String
+  roomId  String
+  key     String         @db.VarChar(120)
+  outcome BotOnceOutcome
+  reason  String?        @db.VarChar(60)
+  itemId  String?
+  at      DateTime       @default(now())
+
+  bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@unique([botId, roomId, key])
+}
+
+// Personal, global mute (doc/08 I5). Enforced at serialization and SSE.
+model UserMute {
+  id          String   @id @default(cuid())
+  userId      String
+  mutedUserId String
+  createdAt   DateTime @default(now())
+
+  user  User @relation("Muter", fields: [userId], references: [id], onDelete: Cascade)
+  muted User @relation("Muted", fields: [mutedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mutedUserId])
+  @@index([mutedUserId])
 }

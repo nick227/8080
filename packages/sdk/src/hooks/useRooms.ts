@@ -23,6 +23,17 @@ export function useMyRooms(params: { limit?: number } = {}) {
   })
 }
 
+// Members + seated bots, one roster (doc/08 §2.3). Kept fresh by useRoomStream
+// (participants.updated) — render every participant the same way.
+export function useRoomParticipants(roomId: string | undefined) {
+  return useQuery({
+    queryKey: keys.participants(roomId ?? ''),
+    enabled: !!roomId,
+    queryFn: async () =>
+      unwrap(await getApiClient().GET('/rooms/{roomId}/participants', { params: { path: { roomId: roomId! } } })).data,
+  })
+}
+
 export function useRoom(roomId: string | undefined) {
   return useQuery({
     queryKey: keys.room(roomId ?? ''),

@@ -9,18 +9,16 @@ const rooms = new RoomService()
 
 export class ReactionService {
   async add(viewerId: string, itemId: string, type: ReactionType) {
-    const item = await items.loadViewable(viewerId, itemId, { deletedAt: null })
-    await db.roomMember.upsert({
-      where: { roomId_userId: { roomId: item.roomId, userId: viewerId } },
-      create: { roomId: item.roomId, userId: viewerId },
-      update: {},
-    })
+    const item = await items.loadItem(itemId, { deletedAt: null })
+    const { actor, room } = await rooms.authorizeActor(viewerId, item.roomId)
+    await rooms.ensureHumanParticipation(actor, room)
     await db.reaction.createMany({ data: [{ itemId, userId: viewerId, type }], skipDuplicates: true })
     return this.publish(viewerId, itemId)
   }
 
   async remove(viewerId: string, itemId: string, type: ReactionType) {
-    await items.loadViewable(viewerId, itemId)
+    const item = await items.loadItem(itemId)
+    await rooms.authorizeActor(viewerId, item.roomId)
     await db.reaction.deleteMany({ where: { itemId, userId: viewerId, type } })
     return this.publish(viewerId, itemId)
   }

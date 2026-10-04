@@ -375,12 +375,14 @@ Rules:
   room. That means no bot double-posts, two bots can't talk over each other, and the
   room cap check plus the post can't interleave in-process. Waits don't hold the lane;
   only the guard → choose → act section runs in it. Different rooms run in parallel.
-- **Cap backstop inside the write transaction:** `place()` already row-locks the room
-  (`room.update … itemCount increment`). For bot actors, the room cap (rail 4) is
-  re-checked inside that same transaction after the lock, by counting bot items in the
-  window. If it's exceeded, the transaction aborts with `BOT_CAP` and nothing is
-  created. That makes overshoot impossible even across processes later (Redis / multi
-  instance).
+- **Cap backstop inside the write transaction:** for bot actors, the transaction's
+  **first statement** is `SELECT … FROM Room … FOR UPDATE`, followed by the cap counts.
+  If the cap is exceeded, it aborts with 429 `BOT_CAP` and nothing is created. The
+  ordering is load-bearing. InnoDB REPEATABLE READ freezes its snapshot at the first
+  consistent read, and Prisma's `create` does an INSERT then a SELECT. If any read
+  happened before the lock, the counts would be stale and concurrent bots would
+  overshoot. The invariant test caught exactly that in the first implementation.
+  This holds across processes too (Redis / multi instance later).
 - Bot-authored events are dropped at the matcher (loop guard) unless a workflow sets
   `fromBots: true` (not used in Phase 1).
 
@@ -390,7 +392,7 @@ Rules:
 # apps/server/bots/chatbot/workflows.yaml
 - id: greet
   on: [member.joined, presence.arrived]
-  key: "greet:{userId}"              # one live run per key per room (§4.3)
+  key: "greet"                       # one live greet per room; arrivals merge (§4.3)
   steps:
     - wait: { min: 2s, max: 8s, collect: 6s }   # collect = merge more arrivals (burst)
     - guard: [seated, humanPresent, notGreetedWithin: 12h, roomHasHumanItem]
@@ -429,7 +431,9 @@ Rules:
 
 - `key` is unique per (bot, room). A trigger whose key already has a live run doesn't
   start a second one. With `collect`, it is merged into the live run instead (burst
-  greeting: the arrivals collected during the window → one "hey Ana and Raj").
+  greeting: the arrivals collected during the window → one "hey Ana and Raj"). For that
+  reason greet uses a room-wide key (`greet`). Per-person dedupe comes from the subject
+  set plus the cooldown guard.
 - Cooldown is not part of the key. It's a guard (`notGreetedWithin`) backed by the
   decision log, so it survives the run and is visible in dry runs.
 - **Once-ever keys** (`opening:{roomId}`) are persisted, never in memory only:

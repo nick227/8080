@@ -134,7 +134,7 @@ export async function seedItem(
   app: FastifyInstance,
   authorId: string,
   roomId: string,
-  body: { text?: string; mediaIds?: string[] } = { text: 'hello' },
+  body: { text?: string; mediaIds?: string[]; chat?: boolean } = { text: 'hello' },
 ) {
   const res = await app.inject({
     method: 'POST',
@@ -150,7 +150,7 @@ export async function seedReply(
   app: FastifyInstance,
   authorId: string,
   parentItemId: string,
-  body: { text?: string; mediaIds?: string[] } = { text: 'reply' },
+  body: { text?: string; mediaIds?: string[]; chat?: boolean; anchorStartMs?: number } = { text: 'reply' },
 ) {
   const res = await app.inject({
     method: 'POST',
@@ -196,4 +196,12 @@ const SIGNATURE_HEX: Record<string, string> = {
 export function fileBytes(type: string, rest: string | Buffer = 'test-bytes') {
   const hex = SIGNATURE_HEX[type.split(';')[0]!.trim()] ?? ''
   return Buffer.concat([Buffer.from(hex, 'hex'), Buffer.isBuffer(rest) ? rest : Buffer.from(rest)])
+}
+
+// A bot user + Bot row without a pack (invariant tests). Runtime tests seed real packs.
+export async function seedBotUser(opts: { handle?: string; kind?: 'house' | 'optional'; name?: string } = {}) {
+  const handle = opts.handle ?? `bot-${randomUUID().slice(0, 8)}`
+  const user = await db.user.create({ data: { kind: 'bot', isGuest: false, profile: { create: { displayName: opts.name ?? handle } } } })
+  const bot = await db.bot.create({ data: { userId: user.id, handle, kind: opts.kind ?? 'house', packVersion: 'test' } })
+  return { userId: user.id, botId: bot.id }
 }

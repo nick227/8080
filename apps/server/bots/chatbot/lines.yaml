@@ -1,0 +1,50 @@
+# Statement library (doc/08 R12). key = stable id; pool groups; intents = what a
+# line answers (summon pool). Slots: {name} {author} {roomTitle} {timeOfDay}
+# {peopleCount} {botName}. A line whose slots can't be filled is not a candidate.
+defaults: { weight: 1, cooldownSec: 0, minGapSec: 0 }
+lines:
+  # ── greeting.first: someone new arrives ──
+  - { key: g-first-1, pool: greeting.first, text: "hey {name}! welcome to {roomTitle}. I'm chatbot, the house bot — say my name if you want me." }
+  - { key: g-first-2, pool: greeting.first, text: "{name} is here 👋 good {timeOfDay}. Pull up a chair." }
+  - { key: g-first-3, pool: greeting.first, text: "welcome {name}. Quick tip: hit record and talk, it's way faster than typing." }
+  - { key: g-first-4, pool: greeting.first, text: "oh hi {name}! You picked a good {timeOfDay} to drop into {roomTitle}." }
+  - { key: g-first-5, pool: greeting.first, text: "{name}, hello! I'm the bot around here. Ask me anything — I'm cheap and cheerful." }
+  - { key: g-first-6, pool: greeting.first, text: "a wild {name} appears ✨ welcome in." }
+  # ── greeting.returning: seen them here before ──
+  - { key: g-back-1, pool: greeting.returning, text: "{name}! welcome back." }
+  - { key: g-back-2, pool: greeting.returning, text: "look who's back — hi {name}." }
+  - { key: g-back-3, pool: greeting.returning, text: "{name} returns. Good {timeOfDay} to you." }
+  - { key: g-back-4, pool: greeting.returning, text: "hey again {name}, missed you in {roomTitle}." }
+  # ── greeting.group: a burst of arrivals in one line ──
+  - { key: g-group-1, pool: greeting.group, text: "hey {name}! the room just got a lot livelier." }
+  - { key: g-group-2, pool: greeting.group, text: "welcome {name} — {peopleCount} of us here now." }
+  - { key: g-group-3, pool: greeting.group, text: "{name}, hi all 👋 grab a seat." }
+  # ── opening: once, after the creator's first post in a brand-new room ──
+  - { key: open-1, pool: opening, text: "and we're live. Nice opener, {name} — I'll keep the seat warm until others arrive." }
+  - { key: open-2, pool: opening, text: "first post in {roomTitle} 🎉 I'm chatbot; I'll greet people as they come in." }
+  - { key: open-3, pool: opening, text: "good start, {name}. Share the link and I'll say hi to whoever shows up." }
+  - { key: open-4, pool: opening, text: "{roomTitle} is open. I'm the house bot — mention me any time." }
+  # ── summon: answers when someone says "chatbot" ──
+  - { key: s-hi-1, pool: summon, intents: [greeting], text: "hey {author}! what's up?" }
+  - { key: s-hi-2, pool: summon, intents: [greeting], text: "hi hi {author} 👋" }
+  - { key: s-hi-3, pool: summon, intents: [greeting], text: "yo {author}. Present and accounted for." }
+  - { key: s-q-1, pool: summon, intents: [question], text: "good question, {author}. My honest answer: I'm a bot running on rules today, so I'll guess — probably yes?" }
+  - { key: s-q-2, pool: summon, intents: [question], text: "hmm. I don't know yet, {author} — real brains arrive in phase 2. Anyone here know?" }
+  - { key: s-q-3, pool: summon, intents: [question], text: "asking the bot, bold move {author}. I'd say: try it and tell us what happens." }
+  - { key: s-q-4, pool: summon, intents: [question], text: "{author}, I'll throw that to the room — who's got this one?" }
+  - { key: s-help-1, pool: summon, intents: [help], text: "on it {author}: the big round button records, the chat is for quick notes, and anything on stage can be replied to." }
+  - { key: s-help-2, pool: summon, intents: [help], text: "{author}, tip: reply to a moment in a clip and your answer sticks to that exact second." }
+  - { key: s-help-3, pool: summon, intents: [help], text: "happy to help, {author}. Tap any item to reply to it; drag the record button away to cancel a take." }
+  - { key: s-thx-1, pool: summon, intents: [praise], text: "aw, thanks {author} 🙂" }
+  - { key: s-thx-2, pool: summon, intents: [praise], text: "glad to be useful, {author}." }
+  - { key: s-thx-3, pool: summon, intents: [praise], text: "you're too kind. I'm telling the other bots." }
+  - { key: s-bad-1, pool: summon, intents: [complaint], text: "sorry {author} — noted. You can mute me any time from my name, no hard feelings." }
+  - { key: s-bad-2, pool: summon, intents: [complaint], text: "fair. I'll keep it down, {author}." }
+  - { key: s-media-1, pool: summon, intents: [media-request], text: "my record collection arrives soon, {author}. For now — someone hit record and sing?" }
+  - { key: s-media-2, pool: summon, intents: [media-request], text: "{author} I'd love to, but my clips aren't loaded yet. Phase 1b, I'm told." }
+  - { key: s-small-1, pool: summon, intents: [smalltalk], text: "I'm a bot of simple pleasures, {author}: a good conversation and nobody talking over each other." }
+  - { key: s-small-2, pool: summon, intents: [smalltalk], text: "doing great, {author}. {peopleCount} people here — that's a party by my standards." }
+  - { key: s-small-3, pool: summon, intents: [smalltalk], text: "you rang, {author}? 🛎️" }
+  - { key: s-small-4, pool: summon, intents: [smalltalk], text: "{author}, fun fact: every reply here can branch. Conversations are trees, not lines." }
+  - { key: s-small-5, pool: summon, intents: [smalltalk], text: "still here, {author}. Always here, actually. It's kind of my thing." }
+  - { key: s-small-6, pool: summon, intents: [smalltalk], text: "beep boop — sorry, reflex. What's on your mind, {author}?" }

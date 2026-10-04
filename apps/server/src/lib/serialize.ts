@@ -8,11 +8,16 @@ import { playbackToken } from './playbackToken'
 
 export type UserRow = Prisma.UserGetPayload<{ include: { profile: true } }>
 
+// Disclosure is data (doc/08 I7): every name renders with its tag, whatever it is.
+export const userTag = (user: { kind: string }) => (user.kind === 'bot' ? 'BOT' : null)
+
 export function toUser(user: UserRow) {
   return {
     id: user.id,
     email: user.email,
     isGuest: user.isGuest,
+    kind: user.kind,
+    tag: userTag(user),
     displayName: user.profile?.displayName ?? 'Guest',
     avatarUrl: user.profile?.avatarUrl ?? null,
     createdAt: user.createdAt,
@@ -24,6 +29,8 @@ export function toAuthor(user: UserRow) {
     id: user.id,
     name: user.profile?.displayName ?? 'Guest',
     avatarUrl: user.profile?.avatarUrl ?? null,
+    kind: user.kind,
+    tag: userTag(user),
   }
 }
 

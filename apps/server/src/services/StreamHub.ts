@@ -25,10 +25,13 @@ class StreamHub {
   }
 
   publish(roomId: string, event: StreamEvent) {
+    const id = event.type === 'item.created' ? `id: ${event.itemNumber}\n` : ''
+    this.write(roomId, `${id}event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
+  }
+
+  private write(roomId: string, frame: string) {
     const clients = this.rooms.get(roomId)
     if (!clients) return
-    const id = event.type === 'item.created' ? `id: ${event.itemNumber}\n` : ''
-    const frame = `${id}event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`
     for (const client of clients) {
       // Disconnect clients immediately if write buffer is full (backpressure),
       // to avoid memory leaks or delaying other users. Client will reconnect.
@@ -41,6 +44,11 @@ class StreamHub {
         })
       }
     }
+  }
+
+  // Roster changed (presence or seating): clients refetch listRoomParticipants.
+  publishParticipants(roomId: string) {
+    this.write(roomId, `event: participants.updated\ndata: ${JSON.stringify({ type: 'participants.updated', roomId })}\n\n`)
   }
 
   connectionCount(roomId?: string) {

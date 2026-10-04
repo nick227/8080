@@ -54,12 +54,18 @@ export function useRoomStream(roomId: string | undefined, opts: { onEvent?: (eve
 
     source.addEventListener('item.created', handle as EventListener)
     source.addEventListener('item.updated', handle as EventListener)
+    // Someone arrived/left, or a bot was seated/kicked: refetch the roster.
+    const roster = () => queryClient.invalidateQueries({ queryKey: keys.participants(roomId) })
+    source.addEventListener('participants.updated', roster)
     source.onerror = () => {
       dropped = true
     }
     source.onopen = () => {
-      // Catch up on anything missed while disconnected.
-      if (dropped) queryClient.invalidateQueries({ queryKey: keys.items(roomId) })
+      // Refresh a bounded recent window until durable change-cursor recovery exists.
+      if (dropped) {
+        void queryClient.resetQueries({ queryKey: keys.items(roomId), exact: true })
+        roster()
+      }
       dropped = false
     }
     return () => {

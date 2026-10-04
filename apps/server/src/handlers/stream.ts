@@ -1,5 +1,6 @@
 import { RoomService } from '../services/RoomService'
 import { streamHub } from '../services/StreamHub'
+import { roomPresence } from '../services/presence'
 
 const roomService = new RoomService()
 const HEARTBEAT_MS = 25_000
@@ -29,8 +30,12 @@ export async function streamRoomEvents(request: any, reply: any) {
     if (!ok) request.raw.destroy() // drop connection if heartbeat backs up
   }, HEARTBEAT_MS)
 
+  // Raw connections feed deduplicated presence; nothing else reads them (doc/08 I4).
+  const leave = roomPresence.connect(roomId, request.user.id)
+
   request.raw.on('close', () => {
     clearInterval(heartbeat)
     unsubscribe()
+    leave()
   })
 }

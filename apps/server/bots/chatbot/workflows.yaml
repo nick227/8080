@@ -1,0 +1,31 @@
+# Workflows (doc/08 §4.2). Step types: wait · guard · choose · act · branch.
+# Guards/acts are a typed registry in code; packs only compose them.
+- id: greet
+  on: [member.joined, presence.arrived]
+  key: "greet"                      # one live greet per room; arrivals during
+  steps:                            # `collect` merge into it (burst → one line)
+    - wait: { min: 2s, max: 8s, collect: 6s }
+    - guard: [seated, roomHasHumanItem, subjectsPresent, { notGreetedWithin: 12h }]
+    - choose: { pool: "greeting.{audience}" }
+    - act: { say: chat }
+
+- id: opening
+  on: [item.created]
+  when: { firstHumanItem: true }
+  key: "opening:{roomId}"
+  once: true                        # persisted in BotOnce; never re-armed
+  steps:
+    - wait: { min: 2s, max: 5s }
+    - guard: [seated, { authorIsOwner: { final: true } }]
+    - choose: { pool: opening }
+    - act: { say: chat }
+
+- id: answerSummon
+  on: [item.created]
+  when: { mentions: self, actor: human }
+  key: "summon:{itemId}"
+  steps:
+    - wait: { min: 1.5s, max: 4s }
+    - guard: [seated, itemLive]
+    - choose: { pool: summon, byIntents: true, fallback: smalltalk }
+    - act: { reply: sameSurface }

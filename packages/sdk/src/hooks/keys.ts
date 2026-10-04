@@ -7,4 +7,5 @@ export const keys = {
   room: (roomId: string) => ['room', roomId] as const,
   items: (roomId: string) => ['items', roomId] as const,
   item: (itemId: string) => ['item', itemId] as const,
+  participants: (roomId: string) => ['participants', roomId] as const,
 }

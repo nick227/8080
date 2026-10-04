@@ -208,6 +208,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rooms/{roomId}/participants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: components["parameters"]["RoomId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Who is in this conversation — members and seated bots, with live presence
+         * @description One roster for people and bots alike, so the client renders every participant
+         *     the same way (doc/08 §2.3). `present` comes from deduplicated room presence;
+         *     seated bots are always present. Private rooms return 404 to non-members.
+         */
+        get: operations["listRoomParticipants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rooms/{roomId}/members/me": {
         parameters: {
             query?: never;
@@ -500,10 +524,18 @@ export interface components {
             hasMore: boolean;
             nextCursor: string | null;
         };
+        /**
+         * @description Data for data-layer rules (human-authored activity, doc/08 I6). Components render `tag`, never branch on this.
+         * @enum {string}
+         */
+        UserKind: "human" | "bot";
         User: {
             id: string;
             email: string | null;
             isGuest: boolean;
+            kind: components["schemas"]["UserKind"];
+            /** @description Short disclosure suffix shown after the name, e.g. BOT; null for people */
+            tag: string | null;
             displayName: string;
             avatarUrl: string | null;
             /** Format: date-time */
@@ -538,6 +570,20 @@ export interface components {
             id: string;
             name: string;
             avatarUrl: string | null;
+            kind: components["schemas"]["UserKind"];
+            /** @description Short disclosure suffix shown after the name, e.g. BOT; null for people */
+            tag: string | null;
+        };
+        /** @enum {string} */
+        ParticipantRole: "owner" | "member" | "bot";
+        Participant: {
+            user: components["schemas"]["Author"];
+            role: components["schemas"]["ParticipantRole"];
+            /** @description Connected to this room now (deduplicated; a refresh does not flip it) */
+            present: boolean;
+        };
+        ParticipantList: {
+            data: components["schemas"]["Participant"][];
         };
         /** @enum {string} */
         RoomVisibility: "public" | "private";
@@ -697,8 +743,14 @@ export interface components {
             /**
              * @description The moment (ms from start) in the parent's single audio/video attachment this
              *     reply responds to. A point, not a range — V1 has no anchor end.
+             *     Stage-only: rejected with `chat: true`.
              */
             anchorStartMs?: number;
+            /**
+             * @description Surface of the new reply: true = room chat, false/omitted = stage. Independent of
+             *     the parent's surface — the reply link never decides where an item shows (doc/08 I3).
+             */
+            chat?: boolean;
         };
         CreateYouTubeMediaInput: {
             /** @description Any common YouTube video link; resolved to a canonical id */
@@ -719,6 +771,15 @@ export interface components {
         };
         /** @enum {string} */
         StreamEventType: "item.created" | "item.updated";
+        /**
+         * @description SSE `participants.updated`: someone arrived or left (deduplicated presence), or a
+         *     bot was seated/kicked. Refetch `listRoomParticipants`.
+         */
+        ParticipantsEvent: {
+            /** @enum {string} */
+            type: "participants.updated";
+            roomId: string;
+        };
         /**
          * @description Payload of each SSE message. `item.updated` covers reactions and tombstones.
          *     Instead of a fully hydrated Item, this payload only contains the itemId and itemNumber.
@@ -1189,6 +1250,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RoomResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listRoomParticipants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: components["parameters"]["RoomId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Participants, present first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParticipantList"];
                 };
             };
             401: components["responses"]["Unauthorized"];

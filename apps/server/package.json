@@ -9,7 +9,8 @@
     "start": "pnpm --filter @project/db db:push && tsx src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "rooms:recount": "tsx src/scripts/recountRooms.ts"
+    "rooms:recount": "tsx src/scripts/recountRooms.ts",
+    "bots:seed": "tsx src/scripts/seedBots.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1144.0",

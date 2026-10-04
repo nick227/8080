@@ -334,6 +334,26 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /rooms/{roomId}/participants:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    get:
+      operationId: listRoomParticipants
+      summary: Who is in this conversation — members and seated bots, with live presence
+      description: |
+        One roster for people and bots alike, so the client renders every participant
+        the same way (doc/08 §2.3). `present` comes from deduplicated room presence;
+        seated bots are always present. Private rooms return 404 to non-members.
+      tags: [rooms]
+      responses:
+        '200':
+          description: Participants, present first
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParticipantList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /rooms/{roomId}/members/me:
     parameters:
       - $ref: '#/components/parameters/RoomId'
@@ -375,15 +395,20 @@ paths:
       - $ref: '#/components/parameters/RoomId'
     get:
       operationId: listRoomItems
-      summary: Items in a room, ascending by number
+      summary: Items in a room, ordered by number
       description: |
         Flat list; build branches client-side from `parentId`.
         Pass `after` (an item number) to fetch only items newer than one you already have —
-        used to catch up after a stream reconnect.
+        recovers newly created items only, not updates or deletions.
+        Use `order=desc` for the newest window, then follow nextCursor for older pages.
       tags: [items]
       parameters:
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: order
+          schema: { type: string, enum: [asc, desc], default: asc }
+          description: Number ordering; desc starts with the newest items and pages backward.
         - in: query
           name: after
           schema: { type: integer, minimum: 0 }
@@ -787,13 +812,20 @@ components:
         nextCursor: { type: [string, 'null'] }
 
     # ─── users ───────────────────────────────────────────────────────────────
+    UserKind:
+      type: string
+      enum: [human, bot]
+      description: Data for data-layer rules (human-authored activity, doc/08 I6). Components render `tag`, never branch on this.
+
     User:
       type: object
-      required: [id, email, isGuest, displayName, avatarUrl, createdAt]
+      required: [id, email, isGuest, kind, tag, displayName, avatarUrl, createdAt]
       properties:
         id: { type: string }
         email: { type: [string, 'null'] }
         isGuest: { type: boolean }
+        kind: { $ref: '#/components/schemas/UserKind' }
+        tag: { type: [string, 'null'], description: 'Short disclosure suffix shown after the name, e.g. BOT; null for people' }
         displayName: { type: string }
         avatarUrl: { type: [string, 'null'] }
         createdAt: { type: string, format: date-time }
@@ -842,11 +874,33 @@ components:
 
     Author:
       type: object
-      required: [id, name, avatarUrl]
+      required: [id, name, avatarUrl, kind, tag]
       properties:
         id: { type: string }
         name: { type: string }
         avatarUrl: { type: [string, 'null'] }
+        kind: { $ref: '#/components/schemas/UserKind' }
+        tag: { type: [string, 'null'], description: 'Short disclosure suffix shown after the name, e.g. BOT; null for people' }
+
+    ParticipantRole:
+      type: string
+      enum: [owner, member, bot]
+
+    Participant:
+      type: object
+      required: [user, role, present]
+      properties:
+        user: { $ref: '#/components/schemas/Author' }
+        role: { $ref: '#/components/schemas/ParticipantRole' }
+        present: { type: boolean, description: Connected to this room now (deduplicated; a refresh does not flip it) }
+
+    ParticipantList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Participant' }
 
     # ─── rooms ───────────────────────────────────────────────────────────────
     RoomVisibility:
@@ -1078,6 +1132,12 @@ components:
           description: |
             The moment (ms from start) in the parent's single audio/video attachment this
             reply responds to. A point, not a range — V1 has no anchor end.
+            Stage-only: rejected with `chat: true`.
+        chat:
+          type: boolean
+          description: |
+            Surface of the new reply: true = room chat, false/omitted = stage. Independent of
+            the parent's surface — the reply link never decides where an item shows (doc/08 I3).
 
     CreateYouTubeMediaInput:
       type: object
@@ -1112,6 +1172,16 @@ components:
     StreamEventType:
       type: string
       enum: [item.created, item.updated]
+
+    ParticipantsEvent:
+      type: object
+      description: |
+        SSE `participants.updated`: someone arrived or left (deduplicated presence), or a
+        bot was seated/kicked. Refetch `listRoomParticipants`.
+      required: [type, roomId]
+      properties:
+        type: { type: string, enum: [participants.updated] }
+        roomId: { type: string }
 
     StreamEvent:
       type: object

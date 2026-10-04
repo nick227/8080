@@ -41,3 +41,7 @@ export async function leaveRoom(request: any, reply: any) {
 export async function rotateInviteCode(request: any, reply: any) {
   return reply.send({ data: await roomService.rotateInviteCode(request.user.id, request.params.roomId) })
 }
+
+export async function listRoomParticipants(request: any, reply: any) {
+  return reply.send({ data: await roomService.participants(request.user.id, request.params.roomId) })
+}
