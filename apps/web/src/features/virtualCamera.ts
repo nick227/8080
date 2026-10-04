@@ -66,9 +66,26 @@ export type Compositor = {
   stop: () => void
 }
 
-const MAX_W = 1280
-const MASK_W = 256
-const NEW = 0.6 // temporal smoothing: weight of the newest mask
+const MAX_W = 1920 // never downscale a 720p/1080p camera; the canvas is the camera's size
+const NEW = 0.6 // v1 temporal smoothing: weight of the newest mask
+
+// Tuning (temporary, for A/B against real webcams): localStorage '8080.vbg-tune' =
+// {"seg":256|384|512,"matte":"v1"|"v2"}. Defaults: 384 px segmentation input, v2 matte.
+type Tune = { seg: number; matte: 'v1' | 'v2' }
+function readTune(): Tune {
+  try {
+    const raw = JSON.parse(localStorage.getItem('8080.vbg-tune') ?? 'null') as Partial<Tune> | null
+    return { seg: [256, 384, 512].includes(raw?.seg ?? 0) ? raw!.seg! : 384, matte: raw?.matte === 'v1' ? 'v1' : 'v2' }
+  } catch {
+    return { seg: 384, matte: 'v2' }
+  }
+}
+
+/** Live numbers for the developer readout (features/room/VbgReadout.tsx). */
+export type VbgStats = { camera: string; canvas: string; seg: string; segMs: number; segFps: number; fps: number; tier: number; matte: string; failed: boolean }
+export let vbgStats: VbgStats | null = null
+export let vbgRecording: { mime: string; videoBitsPerSecond: number } | null = null
+export function setVbgRecording(info: typeof vbgRecording) { vbgRecording = info }
 const STALE_MS = 500 // a mask older than this is not trusted: show the raw camera
 const WINDOW_MS = 2000 // quality is judged over this window
 
@@ -106,6 +123,7 @@ function cover(ctx: CanvasRenderingContext2D, img: CanvasImageSource & { width: 
 
 export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initial: CompositorOptions, onUnavailable: (message: string) => void): Compositor {
   let options = { ...initial }
+  const tune = readTune()
   let stopped = false
   let failed = false // too slow or broken: raw camera from here on
 
@@ -151,8 +169,8 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     W = w
     H = h
     for (const el of [out, preview, person, photo]) { el.width = W; el.height = H }
-    segIn.width = MASK_W
-    segIn.height = Math.max(2, Math.round((MASK_W * H) / W))
+    segIn.width = Math.min(tune.seg, W)
+    segIn.height = Math.max(2, Math.round((segIn.width * H) / W))
     blurSmall.width = Math.max(2, Math.round(W / 24))
     blurSmall.height = Math.max(2, Math.round(H / 24))
     blurMid.width = Math.max(2, Math.round(W / 6))
@@ -184,16 +202,69 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
   loadPhoto(options.photoUrl)
 
   // ── mask: smooth over time, soften the confidence edge, feather a little ──
-  const takeMask = (floats: Float32Array, w: number, h: number) => {
+  let eroded: Float32Array | null = null
+  const takeMask = (floats: Float32Array, w: number, h: number) => tune.matte === 'v1' ? takeMaskV1(floats, w, h) : takeMaskV2(floats, w, h)
+
+  const prepare = (floats: Float32Array, w: number, h: number) => {
     if (!smooth || smooth.length !== w * h) {
       const seed = lastMask && lastMask.w === w && lastMask.h === h && performance.now() - lastMask.at < 1000 ? lastMask.data : null
       smooth = seed ? Float32Array.from(seed) : Float32Array.from(floats)
       shaped = new Float32Array(w * h)
+      eroded = new Float32Array(w * h)
       maskCanvas.width = w
       maskCanvas.height = h
       maskImage = maskCtx.createImageData(w, h)
     }
-    const s = smooth
+  }
+
+  // v2 matte: smooth over time where the mask is steady but follow it at once where it
+  // moves (no ghost trails); a firm confidence curve; contract the edge by one mask
+  // pixel (min filter) so background pixels can't survive in the soft edge (the halo);
+  // then only a small feather.
+  const takeMaskV2 = (floats: Float32Array, w: number, h: number) => {
+    prepare(floats, w, h)
+    const s = smooth!
+    const sh = shaped!
+    const er = eroded!
+    for (let i = 0; i < s.length; i++) {
+      const next = floats[i]!
+      const change = Math.abs(next - s[i]!)
+      const keep = change > 0.25 ? 0 : 0.5 * (1 - change * 4) // steady → 0.5, moving → 0
+      s[i] = next * (1 - keep) + s[i]! * keep
+      sh[i] = smoothstep(0.4, 0.8, s[i]!)
+    }
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let min = 1
+        for (let dy = -1; dy <= 1; dy++) {
+          const yy = Math.min(h - 1, Math.max(0, y + dy))
+          for (let dx = -1; dx <= 1; dx++) {
+            const v = sh[yy * w + Math.min(w - 1, Math.max(0, x + dx))]!
+            if (v < min) min = v
+          }
+        }
+        er[y * w + x] = min
+      }
+    }
+    const px = maskImage!.data
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let sum = 0
+        for (let dy = -1; dy <= 1; dy++) {
+          const yy = Math.min(h - 1, Math.max(0, y + dy))
+          for (let dx = -1; dx <= 1; dx++) sum += er[yy * w + Math.min(w - 1, Math.max(0, x + dx))]!
+        }
+        px[(y * w + x) * 4 + 3] = Math.round((sum / 9) * 255)
+      }
+    }
+    maskCtx.putImageData(maskImage!, 0, 0)
+    maskAt = performance.now()
+    lastMask = { data: s, w, h, at: maskAt }
+  }
+
+  const takeMaskV1 = (floats: Float32Array, w: number, h: number) => {
+    prepare(floats, w, h)
+    const s = smooth!
     const sh = shaped!
     for (let i = 0; i < s.length; i++) {
       s[i] = NEW * floats[i]! + (1 - NEW) * s[i]!
@@ -242,6 +313,17 @@ export function startCompositor(seg: ImageSegmenter, camera: MediaStream, initia
     if (now - windowStart < WINDOW_MS) return
     const fps = (windowFrames * 1000) / (now - windowStart)
     const segMs = windowSegs ? windowSegMs / windowSegs : 0
+    vbgStats = {
+      camera: `${video.videoWidth}×${video.videoHeight}`,
+      canvas: `${W}×${H}`,
+      seg: `${segIn.width}×${segIn.height} → mask ${maskCanvas.width}×${maskCanvas.height}`,
+      segMs: Math.round(segMs * 10) / 10,
+      segFps: Math.round((windowSegs * 10000) / (now - windowStart)) / 10,
+      fps: Math.round(fps * 10) / 10,
+      tier,
+      matte: tune.matte,
+      failed,
+    }
     if (tier === 0 && (segMs > 35 || fps < 20)) tier = 1
     else if (tier === 1 && (segMs > 60 || fps < 12)) giveUp('Background effects are too slow on this device')
     windowStart = now

@@ -83,3 +83,11 @@ Differences from the plan:
 - **Firefox detection is by feature** (`CSS.supports('-moz-appearance', 'none')`): user agents get overridden (the Playwright config forces a Chrome UA).
 
 Verified (Playwright, fake camera fed a person clip; isolated :3002/:5174): load 0.3–0.6 s, Record disabled while loading; framing preview composited (photo and blur); recorded take composited from frame 1 (ffmpeg frames); mirrored preview flips the person but not the photo, recording unmirrored; own photo survives a reload; ORIGINAL enables Record immediately; camera live tracks framing 1 / recording 1 / review 0 / closed 0; Firefox smoke (ready ~2.3 s, records). Known: in this static test clip, a flag touching the subject bleeds through at the edge.
+
+## Quality tuning (2026-10-03, after a real-webcam test showed a halo)
+Measured on a 1280×720 person clip (headless Chromium), readout numbers:
+- No downscaling: camera 1280×720 → canvas 1280×720 (cap raised to 1920 so a 1080p camera isn't reduced). Camera request unchanged: ideal 1280×720 @ 30.
+- **Segmentation ≈ 20 ms at 256, 384 and 512 alike**: the model runs at a fixed internal size; a larger input only improves the returned mask's upsampling. 384 is marginally cleaner than 256, 512 adds nothing visible. Default 384.
+- **Matte v2 is the main fix:** motion-aware temporal smoothing (steady pixels averaged, moving pixels follow at once — no trails), firmer confidence curve (0.4–0.8), 1-mask-pixel erosion (min filter), then a 3×3 feather. Removes the bright halo and nearly all colour bleed without visibly cutting hair or shoulders; v1 left fringes trailing on motion.
+- **Recording bitrate** explicit: 6 Mbps ≤ 720p, 10 Mbps above, 2.5 Mbps ≤ 480p; audio 128 kbps. Note: 6 Mbps ≈ 45 MB/min against the 50 MB upload cap.
+- Temporary tuning hooks: `localStorage['8080.vbg-tune'] = '{"seg":256|384|512,"matte":"v1"|"v2"}'` and a readout (`VbgReadout`, dev builds or `localStorage['8080.vbg-debug']='1'`) showing camera/canvas/segmentation sizes, segmentation ms and rate, draw fps, recording MIME and bitrate. Remove both once tuned on real webcams.

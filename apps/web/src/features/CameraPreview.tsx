@@ -3,6 +3,7 @@ import { useCapture } from '../state/capture'
 import { useBackground } from '../state/background'
 import { cameraConstraints, getLiveCompositor, getLiveStream, subscribeLive } from './previewStream'
 import { ensureSegmenter, facingUser, loadSegmenter, startCompositor, type Compositor } from './virtualCamera'
+import { VbgReadout } from './room/VbgReadout'
 
 const stopAll = (stream: MediaStream) => stream.getTracks().forEach((track) => track.stop())
 
@@ -98,6 +99,7 @@ export function CameraPreview({ deviceId, recording }: { deviceId: string; recor
     <div className="cam-preview" data-recording={recording || undefined} data-mirror={mirror || undefined} data-composite={shown ? '' : undefined}>
       <video ref={videoRef} muted playsInline autoPlay />
       <div ref={slotRef} className="cam-composite" />
+      {shown && <VbgReadout />}
     </div>
   )
 }

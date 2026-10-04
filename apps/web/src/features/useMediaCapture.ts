@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { publishSpectrum, useCapture } from '../state/capture'
 import { useBackground } from '../state/background'
 import { cameraConstraints, pausePreview, publishLiveCompositor, publishLiveStream, resumePreview } from './previewStream'
-import { effectiveMode, facingUser, loadSegmenter, startCompositor, type Compositor } from './virtualCamera'
+import { effectiveMode, facingUser, loadSegmenter, setVbgRecording, startCompositor, type Compositor } from './virtualCamera'
 
 const getConstraints = (kind: 'audio' | 'video', deviceId: string): MediaStreamConstraints => {
   if (kind === 'audio') return { audio: deviceId ? { deviceId: { exact: deviceId } } : true }
@@ -75,7 +75,13 @@ export function useMediaCapture() {
         compositorRef.current = compositor
         recordStream = new MediaStream([...compositor.stream.getVideoTracks(), ...stream.getAudioTracks()])
       }
-      const recorder = new MediaRecorder(recordStream)
+      // Explicit video bitrate: browser defaults are conservative and soften the picture.
+      const settings = stream.getVideoTracks()[0]?.getSettings()
+      const pixels = (settings?.width ?? 0) * (settings?.height ?? 0)
+      const videoBitsPerSecond = pixels > 1280 * 720 ? 10_000_000 : pixels > 640 * 480 ? 6_000_000 : 2_500_000
+      const recorder = kind === 'video'
+        ? new MediaRecorder(recordStream, { videoBitsPerSecond, audioBitsPerSecond: 128_000 })
+        : new MediaRecorder(recordStream)
       
       if (kind === 'audio') {
         const audioCtx = new AudioContext()
@@ -104,7 +110,12 @@ export function useMediaCapture() {
       recorderRef.current = recorder
       startedAtRef.current = performance.now()
       
-      recorder.ondataavailable = event => event.data.size > 0 && chunksRef.current.push(event.data)
+      recorder.ondataavailable = event => {
+        if (event.data.size === 0) return
+        // Chrome only reports the recorder's MIME type once data flows.
+        if (!chunksRef.current.length && kind === 'video') setVbgRecording({ mime: event.data.type || recorder.mimeType, videoBitsPerSecond })
+        chunksRef.current.push(event.data)
+      }
       recorder.onerror = () => {
         resumePreview()
         capture.failCapture('Recording failed')
@@ -166,6 +177,7 @@ export function useMediaCapture() {
       }
       
       recorder.start(250)
+      if (kind === 'video') setVbgRecording({ mime: recorder.mimeType, videoBitsPerSecond })
       capture.begin()
       return true
     } catch (cause) {
