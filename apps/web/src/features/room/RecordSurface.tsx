@@ -1,29 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { findYouTubeVideoId, youTubeWatchUrl } from '@project/shared'
+import { useEffect, useRef, useState } from 'react'
 import { useUI } from '../../state/ui'
-import { useCapture } from '../../state/capture'
-import { captureKind, chooseKind, useDevice } from '../../state/device'
-import { useMediaCapture } from '../useMediaCapture'
 import { DevicePicker } from '../DevicePicker'
 import { CameraPreview } from '../CameraPreview'
 import { VoiceWave } from './VoiceWave'
 import { Media } from '../../components/Media'
 import { Control } from '../../components/Control'
 import { KindMark } from '../../components/icons'
-import { YouTubePreview, type YouTubePreviewResult } from '../../components/YouTubePreview'
+import { RecordButton } from './RecordStack'
+import { YouTubePreview } from '../../components/YouTubePreview'
 import { controllerWithin } from '../../media/controller'
-import type { LocalMedia, MediaType, SendInput } from '../../api/types'
+import type { SendInput } from '../../api/types'
 import { EditPreview } from '../edit/EditPreview'
 import { EditSheet } from '../edit/EditSheet'
-import { stopStockPreview } from '../edit/previewAudio'
-import { encodeWav } from '../edit/encodeWav'
-import { imageFile } from '../edit/stillTake'
-import { takePicture, useStockEdit } from '../edit/useStockEdit'
 import type { PresenceActivity } from './PeopleStrip'
 import { THUMB_ACCEPT, thumbFileProblem } from '../conversation/newConversation'
 import { BackgroundStrip } from './BackgroundStrip'
-import { mainAction } from './deskAction'
-import { useBackground } from '../../state/background'
+import { useRecordSession } from './useRecordSession'
 
 function IdentityField({ identity }: { identity: ConversationIdentity }) {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -76,16 +68,6 @@ function IdentityField({ identity }: { identity: ConversationIdentity }) {
   )
 }
 
-const fileKind = (file: File): MediaType => {
-  if (file.type.startsWith('video')) return 'video'
-  if (file.type.startsWith('audio')) return 'audio'
-  if (file.type.startsWith('image')) return 'image'
-  return 'file'
-}
-
-type Upload = { file: File; url: string; type: MediaType }
-type Frame = 'mic' | 'camera' | 'text' | 'file' | 'link'
-
 export type ConversationIdentity = {
   title: string
   thumbUrl: string | null
@@ -105,177 +87,18 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
   onSend: (input: SendInput) => Promise<void>
   onActivity: (activity: PresenceActivity) => void
 }) {
-  const ui = useUI()
-  const capture = useMediaCapture()
-  const phase = useCapture((s) => s.phase)
-  const previewUrl = useCapture((s) => s.previewUrl)
-  const waveform = useCapture((s) => s.waveform)
-  const mode = useCapture((s) => s.mode)
-  const blob = useCapture((s) => s.blob)
-  const durationMs = useCapture((s) => s.durationMs)
-  const choice = useDevice((s) => s.choice)
-  const kind = captureKind(choice)
   const fileRef = useRef<HTMLInputElement>(null)
   const deskRef = useRef<HTMLDivElement>(null)
-  const stageRef = useRef<HTMLDivElement>(null)
   const actionsRef = useRef<HTMLDivElement>(null)
-  const [text, setText] = useState('')
-  const [frame, setFrame] = useState<Frame>(compose ? 'text' : kind === 'video' ? 'camera' : 'mic')
-  const [ytText, setYtText] = useState('')
-  const [yt, setYt] = useState<YouTubePreviewResult>({ status: 'loading' })
-  const [upload, setUpload] = useState<Upload | null>(null)
-  const [sending, setSending] = useState(false)
-  const [rendering, setRendering] = useState(false)
-  const [playing, setPlaying] = useState(false)
-  const held = frame === 'text' ? null : takePicture({ upload, mode, previewUrl, durationMs })
-  const picture = held ?? { kind: 'text' as const }
-  const edit = useStockEdit(picture)
-  const pasted = useMemo(() => findYouTubeVideoId(ytText), [ytText])
+  const session = useRecordSession({ replyName, compose, onClose, onSend, onActivity })
+  const {
+    capture, choice, waveform, stageRef,
+    text, setText, frame, chooseFrame, ytText, setYtText, yt, upload, setUpload, clearUpload,
+    playing, setPlaying, held, edit, pasted, recording,
+    begin, back, send, previewType, previewSrc, showFile, showTake, showCamera, showWave,
+    canSend, submitLabel, showPlay, showRetry, sections, previewKey, onYouTube, togglePlay, takeFile,
+  } = session
 
-  const recording = phase === 'arming' || phase === 'recording' || phase === 'stopping'
-  // Blur/Photo chosen but the segmenter isn't ready: Record waits (ORIGINAL is the escape hatch),
-  // so a take never silently records something other than what's on screen.
-  const bgBlocking = useBackground((s) => s.mode !== 'original' && s.status !== 'ready' && s.status !== 'unavailable') && kind === 'video' && frame !== 'text'
-  const take = !recording && !!(blob || upload)
-  const ytReady = !!pasted && yt.status !== 'loading' && yt.status !== 'unavailable'
-
-
-  useEffect(() => {
-    setFrame((current) => (current === 'text' || current === 'file' || current === 'link' ? current : kind === 'video' ? 'camera' : 'mic'))
-  }, [kind])
-  useEffect(() => {
-    onActivity(recording ? 'recording' : frame === 'text' && text.trim() ? 'typing' : 'here')
-  }, [recording, frame, text, onActivity])
-  useEffect(() => () => { if (upload) URL.revokeObjectURL(upload.url) }, [upload])
-
-  const clearUpload = () => setUpload((current) => {
-    if (current) URL.revokeObjectURL(current.url)
-    return null
-  })
-
-  const begin = async () => {
-    if (useCapture.getState().phase === 'arming' || useCapture.getState().phase === 'recording') return
-    if (bgBlocking) return
-    setYtText('')
-    setYt({ status: 'loading' })
-    if (useCapture.getState().blob) capture.cancel()
-    clearUpload()
-    setFrame(kind === 'video' ? 'camera' : 'mic')
-    const deviceId = kind === 'audio' && choice.kind !== 'audioinput' ? '' : choice.deviceId
-    const ok = await capture.start(kind, deviceId)
-    if (!ok) ui.setError(useCapture.getState().error ?? 'Recording unavailable')
-  }
-
-  // Leaving a type drops the take, the file, and a pending link, so the
-  // switch lands on that type instead of keeping the previous post on screen.
-  const chooseFrame = (next: Frame) => {
-    if (recording || next === frame) return
-    capture.cancel()
-    clearUpload()
-    setYtText('')
-    setYt({ status: 'loading' })
-    setFrame(next)
-    if (next === 'mic') void chooseKind('audio')
-    if (next === 'camera') void chooseKind('video')
-  }
-
-  const back = () => {
-    const now = useCapture.getState().phase
-    if (now === 'recording' || now === 'arming' || now === 'stopping' || useCapture.getState().blob || upload) {
-      capture.cancel()
-      clearUpload()
-      return
-    }
-    if (frame === 'text' || frame === 'link' || frame === 'file') {
-      setFrame(kind === 'video' ? 'camera' : 'mic')
-      return
-    }
-    onClose()
-  }
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      if (edit.open) {
-        edit.close()
-        return
-      }
-      back()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
-
-  const send = async () => {
-    if (sending || edit.fitting) return
-    if (edit.open) edit.close()
-    const note = text.trim() || undefined
-    const media: SendInput['media'] = []
-    const composite = !!(ytReady ? false : held && edit.fitted?.buffer)
-    const renderCtx = composite ? new AudioContext() : null
-    if (renderCtx) void renderCtx.resume()
-    setSending(true)
-    setRendering(composite)
-    try {
-      if (pasted && ytReady) {
-        media.push({
-          kind: 'youtube',
-          url: youTubeWatchUrl(pasted.id),
-          durationMs: yt.status === 'ready' ? yt.durationMs : undefined,
-          embeddable: yt.status !== 'not-embeddable',
-        })
-      } else if (composite) {
-        try {
-          media.push(await edit.bake(renderCtx ?? undefined))
-        } catch (cause) {
-          ui.setError(cause instanceof Error ? cause.message : 'Could not render the clip')
-          return
-        }
-      } else {
-        if (blob && mode) media.push({ file: blob, type: mode, name: 'recording', duration: durationMs / 1000 } satisfies LocalMedia)
-        else if (upload) media.push({ file: upload.file, type: upload.type, name: upload.file.name })
-        if (picture.kind === 'text' && edit.fitted) {
-          if (!blob && edit.fitted.buffer) {
-            media.push({ file: encodeWav(edit.fitted.buffer), type: 'audio', name: 'edit.wav', duration: edit.fitted.durationMs / 1000 })
-          }
-          if (edit.fitted.imageUrl && upload?.type !== 'image') media.push(await imageFile(edit.fitted.imageUrl, edit.fitted.trackId))
-        }
-      }
-      if (!note && !media.length) return
-      await onSend({ text: note, media: media.length ? media : undefined })
-    } finally {
-      await renderCtx?.close()
-      setSending(false)
-      setRendering(false)
-    }
-  }
-
-  const previewType = upload?.type ?? (mode === 'video' ? 'video' : 'audio')
-  const previewSrc = upload?.url ?? previewUrl ?? undefined
-  const showFile = frame === 'file' && !!upload
-  const showTake = frame !== 'text' && frame !== 'link' && !showFile && take && !!previewSrc && previewType !== 'file'
-  const showCamera = frame === 'camera' && !showTake && !showFile
-  const showWave = frame === 'mic' && !showTake && !showFile
-  const canSend = !!(text.trim() || take || blob || ytReady || edit.fitted?.buffer || edit.fitted?.imageUrl)
-  const action = mainAction({ frame, recording, hasTake: !!(blob || upload) })
-  const submitLabel = rendering ? 'Rendering' : sending ? (replyName ? 'Sending' : 'Saving') : (replyName ? 'Send' : 'Save')
-  const showPlay = showTake && (previewType !== 'image' || !!edit.fitted?.buffer)
-  const showRetry = showTake && previewType !== 'image'
-
-  // The attach sheet opens on every post preview (a take, an upload, or writing) and
-  // offers only what fits the post: music for everything but a captured voice take,
-  // an image for a captured voice take or text; a YouTube link only for text (pasting one
-  // replaces the take, so it's a different post source, not an attachment). Dismissed, it
-  // returns with the next preview.
-  const capturedAudio = showTake && !upload && mode === 'audio'
-  const sections = {
-    audio: !capturedAudio,
-    image: capturedAudio || frame === 'text',
-    link: frame === 'text',
-  }
-  const previewKey = showTake ? `take:${previewSrc}`
-    : showFile && upload && previewType !== 'file' ? `file:${upload.url}`
-    : frame === 'text' ? 'text' : ''
   useEffect(() => {
     if (!previewKey) {
       edit.close()
@@ -288,23 +111,6 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
     return () => window.clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewKey])
-
-  const onYouTube = (result: YouTubePreviewResult) => {
-    setYt(result)
-    if (result.status === 'loading' || result.status === 'unavailable') return
-    capture.cancel()
-    clearUpload()
-    setFrame((current) => current === 'text' ? current : 'link')
-  }
-
-  const togglePlay = () => {
-    const ctrl = controllerWithin(stageRef.current)
-    if (playing) ctrl?.pause()
-    else {
-      stopStockPreview()
-      void ctrl?.play()
-    }
-  }
 
   useEffect(() => {
     if (compose) return
@@ -366,20 +172,13 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
           {showWave && <VoiceWave deviceId={choice.deviceId} recording={recording} />}
         </div>
         {showCamera && !recording && <BackgroundStrip />}
-        <Control
-          variant="record"
-          type="button"
-          disabled={(action === 'record' && bgBlocking) || (action === 'submit' && (sending || edit.fitting || !canSend))}
-          active={action === 'stop'}
-          data-mass={action === 'stop' ? 'dense' : action === 'submit' ? 'present' : 'rest'}
-          data-action={action}
-          aria-label={action === 'stop' ? 'Stop' : action === 'record' ? 'Record' : submitLabel}
-          onClick={() => (action === 'stop' ? capture.stop() : action === 'record' ? void begin() : void send())}
-        >
-          <span className="room-desk-verb">
-            {action === 'stop' ? '◉' : action === 'record' ? '●' : submitLabel}
-          </span>
-        </Control>
+        <RecordButton
+          session={session}
+          label={submitLabel}
+          onRecord={() => void begin()}
+          onStop={() => capture.stop()}
+          onSubmit={() => void send()}
+        />
         </div>
 
         <div className="room-desk-below">
@@ -435,12 +234,7 @@ export function RecordSurface({ replyName, title, identity, compose = false, onC
         const file = event.target.files?.[0]
         event.target.value = ''
         if (!file) return
-        setYtText('')
-        setYt({ status: 'loading' })
-        capture.cancel()
-        clearUpload()
-        setUpload({ file, url: URL.createObjectURL(file), type: fileKind(file) })
-        setFrame('file')
+        takeFile(file)
       }} />
     </div>
   )

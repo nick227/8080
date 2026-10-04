@@ -14,7 +14,7 @@ import { useShell } from '../state/shell'
 import { useShallow } from 'zustand/react/shallow'
 import type { Item, SendInput } from '../api/types'
 import { ConversationHead } from '../features/room/ConversationHead'
-import { PeopleStrip, roomPeopleFrom, type PresenceActivity } from '../features/room/PeopleStrip'
+import { roomPeopleFrom, type PresenceActivity } from '../features/room/PeopleStrip'
 import { ChatShell } from '../features/room/ChatShell'
 import { RoomFloor } from '../features/room/RoomFloor'
 import { loadRoomView, saveRoomView, seatsFrom, type RoomView } from '../features/room/roomViews'
@@ -195,7 +195,6 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
           <ConversationHead
             room={data}
             onPlayAll={visible.some(isPlayable) ? playAll : undefined}
-            people={<PeopleStrip people={people} meId={meId} inviteUrl={inviteUrl} faces={false} />}
           />
         )}
         view={view}
@@ -209,6 +208,8 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
             onSend={send}
             onActivity={onActivity}
             onView={chooseView}
+            inviteUrl={inviteUrl}
+            deskOpen={showDesk}
           />
         )}
         stream={(
