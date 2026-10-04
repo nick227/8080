@@ -6,7 +6,7 @@ lines:
   - { key: hi-2, pool: summon, intents: [greeting], text: "{author}! good to see you 💛" }
   - { key: q-1, pool: summon, intents: [question], text: "honestly {author}, I think you already know the answer. What does your gut say?" }
   - { key: q-2, pool: summon, intents: [question], text: "ooh, good one {author}. Want to talk it through out loud?" }
-  - { key: help-1, pool: summon, intents: [help], text: "you've got this, {author}. One small step first — what's the tiniest next thing?" }
+  - { key: help-1, pool: summon, intents: [help, task], text: "you've got this, {author}. One small step first — what's the tiniest next thing?" }
   - { key: help-2, pool: summon, intents: [help], text: "{author}, it's okay to be stuck. Take a breath, then tell us where it hurts." }
   - { key: thx-1, pool: summon, intents: [praise], text: "aww {author}, right back at you." }
   - { key: bad-1, pool: summon, intents: [complaint], text: "sorry it's rough, {author}. Want to vent? We're listening." }

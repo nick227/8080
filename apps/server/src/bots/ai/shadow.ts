@@ -10,6 +10,7 @@ import type { Classified } from '../classify'
 import type { SeededBot } from '../seed'
 
 const RECENT = 6
+let warmed = false // the process's first call pays connection setup; flagged cold
 
 // Caps: max(logged rows, this process's own calls). The in-memory log is appended
 // synchronously at reservation (no await between check and append), so concurrent
@@ -39,8 +40,10 @@ export async function shadowRoute(a: ShadowArgs) {
   const cfg = routerConfig()
 
   // Deterministic prefilter.
-  const reason = a.mentioned.size > 0 ? 'mentioned' : rngFrom(seedOf('route', a.itemId))() < cfg.sample ? 'sampled' : null
-  if (!reason) return
+  // Selective: the router exists for unmentioned requests; mentions are a control.
+  const mentioned = a.mentioned.size > 0
+  if (rngFrom(seedOf('route', a.itemId))() >= (mentioned ? cfg.mentionSample : cfg.sample)) return
+  const reason = mentioned ? 'mentioned' : 'unmentioned'
   const since10 = new Date(Date.now() - 600_000)
   const sinceDay = new Date(Date.now() - 86_400_000)
   const [inRoom, today] = await Promise.all([
@@ -57,6 +60,7 @@ export async function shadowRoute(a: ShadowArgs) {
 /** Tests: forget this process's call log. */
 export function resetShadowCaps() {
   calls.length = 0
+  warmed = false
 }
 
 async function callAndLog(a: ShadowArgs, provider: NonNullable<ReturnType<typeof routerProvider>>, cfg: ReturnType<typeof routerConfig>, reason: string) {
@@ -71,7 +75,9 @@ async function callAndLog(a: ShadowArgs, provider: NonNullable<ReturnType<typeof
 
   const started = Date.now()
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), cfg.timeoutMs)
+  const timer = setTimeout(() => controller.abort(), cfg.shadowTimeoutMs)
+  const cold = !warmed
+  warmed = true
   let ai: Awaited<ReturnType<typeof provider.route>> | null = null
   let error: string | null = null
   try {
@@ -87,6 +93,7 @@ async function callAndLog(a: ShadowArgs, provider: NonNullable<ReturnType<typeof
       input, deterministic, ai: ai ?? undefined, error,
       agree: ai ? ai.agent === deterministic.agent && ai.shouldRespond === deterministic.shouldRespond : null,
       latencyMs: Date.now() - started,
+      cold,
     },
   })
 }

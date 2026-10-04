@@ -208,7 +208,7 @@ describe('decision log', () => {
     }
     const again = await db.botDecision.findUniqueOrThrow({ where: { id: first!.id } })
     expect(replayChoice(again)).toBe(first!.chosen)
-    expect(again).toMatchObject({ packVersion: bot().pack.version, classifierVersion: 'c1' })
+    expect(again).toMatchObject({ packVersion: bot().pack.version, classifierVersion: 'c2' })
     expect((again.filtered as any[]).every((f) => typeof f.reason === 'string')).toBe(true)
   })
 })

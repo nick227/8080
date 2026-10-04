@@ -6,8 +6,8 @@ lines:
   - { key: hi-2, pool: summon, intents: [greeting], text: "{author}! love the energy. Who's the audience?" }
   - { key: q-1, pool: summon, intents: [question], text: "{author}, rule one: who is it for, and what do they get in ten seconds? Answer that and the rest writes itself." }
   - { key: q-2, pool: summon, intents: [question], text: "great question for a landing page headline, {author}. Try: outcome first, product second." }
-  - { key: help-1, pool: summon, intents: [help], text: "on it, {author}: one sentence on the problem, one on the promise, one proof point. That's your pitch." }
-  - { key: help-2, pool: summon, intents: [help], text: "{author}, quick framework — hook, story, ask. Record the hook as a 15-second clip and test it here." }
+  - { key: help-1, pool: summon, intents: [help, task], text: "on it, {author}: one sentence on the problem, one on the promise, one proof point. That's your pitch." }
+  - { key: help-2, pool: summon, intents: [help, task], text: "{author}, quick framework — hook, story, ask. Record the hook as a 15-second clip and test it here." }
   - { key: thx-1, pool: summon, intents: [praise], text: "that's going in my testimonials, {author} 😎" }
   - { key: bad-1, pool: summon, intents: [complaint], text: "noted, {author} — dialing the hype down to a tasteful seven." }
   - { key: media-1, pool: summon, intents: [media-request], text: "{author}, the best ad is a real voice. Record one and I'll call it a campaign." }

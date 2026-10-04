@@ -627,6 +627,29 @@ Slices, each gated on the previous one's logs:
 3. **Optional bots** (marketing / technical / buddy) with distinct context. Only after
    that: richer context windows, tools, TTS, image/media generation.
 
+**Shadow findings (gpt-4.1-mini, 2026-10-04 smoke test):** explicit summons and
+human-to-human talk already agree with deterministic routing. The router adds value on
+**unmentioned specialist requests** ("why does my upload fail with a 413?" → technical;
+"rough day" → buddy). Latency: 1.3–1.9s warm, ~5.3s cold.
+
+**Target live architecture (slice 2 design):**
+- explicit summon → **deterministic routing** (no model call);
+- ambiguous / unmentioned request (deterministic prefilter: question / help / task /
+  complaint intent, no bot named) → **AI router**;
+- router timeout or error → **deterministic fallback**;
+- live budget `AI_ROUTER_LIVE_TIMEOUT_MS` (default 2s), kept separate from the shadow
+  budget (5s) so the latter never drifts into the live path.
+
+**Shadow measurement before going live** (`/dev/bots/routes/stats`; label rows with
+`POST /dev/bots/routes/:id/label`): disagreement rate on unmentioned messages, handoff
+precision against labels, none false positives / negatives (router vs labels, with the
+deterministic baseline on the same rows), and warm p50/p95 (cold calls are flagged and
+excluded). Unmentioned messages are routed by default and mentions are a 10% control.
+
+**Intent taxonomy:** `task` (produce or do something: write, draft, give me) was added to
+the router and to every pack's classifier (c2), so generic requests no longer fall into
+`media-request`.
+
 Original notes:
 - **Intent router call**: one cheap OpenAI request receives the message, short room
   context and the roster of seated agents with their distinct context and personas. It

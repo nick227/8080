@@ -422,13 +422,17 @@ model BotRoute {
   mode          String   @db.VarChar(16) // shadow
   provider      String   @db.VarChar(32)
   model         String?  @db.VarChar(80)
-  reason        String   @db.VarChar(24) // why the prefilter called: mentioned | sampled
+  reason        String   @db.VarChar(24) // mentioned (control sample) | unmentioned
+  cold          Boolean  @default(false) // first call of this process — excluded from warm latency
   input         Json     // compact, truncated context actually sent
   deterministic Json     // { agent, shouldRespond, intents }
   ai            Json?    // { agent, intent, confidence, shouldRespond }
   error         String?  @db.VarChar(120)
   agree         Boolean?
   latencyMs     Int?
+  // Human ground truth (dev labeling): { agent, shouldRespond } — what should have happened.
+  label         Json?
+  labeledAt     DateTime?
   at            DateTime @default(now())
 
   @@index([roomId, at])

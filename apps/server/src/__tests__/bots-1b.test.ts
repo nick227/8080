@@ -229,6 +229,14 @@ describe('dev tools (BOTS_DEV=1)', () => {
       expect(bots.json().data.map((b: any) => b.handle).sort()).toEqual(['buddy', 'chatbot', 'marketing', 'technical'])
       const log = await app.inject({ method: 'GET', url: `/dev/bots/decisions?roomId=${room.id}` })
       expect(log.json().data[0]).toMatchObject({ handle: 'chatbot', workflow: 'opening' })
+      // Labeling a shadow-route row (ground truth for the router metrics).
+      const route = await db.botRoute.create({ data: { roomId: room.id, itemId: 'x', mode: 'shadow', provider: 'fake', reason: 'unmentioned', input: {}, deterministic: { agent: null, shouldRespond: false } } })
+      const bad = await app.inject({ method: 'POST', url: `/dev/bots/routes/${route.id}/label`, payload: { agent: 'technical' } })
+      expect(bad.statusCode).toBe(400)
+      const ok = await app.inject({ method: 'POST', url: `/dev/bots/routes/${route.id}/label`, payload: { agent: 'technical', shouldRespond: true } })
+      expect(ok.json().data.label).toEqual({ agent: 'technical', shouldRespond: true })
+      const queue = await app.inject({ method: 'GET', url: '/dev/bots/routes?unlabeled=1' })
+      expect(queue.json().data.some((r: any) => r.id === route.id)).toBe(false)
     } finally {
       delete process.env.BOT_TIME_SCALE
       await stopBots()

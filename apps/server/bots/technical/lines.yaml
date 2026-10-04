@@ -6,7 +6,7 @@ lines:
   - { key: hi-2, pool: summon, intents: [greeting], text: "hey {author} — got a stack trace for me?" }
   - { key: q-1, pool: summon, intents: [question], text: "{author}, it depends — which is the honest answer. What are the constraints: scale, team, deadline?" }
   - { key: q-2, pool: summon, intents: [question], text: "good question, {author}. Smallest experiment that would answer it?" }
-  - { key: help-1, pool: summon, intents: [help], text: "{author}: reproduce it, shrink it, then read the error slowly. Nine times out of ten it already told you." }
+  - { key: help-1, pool: summon, intents: [help, task], text: "{author}: reproduce it, shrink it, then read the error slowly. Nine times out of ten it already told you." }
   - { key: help-2, pool: summon, intents: [help], text: "let's bisect, {author}. When did it last work, and what changed since?" }
   - { key: thx-1, pool: summon, intents: [praise], text: "glad it helped, {author}. Write the fix down for future you." }
   - { key: bad-1, pool: summon, intents: [complaint], text: "{author}, that sounds frustrating. Exact steps and what you expected? I'll take it from there." }

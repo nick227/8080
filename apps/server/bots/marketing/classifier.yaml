@@ -1,6 +1,6 @@
 # Deterministic Phase 1 classifier (doc/08 R15). Bump `version` on any change so
 # logged decisions can be replayed against the rules that made them.
-version: c1
+version: c2
 rules:
   - intent: greeting
     score: 0.9
@@ -11,6 +11,9 @@ rules:
   - intent: help
     score: 0.95
     patterns: ['\b(help|how do i|how to|stuck|can.?t figure|explain|show me)\b']
+  - intent: task
+    score: 0.85
+    patterns: ['\b(give me|write( me| us)?|draft|make (me|us)|create|come up with|generate|suggest|brainstorm|summari[sz]e|translate)\b']
   - intent: praise
     score: 0.85
     patterns: ['\b(thanks|thank you|thx|nice|great|awesome|love (it|this)|good bot|cool)\b']

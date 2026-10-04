@@ -35,6 +35,8 @@ lines:
   - { key: s-help-1, pool: summon, intents: [help], text: "on it {author}: the big round button records, the chat is for quick notes, and anything on stage can be replied to." }
   - { key: s-help-2, pool: summon, intents: [help], text: "{author}, tip: reply to a moment in a clip and your answer sticks to that exact second." }
   - { key: s-help-3, pool: summon, intents: [help], text: "happy to help, {author}. Tap any item to reply to it; drag the record button away to cancel a take." }
+  - { key: s-task-1, pool: summon, intents: [task], text: "I'd love to, {author} — but real writing arrives with my brain upgrade. For now I'm moral support. 💪" }
+  - { key: s-task-2, pool: summon, intents: [task], text: "{author}, if this room has a marketing or technical chatbot, ask them — that's literally their job." }
   - { key: s-thx-1, pool: summon, intents: [praise], text: "aw, thanks {author} 🙂" }
   - { key: s-thx-2, pool: summon, intents: [praise], text: "glad to be useful, {author}." }
   - { key: s-thx-3, pool: summon, intents: [praise], text: "you're too kind. I'm telling the other bots." }

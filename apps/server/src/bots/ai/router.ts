@@ -3,7 +3,7 @@
 // shouldRespond }. It generates no reply. Providers are swappable (tests use a fake).
 import { routerConfig } from './config'
 
-export const ROUTER_INTENTS = ['greeting', 'question', 'help', 'praise', 'complaint', 'media-request', 'smalltalk', 'other'] as const
+export const ROUTER_INTENTS = ['greeting', 'question', 'help', 'task', 'praise', 'complaint', 'media-request', 'smalltalk', 'other'] as const
 
 export type RouterInput = {
   room: { title: string }
@@ -23,6 +23,8 @@ const SYSTEM = [
   'Pick the bot whose persona best fits, or null if no bot should answer.',
   'shouldRespond is true only if a bot answering would be welcome: the bot is addressed by name,',
   'or a question/request is clearly aimed at a bot. People talking to each other → false.',
+  'Intents: task = asks for something to be produced or done (write, draft, give me, make);',
+  'media-request = asks to play/show/share audio, video or images; help = how to use something or fix a problem.',
   'Never invent bots. Reply with JSON only.',
 ].join(' ')
 

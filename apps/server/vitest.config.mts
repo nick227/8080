@@ -30,6 +30,11 @@ export default defineConfig({
       UPLOADS_DIR: resolve(tmpdir(), 'voice-chat-test-uploads'), // keep test files out of the dev uploads folder
       UPLOAD_MAX_SIZE_MB: '1', // small enough to exercise the limit cheaply
       PUBLIC_UPLOAD_BASE_URL: 'http://localhost:3001/uploads',
+      // Never call real AI from tests. Prisma loads the root .env at runtime (via
+      // packages/db/.env), but it doesn't override variables already set here.
+      AI_ROUTER: 'off',
+      OPENAI_API_KEY: '',
+      OPENAI_ROUTER_MODEL: '',
     },
   },
 })
