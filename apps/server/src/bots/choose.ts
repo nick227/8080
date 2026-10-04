@@ -33,7 +33,8 @@ export function score(
   const intentScore = new Map<string, number>()
   if (opts.intentScores) {
     const matched = pool.filter((l) => {
-      const s = Math.max(0, ...l.intents.map((i) => opts.intentScores!.get(i) ?? 0))
+      let s = 0
+      for (const intent of l.intents) s = Math.max(s, opts.intentScores!.get(intent) ?? 0)
       if (s > 0) intentScore.set(l.key, s)
       return s > 0
     })
@@ -41,9 +42,13 @@ export function score(
       for (const l of pool) if (!intentScore.has(l.key)) filtered.push({ id: l.key, reason: 'intent' })
       pool = matched
     } else {
-      const fallback = pool.filter((l) => opts.fallback && l.intents.includes(opts.fallback))
-      for (const l of pool) if (!fallback.includes(l)) filtered.push({ id: l.key, reason: 'intent' })
-      for (const l of fallback) intentScore.set(l.key, 1)
+      const fallback: LineDef[] = []
+      for (const line of pool) {
+        if (opts.fallback && line.intents.includes(opts.fallback)) {
+          fallback.push(line)
+          intentScore.set(line.key, 1)
+        } else filtered.push({ id: line.key, reason: 'intent' })
+      }
       pool = fallback
     }
   }
@@ -52,25 +57,43 @@ export function score(
   const { recent, lastBotPostAt } = opts.history
   // Never repeat back to back: exclude the last K used, but always leave one standing.
   const k = Math.min(RECENT_K, Math.max(pool.length - 1, 0))
-  const excluded = new Set<string>()
-  for (const r of recent) {
-    if (excluded.size >= k) break
-    if (pool.some((l) => l.key === r.key)) excluded.add(r.key)
-  }
+  const { excluded, historyByKey } = indexHistory(pool, recent, k, now)
+  const lastBotPostMs = lastBotPostAt?.getTime()
 
   const candidates: Candidate[] = []
   for (const l of pool) {
-    const lastUse = recent.find((r) => r.key === l.key)?.at.getTime()
+    const history = historyByKey.get(l.key)
+    const lastUse = history?.lastUse
     if (l.cooldownSec > 0 && lastUse !== undefined && now - lastUse < l.cooldownSec * 1000) { filtered.push({ id: l.key, reason: 'cooldown' }); continue }
     if (excluded.has(l.key)) { filtered.push({ id: l.key, reason: 'recent' }); continue }
-    if (l.minGapSec > 0 && lastBotPostAt && now - lastBotPostAt.getTime() < l.minGapSec * 1000) { filtered.push({ id: l.key, reason: 'min-gap' }); continue }
-    const uses = recent.filter((r) => r.key === l.key && now - r.at.getTime() < DAY_MS).length
+    if (l.minGapSec > 0 && lastBotPostMs !== undefined && now - lastBotPostMs < l.minGapSec * 1000) { filtered.push({ id: l.key, reason: 'min-gap' }); continue }
+    const uses = history?.uses ?? 0
     const factors = { weight: l.weight, intentScore: intentScore.get(l.key) ?? 1, freshness: 1 / (1 + uses) }
     const s = factors.weight * factors.intentScore * factors.freshness
     if (s <= 0) { filtered.push({ id: l.key, reason: 'zero-weight' }); continue }
     candidates.push({ id: l.key, score: round(s), factors })
   }
   return { candidates, filtered }
+}
+
+// Index once per draw; preserve the first occurrence as the most recent use.
+function indexHistory(pool: LineDef[], recent: History['recent'], k: number, now: number) {
+  const excluded = new Set<string>()
+  const poolKeys = new Set<string>()
+  for (const line of pool) poolKeys.add(line.key)
+  const historyByKey = new Map<string, { lastUse: number; uses: number }>()
+  for (const entry of recent) {
+    if (!poolKeys.has(entry.key)) continue
+    if (excluded.size < k) excluded.add(entry.key)
+    const at = entry.at.getTime()
+    const history = historyByKey.get(entry.key)
+    if (history) {
+      if (now - at < DAY_MS) history.uses++
+    } else {
+      historyByKey.set(entry.key, { lastUse: at, uses: now - at < DAY_MS ? 1 : 0 })
+    }
+  }
+  return { excluded, historyByKey }
 }
 
 /** Weighted pick by one uniform draw in [0, 1). Same candidates + draw → same id. */

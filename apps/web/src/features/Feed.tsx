@@ -32,7 +32,9 @@ function traversal(mode: 'chronological' | 'branch', fromId: string): ItemType[]
 function nextInTraversal(mode: 'chronological' | 'branch', currentId: string): ItemType | null {
   const list = traversal(mode, currentId)
   const idx = list.findIndex((i) => i.id === currentId)
-  return idx < 0 ? null : list.slice(idx + 1).find(hasContent) ?? null
+  if (idx < 0) return null
+  for (let i = idx + 1; i < list.length; i++) if (hasContent(list[i])) return list[i]
+  return null
 }
 
 const isTyping = (t: EventTarget | null) =>
@@ -189,8 +191,12 @@ export function Feed({ onReply, onReact }: {
     }
     const idx = list.findIndex(i => i.id === ui.activeItemId)
     if (idx < 0) return new Set<string>()
-    return new Set(list.slice(idx + 1).filter(hasContent).slice(0, 2).map((i) => i.id))
-  }, [isPlayback, ui.activeItemId, playbackMode, items, data.itemsById])
+    const upcoming = new Set<string>()
+    for (let i = idx + 1; i < list.length && upcoming.size < 2; i++) {
+      if (hasContent(list[i])) upcoming.add(list[i].id)
+    }
+    return upcoming
+  }, [isPlayback, ui.activeItemId, playbackMode, items, data.itemsById, data.childrenById])
 
   // Threads are memoised; they reach Feed's latest handlers through one stable object.
   const actionsRef = useRef<ThreadActions>(null!)

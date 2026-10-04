@@ -39,7 +39,7 @@ export function createStabilizer(initial: Partial<StabilizerTuning> = {}) {
   let smooth: Float32Array | null = null
   let shaped: Float32Array | null = null
   let held: Uint8Array | null = null
-  let prevAlpha: Uint8Array | null = null
+  let hasPreviousAlpha = false
   let alphaImage: ImageData | null = null
   let ringImage: ImageData | null = null
   let at = 0
@@ -57,7 +57,7 @@ export function createStabilizer(initial: Partial<StabilizerTuning> = {}) {
     smooth = seed ? Float32Array.from(seed) : Float32Array.from(mask.data)
     shaped = new Float32Array(w * h)
     held = new Uint8Array(w * h)
-    prevAlpha = null
+    hasPreviousAlpha = false
     for (const el of [alpha, ring]) { el.width = w; el.height = h }
     alphaImage = alphaCtx.createImageData(w, h)
     ringImage = ringCtx.createImageData(w, h)
@@ -82,8 +82,9 @@ export function createStabilizer(initial: Partial<StabilizerTuning> = {}) {
     }
     const px = alphaImage!.data
     const rp = ringImage!.data
-    const next = new Uint8Array(w * h)
     let fg = 0
+    let edgeDelta = 0
+    let edgeCount = 0
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         let sum = 0
@@ -93,23 +94,19 @@ export function createStabilizer(initial: Partial<StabilizerTuning> = {}) {
         }
         const i = y * w + x
         const a = Math.round((sum / 9) * 255)
+        // ImageData still holds the previous frame until this pixel is written.
+        const previous = px[i * 4 + 3]!
+        if (hasPreviousAlpha && ((a > 0 && a < 255) || (previous > 0 && previous < 255))) {
+          edgeDelta += Math.abs(a - previous)
+          edgeCount++
+        }
         px[i * 4 + 3] = a
         rp[i * 4 + 3] = a < 5 ? 0 : Math.round((1 - smoothstep(0.6, 0.98, a / 255)) * 255)
-        next[i] = a
         if (a > 127) fg++
       }
     }
-    if (prevAlpha) {
-      let sum = 0
-      let n = 0
-      for (let i = 0; i < next.length; i++) {
-        const a = next[i]!
-        const b = prevAlpha[i]!
-        if ((a > 0 && a < 255) || (b > 0 && b < 255)) { sum += Math.abs(a - b); n++ }
-      }
-      if (n) { flickerSum += sum / n / 255; flickerN++ }
-    }
-    prevAlpha = next
+    if (edgeCount) { flickerSum += edgeDelta / edgeCount / 255; flickerN++ }
+    hasPreviousAlpha = true
     alphaCtx.putImageData(alphaImage!, 0, 0)
     ringCtx.putImageData(ringImage!, 0, 0)
     fgSum += fg / (w * h)

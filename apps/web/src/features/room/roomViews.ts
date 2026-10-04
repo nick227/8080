@@ -1,12 +1,11 @@
 import type { RoomPerson } from './PeopleStrip'
 
-export type RoomView = 'screen' | 'medium' | 'grid'
+export type RoomView = 'screen' | 'grid'
 
-export const ROOM_VIEWS: RoomView[] = ['screen', 'medium', 'grid']
+export const ROOM_VIEWS: RoomView[] = ['grid', 'screen']
 
 export const VIEW_LABEL: Record<RoomView, string> = {
   screen: 'Full screen',
-  medium: 'Medium',
   grid: 'Grid',
 }
 
@@ -15,11 +14,9 @@ const KEY = 'vc-room-view'
 export function loadRoomView(): RoomView {
   try {
     const stored = localStorage.getItem(KEY)
-    if (stored === 'grid' || stored === 'gallery') return 'grid'
-    if (stored === 'medium') return 'medium'
-    return 'screen'
+    return stored === 'screen' ? 'screen' : 'grid'
   } catch {
-    return 'screen'
+    return 'grid'
   }
 }
 

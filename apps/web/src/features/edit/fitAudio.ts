@@ -4,7 +4,7 @@ export async function decodeStock(url: string): Promise<AudioBuffer> {
   const bytes = await response.arrayBuffer()
   const ctx = new AudioContext()
   try {
-    return await ctx.decodeAudioData(bytes.slice(0))
+    return await ctx.decodeAudioData(bytes)
   } finally {
     await ctx.close()
   }
@@ -19,6 +19,7 @@ export function waveformPeaks(buffer: AudioBuffer, points = 50): number[] {
   const step = Math.max(1, Math.floor(data.length / points))
   const stride = Math.max(1, Math.floor(step / 100))
   const peaks: number[] = []
+  let max = 0.001
   for (let i = 0; i < points; i++) {
     let sum = 0
     let count = 0
@@ -27,10 +28,12 @@ export function waveformPeaks(buffer: AudioBuffer, points = 50): number[] {
       sum += sample < 0 ? -sample : sample
       count++
     }
-    peaks.push(sum / Math.max(1, count))
+    const peak = sum / Math.max(1, count)
+    peaks.push(peak)
+    max = Math.max(max, peak)
   }
-  const max = Math.max(...peaks, 0.001)
-  return peaks.map(peak => peak / max)
+  for (let i = 0; i < peaks.length; i++) peaks[i] /= max
+  return peaks
 }
 
 export function readDurationMs(url: string, kind: 'audio' | 'video'): Promise<number> {
