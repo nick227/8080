@@ -23,7 +23,8 @@ export function VbgReadout() {
 canvas   ${s.canvas}
 seg      ${s.seg}
 seg      ${s.segMs} ms · ${s.segFps}/s · tier ${s.tier}${s.failed ? ' · FAILED' : ''}
-draw     ${s.fps} fps · matte ${s.matte}
+draw     ${s.drawMs} ms · ${s.fps} fps · matte ${s.matte} · ${s.engine}
+mask     fg ${s.fg}%
 rec      ${vbgRecording ? `${vbgRecording.mime} · ${(vbgRecording.videoBitsPerSecond / 1e6).toFixed(1)} Mbps` : '—'}`}
     </pre>
   )
