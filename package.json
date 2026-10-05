@@ -20,13 +20,13 @@
     "postinstall": "pnpm --filter @project/db generate"
   },
   "devDependencies": {
-    "@redocly/cli": "^1.0.0",
+    "@redocly/cli": "^2.57.0",
     "@types/js-yaml": "^4.0.0",
-    "@types/node": "^20.0.0",
-    "eslint": "^8.0.0",
-    "js-yaml": "^4.0.0",
+    "@types/node": "^26.6.4",
+    "eslint": "^10.11.0",
+    "js-yaml": "^5.4.2",
     "tsx": "^4.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^7.0.2"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
