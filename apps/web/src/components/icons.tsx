@@ -17,6 +17,14 @@ export function PersonIcon({ guest }: { guest: boolean }) {
   )
 }
 
+export function MagicIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+      <path d="M8 1.8 9.05 6.15 13.6 8 9.05 9.85 8 14.2 6.95 9.85 2.4 8l4.55-1.85L8 1.8Z" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function KindMark({ kind }: MarkProps) {
   if (kind === 'video') {
     return (

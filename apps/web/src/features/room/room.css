@@ -104,6 +104,35 @@
 }
 .room-seat[data-active],
 .room-seat[data-activity="recording"] { border-color: var(--signal); color: var(--signal); box-shadow: 0 0 0 2px var(--signal); }
+.room-self-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  display: flex;
+  gap: 4px;
+}
+.room-self-controls button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: rgba(7, 8, 10, .72);
+  color: var(--ink);
+}
+.room-self-controls button[aria-pressed="true"] { color: var(--signal); border-color: var(--signal); }
+.room-bg-menu {
+  position: absolute;
+  top: 42px;
+  left: 8px;
+  right: 8px;
+  z-index: 3;
+  padding: 8px;
+  background: rgba(7, 8, 10, .92);
+  border: 1px solid var(--line);
+}
 .room-seat-name {
   position: absolute;
   left: 8px;
