@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type MouseEvent, type KeyboardEvent } from 'react'
+import { useState, type CSSProperties, type ReactNode, type MouseEvent, type KeyboardEvent } from 'react'
 import { useCapture } from '../../state/capture'
 import { useUI } from '../../state/ui'
 import { PersonIcon } from '../../components/icons'
@@ -42,8 +42,8 @@ function Floor({ view, seats, item, next, onEnded, onView, self, bar, stack, pau
   paused?: boolean
 }) {
   const [selected, setSelected] = useState<string | null>(null)
-  const castRef = useRef<HTMLDivElement>(null)
-  const [columns, setColumns] = useState(1)
+  const count = Math.max(seats.length, 1)
+  const columns = Math.min(3, count)
   const targets = [...seats.map((seat) => ({ id: `person:${seat.id}`, name: seat.self ? 'You' : seat.name })), { id: 'stage', name: 'Stage' }]
   const active = targets.find((target) => target.id === selected) ?? targets[0]
   const fullScreen = view === 'screen'
@@ -75,33 +75,11 @@ function Floor({ view, seats, item, next, onEnded, onView, self, bar, stack, pau
     }
   }
 
-  useEffect(() => {
-    const cast = castRef.current
-    if (!cast) return
-    const observer = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect
-      const count = Math.max(seats.length, 1)
-      let bestColumns = 1
-      let bestWidth = 0
-      for (let cols = 1; cols <= count; cols++) {
-        const rows = Math.ceil(count / cols)
-        const tileWidth = Math.min((width - (cols - 1) * 8) / cols, (height - (rows - 1) * 8) / rows * 16 / 9)
-        if (tileWidth > bestWidth) {
-          bestWidth = tileWidth
-          bestColumns = cols
-        }
-      }
-      setColumns(bestColumns)
-    })
-    observer.observe(cast)
-    return () => observer.disconnect()
-  }, [seats.length])
-
-  const castStyle = { '--columns': columns, '--rows': Math.ceil(Math.max(seats.length, 1) / columns) } as CSSProperties
+  const castStyle = { '--columns': columns, '--rows': Math.ceil(count / columns) } as CSSProperties
 
   return (
     <section className="room-live" data-layout={view} data-density={tileDensity(seats.length)} data-stage={stageFocused || undefined} data-playing={item ? '' : undefined} data-broadcast={messageOnly(item) ? 'message' : undefined} aria-label={VIEW_LABEL[view]}>
-      <div ref={castRef} className="room-cast" style={castStyle} hidden={stageFocused}>
+      <div className="room-cast" style={castStyle} hidden={stageFocused}>
         {seats.map((seat) => (
           <div className="room-tile" key={seat.id} {...tileInteraction(`person:${seat.id}`, seat.self ? 'You' : seat.name)} hidden={fullScreen && active.id !== `person:${seat.id}`}>
             {seat.self ? self() : <FaceTile seat={seat} />}
