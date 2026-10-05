@@ -1,4 +1,5 @@
 import { RoomService } from '../services/RoomService'
+import { liveToken } from '../services/live'
 
 const roomService = new RoomService()
 
@@ -56,4 +57,9 @@ export async function seatRoomBot(request: any, reply: any) {
 
 export async function kickRoomBot(request: any, reply: any) {
   return reply.send({ data: await roomService.setBotSeat(request.user.id, request.params.roomId, request.params.userId, false) })
+}
+
+// A short-lived LiveKit token for this room (services/live.ts); room access decides.
+export async function getLiveToken(request: any, reply: any) {
+  return reply.send({ data: await liveToken(request.user.id, request.params.roomId) })
 }

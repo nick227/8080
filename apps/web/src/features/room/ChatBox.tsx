@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { LocalMedia, SendInput } from '../../api/types'
 import { attachmentError, attachmentKind, takeYouTube, type ChatAttachment } from './chatDraft'
 
-export function ChatBox({ onSend }: { onSend: (input: SendInput) => Promise<boolean> }) {
+export function ChatBox({ onSend, onRecord }: { onSend: (input: SendInput) => Promise<boolean>, onRecord?: () => void }) {
   const [text, setText] = useState('')
   const [files, setFiles] = useState<ChatAttachment[]>([])
   const [over, setOver] = useState(false)
@@ -110,6 +110,11 @@ export function ChatBox({ onSend }: { onSend: (input: SendInput) => Promise<bool
       )}
       {youtube > 0 && <p className="room-chatbox-link">{youtube === 1 ? 'YouTube link' : `${youtube} YouTube links`}</p>}
       <div className="room-chatbox-row">
+        {onRecord && (
+          <button type="button" className="room-chatbox-record" onClick={onRecord} aria-label="Record">
+            Record
+          </button>
+        )}
         <label className="room-chatbox-attach">
           Attach
           <input type="file" multiple accept="image/*,video/*,audio/*,.pdf" onChange={(event) => { add(event.target.files); event.target.value = '' }} />

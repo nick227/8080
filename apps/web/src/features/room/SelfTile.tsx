@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { useMaybeRoomContext } from '@livekit/components-react'
-import { Track } from 'livekit-client'
 import { KindMark, MagicIcon, PersonIcon } from '../../components/icons'
 import { PersonName } from '../../components/PersonName'
 import { useBackground } from '../../state/background'
-import { openCamera } from '../previewStream'
-import { currentMaskSource, effectiveMode, facingUser, loadMaskSource, startCompositor, type Compositor } from '../virtualCamera'
 import { BackgroundStrip } from './BackgroundStrip'
+import { useLocalLive } from './live/localLive'
 import type { Seat } from './roomViews'
 
 function Face({ seat }: { seat: Seat }) {
@@ -20,86 +17,40 @@ function Face({ seat }: { seat: Seat }) {
   )
 }
 
-function LiveMediaPreview({ look, onFail }: { look: 'camera' | 'blur' | 'photo'; onFail: () => void }) {
+function ScreenMark() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+      <rect x="1.5" y="2.5" width="13" height="9" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.25" />
+      <path d="M5.5 14h5M8 11.5V14" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+// Shows the live session's preview element (camera, composited camera, or screen).
+// The session lives at room level (live/localLive.ts), so this tile can unmount and
+// remount — Grid ↔ Full — without restarting the camera or republishing.
+function LivePreview() {
+  const preview = useLocalLive((s) => s.preview)
   const containerRef = useRef<HTMLDivElement>(null)
-  const failRef = useRef(onFail)
-  failRef.current = onFail
-  const room = useMaybeRoomContext()
-  const photoUrl = useBackground((s) => (look === 'photo' ? s.photo?.url ?? null : null))
-
   useEffect(() => {
-    let stream: MediaStream | null = null
-    let compositor: Compositor | null = null
-    let publishedTrack: MediaStreamTrack | null = null
-    let cancelled = false
-
-    const video = document.createElement('video')
-    video.autoplay = true
-    video.playsInline = true
-    video.muted = true
-    video.style.width = '100%'
-    video.style.height = '100%'
-    video.style.objectFit = 'cover'
-
-    const init = async () => {
-      try {
-        stream = await openCamera('')
-        if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop())
-          return
-        }
-        if (look === 'camera') {
-          video.srcObject = stream
-          containerRef.current?.appendChild(video)
-          publishedTrack = stream.getVideoTracks()[0] ?? null
-        } else {
-          const source = currentMaskSource() ?? await loadMaskSource()
-          const effect = effectiveMode() === 'original' ? look : effectiveMode()
-          if (effect === 'original') {
-            video.srcObject = stream
-            containerRef.current?.appendChild(video)
-            publishedTrack = stream.getVideoTracks()[0] ?? null
-          } else {
-            compositor = startCompositor(
-              source,
-              stream,
-              { mode: effect, photoUrl: effect === 'photo' ? photoUrl : null, mirror: facingUser(stream), fixedSize: true },
-              (msg) => console.warn('Compositor unavailable:', msg),
-            )
-            compositor.preview.style.width = '100%'
-            compositor.preview.style.height = '100%'
-            compositor.preview.style.objectFit = 'cover'
-            containerRef.current?.appendChild(compositor.preview)
-            publishedTrack = compositor.stream.getVideoTracks()[0] ?? null
-          }
-        }
-        if (room && publishedTrack) await room.localParticipant.publishTrack(publishedTrack, { name: 'camera', source: Track.Source.Camera })
-      } catch (err) {
-        console.error('Failed to acquire media:', err)
-        failRef.current()
-      }
-    }
-
-    void init()
-
-    return () => {
-      cancelled = true
-      if (publishedTrack && room) room.localParticipant.unpublishTrack(publishedTrack).catch(console.error)
-      stream?.getTracks().forEach((track) => track.stop())
-      compositor?.stop()
-      if (containerRef.current) containerRef.current.innerHTML = ''
-    }
-  }, [look, photoUrl, room])
-
+    const container = containerRef.current
+    if (!container || !preview) return
+    container.appendChild(preview)
+    return () => { if (preview.parentElement === container) container.removeChild(preview) }
+  }, [preview])
   return <div ref={containerRef} className="room-seat-media" style={{ width: '100%', height: '100%', overflow: 'hidden' }} />
 }
 
 export function SelfTile({ seat }: { seat: Seat }) {
-  const [cameraOn, setCameraOn] = useState(false)
+  const kind = useLocalLive((s) => s.kind)
+  const starting = useLocalLive((s) => s.starting)
+  const error = useLocalLive((s) => s.error)
+  const { startCamera, startScreen, stop } = useLocalLive.getState()
   const [menu, setMenu] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+
   const mode = useBackground((s) => s.mode)
-  const look = !cameraOn || mode === 'original' ? 'camera' : mode
+  const live = kind !== 'off'
 
   useEffect(() => {
     if (!menu) return
@@ -111,38 +62,42 @@ export function SelfTile({ seat }: { seat: Seat }) {
     return () => window.removeEventListener('pointerdown', close)
   }, [menu])
 
-  useEffect(() => {
-    if (!cameraOn) return
-    const timeout = window.setTimeout(() => {
-      setCameraOn(false)
-      setMenu(false)
-      window.alert('Demo Safety Protection: Your 5-minute streaming limit has been reached to conserve minutes. Premium memberships coming soon!')
-    }, 5 * 60 * 1000)
-    return () => window.clearTimeout(timeout)
-  }, [cameraOn])
+  useEffect(() => { if (kind !== 'camera') setMenu(false) }, [kind])
 
   const toggleCamera = () => {
     setMenu(false)
-    setCameraOn((on) => !on)
+    if (kind === 'camera') stop()
+    else void startCamera()
   }
 
+  const toggleScreen = () => {
+    setMenu(false)
+    if (kind === 'screen') stop()
+    else void startScreen()
+  }
+
+
   return (
-    <div ref={rootRef} className={cameraOn ? 'room-cast-face room-self is-live' : 'room-cast-face room-self'} data-recording={cameraOn ? 'true' : undefined}>
+    <div ref={rootRef} className={live ? 'room-cast-face room-self is-live' : 'room-cast-face room-self'} data-recording={live ? 'true' : undefined} data-live={live ? kind : undefined}>
       <div className="room-self-controls">
-        <button type="button" aria-label="Camera" aria-pressed={cameraOn} onClick={toggleCamera}>
-          <KindMark kind="video" />
+        <button type="button" aria-label="Camera" aria-pressed={kind === 'camera'} disabled={starting} onClick={toggleCamera}>
+          {kind === 'camera' ? <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: 'var(--signal)', margin: 'auto' }} /> : <KindMark kind="video" />}
         </button>
-        <button type="button" aria-label="Background" aria-pressed={menu || (cameraOn && mode !== 'original')} aria-expanded={menu} disabled={!cameraOn} onClick={() => setMenu((open) => !open)}>
+        <button type="button" aria-label="Share screen" aria-pressed={kind === 'screen'} disabled={starting} onClick={toggleScreen}>
+          <ScreenMark />
+        </button>
+        <button type="button" aria-label="Background" aria-pressed={menu || (kind === 'camera' && mode !== 'original')} aria-expanded={menu} disabled={kind !== 'camera'} onClick={() => setMenu((open) => !open)}>
           <MagicIcon />
         </button>
       </div>
-      {menu && cameraOn && (
+      {menu && kind === 'camera' && (
         <div className="room-bg-menu" onClick={() => setMenu(false)}>
           <BackgroundStrip />
         </div>
       )}
-      {cameraOn ? <LiveMediaPreview look={look} onFail={() => { setCameraOn(false); setMenu(false) }} /> : <Face seat={seat} />}
-      {cameraOn && <PersonName className="room-seat-name" name={seat.name} tag={seat.tag} />}
+      {live ? <LivePreview /> : <Face seat={seat} />}
+      {live && <PersonName className="room-seat-name" name={seat.name} tag={seat.tag} />}
+      {error && !live && <span className="room-live-error" role="status">{error}</span>}
     </div>
   )
 }

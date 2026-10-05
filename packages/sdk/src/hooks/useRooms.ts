@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getApiClient, unwrap } from '../client'
+import { ApiError, getApiClient, unwrap } from '../client'
 import type { CreateRoomInput, Room, UpdateRoomInput } from '../models'
 import { keys } from './keys'
 
@@ -111,4 +111,20 @@ export function useRotateInviteCode(roomId: string) {
     async (_: void) =>
       unwrap(await getApiClient().POST('/rooms/{roomId}/invite-code', { params: { path: { roomId } } })).data,
   )
+}
+
+// Live video (LiveKit): a short-lived token for this room. Room access decides
+// (404 otherwise); 503 LIVE_UNAVAILABLE when the server has no live video. A
+// connected client is refreshed by LiveKit itself, so this only refetches when a
+// room is (re)opened after it went stale.
+export function useLiveToken(roomId: string | undefined) {
+  return useQuery({
+    queryKey: [...keys.room(roomId ?? ''), 'live-token'],
+    enabled: !!roomId,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: (count, error) => !(error instanceof ApiError && (error.status === 404 || error.status === 503)) && count < 2,
+    queryFn: async () =>
+      unwrap(await getApiClient().GET('/rooms/{roomId}/live-token', { params: { path: { roomId: roomId! } } })).data,
+  })
 }

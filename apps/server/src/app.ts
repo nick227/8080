@@ -63,8 +63,9 @@ export async function buildApp(opts: BuildOptions = {}) {
     }
     if (error.code === 'P2025') return reply.status(404).send({ error: 'Not found', code: 'NOT_FOUND' })
     if (error.code === 'P2002') return reply.status(409).send({ error: 'Already exists', code: 'CONFLICT' })
-    // 502: an upstream we depend on (e.g. YouTube lookup) failed — surface its code.
-    if (error.statusCode && (error.statusCode < 500 || error.statusCode === 502)) {
+    // 502: an upstream we depend on (e.g. YouTube lookup) failed; 503: a feature isn't
+    // configured on this server (e.g. live video) — surface their codes.
+    if (error.statusCode && (error.statusCode < 500 || error.statusCode === 502 || error.statusCode === 503)) {
       const code = typeof error.code === 'string' && !error.code.startsWith('FST_') ? error.code : undefined
       return reply.status(error.statusCode).send({ error: error.message, ...(code ? { code } : {}) })
     }

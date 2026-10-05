@@ -31,6 +31,7 @@ import { useRoomPost } from '../features/room/useRoomPost'
 import { pictureOf } from '../utils/thumbnail'
 import { roomTitle } from '../utils/room'
 import { markRead, readNumber } from '../features/room/readCursor'
+import { LiveRoom } from '../features/room/live/LiveRoom'
 import '../features/room/room.css'
 
 export function Room({ roomId: roomRef }: { roomId: string }) {
@@ -210,7 +211,15 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
     setDesk(true)
   }
 
+  const openRecord = () => {
+    ui.setIdle()
+    ui.startRecording()
+    setCompose(false)
+    setDesk(true)
+  }
+
   return (
+    <LiveRoom roomId={roomId}>
     <Panel as="main" variant="shell" className="room-shell">
       {roomId && <RoomItemsSync roomId={roomId} />}
       <SEO title={data ? `${roomTitle(data)} - Voice Chat` : 'Room - Voice Chat'} description={`Join ${data ? roomTitle(data) : 'this room'} on Voice Chat.`} />
@@ -242,8 +251,6 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
                 onSend={send}
                 onActivity={onActivity}
                 onView={chooseView}
-                onPost={openPost}
-                deskOpen={showDesk}
               />
             ) : place === 'calendar' ? (
               <CalendarPage />
@@ -254,7 +261,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
         )}
         composer={<>
           {roomId && <RoomPeople roomId={roomId} meId={meId} owner={data?.role === 'owner'} />}
-          <ChatBox onSend={chat} />
+          <ChatBox onSend={chat} onRecord={openRecord} />
         </>}
         stream={(
           <>
@@ -322,6 +329,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
         />
       )}
     </Panel>
+    </LiveRoom>
   )
 }
 

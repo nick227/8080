@@ -347,6 +347,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rooms/{roomId}/live-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: components["parameters"]["RoomId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * A short-lived token to join this room's live video (LiveKit)
+         * @description Room access decides: callers who can't view the room get 404, like every room read.
+         *     The token is for this room only, expires in 10 minutes (a connected client is
+         *     refreshed by LiveKit), may always subscribe, and may publish camera and screen share
+         *     for people (not bots or suspended accounts). Async recordings never go through live.
+         *     503 LIVE_UNAVAILABLE when live video isn't configured on the server.
+         */
+        get: operations["getLiveToken"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rooms/{roomId}/items": {
         parameters: {
             query?: never;
@@ -1908,6 +1934,21 @@ export interface components {
             role: components["schemas"]["RoomRole"] | null;
             /** @description Present only for members of a private room */
             inviteCode: string | null;
+        };
+        LiveToken: {
+            /** @description LiveKit access token (JWT) */
+            token: string;
+            /** @description LiveKit server URL to connect to */
+            url: string;
+            /** @description LiveKit room name (= the app room id) */
+            room: string;
+            /** @description May publish camera and screen share */
+            canPublish: boolean;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        LiveTokenResponse: {
+            data: components["schemas"]["LiveToken"];
         };
         RoomResponse: {
             data: components["schemas"]["Room"];
@@ -3690,6 +3731,40 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    getLiveToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: components["parameters"]["RoomId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Token and the LiveKit server to use it with */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveTokenResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            /** @description Live video is not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     listRoomItems: {

@@ -479,6 +479,36 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  /rooms/{roomId}/live-token:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    get:
+      operationId: getLiveToken
+      x-fastify-config:
+        rateLimit: { max: 120, timeWindow: '1 hour' }
+      summary: A short-lived token to join this room's live video (LiveKit)
+      description: |
+        Room access decides: callers who can't view the room get 404, like every room read.
+        The token is for this room only, expires in 10 minutes (a connected client is
+        refreshed by LiveKit), may always subscribe, and may publish camera and screen share
+        for people (not bots or suspended accounts). Async recordings never go through live.
+        503 LIVE_UNAVAILABLE when live video isn't configured on the server.
+      tags: [rooms]
+      responses:
+        '200':
+          description: Token and the LiveKit server to use it with
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LiveTokenResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503':
+          description: Live video is not configured
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
   # ─── items ─────────────────────────────────────────────────────────────────
   /rooms/{roomId}/items:
     parameters:
@@ -3314,6 +3344,22 @@ components:
         inviteCode:
           type: [string, 'null']
           description: Present only for members of a private room
+
+    LiveToken:
+      type: object
+      required: [token, url, room, canPublish, expiresAt]
+      properties:
+        token: { type: string, description: LiveKit access token (JWT) }
+        url: { type: string, description: LiveKit server URL to connect to }
+        room: { type: string, description: 'LiveKit room name (= the app room id)' }
+        canPublish: { type: boolean, description: May publish camera and screen share }
+        expiresAt: { type: string, format: date-time }
+
+    LiveTokenResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/LiveToken' }
 
     RoomResponse:
       type: object
