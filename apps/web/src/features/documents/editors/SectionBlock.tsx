@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { FocusEvent } from 'react'
-import { mediaKind, mediaUrl, setMediaFile } from '../media'
+import { mediaUrl } from '../media'
 import { notePresence } from '../presence'
 import type { Block } from '../types'
 import { LEVELS, sectionLevel } from './sectionLevel'
@@ -9,7 +9,6 @@ export function SectionBlock({
   block,
   remote,
   takeFocus,
-  canAttach,
   onTaken,
   onChange,
   onMove,
@@ -18,7 +17,6 @@ export function SectionBlock({
   block: Block
   remote: boolean
   takeFocus: boolean
-  canAttach: boolean
   onTaken: () => void
   onChange: (block: Block) => void
   onMove: (dir: -1 | 1) => void
@@ -49,18 +47,7 @@ export function SectionBlock({
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false)
   }
 
-  const take = (file: File | undefined) => {
-    if (!file) return
-    setMediaFile(block.id, file)
-    onChange({ ...block, type: 'section', level, mediaName: file.name, mediaKind: mediaKind(file) })
-  }
-
-  const clearMedia = () => {
-    const next = { ...block, type: 'section' as const, level }
-    delete next.mediaName
-    delete next.mediaKind
-    onChange(next)
-  }
+  const hold = (event: { preventDefault: () => void }) => event.preventDefault()
 
   return (
     <section
@@ -72,38 +59,33 @@ export function SectionBlock({
       onBlur={closeIfLeft}
     >
       <div className="letter-tools" inert={!open}>
-        <div className="letter-sizes" role="radiogroup" aria-label="Heading size">
+        <div className="letter-sizes" role="radiogroup" aria-label="Size">
           {LEVELS.map((item) => (
             <button
               key={item.id}
               type="button"
               role="radio"
+              data-mark={item.label}
+              aria-label={item.name}
               aria-checked={level === item.id}
-              onMouseDown={(event) => event.preventDefault()}
+              onMouseDown={hold}
               onClick={() => onChange({ ...block, type: 'section', level: item.id })}
             >
               {item.label}
             </button>
           ))}
         </div>
-        <button type="button" aria-label="Move up" onMouseDown={(event) => event.preventDefault()} onClick={() => onMove(-1)}>Up</button>
-        <button type="button" aria-label="Move down" onMouseDown={(event) => event.preventDefault()} onClick={() => onMove(1)}>Down</button>
-        {canAttach && (
-          <label className="letter-file">
-            {block.mediaName ? 'Replace' : 'Attach'}
-            <input type="file" onChange={(event) => take(event.target.files?.[0])} />
-          </label>
-        )}
-        {block.mediaName && (
-          <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={clearMedia}>Remove</button>
-        )}
-        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={onDelete}>Delete</button>
+        <div className="letter-moves">
+          <button type="button" aria-label="Move up" onMouseDown={hold} onClick={() => onMove(-1)}>↑</button>
+          <button type="button" aria-label="Move down" onMouseDown={hold} onClick={() => onMove(1)}>↓</button>
+          <button type="button" aria-label="Delete" onMouseDown={hold} onClick={onDelete}>×</button>
+        </div>
       </div>
       <Figure block={block} url={url} />
       <textarea
         ref={field}
         rows={1}
-        aria-label={LEVELS.find((item) => item.id === level)?.label ?? 'Section'}
+        aria-label={LEVELS.find((item) => item.id === level)?.name ?? 'Section'}
         value={block.text ?? ''}
         onFocus={() => { setOpen(true); notePresence({ activity: 'editing', focus: { kind: 'block', id: block.id } }) }}
         onBlur={() => notePresence({ activity: 'viewing', focus: null })}

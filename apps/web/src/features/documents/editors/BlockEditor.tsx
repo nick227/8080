@@ -1,5 +1,5 @@
 import { useRef, type MouseEvent } from 'react'
-import { capabilities, type Block, type DocumentRecord } from '../types'
+import { type Block, type DocumentRecord } from '../types'
 import { usePeers } from '../presence'
 import { useDocuments } from '../store'
 import { usePresence, type Person } from '../liveBlocks'
@@ -16,7 +16,6 @@ export function BlockEditor({ doc }: { doc: DocumentRecord }) {
   const peers = usePeers()
   const blocks = doc.blocks ?? []
   const pending = useRef<string | null>(null)
-  const media = capabilities(doc).attachMedia
 
   const edit = (recipe: (blocks: Block[]) => Block[]) => {
     change(doc.id, (current) => ({ ...current, blocks: recipe(current.blocks ?? []) }))
@@ -52,7 +51,6 @@ export function BlockEditor({ doc }: { doc: DocumentRecord }) {
               block={block}
               remote={peers.some((peer) => peer.focus?.kind === 'block' && peer.focus.id === block.id)}
               takeFocus={pending.current === block.id}
-              canAttach={media}
               onTaken={() => { pending.current = null }}
               onChange={(next) => edit((current) => current.map((item) => item.id === block.id ? next : item))}
               onMove={(dir) => edit((current) => move(current, block.id, dir))}
