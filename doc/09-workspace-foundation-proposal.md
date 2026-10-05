@@ -1,9 +1,10 @@
 # 09 — Workspace Foundation: Inbox, Calendar, Contacts, Sales (schema proposal)
 
-**Status:** PROPOSAL rev 2 — architecture approved 2026-10-05; §11 decisions recorded.
-Remaining before Prisma: sign-off on rev 2 changes (Task split §4.3, soft email matching §4.1).
+**Status:** PROPOSAL rev 3 — architecture approved 2026-10-05; §11 decisions recorded.
 **Date:** 2026-10-05
 
+**Rev 3 (2026-10-05):** D3 and slice 4 superseded by [doc/11-inbox-design.md](11-inbox-design.md).
+Inbox is an attention queue (`InboxItem`) plus a composer. The §4.5 mailbox sketch is postponed.
 **Rev 2 changes:** Tasks are their own model (`Task`), separate from `CalendarEvent`; the
 Calendar surface projects both. Email (and account domain) are match signals, not unique
 keys. §11 is now a decisions record. Note deletion/sharing rules added.
@@ -28,15 +29,15 @@ be committed. Types, names and indexes are proposed; §11 records the decisions 
 | `recountRooms()` (recompute, never increment) | **Pattern** | All derived counters/rollups here are recomputed inside the writing transaction. |
 | `apps/web/src/features/work/*` (untracked, in progress) | **Target** | Its `Contact`, `Lead`, `CalendarEvent`, `InboxNote` placeholders become SDK types backed by this model. |
 
-Nothing in the existing schema has to change for slices 0–3. Slice 4 (Inbox) adds join
-tables only. **All additive.**
+Nothing in the existing schema has to change for slices 0–3. Slice 4 (Inbox) is the
+attention queue in doc/11 (`InboxItem`, `Compose`). **All additive.**
 
 ---
 
 ## 1. Principles (approved 2026-10-05)
 
 1. **First-class models, no EAV.** `Contact`, `Account`, `Lead`, `Deal`, `CalendarEvent`,
-   `InboxThread`… are real tables with real columns and FKs. No `Entity/Field/Value`.
+   `InboxItem`… are real tables with real columns and FKs. No `Entity/Field/Value`.
    Custom fields/records are a later, separate decision.
 2. **Workspace owns business data.** Every domain row carries `workspaceId` (denormalised
    on children too) so every query is workspace-scoped by an index prefix and a policy
@@ -83,12 +84,10 @@ fields — see D13.)
    │  \                     Lead ──(converts)──► Deal        CalendarEvent
    │   ContactAccount       Deal ── DealContact                └─ CalendarAttendee
    │  /                     DealStageChange                  Reminder (task | event)
- Account                                                     ─ Inbox ──────────────────
- Tag ── ContactTag/AccountTag/DealTag                         Connection (provider acct)
-                                                              Mailbox
-                                                              InboxThread ── InboxThreadState
-                                                              InboxMessage ── InboxParticipant
-                                                                           └─ InboxAttachment ─► Media
+ Account                                                     ─ Inbox (doc/11) ─────────
+ Tag ── ContactTag/AccountTag/DealTag                         InboxItem (one member, one source)
+                                                              Compose (follow-up, email first)
+                                                              Mailbox / thread: postponed (§4.5)
  ─ Shared infrastructure ──────────────────────────────────────────────────────────────
  Note ─► Message (existing)          RecordLink  (subject ⇄ thread/event/note/room/item)
  Activity ── ActivitySubject         ActionExecution          ImportBatch ── ImportRow
@@ -443,11 +442,17 @@ Reminder         id, workspaceId, taskId? | eventId? (exactly one), memberId (wh
 - **The Calendar surface is a projection** (query-time, no copies): events in range
   (`startAt`), open tasks with `dueAt` in range (shown as due items, not blocks), and
   open deals' `expectedCloseOn` (optional layer). Project milestones join that union later.
-- **Reminders** are in-app first (D7): a pending reminder surfaces in a minimal in-app
-  "due now" list; email delivery comes later. This is the first piece of the
+- **Reminders** are in-app first (D7): a fired reminder raises one `InboxItem` for the
+  reminded member (doc/11). Email delivery comes later. This is the first piece of the
   notifications parking-lot item, scoped to reminders only.
 
 ### 4.5 Inbox
+
+**Postponed (2026-10-05).** The inbox to build is doc/11: `InboxItem` plus `Compose`.
+The mailbox, thread, and participant sketch below waits until external email needs its
+own model. Building it now would make Inbox a mail product. When that model exists, it
+raises an `InboxItem` whose source is the thread.
+
 ```
 Mailbox          id, workspaceId, connectionId?, address(255), name(80),
                  kind (personal | shared), teamId? (shared queue), status (active | paused)
@@ -497,10 +502,10 @@ InboxAttachment  id, messageId, mediaId → Media, position   @@unique([messageI
 
 | Canonical (source of truth) | Derived (stored, recomputed in-tx) | Derived (query-time only) |
 |---|---|---|
-| Contact, ContactPoint, Account, ContactAccount | Contact.primaryEmail/primaryPhone, displayName (if blank) | thread participants |
+| Contact, ContactPoint, Account, ContactAccount | Contact.primaryEmail/primaryPhone, displayName (if blank) | |
 | Lead.status, Deal.stageId, DealStageChange | Deal.status (from stage category), Deal.stageEnteredAt | effective probability (`probability ?? stage`) |
 | Task, CalendarEvent (+ attendees, reminders) | Lead/Deal.nextActionAt; ContactPoint.live | weighted pipeline value |
-| InboxMessage, InboxParticipant.address | InboxThread counters/dates/awaitingReply; participant.contactId | account rollups (open deals, contacts) |
+| InboxItem, Compose (doc/11) | | account rollups (open deals, contacts) |
 | RecordLink, Note→Message | *.lastActivityAt; attendee.contactId | Calendar surface (events ∪ due tasks ∪ close dates); duplicate candidates |
 | ActionExecution, Activity, ActivitySubject (append-only) | ImportBatch counts | timelines (ActivitySubject join) |
 
@@ -549,15 +554,16 @@ providers needs an `ExternalRef` table; deferred until a second sync source exis
 | Workspace, WorkspaceMember, WorkspaceInvite, Team, TeamMember | Contact, ContactPoint, Account, ContactAccount |
 | ActionExecution (audit/idempotency), Activity + ActivitySubject | Lead, Pipeline, PipelineStage, Deal, DealContact, DealStageChange |
 | RecordLink, Note, Tag (+ per-domain tag joins), Reminder | Task; CalendarEvent, CalendarAttendee |
-| ImportBatch/ImportRow, Connection | Mailbox, InboxThread(+State), InboxMessage, InboxParticipant, InboxAttachment |
+| ImportBatch/ImportRow, Connection | InboxItem, Compose (doc/11). Mailbox and threads postponed (§4.5) |
 | Provenance block, live-key pattern, contact matcher, policy module | |
 
 **Permission-ready, not permission-complete.** Columns that a policy needs exist now
 (`ownerMemberId`, `teamId`, event `visibility`, mailbox `kind`). V1 policy, in one
 `policy.ts` (`can(member, verb, record)`), used by every service:
 - owner/admin: everything in the workspace;
-- member: all contacts/accounts/leads/deals/tasks/workspace events; threads in shared mailboxes
-  of their teams + their own personal mailbox; private events of others = busy only.
+- member: all contacts/accounts/leads/deals/tasks/workspace events; their own inbox items
+  only (`InboxItem.memberId`); private events of others = busy only. Shared-mailbox
+  visibility waits with §4.5.
 Grants/ACL tables are deliberately **not** proposed yet.
 
 ---
@@ -596,7 +602,7 @@ deal, with `Task.eventId` pointing at it. Completing the task → `status done` 
 ("deals with no next step" view). ✔ The meeting needs no completion state; the outcome is
 a Note.
 
-**4. Receive an email.** Sync (an `integration` ActionExecution per batch, not per mail)
+**4. Receive an email.** *(Postponed with §4.5; the inbox item is doc/11.)* Sync (an `integration` ActionExecution per batch, not per mail)
 upserts `InboxThread` by `(mailboxId, externalThreadId)` (fallback: `inReplyTo` →
 `rfcMessageId`), inserts `InboxMessage` idempotently by `(threadId, externalId)`,
 participants resolved by the contact matcher (only unambiguous, non-shared matches), attachments → `Media` +
@@ -605,7 +611,7 @@ for each resolved contact, `RecordLink(contact, thread, how: auto_match)`; Activ
 `email.received` with subjects = those contacts (+ their primary accounts). Deals are
 **not** auto-linked in V1 (Q-A). ✔
 
-**5. Send an email (later slice).** Draft `InboxMessage(outbound, draft)` → Send creates
+**5. Send an email (later slice).** *(Postponed with §4.5. Until then, `Compose` records the follow-up and does not send.)* Draft `InboxMessage(outbound, draft)` → Send creates
 `ActionExecution(inbox.send, pending, idempotencyKey = messageId)`, message `queued`; a
 worker sends via the connection, stores `externalId/rfcMessageId`, `sent` (or `failed` +
 `errorCode`, draft kept for retry — same rule as media upload failure). Activity
@@ -655,7 +661,7 @@ roomId, itemId?)`; viewers outside the workspace see nothing (§6). ✔
 | 1 | Contacts (Contact, Point, Account, ContactAccount, Tag), matcher, Note, RecordLink, Import | 0 |
 | 2 | Sales (Pipeline, Stage, Lead, Deal, DealContact, DealStageChange) + **Task** + in-app Reminder (follow-ups and `nextActionAt` need tasks) | 1 |
 | 3 | Calendar (internal events, attendees, Calendar surface projecting events ∪ tasks ∪ close dates) | 0, 1, 2 |
-| 4 | Inbox (Connection, Mailbox, threads, messages, sync in, then send) | 1 (+ OAuth/secret storage) |
+| 4 | Inbox attention queue (`InboxItem`) + shared composer (`Compose`). Mail threads, sync, and campaigns postponed (doc/11) | 1 |
 
 Each slice: schema + OpenAPI + SDK hooks + server tests; migrations are additive.
 
@@ -667,11 +673,11 @@ Each slice: schema + OpenAPI + SDK hooks + server tests; migrations are additive
 |---|---|
 | D1 | **Lead = qualification record over a Contact.** No separate lead-person universe. On conversion, existing tasks/events/notes stay linked to the Lead and gain a Deal link; nothing is moved. |
 | D2 | **Email is a strong match signal, not identity.** No unique constraint on email (or account domain). One matcher: exactly one live, non-shared candidate = match; several = ambiguous/review; shared/role addresses never auto-match. Duplicates handled by review + merge. |
-| D3 | **No second internal mail system.** Inbox = external correspondence + internal notes/assignment on those threads. People-to-people collaboration stays in Conversations/Team. |
+| D3 | **Inbox is the attention and follow-up surface** (doc/11, 2026-10-05). One `InboxItem` per member per source event. A reusable composer addresses a contact on a channel (email first). Member-to-member mail, inbox threads, and campaigns are postponed. External email, when built, keeps its own model (§4.5) and raises an item. People-to-people collaboration stays in Conversations. |
 | D4 | **V1 visibility is broad**: members see all CRM data. `ownerMemberId`/`teamId` columns now, all checks through one `policy.ts`, no ACL/grant tables. |
 | D5 | **Rooms stay platform-level.** No `Room.workspaceId`; workspace-internal conversations later, when there's a concrete access requirement. |
 | D6 | **`Task` is separate from `CalendarEvent`**; the Calendar surface projects both (query-time). Named `Task` (not `WorkItem`, which would sit next to conversation `Item`). Task status enum = future status *category*. |
-| D7 | **Reminders in-app first**, email later. |
+| D7 | **Reminders in-app first**, email later. The in-app surface is an `InboxItem` (doc/11), not a separate due list. |
 | D8 | **Workspace membership requires a registered account** (guests upgrade first). |
 | D9 | **Recurrence:** RRULE stored (+ exception rows for synced series); no expansion engine yet. |
 | D10 | **Notes can be shared into conversations**, creating an Item via the existing author-only share. Deleting a note doesn't remove its room placements. |
@@ -682,6 +688,8 @@ Each slice: schema + OpenAPI + SDK hooks + server tests; migrations are additive
 | D15 | **Multiple workspaces per user** supported in the model; the UI switcher waits. |
 
 ### Remaining small questions (defaults proposed; none block the backbone or Contacts)
+
+Q-A through Q-D belong to the postponed mail model (§4.5). They do not shape `InboxItem` or `Compose`.
 
 - **Q-A Auto-link email to deals.** Proposed: never auto-link; when the resolved contact
   has exactly one open deal, *suggest* it (one-tap link). Query-time, no schema impact.
