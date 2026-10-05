@@ -13,7 +13,6 @@ import { useUI } from '../state/ui'
 import { useShell } from '../state/shell'
 import { useData } from '../state/data'
 import type { Item, SendInput } from '../api/types'
-import { ConversationHead } from '../features/room/ConversationHead'
 import { roomPeopleFrom, type PresenceActivity } from '../features/room/PeopleStrip'
 import { ChatShell } from '../features/room/ChatShell'
 import { RoomFloor } from '../features/room/RoomFloor'
@@ -125,11 +124,6 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
     return post(input, undefined, { chat: true })
   }, [post])
 
-  const playAll = () => {
-    const firstPlayable = visible.find(isPlayable)
-    if (firstPlayable) ui.startPlayback(firstPlayable.id, 'chronological')
-  }
-
   const advance = (id: string) => {
     const index = visible.findIndex((item) => item.id === id)
     const next = visible.slice(index + 1).find(isPlayable)
@@ -221,12 +215,6 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
         </Label>
       )}
       <ChatShell
-        header={data && (
-          <ConversationHead
-            room={data}
-            onPlayAll={visible.some(isPlayable) ? playAll : undefined}
-          />
-        )}
         view={view}
         stage={(
           <RoomFloor

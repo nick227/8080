@@ -11,8 +11,7 @@ function saveOpen(open: boolean) {
   try { localStorage.setItem(KEY, open ? 'open' : 'closed') } catch { /* the choice still applies for this visit */ }
 }
 
-export function ChatShell({ header, stage, stream, composer, view }: {
-  header: ReactNode
+export function ChatShell({ stage, stream, composer, view }: {
   stage: ReactNode
   stream: ReactNode
   composer?: ReactNode
@@ -26,7 +25,6 @@ export function ChatShell({ header, stage, stream, composer, view }: {
 
   return (
     <div className="room-chat" data-view={view} data-chat={open ? 'open' : 'closed'}>
-      {header}
       {stage}
       <div className="room-rail" inert={open ? undefined : true}>{stream}{composer}</div>
       <button type="button" className="room-chat-toggle" aria-expanded={open} aria-label={open ? 'Hide chat' : 'Show chat'} onClick={toggle}>

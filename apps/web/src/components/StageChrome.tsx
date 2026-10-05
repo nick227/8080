@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { useSession } from '@project/sdk'
-import { Breadcrumb } from '../components/Breadcrumb'
 import { LobbyIcon, PersonIcon } from '../components/icons'
 import { AccountSheet } from '../features/AccountSheet'
 import { Lobby } from '../features/Lobby'
@@ -55,7 +54,6 @@ export function StageChrome() {
           {user?.avatarUrl ? <img className="mast-avatar" src={user.avatarUrl} alt="" /> : <PersonIcon guest={guest} />}
         </button>
       </header>
-      <Breadcrumb />
       <AccountSheet />
       <AnimatePresence>
         {lobbyOpen && (

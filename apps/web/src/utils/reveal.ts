@@ -64,12 +64,11 @@ function playingFrame(child: HTMLElement): HTMLElement {
   return child
 }
 
-// Open band between the crumb and the instrument.
+// Open band between the masthead and the instrument.
 function bandOf(scroller: Element | null) {
   const bounds = scroller?.getBoundingClientRect()
   const mast = document.querySelector('.masthead')?.getBoundingClientRect().bottom ?? 0
-  const crumbBottom = document.querySelector('.crumb')?.getBoundingClientRect().bottom ?? 0
-  const top = Math.max(bounds?.top ?? 0, mast, crumbBottom)
+  const top = Math.max(bounds?.top ?? 0, mast)
   const floor = document.querySelector('.instrument-floor')?.getBoundingClientRect().top ?? window.innerHeight
   const bottom = Math.min(bounds?.bottom ?? window.innerHeight, floor)
   return { top, bottom }
