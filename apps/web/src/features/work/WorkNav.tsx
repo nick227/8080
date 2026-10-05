@@ -1,16 +1,16 @@
-import type { WorkSection } from './sections'
-import { WORK_SECTIONS } from './sections'
+import type { Desk } from './sections'
+import { DESKS } from './sections'
 import './work.css'
 
-export function WorkNav({ section, teamActive, onSelect }: {
-  section: WorkSection
+export function WorkNav({ desk, teamActive, onSelect }: {
+  desk: Desk
   teamActive: boolean
-  onSelect: (section: WorkSection) => void
+  onSelect: (desk: Desk) => void
 }) {
   return (
     <nav className="work-nav" aria-label="Workspace">
-      {WORK_SECTIONS.map((item) => {
-        const current = item.id === 'team' ? teamActive : section === item.id
+      {DESKS.map((item) => {
+        const current = item.id === 'team' ? teamActive : desk === item.id
         return (
           <button
             key={item.id}

@@ -1,20 +1,36 @@
-import { calendar, contacts, inbox, leads, type WorkSection } from './sections'
+import { useState } from 'react'
+import { calendar, lensCount, WORK_LENSES, type WorkLens } from './sections'
 
-const EMPTY: Record<Exclude<WorkSection, 'team'>, string> = {
-  inbox: 'Nothing waiting.',
-  calendar: 'Nothing scheduled.',
-  contacts: 'No one saved yet.',
-  sales: 'No leads yet.',
+export function WorkPage() {
+  const [lens, setLens] = useState<WorkLens>('inbox')
+  const current = WORK_LENSES.find((item) => item.id === lens) ?? WORK_LENSES[0]
+  return (
+    <section className="work-page" aria-label="Work">
+      <div className="work-lenses" role="tablist" aria-label="Work views">
+        {WORK_LENSES.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            className="work-lens"
+            aria-selected={item.id === lens}
+            onClick={() => setLens(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <div className="work-lens-body" role="tabpanel">
+        {lensCount(current.id) === 0 && <p className="work-empty">{current.empty}</p>}
+      </div>
+    </section>
+  )
 }
 
-export function WorkPage({ section }: { section: Exclude<WorkSection, 'team'> }) {
-  const count = section === 'inbox' ? inbox.length
-    : section === 'calendar' ? calendar.length
-      : section === 'contacts' ? contacts.length
-        : leads.length
+export function CalendarPage() {
   return (
-    <section className="work-page" aria-label={section}>
-      {count === 0 && <p className="work-empty">{EMPTY[section]}</p>}
+    <section className="work-page" aria-label="Calendar">
+      {calendar.length === 0 && <p className="work-empty">Nothing scheduled.</p>}
     </section>
   )
 }
