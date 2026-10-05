@@ -18,6 +18,7 @@ import { ChatShell } from '../features/room/ChatShell'
 import { RoomFloor } from '../features/room/RoomFloor'
 import { WorkNav } from '../features/work/WorkNav'
 import { RoomDocuments } from '../features/documents/RoomDocuments'
+import { useDocuments } from '../features/documents/store'
 import { CalendarPage, WorkPage } from '../features/work/WorkPage'
 import type { Desk } from '../features/work/sections'
 import { loadRoomView, saveRoomView, seatsFrom, type RoomView } from '../features/room/roomViews'
@@ -227,7 +228,10 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
         view={view}
         stage={(
           <div className="work-column">
-            <WorkNav desk={place} teamActive={place === 'team' && view === 'grid'} onSelect={openPlace} />
+            <WorkNav desk={place} teamActive={place === 'team' && view === 'grid'} onSelect={(next) => {
+              if (next === 'documents') useDocuments.getState().open(null)
+              openPlace(next)
+            }} />
             {place === 'team' ? (
               <RoomFloor
                 view={view}
@@ -241,10 +245,10 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
                 onPost={openPost}
                 deskOpen={showDesk}
               />
-            ) : place === 'work' ? (
-              <WorkPage roomId={roomId} />
-            ) : (
+            ) : place === 'calendar' ? (
               <CalendarPage />
+            ) : (
+              <WorkPage place={place} roomId={roomId} />
             )}
           </div>
         )}
@@ -254,7 +258,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
         </>}
         stream={(
           <>
-          {roomId && <RoomDocuments roomId={roomId} owner={meName} onOpen={() => openPlace('work')} />}
+          {roomId && <RoomDocuments roomId={roomId} owner={meName} onOpen={() => openPlace('documents')} />}
           <ChatStream
             key={`${roomId ?? 'pending'}:${itemsSuccess ? 'ready' : 'wait'}`}
             rows={rows}

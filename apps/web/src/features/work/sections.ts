@@ -1,19 +1,12 @@
-export type Desk = 'team' | 'work' | 'calendar'
+export type Desk = 'team' | 'inbox' | 'contacts' | 'sales' | 'documents' | 'calendar'
 
 export const DESKS: { id: Desk; label: string }[] = [
   { id: 'team', label: 'Team' },
-  { id: 'work', label: 'Work' },
+  { id: 'inbox', label: 'Inbox' },
+  { id: 'contacts', label: 'Contacts' },
+  { id: 'sales', label: 'Sales' },
+  { id: 'documents', label: 'Documents' },
   { id: 'calendar', label: 'Calendar' },
-]
-
-// Lenses on one business graph: person, communication, opportunity.
-export type WorkLens = 'inbox' | 'contacts' | 'sales' | 'documents'
-
-export const WORK_LENSES: { id: WorkLens; label: string; empty: string }[] = [
-  { id: 'inbox', label: 'Inbox', empty: 'Nothing waiting.' },
-  { id: 'contacts', label: 'Contacts', empty: 'No one saved yet.' },
-  { id: 'sales', label: 'Sales', empty: 'No leads yet.' },
-  { id: 'documents', label: 'Documents', empty: 'No documents yet.' },
 ]
 
 export type InboxNote = { id: string; from: string; subject: string }
@@ -26,8 +19,10 @@ export const calendar: CalendarEvent[] = []
 export const contacts: Contact[] = []
 export const leads: Lead[] = []
 
-export function lensCount(lens: Exclude<WorkLens, 'documents'>) {
-  if (lens === 'inbox') return inbox.length
-  if (lens === 'contacts') return contacts.length
-  return leads.length
+export function deskEmpty(place: Desk) {
+  if (place === 'inbox' && inbox.length === 0) return 'Nothing waiting.'
+  if (place === 'contacts' && contacts.length === 0) return 'No one saved yet.'
+  if (place === 'sales' && leads.length === 0) return 'No leads yet.'
+  if (place === 'calendar' && calendar.length === 0) return 'Nothing scheduled.'
+  return null
 }

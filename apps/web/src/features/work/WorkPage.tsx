@@ -1,52 +1,28 @@
-import { useEffect, useState } from 'react'
 import { useSession } from '@project/sdk'
 import { DocumentsExperience } from '../documents/DocumentsExperience'
-import { useDocuments } from '../documents/store'
-import { calendar, lensCount, WORK_LENSES, type WorkLens } from './sections'
+import { DESKS, deskEmpty, type Desk } from './sections'
 
-export function WorkPage({ roomId }: { roomId?: string }) {
-  const openId = useDocuments((state) => state.openId)
-  const [lens, setLens] = useState<WorkLens>(openId ? 'documents' : 'inbox')
+export function WorkPage({ place, roomId }: { place: Exclude<Desk, 'team' | 'calendar'>; roomId?: string }) {
   const session = useSession()
   const owner = session.data?.data.displayName ?? 'You'
-  const current = WORK_LENSES.find((item) => item.id === lens) ?? WORK_LENSES[0]
-  useEffect(() => {
-    if (openId) setLens('documents')
-  }, [openId])
+  const label = DESKS.find((item) => item.id === place)?.label ?? 'Work'
+  const empty = deskEmpty(place)
   return (
-    <section className="work-page" aria-label="Work">
-      <div className="work-lenses" role="tablist" aria-label="Work views">
-        {WORK_LENSES.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            className="work-lens"
-            aria-selected={item.id === lens}
-            onClick={() => {
-              if (item.id === 'documents') useDocuments.getState().open(null)
-              setLens(item.id)
-            }}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-      <div className="work-lens-body" role="tabpanel">
-        {lens === 'documents' ? (
-          <DocumentsExperience roomId={roomId} owner={owner} />
-        ) : lensCount(lens) === 0 ? (
-          <p className="work-empty">{current.empty}</p>
-        ) : null}
-      </div>
+    <section className="work-page" aria-label={label}>
+      {place === 'documents' ? (
+        <DocumentsExperience roomId={roomId} owner={owner} />
+      ) : empty ? (
+        <p className="work-empty">{empty}</p>
+      ) : null}
     </section>
   )
 }
 
 export function CalendarPage() {
+  const empty = deskEmpty('calendar')
   return (
     <section className="work-page" aria-label="Calendar">
-      {calendar.length === 0 && <p className="work-empty">Nothing scheduled.</p>}
+      {empty && <p className="work-empty">{empty}</p>}
     </section>
   )
 }
