@@ -1,7 +1,8 @@
-import { useMemo, useState, useSyncExternalStore } from 'react'
+import { useMemo, useState } from 'react'
 import { DataGrid, SelectColumn, SELECT_COLUMN_KEY, renderTextEditor, type Column, type ColumnWidths, type SortColumn } from 'react-data-grid'
 import 'react-data-grid/lib/styles.css'
-import { contactsAdapter, datasetAdapter, getDatasetRows, subscribeDataset } from '../dataset'
+import { datasetAdapter, useDatasetEdit, useDatasetRows } from '../dataset'
+import { useCurrentWorkspace } from '../workspace'
 import { notePresence, usePeers } from '../presence'
 import { useDocuments } from '../store'
 import type { DocumentRecord, NativeSheet } from '../types'
@@ -16,7 +17,6 @@ const selectColumn = SelectColumn as Column<GridRow>
 export function GridEditor({ doc }: { doc: DocumentRecord }) {
   const change = useDocuments((state) => state.change)
   const peers = usePeers()
-  const records = useSyncExternalStore(subscribeDataset, getDatasetRows, getDatasetRows)
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<readonly SortColumn[]>([])
   const [widths, setWidths] = useState<ColumnWidths>(new Map())
@@ -24,6 +24,12 @@ export function GridEditor({ doc }: { doc: DocumentRecord }) {
   const [recordStatus, setRecordStatus] = useState('')
   const dataset = doc.sheet?.mode === 'dataset' ? datasetAdapter(doc.sheet.dataset) : null
   const sheet = doc.sheet?.mode === 'sheet' ? doc.sheet : null
+  // Connected rows are the workspace's canonical contacts (doc/10 §8).
+  const current = useCurrentWorkspace()
+  const workspaceId = dataset ? (current.workspace?.id ?? null) : null
+  const live = useDatasetRows(workspaceId)
+  const editRecord = useDatasetEdit(workspaceId)
+  const records = useMemo(() => live.data?.rows ?? [], [live.data])
 
   const source = useMemo<GridRow[]>(() => {
     if (dataset) return records.map((row) => ({ id: row.id, version: String(row.version), ...row.cells }))
@@ -58,20 +64,39 @@ export function GridEditor({ doc }: { doc: DocumentRecord }) {
     change(doc.id, (current) => ({ ...current, sheet: native }))
   }
 
-  const applyDataset = (row: GridRow, key: string, value: string) => {
+  // The version the grid showed is the expectation: a change made elsewhere since
+  // then is a visible conflict, never a silent overwrite.
+  const applyDataset = async (row: GridRow, key: string, value: string) => {
     if (!dataset) return
-    const current = getDatasetRows().find((item) => item.id === row.id)
-    const result = dataset.edit({
+    setRecordStatus('Updating contact…')
+    const result = await editRecord({
       rowId: row.id,
       field: key,
       value,
-      expectedVersion: current?.version ?? Number(row.version),
+      expectedVersion: Number(row.version),
       idempotencyKey: crypto.randomUUID(),
       sourceDocumentId: doc.id,
     })
     if (result.status === 'updated') setRecordStatus('Updated')
-    else if (result.status === 'conflict') setRecordStatus(`Conflict · now “${result.current.cells[key] ?? ''}” · yours “${result.proposed}”`)
+    else if (result.status === 'conflict') setRecordStatus(`Conflict · now “${result.current?.cells[key] ?? ''}” · yours “${result.proposed}”`)
     else setRecordStatus(result.message)
+  }
+
+  if (dataset && !workspaceId) {
+    return (
+      <div className="work-grid">
+        <div className="work-bar">
+          {current.loading ? <span role="status">Loading…</span>
+            : current.guest ? <span role="status">Sign in to work with contacts.</span>
+            : (
+              <>
+                <span role="status">{current.createError ?? 'Contacts live in a workspace.'}</span>
+                <button type="button" disabled={current.creating} onClick={current.create}>Create workspace</button>
+              </>
+            )}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -83,7 +108,15 @@ export function GridEditor({ doc }: { doc: DocumentRecord }) {
           const column = { id: crypto.randomUUID(), name: `Column ${sheet.columns.length + 1}` }
           writeSheet(source, [...sheet.columns, column])
         }}>Column</button>}
-        {dataset && <span role="status">{recordStatus || contactsAdapter.description}</span>}
+        {dataset && (
+          <span role="status">
+            {recordStatus
+              || (live.isError ? 'Couldn’t load contacts'
+              : !live.data ? 'Loading contacts…'
+              : live.data.total === 0 ? 'No contacts yet — import a CSV as contacts to start.'
+              : `${dataset.description} · ${live.data.rows.length < live.data.total ? `first ${live.data.rows.length} of ` : ''}${live.data.total}`)}
+          </span>
+        )}
       </div>
       <DataGrid
         className="work-rdg"
@@ -115,15 +148,9 @@ export function GridEditor({ doc }: { doc: DocumentRecord }) {
           const single = matrix.length <= 1 && (matrix[0]?.length ?? 0) <= 1
           const value = matrix[0]?.[0] ?? ''
           if (dataset) {
-            if (single) applyDataset(row, column.key, value)
-            else {
-              const pasted = pasteMatrix(shown, keys, row.id, column.key, matrix)
-              pasted.forEach((item, index) => {
-                const before = shown[index]
-                if (!before) return
-                keys.forEach((key) => { if (item[key] !== before[key]) applyDataset(before, key, item[key] ?? '') })
-              })
-            }
+            // A visual paste never becomes an implicit bulk CRM write (doc/10 §7).
+            if (single) void applyDataset(row, column.key, value)
+            else setRecordStatus('Paste one cell at a time into contacts')
             return row
           }
           if (single) return { ...row, [column.key]: value }
@@ -139,7 +166,7 @@ export function GridEditor({ doc }: { doc: DocumentRecord }) {
               const before = shown[index]
               if (!row || !before) continue
               const value = row[data.column.key] ?? ''
-              if (value !== (before[data.column.key] ?? '')) applyDataset(before, data.column.key, value)
+              if (value !== (before[data.column.key] ?? '')) void applyDataset(before, data.column.key, value)
             }
             return
           }
