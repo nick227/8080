@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { AddTask } from './AddTask'
 import { AddTasksModal } from './AddTasksModal'
 import { DayView } from './DayView'
 import { dayTitle, monthName, parseDay, todayKey } from './dates'
@@ -53,10 +52,14 @@ export function CalendarExperience() {
         </div>
       </header>
       {view === 'day' ? (
-        <>
-          <AddTask onAdd={(taskTitle, time) => add({ title: taskTitle, day: cursor, time })} />
-          <DayView day={cursor} today={today} tasks={dayTasks} onToggle={toggle} onRemove={remove} />
-        </>
+        <DayView
+          day={cursor}
+          today={today}
+          tasks={dayTasks}
+          onAdd={(taskTitle, time) => add({ title: taskTitle, day: cursor, time })}
+          onToggle={toggle}
+          onRemove={remove}
+        />
       ) : (
         <MonthView cursor={cursor} today={today} tasks={tasks} onOpen={showDay} />
       )}

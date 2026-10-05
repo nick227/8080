@@ -1,15 +1,17 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { HOURS, hourLabel } from './dates'
 import type { CalTask } from './types'
 
-export function DayView({ day, today, tasks, onToggle, onRemove }: {
+export function DayView({ day, today, tasks, onAdd, onToggle, onRemove }: {
   day: string
   today: string
   tasks: CalTask[]
+  onAdd: (title: string, time: string) => void
   onToggle: (id: string) => void
   onRemove: (id: string) => void
 }) {
   const planRef = useRef<HTMLDivElement>(null)
+  const [editing, setEditing] = useState<string | null>(null)
   const untimed = tasks.filter((task) => !task.time)
   const byHour = new Map<string, CalTask[]>()
   for (const task of tasks) {
@@ -56,11 +58,72 @@ export function DayView({ day, today, tasks, onToggle, onRemove }: {
               {rows.map((task) => (
                 <TaskLine key={task.id} task={task} showTime={task.time !== hour.value} onToggle={onToggle} onRemove={onRemove} />
               ))}
+              <HourAdd
+                label={hour.label}
+                editing={editing === hour.value}
+                onOpen={() => setEditing(hour.value)}
+                onClose={() => setEditing((current) => current === hour.value ? null : current)}
+                onAdd={(title) => onAdd(title, hour.value)}
+              />
             </div>
           </section>
         )
       })}
     </div>
+  )
+}
+
+function HourAdd({ label, editing, onOpen, onClose, onAdd }: {
+  label: string
+  editing: boolean
+  onOpen: () => void
+  onClose: () => void
+  onAdd: (title: string) => void
+}) {
+  const [title, setTitle] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const done = useRef(false)
+
+  useEffect(() => {
+    if (!editing) return
+    done.current = false
+    setTitle('')
+    inputRef.current?.focus()
+  }, [editing])
+
+  const finish = (save: boolean) => {
+    if (done.current) return
+    done.current = true
+    const next = (inputRef.current?.value ?? title).trim()
+    if (save && next) onAdd(next)
+    onClose()
+  }
+
+  if (!editing) {
+    return (
+      <button type="button" className="cal-slot-add" aria-label={`Add a task at ${label}`} onClick={onOpen}>
+        <span className="cal-plus" aria-hidden="true">+</span>
+      </button>
+    )
+  }
+
+  return (
+    <form className="cal-slot-add" onSubmit={(event) => { event.preventDefault(); finish(true) }}>
+      <span className="cal-plus" aria-hidden="true">+</span>
+      <input
+        ref={inputRef}
+        value={title}
+        aria-label={`Task at ${label}`}
+        placeholder="Task"
+        autoComplete="off"
+        onChange={(event) => setTitle(event.target.value)}
+        onBlur={() => finish(true)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') { event.preventDefault(); finish(true) }
+          if (event.key === 'Escape') { event.preventDefault(); finish(false) }
+        }}
+      />
+    </form>
   )
 }
 
