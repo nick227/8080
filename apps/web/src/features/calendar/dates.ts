@@ -92,6 +92,13 @@ export function cleanTime(value: string): string | null {
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
 }
 
+export function parseDayKey(input: string, from = new Date()): string | null {
+  const text = input.trim()
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (iso) return validDay(Number(iso[2]), Number(iso[3]), Number(iso[1]))
+  return parseSpokenDay(text, from)
+}
+
 export function parseSpokenDay(input: string, from = new Date()): string | null {
   const text = input.trim().toLowerCase().replace(/,/g, '')
   if (!text) return null

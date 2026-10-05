@@ -14,6 +14,7 @@ type State = {
   shiftMonth: (delta: number) => void
   add: (input: { title: string; day: string; time?: string | null; source?: string | null }) => void
   addMany: (titles: string[], day: string, source: string) => number
+  importTasks: (rows: { title: string; day: string; time: string | null; status: 'open' | 'done' }[]) => number
   toggle: (id: string) => void
   remove: (id: string) => void
   closeMatching: (query: string, day: string) => string | null
@@ -84,6 +85,22 @@ export const useCalendar = create<State>((set, get) => ({
     const tasks = [...get().tasks, task]
     save(tasks)
     set({ tasks })
+  },
+  importTasks(rows) {
+    const existing = new Set(get().tasks.map((task) => `${task.day}\0${task.title.toLowerCase()}`))
+    const next: CalTask[] = []
+    for (const row of rows) {
+      const title = row.title.trim()
+      const key = `${row.day}\0${title.toLowerCase()}`
+      if (!title || existing.has(key)) continue
+      existing.add(key)
+      next.push({ id: crypto.randomUUID(), title, day: row.day, time: row.time, status: row.status, source: 'import' })
+    }
+    if (!next.length) return 0
+    const tasks = [...get().tasks, ...next]
+    save(tasks)
+    set({ tasks })
+    return next.length
   },
   addMany(titles, day, source) {
     const existing = new Set(get().tasks.filter((task) => task.day === day).map((task) => task.title.toLowerCase()))

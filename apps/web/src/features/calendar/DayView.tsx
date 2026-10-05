@@ -33,8 +33,40 @@ export function DayView({ day, today, tasks, onAdd, onToggle, onRemove }: {
     root.scrollTop = top
   }, [day, today])
 
+  useEffect(() => {
+    const root = planRef.current
+    if (!editing || !root) return
+    const slot = root.querySelector(`[data-hour="${editing}"]`)
+    if (!(slot instanceof HTMLElement)) return
+    const rootBox = root.getBoundingClientRect()
+    const box = slot.getBoundingClientRect()
+    if (box.top < rootBox.top) root.scrollTop += box.top - rootBox.top
+    else if (box.bottom > rootBox.bottom) root.scrollTop += box.bottom - rootBox.bottom
+  }, [editing])
+
+  const stepHour = (from: string | null, delta: number) => {
+    if (!from) {
+      const edge = delta > 0 ? HOURS[0] : HOURS[HOURS.length - 1]
+      setEditing(edge.value)
+      return
+    }
+    const next = HOURS[HOURS.findIndex((hour) => hour.value === from) + delta]
+    if (next) setEditing(next.value)
+  }
+
   return (
-    <div className="cal-plan" ref={planRef}>
+    <div
+      className="cal-plan"
+      ref={planRef}
+      onKeyDownCapture={(event) => {
+        if (event.key !== 'Tab') return
+        if (event.target instanceof HTMLInputElement) return
+        event.preventDefault()
+        const host = event.target instanceof HTMLElement ? event.target : null
+        const slot = host ? host.closest('[data-hour]') : null
+        stepHour(slot ? slot.getAttribute('data-hour') : null, event.shiftKey ? -1 : 1)
+      }}
+    >
       {untimed.length > 0 && (
         <section className="cal-slot" data-has="">
           <span className="cal-hour">Any</span>
@@ -43,7 +75,7 @@ export function DayView({ day, today, tasks, onAdd, onToggle, onRemove }: {
           </div>
         </section>
       )}
-      {HOURS.map((hour) => {
+      {HOURS.map((hour, index) => {
         const rows = byHour.get(hour.value) ?? []
         return (
           <section
@@ -64,6 +96,10 @@ export function DayView({ day, today, tasks, onAdd, onToggle, onRemove }: {
                 onOpen={() => setEditing(hour.value)}
                 onClose={() => setEditing((current) => current === hour.value ? null : current)}
                 onAdd={(title) => onAdd(title, hour.value)}
+                onStep={(delta) => {
+                  const next = HOURS[index + delta]
+                  setEditing(next ? next.value : null)
+                }}
               />
             </div>
           </section>
@@ -73,12 +109,13 @@ export function DayView({ day, today, tasks, onAdd, onToggle, onRemove }: {
   )
 }
 
-function HourAdd({ label, editing, onOpen, onClose, onAdd }: {
+function HourAdd({ label, editing, onOpen, onClose, onAdd, onStep }: {
   label: string
   editing: boolean
   onOpen: () => void
   onClose: () => void
   onAdd: (title: string) => void
+  onStep: (delta: number) => void
 }) {
   const [title, setTitle] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -121,6 +158,14 @@ function HourAdd({ label, editing, onOpen, onClose, onAdd }: {
         onKeyDown={(event) => {
           if (event.key === 'Enter') { event.preventDefault(); finish(true) }
           if (event.key === 'Escape') { event.preventDefault(); finish(false) }
+          if (event.key === 'Tab') {
+            event.preventDefault()
+            if (done.current) return
+            done.current = true
+            const next = (inputRef.current?.value ?? title).trim()
+            if (next) onAdd(next)
+            onStep(event.shiftKey ? -1 : 1)
+          }
         }}
       />
     </form>

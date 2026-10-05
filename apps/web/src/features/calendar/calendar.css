@@ -44,7 +44,8 @@
 .cal-btn[aria-pressed="true"],
 .cal-btn[data-primary] { border-color: var(--ink); }
 .cal-field input,
-.cal-field select {
+.cal-field select,
+.cal-field textarea {
   height: 32px;
   border: 1px solid var(--line);
   background: transparent;
@@ -55,8 +56,22 @@
   letter-spacing: 0;
   padding: 0 10px;
 }
+.cal-field textarea {
+  height: auto;
+  min-height: 140px;
+  padding: 8px 10px;
+  resize: vertical;
+  line-height: 1.4;
+}
 .cal-field input:focus-visible,
-.cal-field select:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.cal-field select:focus-visible,
+.cal-field textarea:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.cal-error {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--signal);
+}
 .cal-board, .cal-plan {
   flex: 1;
   min-height: 0;

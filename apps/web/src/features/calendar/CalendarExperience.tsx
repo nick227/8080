@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { AddTasksModal } from './AddTasksModal'
 import { DayView } from './DayView'
 import { dayTitle, monthName, parseDay, todayKey } from './dates'
+import { ImportModal } from './ImportModal'
 import { MonthView } from './MonthView'
 import { useCalendar } from './store'
 import './calendar.css'
@@ -15,9 +15,10 @@ export function CalendarExperience() {
   const goToday = useCalendar((state) => state.goToday)
   const shiftMonth = useCalendar((state) => state.shiftMonth)
   const add = useCalendar((state) => state.add)
+  const importTasks = useCalendar((state) => state.importTasks)
   const toggle = useCalendar((state) => state.toggle)
   const remove = useCalendar((state) => state.remove)
-  const [adding, setAdding] = useState(false)
+  const [importing, setImporting] = useState(false)
   const today = todayKey()
   const onToday = view === 'day' ? cursor === today : cursor.slice(0, 7) === today.slice(0, 7)
   const title = view === 'day' ? dayTitle(cursor) : `${monthName(cursor)} ${parseDay(cursor).getFullYear()}`
@@ -46,9 +47,7 @@ export function CalendarExperience() {
         <h1 className="cal-title">{title}</h1>
         <div className="cal-tools">
           <button type="button" className="cal-btn" aria-pressed={onToday} onClick={goToday}>Today</button>
-          {view === 'month' && (
-            <button type="button" className="cal-btn" data-primary="" onClick={() => setAdding(true)}>Add tasks</button>
-          )}
+          <button type="button" className="cal-btn" data-primary="" onClick={() => setImporting(true)}>Import</button>
         </div>
       </header>
       {view === 'day' ? (
@@ -63,11 +62,12 @@ export function CalendarExperience() {
       ) : (
         <MonthView cursor={cursor} today={today} tasks={tasks} onOpen={showDay} />
       )}
-      {adding && view === 'month' && (
-        <AddTasksModal
+      {importing && (
+        <ImportModal
+          mode={view === 'day' ? 'list' : 'csv'}
           day={cursor}
-          onClose={() => setAdding(false)}
-          onAdd={(taskTitle, day, time) => add({ title: taskTitle, day, time })}
+          onClose={() => setImporting(false)}
+          onImport={importTasks}
         />
       )}
     </div>
