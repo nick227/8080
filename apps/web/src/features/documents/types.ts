@@ -1,9 +1,14 @@
 // external = a Google Doc/Sheet link: opens in a new tab, never in an editor.
 export type Surface = 'blocks' | 'mental_map' | 'grid' | 'external'
 
+// One section holds the writing and, optionally, one attachment.
+// title / paragraph / media remain so documents saved before this still open.
+export type SectionLevel = 'body' | 'h3' | 'h2' | 'h1'
+
 export type Block = {
   id: string
-  type: 'title' | 'paragraph' | 'media'
+  type: 'section' | 'title' | 'paragraph' | 'media'
+  level?: SectionLevel
   text?: string
   mediaName?: string
   mediaKind?: 'image' | 'video' | 'audio' | 'file'
@@ -23,11 +28,14 @@ export type MapNode = {
 }
 
 export type EdgeDirection = 'forward' | 'back' | 'both' | 'none'
+export type NubPos = 'top' | 'right' | 'bottom' | 'left'
 
 export type MapEdge = {
   id: string
   sourceId: string
   targetId: string
+  sourceNub?: NubPos
+  targetNub?: NubPos
   label?: string
   direction: EdgeDirection
 }
