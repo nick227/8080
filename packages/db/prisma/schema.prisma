@@ -40,6 +40,9 @@ model User {
   mutes       UserMute[]   @relation("Muter")
   mutedBy     UserMute[]   @relation("Muted")
 
+  workspacesCreated Workspace[]       @relation("WorkspaceCreator")
+  workspaceMembers  WorkspaceMember[]
+
   @@index([kind])
 }
 
@@ -444,3 +447,232 @@ model BotRoute {
   @@index([at])
 }
 
+// ─── Workspace (doc/09) ──────────────────────────────────────────────────────
+// Business data (contacts, deals, inbox, calendar, tasks) belongs to a Workspace,
+// never to a Room: conversations link to it, they don't own it. Every
+// workspace-scoped row carries workspaceId; services keep cross-references inside
+// one workspace and an invariant test checks it (services/workspaceIntegrity.ts).
+// Permissions are decided only in services/workspacePolicy.ts.
+
+enum WorkspaceRole {
+  owner
+  admin
+  member
+}
+
+// Invitations live in WorkspaceInvite, so a member row starts at acceptance.
+// Rows are never deleted (removed keeps history and ownership resolvable).
+enum MemberStatus {
+  active
+  suspended
+  removed
+}
+
+enum TeamRole {
+  lead
+  member
+}
+
+model Workspace {
+  id              String    @id @default(cuid())
+  name            String    @db.VarChar(120)
+  slug            String    @unique @db.VarChar(60)
+  timezone        String    @default("UTC") @db.VarChar(64)
+  defaultCurrency String    @default("USD") @db.Char(3)
+  createdById     String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  createdBy        User              @relation("WorkspaceCreator", fields: [createdById], references: [id])
+  members          WorkspaceMember[]
+  invites          WorkspaceInvite[]
+  teams            Team[]
+  teamMembers      TeamMember[]
+  actions          ActionExecution[]
+  activities       Activity[]
+  activitySubjects ActivitySubject[]
+
+  @@index([createdById])
+}
+
+// Membership requires a registered human account (doc/09 D8, D11).
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(member)
+  status      MemberStatus  @default(active)
+  title       String?       @db.VarChar(120)
+  timezone    String?       @db.VarChar(64)
+  // The WorkspaceMember who invited them (no FK: history only)
+  invitedById String?       @db.VarChar(64)
+  joinedAt    DateTime      @default(now())
+  removedAt   DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teams       TeamMember[]
+  invitesSent WorkspaceInvite[]
+  actions     ActionExecution[]
+  activities  Activity[]
+
+  @@unique([workspaceId, userId])
+  @@index([userId, status])
+  @@index([workspaceId, status])
+}
+
+// The token is shown once at creation; only its SHA-256 is stored.
+model WorkspaceInvite {
+  id          String        @id @default(cuid())
+  workspaceId String
+  email       String        @db.VarChar(254) // normalised (trimmed, lower-case)
+  role        WorkspaceRole
+  tokenHash   String        @unique @db.Char(64)
+  invitedById String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime      @default(now())
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy WorkspaceMember @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, email])
+  @@index([invitedById])
+}
+
+// Routing/visibility groups (a queue a record can belong to), not an org chart.
+model Team {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String    @db.VarChar(80)
+  description String?   @db.VarChar(500)
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members   TeamMember[]
+
+  @@unique([workspaceId, name])
+}
+
+model TeamMember {
+  id          String   @id @default(cuid())
+  teamId      String
+  workspaceId String
+  memberId    String
+  role        TeamRole @default(member)
+  createdAt   DateTime @default(now())
+
+  team      Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, memberId])
+  @@index([memberId])
+  @@index([workspaceId])
+}
+
+// ─── Audit and timeline (doc/09 §3) ──────────────────────────────────────────
+
+// `agent` is deliberately not a value: AI is observational only until the agent
+// action model and permission system exist (doc/08 §4.9).
+enum ActorKind {
+  member
+  system
+  integration
+}
+
+enum ActionOrigin {
+  ui
+  api
+  import
+  sync
+  system
+}
+
+enum ActionStatus {
+  pending
+  succeeded
+  failed
+  rejected
+}
+
+// One row per workspace command, written in the same transaction as the change
+// (services/actions.ts). The audit log and the idempotency record. Target is a
+// plain type/id pair on purpose: audit outlives the rows it describes.
+model ActionExecution {
+  id             String       @id @default(cuid())
+  workspaceId    String
+  action         String       @db.VarChar(64) // "member.update", "team.create" …
+  actorKind      ActorKind
+  actorMemberId  String?
+  actorUserId    String?      @db.VarChar(64) // kept even after the member is removed (no FK)
+  origin         ActionOrigin
+  // Only succeeded (or pending) executions hold their key, so a rejected attempt can be retried.
+  idempotencyKey String?      @db.VarChar(120)
+  status         ActionStatus
+  targetType     String?      @db.VarChar(32)
+  targetId       String?      @db.VarChar(64)
+  input          Json
+  changes        Json? // { field: [before, after] }
+  result         Json?
+  errorCode      String?      @db.VarChar(60)
+  requestedAt    DateTime     @default(now())
+  finishedAt     DateTime?
+
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actorMember WorkspaceMember? @relation(fields: [actorMemberId], references: [id], onDelete: SetNull)
+  activities  Activity[]
+
+  @@unique([workspaceId, idempotencyKey])
+  @@index([workspaceId, requestedAt, id])
+  @@index([workspaceId, targetType, targetId, requestedAt])
+  @@index([actorMemberId])
+}
+
+// The people-facing timeline: business events, append-only. `summary` is a
+// display snapshot, never read by logic. The object arc (inboxMessageId, taskId,
+// eventId, noteId, dealStageChangeId, roomId/itemId) arrives with each domain.
+model Activity {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  type              String   @db.VarChar(48) // "member.joined", "team.created" …
+  occurredAt        DateTime
+  recordedAt        DateTime @default(now())
+  actorMemberId     String?
+  actionExecutionId String?
+  summary           Json
+
+  workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actorMember     WorkspaceMember?  @relation(fields: [actorMemberId], references: [id], onDelete: SetNull)
+  actionExecution ActionExecution?  @relation(fields: [actionExecutionId], references: [id], onDelete: SetNull)
+  subjects        ActivitySubject[]
+
+  @@index([workspaceId, occurredAt, id])
+  @@index([actorMemberId])
+  @@index([actionExecutionId])
+}
+
+// Which records an activity is about: one row per subject, so one email about a
+// contact, an account and a deal shows on all three timelines. The subject arc
+// columns (contactId | accountId | leadId | dealId, exactly one) and their
+// timeline indexes are added with Contacts and Sales; subjectKey ("deal:<id>")
+// keeps one row per subject.
+model ActivitySubject {
+  id          String   @id @default(cuid())
+  activityId  String
+  workspaceId String
+  subjectKey  String   @db.VarChar(80)
+  occurredAt  DateTime // copied from the activity → timeline index without a join
+
+  activity  Activity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, subjectKey])
+  @@index([workspaceId])
+}

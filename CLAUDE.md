@@ -120,6 +120,14 @@ The in-lobby River (playing posts and replies inline) was retired: the Lobby onl
 - Record is disabled until the segmenter is ready (ORIGINAL escape hatch). Masks older than 500 ms → raw camera.
 - **Quality-first order (locked 2026-10-04):** clean subject extraction → full-rate segmentation (temporal responsiveness) → artifact-free background → best *sustainable* output resolution → generous bitrate → upload size last. Never trade segmentation cadence for 1080p. Budget ladder (`virtualCamera.ts`): polish → half-size blur → canvas ≤1280 → every 2nd frame → Original, with trial climb-back. Bitrate follows the recorded output: 8 Mbps at 720p, 12 Mbps at 1080p. Judge quality from a saved recording, not the scaled preview.
 
+## Workspace foundation (2026-10-05) — spec: `doc/09-workspace-foundation-proposal.md`
+
+- Business data (Inbox, Calendar, Contacts, Sales, Tasks) belongs to a **Workspace**, never a Room; conversations only link. First-class tables, no EAV. Decisions D1–D15 in doc/09 §11; slices 0→4 in §10.
+- **Slice 0 built** (§12): Workspace/Member/Invite/Team/TeamMember, ActionExecution (audit + idempotency), Activity/ActivitySubject (timeline). Membership = registered humans only; bots never (no `agent` actor — doc/08 §4.9).
+- **Permissions only in `services/workspacePolicy.ts`** (`authorize` → 404 to non-members). **Every workspace mutation goes through `runAction`** (`services/actions.ts`) in its transaction. Load related rows with `workspaceId` in the where-clause; add each new FK pair to `services/workspaceIntegrity.ts`.
+- Owners/assignees reference `WorkspaceMember.id` (rows never deleted; `removed`). A workspace always keeps an active owner (`LAST_OWNER`).
+- Rooms have no `workspaceId` (D5).
+
 ## Key Design Decisions
 
 - Items numbered per room: `Room.itemCount` incremented inside the createItem transaction; `@@unique([roomId, number])`.

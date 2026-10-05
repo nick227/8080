@@ -10,4 +10,11 @@ export const keys = {
   participants: (roomId: string) => ['participants', roomId] as const,
   roomBots: (roomId: string) => ['roomBots', roomId] as const,
   mutes: ['mutes'] as const,
+  workspaces: ['workspaces'] as const,
+  workspace: (workspaceId: string) => ['workspaces', workspaceId] as const,
+  workspaceMembers: (workspaceId: string) => ['workspaces', workspaceId, 'members'] as const,
+  workspaceInvites: (workspaceId: string) => ['workspaces', workspaceId, 'invites'] as const,
+  teams: (workspaceId: string) => ['workspaces', workspaceId, 'teams'] as const,
+  workspaceActivity: (workspaceId: string) => ['workspaces', workspaceId, 'activity'] as const,
+  workspaceActions: (workspaceId: string, params?: object) => ['workspaces', workspaceId, 'actions', params ?? {}] as const,
 }

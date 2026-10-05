@@ -40,6 +40,8 @@ tags:
     description: File and recording uploads
   - name: stream
     description: Real-time room events (SSE)
+  - name: workspaces
+    description: Workspaces, members, invites, teams, activity and audit (doc/09)
 
 paths:
   # ─── auth ──────────────────────────────────────────────────────────────────
@@ -816,6 +818,405 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  # ─── workspaces (doc/09) ───────────────────────────────────────────────────
+  /workspaces:
+    get:
+      operationId: listMyWorkspaces
+      summary: Workspaces the caller is an active member of
+      tags: [workspaces]
+      responses:
+        '200':
+          description: Workspaces with the caller's role
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: createWorkspace
+      x-fastify-config:
+        rateLimit: { max: 20, timeWindow: '1 hour' }
+      summary: Create a workspace; the caller becomes its owner
+      description: Requires a registered account (403 REGISTRATION_REQUIRED for guests). A slug is derived from the name when omitted.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateWorkspaceInput' }
+      responses:
+        '201':
+          description: Workspace created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /workspaces/{workspaceId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: getWorkspace
+      summary: Get a workspace
+      description: Non-members get 404.
+      tags: [workspaces]
+      responses:
+        '200':
+          description: Workspace
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateWorkspace
+      summary: Update a workspace (owner/admin)
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateWorkspaceInput' }
+      responses:
+        '200':
+          description: Updated workspace
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: deleteWorkspace
+      summary: Delete a workspace (owner only; soft delete)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/members:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listWorkspaceMembers
+      summary: Members of a workspace
+      tags: [workspaces]
+      parameters:
+        - in: query
+          name: includeRemoved
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Members, earliest joined first
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceMemberList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/members/{memberId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/MemberId'
+    patch:
+      operationId: updateWorkspaceMember
+      summary: Update a member
+      description: |
+        Anyone may edit their own title and timezone. Role and status need owner/admin;
+        only owners change owners or grant ownership. A workspace keeps at least one
+        active owner (409 LAST_OWNER).
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateWorkspaceMemberInput' }
+      responses:
+        '200':
+          description: Updated member
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceMemberResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: removeWorkspaceMember
+      summary: Remove a member, or leave (when it is the caller)
+      description: The member row is kept with status `removed`; team memberships end.
+      tags: [workspaces]
+      responses:
+        '200':
+          description: Removed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /workspaces/{workspaceId}/invites:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listWorkspaceInvites
+      summary: Pending invites (owner/admin)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: Pending, unexpired invites
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceInviteList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createWorkspaceInvite
+      x-fastify-config:
+        rateLimit: { max: 50, timeWindow: '1 hour' }
+      summary: Invite someone by email (owner/admin)
+      description: |
+        Returns the invite token once; deliver the link yourself (no email is sent yet).
+        A new invite for the same email replaces the pending one. Expires in 7 days.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateWorkspaceInviteInput' }
+      responses:
+        '201':
+          description: Invite created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreatedWorkspaceInviteResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /workspaces/{workspaceId}/invites/{inviteId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - in: path
+        name: inviteId
+        required: true
+        schema: { type: string, minLength: 1, maxLength: 64 }
+    delete:
+      operationId: revokeWorkspaceInvite
+      summary: Revoke a pending invite (owner/admin)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: Revoked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspace-invites/accept:
+    post:
+      operationId: acceptWorkspaceInvite
+      x-fastify-config:
+        rateLimit: { max: 30, timeWindow: '1 hour' }
+      summary: Accept an invite and join its workspace
+      description: |
+        The caller must be a registered account whose email matches the invite
+        (403 REGISTRATION_REQUIRED / INVITE_EMAIL_MISMATCH). Invalid, used, revoked or
+        expired tokens get 404 INVITE_INVALID. A removed member is re-activated.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AcceptWorkspaceInviteInput' }
+      responses:
+        '200':
+          description: The joined workspace
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /workspaces/{workspaceId}/teams:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listTeams
+      summary: Teams in a workspace
+      tags: [workspaces]
+      parameters:
+        - in: query
+          name: includeArchived
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Teams by name
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createTeam
+      summary: Create a team (owner/admin)
+      tags: [workspaces]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTeamInput' }
+      responses:
+        '201':
+          description: Team created (or the earlier result, for a repeated Idempotency-Key)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /workspaces/{workspaceId}/teams/{teamId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/TeamId'
+    patch:
+      operationId: updateTeam
+      summary: Rename, describe, archive or restore a team (owner/admin)
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateTeamInput' }
+      responses:
+        '200':
+          description: Updated team
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /workspaces/{workspaceId}/teams/{teamId}/members/{memberId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/TeamId'
+      - $ref: '#/components/parameters/MemberId'
+    put:
+      operationId: setTeamMember
+      summary: Add a member to a team, or change their team role (owner/admin or team lead)
+      tags: [workspaces]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetTeamMemberInput' }
+      responses:
+        '200':
+          description: Updated team
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: removeTeamMember
+      summary: Remove a member from a team (owner/admin, team lead, or the member themselves)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: Updated team
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/activity:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listWorkspaceActivity
+      summary: The workspace timeline, newest first
+      tags: [workspaces]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Paginated activity
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedActivity' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/actions:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listWorkspaceActions
+      summary: Audit log of every action, newest first (owner/admin)
+      tags: [workspaces]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: targetType
+          schema: { type: string, minLength: 1, maxLength: 32 }
+        - in: query
+          name: targetId
+          schema: { type: string, minLength: 1, maxLength: 64 }
+      responses:
+        '200':
+          description: Paginated action executions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedActionExecutions' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -858,6 +1259,28 @@ components:
       name: type
       required: true
       schema: { $ref: '#/components/schemas/ReactionType' }
+
+    WorkspaceId:
+      in: path
+      name: workspaceId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    MemberId:
+      in: path
+      name: memberId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+      description: A WorkspaceMember id (not a user id)
+    TeamId:
+      in: path
+      name: teamId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      schema: { type: string, minLength: 1, maxLength: 120 }
+      description: Repeating a succeeded request with the same key returns its result instead of acting twice; reusing a key for a different request is 409 IDEMPOTENCY_KEY_REUSED.
 
   responses:
     BadRequest:
@@ -1336,3 +1759,251 @@ components:
         itemNumber: { type: integer }
         cursor: { type: string }
         item: { $ref: '#/components/schemas/Item' }
+
+    # ─── workspaces (doc/09) ─────────────────────────────────────────────────
+    WorkspaceRole:
+      type: string
+      enum: [owner, admin, member]
+
+    MemberStatus:
+      type: string
+      enum: [active, suspended, removed]
+
+    TeamRole:
+      type: string
+      enum: [lead, member]
+
+    Workspace:
+      type: object
+      required: [id, name, slug, timezone, defaultCurrency, createdAt, role]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        timezone: { type: string, description: IANA time zone }
+        defaultCurrency: { type: string, description: ISO 4217 code }
+        createdAt: { type: string, format: date-time }
+        role: { $ref: '#/components/schemas/WorkspaceRole' }
+
+    WorkspaceResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Workspace' }
+
+    WorkspaceList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Workspace' }
+
+    CreateWorkspaceInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        slug: { type: string, minLength: 1, maxLength: 60, pattern: '^[a-z0-9](?:[a-z0-9-]{0,58}[a-z0-9])?$' }
+        timezone: { type: string, minLength: 1, maxLength: 64 }
+        defaultCurrency: { type: string, pattern: '^[A-Z]{3}$' }
+
+    UpdateWorkspaceInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        slug: { type: string, minLength: 1, maxLength: 60, pattern: '^[a-z0-9](?:[a-z0-9-]{0,58}[a-z0-9])?$' }
+        timezone: { type: string, minLength: 1, maxLength: 64 }
+        defaultCurrency: { type: string, pattern: '^[A-Z]{3}$' }
+
+    WorkspaceMember:
+      type: object
+      required: [id, workspaceId, user, email, role, status, title, timezone, joinedAt, removedAt]
+      properties:
+        id: { type: string, description: Member id — what owner/assignee fields reference }
+        workspaceId: { type: string }
+        user: { $ref: '#/components/schemas/Author' }
+        email: { type: [string, 'null'] }
+        role: { $ref: '#/components/schemas/WorkspaceRole' }
+        status: { $ref: '#/components/schemas/MemberStatus' }
+        title: { type: [string, 'null'] }
+        timezone: { type: [string, 'null'] }
+        joinedAt: { type: string, format: date-time }
+        removedAt: { type: [string, 'null'], format: date-time }
+
+    WorkspaceMemberResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/WorkspaceMember' }
+
+    WorkspaceMemberList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/WorkspaceMember' }
+
+    UpdateWorkspaceMemberInput:
+      type: object
+      additionalProperties: false
+      properties:
+        role: { $ref: '#/components/schemas/WorkspaceRole' }
+        status: { type: string, enum: [active, suspended], description: Removal is DELETE }
+        title: { type: [string, 'null'], maxLength: 120 }
+        timezone: { type: [string, 'null'], minLength: 1, maxLength: 64 }
+
+    WorkspaceInvite:
+      type: object
+      required: [id, workspaceId, email, role, invitedById, expiresAt, createdAt]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        email: { type: string }
+        role: { $ref: '#/components/schemas/WorkspaceRole' }
+        invitedById: { type: string, description: WorkspaceMember id }
+        expiresAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    WorkspaceInviteList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/WorkspaceInvite' }
+
+    CreatedWorkspaceInviteResponse:
+      type: object
+      required: [data, token]
+      properties:
+        data: { $ref: '#/components/schemas/WorkspaceInvite' }
+        token: { type: string, description: Shown once; only its hash is stored. Accept with acceptWorkspaceInvite. }
+
+    CreateWorkspaceInviteInput:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        role: { type: string, enum: [admin, member], default: member }
+
+    AcceptWorkspaceInviteInput:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: { type: string, minLength: 1, maxLength: 128 }
+
+    Team:
+      type: object
+      required: [id, workspaceId, name, description, archivedAt, createdAt, members]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        archivedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        members:
+          type: array
+          items:
+            type: object
+            required: [memberId, role]
+            properties:
+              memberId: { type: string }
+              role: { $ref: '#/components/schemas/TeamRole' }
+
+    TeamResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Team' }
+
+    TeamList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Team' }
+
+    CreateTeamInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        description: { type: string, maxLength: 500 }
+
+    UpdateTeamInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        description: { type: [string, 'null'], maxLength: 500 }
+        archived: { type: boolean }
+
+    SetTeamMemberInput:
+      type: object
+      additionalProperties: false
+      properties:
+        role: { $ref: '#/components/schemas/TeamRole' }
+
+    Activity:
+      type: object
+      required: [id, type, occurredAt, actorMemberId, actor, summary]
+      properties:
+        id: { type: string }
+        type: { type: string, description: 'Namespaced event, e.g. member.joined, team.created' }
+        occurredAt: { type: string, format: date-time }
+        actorMemberId: { type: [string, 'null'] }
+        actor:
+          oneOf:
+            - $ref: '#/components/schemas/Author'
+            - type: 'null'
+        summary:
+          type: object
+          additionalProperties: true
+          description: Display snapshot for this event type (names at the time it happened)
+
+    PaginatedActivity:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Activity' }
+        meta: { $ref: '#/components/schemas/PaginatedMeta' }
+
+    ActionExecution:
+      type: object
+      required: [id, action, status, actorKind, actorMemberId, actorUserId, origin, targetType, targetId, input, changes, result, errorCode, requestedAt, finishedAt]
+      properties:
+        id: { type: string }
+        action: { type: string }
+        status: { type: string, enum: [pending, succeeded, failed, rejected] }
+        actorKind: { type: string, enum: [member, system, integration] }
+        actorMemberId: { type: [string, 'null'] }
+        actorUserId: { type: [string, 'null'] }
+        origin: { type: string, enum: [ui, api, import, sync, system] }
+        targetType: { type: [string, 'null'] }
+        targetId: { type: [string, 'null'] }
+        input: {}
+        changes: { description: '{ field: [before, after] }, or null' }
+        result: {}
+        errorCode: { type: [string, 'null'] }
+        requestedAt: { type: string, format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+
+    PaginatedActionExecutions:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ActionExecution' }
+        meta: { $ref: '#/components/schemas/PaginatedMeta' }

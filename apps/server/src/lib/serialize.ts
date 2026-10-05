@@ -1,6 +1,6 @@
 // Prisma rows → API shapes (packages/api-spec). The only place DB fields are
 // renamed or hidden: kind→type, posterUrl→poster, storageKey→url, no passwordHash.
-import type { Prisma, ReactionType } from '@project/db'
+import type { Prisma, ReactionType, WorkspaceRole } from '@project/db'
 import { youTubeThumbnailUrl, youTubeWatchUrl } from '@project/shared'
 import { playbackToken } from './playbackToken'
 
@@ -165,5 +165,100 @@ export function toItem(item: ItemRow, viewerId: string | null, muted?: ReadonlyS
     reactions,
     createdAt: item.createdAt,
     deletedAt: item.deletedAt,
+  }
+}
+
+// ─── workspaces (doc/09) ─────────────────────────────────────────────────────
+
+export function toWorkspace(workspace: Prisma.WorkspaceGetPayload<object>, role: WorkspaceRole) {
+  return {
+    id: workspace.id,
+    name: workspace.name,
+    slug: workspace.slug,
+    timezone: workspace.timezone,
+    defaultCurrency: workspace.defaultCurrency,
+    createdAt: workspace.createdAt,
+    role,
+  }
+}
+
+export const workspaceMemberInclude = { user: { include: { profile: true } } } satisfies Prisma.WorkspaceMemberInclude
+export type WorkspaceMemberRow = Prisma.WorkspaceMemberGetPayload<{ include: typeof workspaceMemberInclude }>
+
+// Members see each other's account email: it's a work directory.
+export function toWorkspaceMember(member: WorkspaceMemberRow) {
+  return {
+    id: member.id,
+    workspaceId: member.workspaceId,
+    user: toAuthor(member.user),
+    email: member.user.email,
+    role: member.role,
+    status: member.status,
+    title: member.title,
+    timezone: member.timezone,
+    joinedAt: member.joinedAt,
+    removedAt: member.removedAt,
+  }
+}
+
+// The token is never serialized here; createWorkspaceInvite returns it once, beside this.
+export function toWorkspaceInvite(invite: Prisma.WorkspaceInviteGetPayload<object>) {
+  return {
+    id: invite.id,
+    workspaceId: invite.workspaceId,
+    email: invite.email,
+    role: invite.role,
+    invitedById: invite.invitedById,
+    expiresAt: invite.expiresAt,
+    createdAt: invite.createdAt,
+  }
+}
+
+export const teamInclude = { members: { orderBy: { createdAt: 'asc' } } } satisfies Prisma.TeamInclude
+export type TeamRow = Prisma.TeamGetPayload<{ include: typeof teamInclude }>
+
+export function toTeam(team: TeamRow) {
+  return {
+    id: team.id,
+    workspaceId: team.workspaceId,
+    name: team.name,
+    description: team.description,
+    archivedAt: team.archivedAt,
+    createdAt: team.createdAt,
+    members: team.members.map((m) => ({ memberId: m.memberId, role: m.role })),
+  }
+}
+
+export const activityInclude = { actorMember: { include: workspaceMemberInclude } } satisfies Prisma.ActivityInclude
+export type ActivityRow = Prisma.ActivityGetPayload<{ include: typeof activityInclude }>
+
+export function toActivity(activity: ActivityRow) {
+  return {
+    id: activity.id,
+    type: activity.type,
+    occurredAt: activity.occurredAt,
+    actorMemberId: activity.actorMemberId,
+    actor: activity.actorMember ? toAuthor(activity.actorMember.user) : null,
+    summary: (activity.summary ?? {}) as Record<string, unknown>,
+  }
+}
+
+export function toActionExecution(execution: Prisma.ActionExecutionGetPayload<object>) {
+  return {
+    id: execution.id,
+    action: execution.action,
+    status: execution.status,
+    actorKind: execution.actorKind,
+    actorMemberId: execution.actorMemberId,
+    actorUserId: execution.actorUserId,
+    origin: execution.origin,
+    targetType: execution.targetType,
+    targetId: execution.targetId,
+    input: execution.input,
+    changes: execution.changes,
+    result: execution.result,
+    errorCode: execution.errorCode,
+    requestedAt: execution.requestedAt,
+    finishedAt: execution.finishedAt,
   }
 }

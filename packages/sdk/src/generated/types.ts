@@ -589,6 +589,267 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Workspaces the caller is an active member of */
+        get: operations["listMyWorkspaces"];
+        put?: never;
+        /**
+         * Create a workspace; the caller becomes its owner
+         * @description Requires a registered account (403 REGISTRATION_REQUIRED for guests). A slug is derived from the name when omitted.
+         */
+        post: operations["createWorkspace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a workspace
+         * @description Non-members get 404.
+         */
+        get: operations["getWorkspace"];
+        put?: never;
+        post?: never;
+        /** Delete a workspace (owner only; soft delete) */
+        delete: operations["deleteWorkspace"];
+        options?: never;
+        head?: never;
+        /** Update a workspace (owner/admin) */
+        patch: operations["updateWorkspace"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Members of a workspace */
+        get: operations["listWorkspaceMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/members/{memberId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                /** @description A WorkspaceMember id (not a user id) */
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a member, or leave (when it is the caller)
+         * @description The member row is kept with status `removed`; team memberships end.
+         */
+        delete: operations["removeWorkspaceMember"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a member
+         * @description Anyone may edit their own title and timezone. Role and status need owner/admin;
+         *     only owners change owners or grant ownership. A workspace keeps at least one
+         *     active owner (409 LAST_OWNER).
+         */
+        patch: operations["updateWorkspaceMember"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Pending invites (owner/admin) */
+        get: operations["listWorkspaceInvites"];
+        put?: never;
+        /**
+         * Invite someone by email (owner/admin)
+         * @description Returns the invite token once; deliver the link yourself (no email is sent yet).
+         *     A new invite for the same email replaces the pending one. Expires in 7 days.
+         */
+        post: operations["createWorkspaceInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/invites/{inviteId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inviteId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a pending invite (owner/admin) */
+        delete: operations["revokeWorkspaceInvite"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspace-invites/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept an invite and join its workspace
+         * @description The caller must be a registered account whose email matches the invite
+         *     (403 REGISTRATION_REQUIRED / INVITE_EMAIL_MISMATCH). Invalid, used, revoked or
+         *     expired tokens get 404 INVITE_INVALID. A removed member is re-activated.
+         */
+        post: operations["acceptWorkspaceInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/teams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Teams in a workspace */
+        get: operations["listTeams"];
+        put?: never;
+        /** Create a team (owner/admin) */
+        post: operations["createTeam"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/teams/{teamId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                teamId: components["parameters"]["TeamId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Rename, describe, archive or restore a team (owner/admin) */
+        patch: operations["updateTeam"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/teams/{teamId}/members/{memberId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                teamId: components["parameters"]["TeamId"];
+                /** @description A WorkspaceMember id (not a user id) */
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Add a member to a team, or change their team role (owner/admin or team lead) */
+        put: operations["setTeamMember"];
+        post?: never;
+        /** Remove a member from a team (owner/admin, team lead, or the member themselves) */
+        delete: operations["removeTeamMember"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** The workspace timeline, newest first */
+        get: operations["listWorkspaceActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Audit log of every action, newest first (owner/admin) */
+        get: operations["listWorkspaceActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -897,6 +1158,181 @@ export interface components {
             cursor: string;
             item: components["schemas"]["Item"];
         };
+        /** @enum {string} */
+        WorkspaceRole: "owner" | "admin" | "member";
+        /** @enum {string} */
+        MemberStatus: "active" | "suspended" | "removed";
+        /** @enum {string} */
+        TeamRole: "lead" | "member";
+        Workspace: {
+            id: string;
+            name: string;
+            slug: string;
+            /** @description IANA time zone */
+            timezone: string;
+            /** @description ISO 4217 code */
+            defaultCurrency: string;
+            /** Format: date-time */
+            createdAt: string;
+            role: components["schemas"]["WorkspaceRole"];
+        };
+        WorkspaceResponse: {
+            data: components["schemas"]["Workspace"];
+        };
+        WorkspaceList: {
+            data: components["schemas"]["Workspace"][];
+        };
+        CreateWorkspaceInput: {
+            name: string;
+            slug?: string;
+            timezone?: string;
+            defaultCurrency?: string;
+        };
+        UpdateWorkspaceInput: {
+            name?: string;
+            slug?: string;
+            timezone?: string;
+            defaultCurrency?: string;
+        };
+        WorkspaceMember: {
+            /** @description Member id — what owner/assignee fields reference */
+            id: string;
+            workspaceId: string;
+            user: components["schemas"]["Author"];
+            email: string | null;
+            role: components["schemas"]["WorkspaceRole"];
+            status: components["schemas"]["MemberStatus"];
+            title: string | null;
+            timezone: string | null;
+            /** Format: date-time */
+            joinedAt: string;
+            /** Format: date-time */
+            removedAt: string | null;
+        };
+        WorkspaceMemberResponse: {
+            data: components["schemas"]["WorkspaceMember"];
+        };
+        WorkspaceMemberList: {
+            data: components["schemas"]["WorkspaceMember"][];
+        };
+        UpdateWorkspaceMemberInput: {
+            role?: components["schemas"]["WorkspaceRole"];
+            /**
+             * @description Removal is DELETE
+             * @enum {string}
+             */
+            status?: "active" | "suspended";
+            title?: string | null;
+            timezone?: string | null;
+        };
+        WorkspaceInvite: {
+            id: string;
+            workspaceId: string;
+            email: string;
+            role: components["schemas"]["WorkspaceRole"];
+            /** @description WorkspaceMember id */
+            invitedById: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        WorkspaceInviteList: {
+            data: components["schemas"]["WorkspaceInvite"][];
+        };
+        CreatedWorkspaceInviteResponse: {
+            data: components["schemas"]["WorkspaceInvite"];
+            /** @description Shown once; only its hash is stored. Accept with acceptWorkspaceInvite. */
+            token: string;
+        };
+        CreateWorkspaceInviteInput: {
+            /** Format: email */
+            email: string;
+            /**
+             * @default member
+             * @enum {string}
+             */
+            role: "admin" | "member";
+        };
+        AcceptWorkspaceInviteInput: {
+            token: string;
+        };
+        Team: {
+            id: string;
+            workspaceId: string;
+            name: string;
+            description: string | null;
+            /** Format: date-time */
+            archivedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            members: {
+                memberId: string;
+                role: components["schemas"]["TeamRole"];
+            }[];
+        };
+        TeamResponse: {
+            data: components["schemas"]["Team"];
+        };
+        TeamList: {
+            data: components["schemas"]["Team"][];
+        };
+        CreateTeamInput: {
+            name: string;
+            description?: string;
+        };
+        UpdateTeamInput: {
+            name?: string;
+            description?: string | null;
+            archived?: boolean;
+        };
+        SetTeamMemberInput: {
+            role?: components["schemas"]["TeamRole"];
+        };
+        Activity: {
+            id: string;
+            /** @description Namespaced event, e.g. member.joined, team.created */
+            type: string;
+            /** Format: date-time */
+            occurredAt: string;
+            actorMemberId: string | null;
+            actor: components["schemas"]["Author"] | null;
+            /** @description Display snapshot for this event type (names at the time it happened) */
+            summary: {
+                [key: string]: unknown;
+            };
+        };
+        PaginatedActivity: {
+            data: components["schemas"]["Activity"][];
+            meta: components["schemas"]["PaginatedMeta"];
+        };
+        ActionExecution: {
+            id: string;
+            action: string;
+            /** @enum {string} */
+            status: "pending" | "succeeded" | "failed" | "rejected";
+            /** @enum {string} */
+            actorKind: "member" | "system" | "integration";
+            actorMemberId: string | null;
+            actorUserId: string | null;
+            /** @enum {string} */
+            origin: "ui" | "api" | "import" | "sync" | "system";
+            targetType: string | null;
+            targetId: string | null;
+            input: unknown;
+            /** @description { field: [before, after] }, or null */
+            changes: unknown;
+            result: unknown;
+            errorCode: string | null;
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            finishedAt: string | null;
+        };
+        PaginatedActionExecutions: {
+            data: components["schemas"]["ActionExecution"][];
+            meta: components["schemas"]["PaginatedMeta"];
+        };
     };
     responses: {
         /** @description Invalid input */
@@ -964,6 +1400,12 @@ export interface components {
         UserId: string;
         ItemId: string;
         ReactionTypeParam: components["schemas"]["ReactionType"];
+        WorkspaceId: string;
+        /** @description A WorkspaceMember id (not a user id) */
+        MemberId: string;
+        TeamId: string;
+        /** @description Repeating a succeeded request with the same key returns its result instead of acting twice; reusing a key for a different request is 409 IDEMPOTENCY_KEY_REUSED. */
+        IdempotencyKey: string;
     };
     requestBodies: never;
     headers: never;
@@ -1967,6 +2409,554 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listMyWorkspaces: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Workspaces with the caller's role */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateWorkspaceInput"];
+            };
+        };
+        responses: {
+            /** @description Workspace created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Workspace */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateWorkspaceInput"];
+            };
+        };
+        responses: {
+            /** @description Updated workspace */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listWorkspaceMembers: {
+        parameters: {
+            query?: {
+                includeRemoved?: boolean;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Members, earliest joined first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceMemberList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    removeWorkspaceMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                /** @description A WorkspaceMember id (not a user id) */
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateWorkspaceMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                /** @description A WorkspaceMember id (not a user id) */
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateWorkspaceMemberInput"];
+            };
+        };
+        responses: {
+            /** @description Updated member */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceMemberResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listWorkspaceInvites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pending, unexpired invites */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceInviteList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createWorkspaceInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateWorkspaceInviteInput"];
+            };
+        };
+        responses: {
+            /** @description Invite created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedWorkspaceInviteResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    revokeWorkspaceInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inviteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    acceptWorkspaceInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptWorkspaceInviteInput"];
+            };
+        };
+        responses: {
+            /** @description The joined workspace */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    listTeams: {
+        parameters: {
+            query?: {
+                includeArchived?: boolean;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Teams by name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Repeating a succeeded request with the same key returns its result instead of acting twice; reusing a key for a different request is 409 IDEMPOTENCY_KEY_REUSED. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTeamInput"];
+            };
+        };
+        responses: {
+            /** @description Team created (or the earlier result, for a repeated Idempotency-Key) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateTeam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                teamId: components["parameters"]["TeamId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTeamInput"];
+            };
+        };
+        responses: {
+            /** @description Updated team */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    setTeamMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                teamId: components["parameters"]["TeamId"];
+                /** @description A WorkspaceMember id (not a user id) */
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SetTeamMemberInput"];
+            };
+        };
+        responses: {
+            /** @description Updated team */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    removeTeamMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                teamId: components["parameters"]["TeamId"];
+                /** @description A WorkspaceMember id (not a user id) */
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated team */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listWorkspaceActivity: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor returned by the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated activity */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedActivity"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listWorkspaceActions: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor returned by the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                targetType?: string;
+                targetId?: string;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated action executions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedActionExecutions"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };
