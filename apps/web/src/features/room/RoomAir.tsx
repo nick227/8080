@@ -36,7 +36,7 @@ export function RoomAir({ item, next, onEnded, paused }: { item?: Item; next: It
   }, [item, paused, clip?.url, clip?.type])
 
   return (
-    <div className="room-air" aria-label="Stage">
+    <div className="room-air" aria-label="Share">
       {clip?.type === 'audio' && <audio ref={audioRef} src={clip.url} onEnded={() => ended.current()} onError={() => ended.current()} />}
       {clip?.type === 'video' && <video ref={videoRef} src={clip.url} playsInline onEnded={() => ended.current()} onError={() => ended.current()} />}
       {clip?.type === 'image' && <img className="room-air-still" src={clip.url} alt="" />}

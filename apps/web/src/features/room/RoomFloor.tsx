@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode, type MouseEvent, type KeyboardEvent } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode, type MouseEvent, type KeyboardEvent } from 'react'
 import { useCapture } from '../../state/capture'
 import { useUI } from '../../state/ui'
 import { PersonIcon } from '../../components/icons'
@@ -9,7 +9,6 @@ import { SelfTile } from './SelfTile'
 import { RoomAir } from './RoomAir'
 import { LiveBar } from './LiveBar'
 import { RecordStack } from './RecordStack'
-import { ViewSwitch } from './ViewSwitch'
 import { useRecordSession } from './useRecordSession'
 import type { PresenceActivity } from './PeopleStrip'
 import { tileDensity, VIEW_LABEL, type RoomView, type Seat } from './roomViews'
@@ -25,10 +24,6 @@ function FaceTile({ seat }: { seat: Seat }) {
   )
 }
 
-function messageOnly(item?: Item) {
-  return !!item && !item.media?.some((media) => (media.type === 'video' || media.type === 'audio' || media.type === 'image') && !!media.url)
-}
-
 function Floor({ view, seats, item, next, onEnded, onView, self, bar, stack, paused }: {
   view: RoomView
   seats: Seat[]
@@ -37,27 +32,15 @@ function Floor({ view, seats, item, next, onEnded, onView, self, bar, stack, pau
   onEnded: () => void
   onView: (view: RoomView) => void
   self: () => ReactNode
-  bar: (viewSwitch: ReactNode) => ReactNode
+  bar: ReactNode
   stack?: ReactNode
   paused?: boolean
 }) {
   const [selected, setSelected] = useState<string | null>(null)
   const count = Math.max(seats.length, 1)
   const columns = Math.min(3, count)
-  const targets = [...seats.map((seat) => ({ id: `person:${seat.id}`, name: seat.self ? 'You' : seat.name })), { id: 'stage', name: 'Stage' }]
-  const active = targets.find((target) => target.id === selected) ?? targets[0]
+  const activeId = selected ?? (seats[0] ? `person:${seats[0].id}` : '')
   const fullScreen = view === 'screen'
-  const stageFocused = fullScreen && active.id === 'stage'
-  const nextTarget = fullScreen ? targets[targets.findIndex((target) => target.id === active.id) + 1] : targets[0]
-  const cycleView = () => {
-    if (nextTarget) {
-      setSelected(nextTarget.id)
-      onView('screen')
-    } else {
-      setSelected(null)
-      onView('grid')
-    }
-  }
   const tileInteraction = (id: string, name: string) => {
     if (fullScreen) return {}
     const focus = (event: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) => {
@@ -75,22 +58,28 @@ function Floor({ view, seats, item, next, onEnded, onView, self, bar, stack, pau
     }
   }
 
+  useEffect(() => {
+    if (!item || seats.some((seat) => seat.id === item.author.id)) return
+    onEnded()
+  }, [item, seats, onEnded])
+
   const castStyle = { '--columns': columns, '--rows': Math.ceil(count / columns) } as CSSProperties
 
   return (
-    <section className="room-live" data-layout={view} data-density={tileDensity(seats.length)} data-stage={stageFocused || undefined} data-playing={item ? '' : undefined} data-broadcast={messageOnly(item) ? 'message' : undefined} aria-label={VIEW_LABEL[view]}>
-      <div className="room-cast" style={castStyle} hidden={stageFocused}>
+    <section className="room-live" data-layout={view} data-density={tileDensity(seats.length)} data-playing={item ? '' : undefined} aria-label={VIEW_LABEL[view]}>
+      <div className="room-cast" style={castStyle}>
         {seats.map((seat) => (
-          <div className="room-tile" key={seat.id} {...tileInteraction(`person:${seat.id}`, seat.self ? 'You' : seat.name)} hidden={fullScreen && active.id !== `person:${seat.id}`}>
+          <div className="room-tile" key={seat.id} {...tileInteraction(`person:${seat.id}`, seat.self ? 'You' : seat.name)} hidden={fullScreen && activeId !== `person:${seat.id}`}>
             {seat.self ? self() : <FaceTile seat={seat} />}
+            {item?.author.id === seat.id && (
+              <div className="room-tile-air">
+                <RoomAir item={item} next={next} onEnded={onEnded} paused={paused} />
+              </div>
+            )}
           </div>
         ))}
       </div>
-      <div className="room-floor-stage" {...tileInteraction('stage', 'Stage')} hidden={fullScreen && !stageFocused}>
-        <RoomAir item={item} next={next} onEnded={onEnded} paused={paused} />
-        {!item && <p className="room-stage-empty">The stage is clear</p>}
-      </div>
-      {bar(<ViewSwitch value={view} onCycle={cycleView} nextLabel={nextTarget ? `Full screen: ${nextTarget.name}` : 'Grid'} />)}
+      {bar}
       {stack}
     </section>
   )
@@ -117,7 +106,7 @@ export function RoomFloor({ view, seats, item, next, onEnded, onSend, onActivity
           const me = seats.find((seat) => seat.self)
           return me ? <FaceTile seat={me} /> : null
         }}
-        bar={(viewSwitch) => <div className="room-bar"><PostControl onPost={onPost} />{viewSwitch}</div>}
+        bar={<div className="room-bar"><PostControl onPost={onPost} /></div>}
       />
     )
   }
@@ -160,7 +149,7 @@ function ArmedFloor({ view, seats, item, next, onEnded, onSend, onActivity, onVi
         const me = seats.find((seat) => seat.self)
         return me ? <SelfTile seat={me} armed={armed} session={session} /> : null
       }}
-      bar={(viewSwitch) => <LiveBar session={session} armed={armed} setArmed={setArmed} onPost={onPost} viewSwitch={viewSwitch} />}
+      bar={<LiveBar session={session} armed={armed} setArmed={setArmed} onPost={onPost} />}
       stack={armed ? (
         <RecordStack
           session={session}

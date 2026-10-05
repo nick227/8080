@@ -2,11 +2,9 @@ import type { RoomPerson } from './PeopleStrip'
 
 export type RoomView = 'screen' | 'grid'
 
-export const ROOM_VIEWS: RoomView[] = ['grid', 'screen']
-
 export const VIEW_LABEL: Record<RoomView, string> = {
   screen: 'Full screen',
-  grid: 'Grid',
+  grid: 'Team',
 }
 
 const KEY = 'vc-room-view'
@@ -26,11 +24,6 @@ export function saveRoomView(view: RoomView) {
   } catch {
     // The choice still applies for this visit.
   }
-}
-
-export function nextView(view: RoomView): RoomView {
-  const index = ROOM_VIEWS.indexOf(view)
-  return ROOM_VIEWS[(index + 1) % ROOM_VIEWS.length]
 }
 
 export type TileDensity = 'few' | 'some' | 'many' | 'crowd'

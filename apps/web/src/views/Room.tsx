@@ -16,6 +16,9 @@ import type { Item, SendInput } from '../api/types'
 import { roomPeopleFrom, type PresenceActivity } from '../features/room/PeopleStrip'
 import { ChatShell } from '../features/room/ChatShell'
 import { RoomFloor } from '../features/room/RoomFloor'
+import { WorkNav } from '../features/work/WorkNav'
+import { WorkPage } from '../features/work/WorkPage'
+import type { WorkSection } from '../features/work/sections'
 import { loadRoomView, saveRoomView, seatsFrom, type RoomView } from '../features/room/roomViews'
 import { ChatStream, stillsFrom, type StreamRow } from '../features/room/ChatStream'
 import { ChatBox } from '../features/room/ChatBox'
@@ -46,6 +49,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const updateRoom = useUpdateRoom(roomId ?? '')
   const { pending, post, meId, meName, meAvatar, meGuest } = useRoomPost(roomId)
   const [view, setView] = useState<RoomView>(loadRoomView)
+  const [section, setSection] = useState<WorkSection>('team')
   const [queue, setQueue] = useState<Item[]>([])
   const knownIds = useRef<Set<string> | null>(null)
   const newestSeen = useRef(0)
@@ -57,6 +61,10 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const chooseView = (next: RoomView) => {
     setView(next)
     saveRoomView(next)
+  }
+  const openSection = (next: WorkSection) => {
+    setSection(next)
+    if (next === 'team') chooseView('grid')
   }
   const removeItem = useDeleteItem()
 
@@ -217,18 +225,25 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       <ChatShell
         view={view}
         stage={(
-          <RoomFloor
-            view={view}
-            seats={seatsFrom(people, meId, meGuest)}
-            item={queue[0]}
-            next={queue.slice(1)}
-            onEnded={() => setQueue((current) => current.slice(1))}
-            onSend={send}
-            onActivity={onActivity}
-            onView={chooseView}
-            onPost={openPost}
-            deskOpen={showDesk}
-          />
+          <div className="work-column">
+            <WorkNav section={section} teamActive={section === 'team' && view === 'grid'} onSelect={openSection} />
+            {section === 'team' ? (
+              <RoomFloor
+                view={view}
+                seats={seatsFrom(people, meId, meGuest)}
+                item={queue[0]}
+                next={queue.slice(1)}
+                onEnded={() => setQueue((current) => current.slice(1))}
+                onSend={send}
+                onActivity={onActivity}
+                onView={chooseView}
+                onPost={openPost}
+                deskOpen={showDesk}
+              />
+            ) : (
+              <WorkPage section={section} />
+            )}
+          </div>
         )}
         composer={<>
           {roomId && <RoomPeople roomId={roomId} meId={meId} owner={data?.role === 'owner'} />}
