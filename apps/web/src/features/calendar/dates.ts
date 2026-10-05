@@ -61,6 +61,24 @@ export function sameMonth(a: string, b: string): boolean {
   return a.slice(0, 7) === b.slice(0, 7)
 }
 
+export const NOON = '12:00'
+
+export function hourLabel(time: string): string {
+  const [rawHour, rawMinute] = time.split(':')
+  const hour = Number(rawHour)
+  const minute = Number(rawMinute)
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return time
+  const suffix = hour >= 12 ? 'PM' : 'AM'
+  const clock = hour % 12 || 12
+  const mins = Number.isInteger(minute) ? String(minute).padStart(2, '0') : '00'
+  return `${clock}:${mins} ${suffix}`
+}
+
+export const HOURS = Array.from({ length: 24 }, (_, hour) => {
+  const value = `${String(hour).padStart(2, '0')}:00`
+  return { value, label: hourLabel(value) }
+})
+
 export function cleanTime(value: string): string | null {
   const match = value.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i)
   if (!match) return null

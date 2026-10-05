@@ -1,21 +1,14 @@
 import { useState } from 'react'
-import { cleanTime } from './dates'
+import { HOURS } from './dates'
 
 export function AddTask({ onAdd }: { onAdd: (title: string, time: string | null) => void }) {
   const [title, setTitle] = useState('')
   const [time, setTime] = useState('')
-  const [timeError, setTimeError] = useState(false)
 
   const submit = () => {
     const next = title.trim()
     if (!next) return
-    const parsed = time.trim() ? cleanTime(time) : null
-    if (time.trim() && !parsed) {
-      setTimeError(true)
-      return
-    }
-    setTimeError(false)
-    onAdd(next, parsed)
+    onAdd(next, time || null)
     setTitle('')
     setTime('')
   }
@@ -29,17 +22,11 @@ export function AddTask({ onAdd }: { onAdd: (title: string, time: string | null)
         aria-label="Add a task"
         autoComplete="off"
       />
-      <input
-        className="cal-time"
-        value={time}
-        onChange={(event) => { setTime(event.target.value); setTimeError(false) }}
-        placeholder="Time"
-        aria-label="Time"
-        aria-invalid={timeError || undefined}
-        autoComplete="off"
-      />
+      <select className="cal-time" value={time} aria-label="Time" onChange={(event) => setTime(event.target.value)}>
+        <option value="">Anytime</option>
+        {HOURS.map((hour) => <option key={hour.value} value={hour.value}>{hour.label}</option>)}
+      </select>
       <button type="submit" className="cal-btn" data-primary="" disabled={!title.trim()}>Add</button>
-      {timeError && <p className="cal-warn">Use a time like 14:00 or 2pm.</p>}
     </form>
   )
 }
