@@ -1267,6 +1267,513 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        /** listDocuments */
+        get: operations["listDocuments"];
+        put?: never;
+        /** createDocument */
+        post: operations["createDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/documents/import-csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * importDocumentCsv
+         * @description UTF-8 comma-separated text, header required. Preserves strings; rejects malformed widths/quotes. Maximum 500 KB, 100 columns, 5000 data rows, 20000 cells. Creates an independent native grid; never imports CRM contacts.
+         */
+        post: operations["importDocumentCsv"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/documents/{documentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        /** getDocument */
+        get: operations["getDocument"];
+        put?: never;
+        post?: never;
+        /** deleteDocument */
+        delete: operations["deleteDocument"];
+        options?: never;
+        head?: never;
+        /** updateDocument */
+        patch: operations["updateDocument"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/documents/{documentId}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** restoreDocument */
+        post: operations["restoreDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/documents/{documentId}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        /** listDocumentGrants */
+        get: operations["listDocumentGrants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/documents/{documentId}/grants/{memberId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+                memberId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** setDocumentGrant */
+        put: operations["setDocumentGrant"];
+        post?: never;
+        /** removeDocumentGrant */
+        delete: operations["removeDocumentGrant"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/documents/{documentId}/rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * listDocumentRooms
+         * @description At most 100 authorized room links. Hidden rooms are omitted.
+         */
+        get: operations["listDocumentRooms"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/documents/{documentId}/rooms/{roomId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+                roomId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** linkDocumentRoom */
+        put: operations["linkDocumentRoom"];
+        post?: never;
+        /** unlinkDocumentRoom */
+        delete: operations["unlinkDocumentRoom"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/documents/{documentId}/related": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * listRelatedDocuments
+         * @description At most 100 visible relationships. Backlinks use the same undirected pair; both endpoints must be readable.
+         */
+        get: operations["listRelatedDocuments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/documents/{documentId}/related/{relatedDocumentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+                relatedDocumentId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** relateDocuments */
+        put: operations["relateDocuments"];
+        post?: never;
+        /** unrelateDocuments */
+        delete: operations["unrelateDocuments"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/documents/{documentId}/materialization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        /** getDocumentMaterialization */
+        get: operations["getDocumentMaterialization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/documents/{documentId}/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** queryDocumentDataset */
+        post: operations["queryDocumentDataset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/documents/{documentId}/rows/{contactId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+                contactId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * updateDocumentDatasetRow
+         * @description Requires document edit and canonical contact write permissions. View filters are not access restrictions. Uses canonical ContactService with optimistic version and idempotency.
+         */
+        patch: operations["updateDocumentDatasetRow"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/document-datasets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        /** listDocumentDatasets */
+        get: operations["listDocumentDatasets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/document-datasets/contacts/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * queryContactsDataset
+         * @description Current authorized contacts; dates are explicit offset-bearing instants with [from,to) semantics. Each page has its own consistent read; refetch after concurrent changes. No historical as-of reconstruction.
+         */
+        post: operations["queryContactsDataset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/document-datasets/contacts/rows/{contactId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                contactId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** updateContactsDatasetRow */
+        patch: operations["updateContactsDatasetRow"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/document-datasets/contacts/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * exportContactsDataset
+         * @description Consistent bounded capture of all matching rows, up to 5000. Returns CSV plus provenance manifest; formula-like text is escaped. No silent truncation.
+         */
+        post: operations["exportContactsDataset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/document-datasets/contacts/review-copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * createContactsReviewCopy
+         * @description Retry-safe independent native grid copy. Retains source access requirements and never grants canonical contact writeback.
+         */
+        post: operations["createContactsReviewCopy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/contact-imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Recent contact imports (newest first, up to 50) */
+        get: operations["listContactImports"];
+        put?: never;
+        /**
+         * Preview importing a table as contacts
+         * @description The explicit canonical import (an ordinary spreadsheet import never creates contacts). Source: pasted CSV,
+         *     or a spreadsheet document with imported rows. Without `mapping`, columns are mapped from their headers;
+         *     the preview proposes create / match / review / duplicate / invalid per row through the one matcher. Nothing
+         *     is written to contacts until commit. `previousImportId` warns when the same table was already imported.
+         */
+        post: operations["createContactImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/contact-imports/{importId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+            };
+            cookie?: never;
+        };
+        /** Get a contact import */
+        get: operations["getContactImport"];
+        put?: never;
+        post?: never;
+        /** Cancel a previewed import (its row values are dropped) */
+        delete: operations["cancelContactImport"];
+        options?: never;
+        head?: never;
+        /**
+         * Change the mapping or options and re-run the preview
+         * @description Only while previewed. Row decisions start over.
+         */
+        patch: operations["updateContactImport"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/contact-imports/{importId}/rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+            };
+            cookie?: never;
+        };
+        /** Preview / outcome rows, in source order */
+        get: operations["listContactImportRows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/contact-imports/{importId}/rows/{rowId}/resolution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+                rowId: components["parameters"]["ImportRowId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Decide one row (create a contact, use an existing one, or skip it)
+         * @description Rows proposed for review must be decided before commit. Repeated rows follow the row they repeat;
+         *     invalid rows can only be skipped.
+         */
+        put: operations["resolveContactImportRow"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/contact-imports/{importId}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply the reviewed import
+         * @description Creates contacts for create rows (re-checked against the matcher), links matched rows without changing those
+         *     contacts, skips the rest. Idempotent and resumable: a completed import returns as is; an interrupted one
+         *     continues. `createView` adds a live Contacts document filtered to this import (409 IMPORT_NEEDS_REVIEW while
+         *     rows await a decision).
+         */
+        post: operations["commitContactImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1818,6 +2325,7 @@ export interface components {
             endedAt: string | null;
         };
         Contact: {
+            version: number;
             id: string;
             workspaceId: string;
             firstName: string | null;
@@ -1881,6 +2389,8 @@ export interface components {
             externalId?: string | null;
         };
         UpdateContactInput: {
+            expectedVersion?: number;
+            idempotencyKey?: string;
             firstName?: string | null;
             lastName?: string | null;
             /** @description null re-derives it from the name or primary email/phone */
@@ -2068,6 +2578,422 @@ export interface components {
             roomId?: string;
             itemId?: string;
         };
+        ContactsDatasetQuery: {
+            columns: ("id" | "firstName" | "lastName" | "displayName" | "title" | "primaryEmail" | "primaryPhone" | "status" | "createdAt" | "updatedAt")[];
+            filters?: {
+                q?: string;
+                /** @enum {string} */
+                status?: "active" | "archived";
+                ownerMemberId?: string;
+                /** @description Contacts created by one canonical import (its live result view) */
+                importBatchId?: string;
+                date?: {
+                    /** @enum {string} */
+                    field: "createdAt" | "updatedAt";
+                    /** Format: date-time */
+                    from: string;
+                    /** Format: date-time */
+                    to: string;
+                };
+            };
+            sort?: {
+                /** @enum {string} */
+                field: "id" | "displayName" | "createdAt" | "updatedAt";
+                /** @enum {string} */
+                direction: "asc" | "desc";
+            };
+        };
+        NativeDocumentSource: {
+            /** @enum {string} */
+            kind: "native";
+            /** @enum {integer} */
+            schemaVersion: 1;
+        };
+        DatasetDocumentSource: {
+            /** @enum {string} */
+            kind: "dataset";
+            /** @enum {string} */
+            datasetKey: "contacts";
+            /** @enum {integer} */
+            datasetVersion: 1;
+            query: components["schemas"]["ContactsDatasetQuery"];
+        };
+        ExternalDocumentSource: {
+            /** @enum {string} */
+            kind: "external";
+            /** @enum {string} */
+            provider: "google_docs" | "google_sheets";
+            /** Format: uri */
+            url: string;
+        };
+        /** @description Stable surface/source union. Source kind and surface cannot be changed in place. Capabilities describe currently available authorized operations; they are not a substitute for server policy. */
+        DocumentDescriptor: {
+            /** @enum {string} */
+            surface: "blocks" | "mental_map" | "grid";
+            source: components["schemas"]["NativeDocumentSource"];
+        } | {
+            /** @enum {string} */
+            surface: "grid";
+            source: components["schemas"]["DatasetDocumentSource"];
+        } | {
+            /** @enum {string} */
+            surface: "external";
+            source: components["schemas"]["ExternalDocumentSource"];
+        };
+        DocumentCapabilities: {
+            editMetadata: boolean;
+            manageAccess: boolean;
+            delete: boolean;
+            restore: boolean;
+            editContent: boolean;
+            showNativePresence: boolean;
+            queryDataset: boolean;
+            editRecords: boolean;
+            openExternal: boolean;
+            readMaterialization: boolean;
+            exportData: boolean;
+        };
+        Document: {
+            id: string;
+            workspaceId: string;
+            ownerMemberId: string;
+            title: string;
+            version: number;
+            descriptor: components["schemas"]["DocumentDescriptor"];
+            capabilities: components["schemas"]["DocumentCapabilities"];
+            /** @description Google file id of an external link (list with ?externalFileId= to warn about duplicate links; entries and their access are never merged) */
+            externalFileId: string | null;
+            provenance: {
+                [key: string]: unknown;
+            } | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: date-time */
+            deletedAt: string | null;
+        };
+        CreateDocumentInput: {
+            title: string;
+            descriptor: components["schemas"]["DocumentDescriptor"];
+            idempotencyKey: string;
+        };
+        UpdateDocumentInput: {
+            expectedVersion: number;
+            title?: string;
+            descriptor?: components["schemas"]["DocumentDescriptor"];
+        };
+        DocumentVersionInput: {
+            expectedVersion: number;
+        };
+        DocumentGrant: {
+            id: string;
+            workspaceId: string;
+            documentId: string;
+            memberId: string;
+            /** @enum {string} */
+            role: "viewer" | "editor";
+            /** Format: date-time */
+            createdAt: string;
+        };
+        SetDocumentGrantInput: {
+            /** @enum {string} */
+            role: "viewer" | "editor";
+        };
+        DocumentRoomLink: {
+            id: string;
+            workspaceId: string;
+            documentId: string;
+            roomId: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        DocumentRelation: {
+            id: string;
+            document: components["schemas"]["Document"];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        GridTable: {
+            columns: {
+                id: string;
+                label: string;
+                /** @enum {string} */
+                type: "text";
+            }[];
+            rows: {
+                id: string;
+                cells: {
+                    [key: string]: string | null;
+                };
+            }[];
+        };
+        DocumentMaterialization: {
+            table: components["schemas"]["GridTable"];
+            provenance: {
+                [key: string]: unknown;
+            } | null;
+        };
+        ImportDocumentCsvInput: {
+            title: string;
+            filename: string;
+            csv: string;
+            idempotencyKey: string;
+        };
+        DatasetDefinition: {
+            /** @enum {string} */
+            key: "contacts";
+            version: number;
+            label: string;
+            /** @enum {string} */
+            mode: "live";
+            /** @enum {string} */
+            rowKey: "id";
+            columns: {
+                /** @enum {string} */
+                key: "id" | "firstName" | "lastName" | "displayName" | "title" | "primaryEmail" | "primaryPhone" | "status" | "createdAt" | "updatedAt";
+                label: string;
+                /** @enum {string} */
+                type: "text" | "datetime";
+                nullable: boolean;
+                writable: boolean;
+            }[];
+            dateFields: ("createdAt" | "updatedAt")[];
+            sortFields: ("id" | "displayName" | "createdAt" | "updatedAt")[];
+            /** @enum {string} */
+            refresh: "on_request";
+            /** @enum {string} */
+            consistency: "request_snapshot";
+            maxPageSize: number;
+            maxMaterializedRows: number;
+            description: string;
+        };
+        ContactsDatasetRow: {
+            id: string;
+            version: number;
+            cells: {
+                [key: string]: string | null;
+            };
+        };
+        DatasetQueryInput: {
+            query: components["schemas"]["ContactsDatasetQuery"];
+            cursor?: string;
+            limit?: number;
+        };
+        DocumentDatasetQueryInput: {
+            cursor?: string;
+            limit?: number;
+        };
+        DatasetWriteInput: {
+            expectedVersion: number;
+            idempotencyKey: string;
+            changes: {
+                firstName?: string | null;
+                lastName?: string | null;
+                displayName?: string | null;
+                title?: string | null;
+            };
+        };
+        DatasetManifest: {
+            /** @enum {string} */
+            datasetKey: "contacts";
+            /** @enum {integer} */
+            datasetVersion: 1;
+            query: components["schemas"]["ContactsDatasetQuery"];
+            /** Format: date-time */
+            capturedAt: string;
+            timezone: string;
+            rowCount: number;
+            complete: boolean;
+        };
+        DatasetQueryResponse: {
+            data: components["schemas"]["ContactsDatasetRow"][];
+            meta: {
+                total: number;
+                nextCursor: string | null;
+                /** Format: date-time */
+                capturedAt: string;
+                /** @enum {string} */
+                consistency: "request_snapshot";
+            };
+            manifest: components["schemas"]["DatasetManifest"];
+        };
+        DatasetExportInput: {
+            query: components["schemas"]["ContactsDatasetQuery"];
+        };
+        DatasetExport: {
+            csv: string;
+            manifest: components["schemas"]["DatasetManifest"];
+        };
+        CreateContactsReviewInput: {
+            title: string;
+            query: components["schemas"]["ContactsDatasetQuery"];
+            idempotencyKey: string;
+        };
+        DocumentResponse: {
+            data: components["schemas"]["Document"];
+        };
+        DocumentMaterializationResponse: {
+            data: components["schemas"]["DocumentMaterialization"];
+        };
+        DatasetExportResponse: {
+            data: components["schemas"]["DatasetExport"];
+        };
+        DocumentGrantList: {
+            data: components["schemas"]["DocumentGrant"][];
+        };
+        DocumentRoomLinkList: {
+            data: components["schemas"]["DocumentRoomLink"][];
+        };
+        DocumentRelationList: {
+            data: components["schemas"]["DocumentRelation"][];
+        };
+        DatasetDefinitionList: {
+            data: components["schemas"]["DatasetDefinition"][];
+        };
+        DocumentList: {
+            data: components["schemas"]["Document"][];
+            meta: {
+                nextCursor: string | null;
+            };
+        };
+        DocumentEmptyResponse: {
+            data: null;
+        };
+        /**
+         * @description accountName links (or creates) the account with exactly that name; externalId needs options.externalProvider
+         * @enum {string}
+         */
+        ImportField: "firstName" | "lastName" | "displayName" | "title" | "email" | "phone" | "accountName" | "externalId";
+        /** @enum {string} */
+        ImportProposal: "create" | "match" | "review" | "duplicate" | "invalid";
+        /** @enum {string} */
+        ImportOutcome: "created" | "matched" | "skipped";
+        /** @description Column id → contact field; each field at most once */
+        ContactImportMapping: {
+            [key: string]: components["schemas"]["ImportField"];
+        };
+        ContactImportOptions: {
+            /** @description Owner of the contacts this import creates */
+            ownerMemberId?: string | null;
+            tagIds?: string[];
+            /** @description Where externalId values come from (e.g. hubspot); matches by (provider, id) first */
+            externalProvider?: string | null;
+        };
+        CreateContactImportInput: {
+            source: {
+                /** @enum {string} */
+                kind: "csv";
+                csv: string;
+                filename: string;
+            } | {
+                /** @enum {string} */
+                kind: "document";
+                documentId: string;
+            };
+            mapping?: components["schemas"]["ContactImportMapping"];
+            options?: components["schemas"]["ContactImportOptions"];
+        };
+        UpdateContactImportInput: {
+            mapping?: components["schemas"]["ContactImportMapping"];
+            options?: components["schemas"]["ContactImportOptions"];
+        };
+        ResolveContactImportRowInput: {
+            /** @enum {string} */
+            action: "create" | "use" | "skip";
+            /** @description Required with use */
+            contactId?: string;
+        };
+        CommitContactImportInput: {
+            /** @description Also create a live Contacts document showing what this import created */
+            createView?: boolean;
+            viewTitle?: string;
+        };
+        ContactImportCounts: {
+            create?: number;
+            match?: number;
+            review?: number;
+            duplicate?: number;
+            invalid?: number;
+            /** @description Review rows still waiting for a decision */
+            unresolved?: number;
+            created?: number;
+            matched?: number;
+            skipped?: number;
+        };
+        ContactImport: {
+            id: string;
+            workspaceId: string;
+            /** @enum {string} */
+            kind: "contacts";
+            /** @enum {string} */
+            status: "previewed" | "committing" | "completed" | "cancelled";
+            source: {
+                /** @enum {string} */
+                kind: "csv" | "document";
+                documentId: string | null;
+                filename: string | null;
+            };
+            columns: {
+                id: string;
+                label: string;
+            }[];
+            mapping: components["schemas"]["ContactImportMapping"];
+            options: {
+                [key: string]: unknown;
+            };
+            totalRows: number;
+            counts: components["schemas"]["ContactImportCounts"];
+            /** @description A completed import of the same table, if any */
+            previousImportId: string | null;
+            /** @description The live Contacts view created at commit */
+            resultDocumentId: string | null;
+            createdById: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            committedAt: string | null;
+            /** Format: date-time */
+            finishedAt: string | null;
+            /**
+             * Format: date-time
+             * @description Row values were dropped (retention); outcomes remain
+             */
+            rowsPrunedAt: string | null;
+        };
+        ContactImportResponse: {
+            data: components["schemas"]["ContactImport"];
+        };
+        ContactImportList: {
+            data: components["schemas"]["ContactImport"][];
+        };
+        ContactImportRow: {
+            id: string;
+            /** @description 1-based data row in the source */
+            rowNumber: number;
+            sourceRowId: string | null;
+            /** @description Mapped field values; null once pruned */
+            values: {
+                [key: string]: string;
+            } | null;
+            proposal: components["schemas"]["ImportProposal"];
+            /** @description INVALID_EMAIL, EMPTY_CONTACT, AMBIGUOUS_EMAIL, SHARED_ADDRESS */
+            errorCode: string | null;
+            candidates: components["schemas"]["ContactRef"][];
+            proposedContactId: string | null;
+            duplicateOfRow: number | null;
+            /** @enum {string|null} */
+            resolution: "create" | "use" | "skip" | null;
+            resolvedContactId: string | null;
+            outcome: components["schemas"]["ImportOutcome"] | null;
+            /** @description e.g. MATCHED_AT_COMMIT, DUPLICATE_ROW, CONTACT_GONE, ACCOUNT_AMBIGUOUS */
+            outcomeNote: string | null;
+            contact: components["schemas"]["ContactRef"] | null;
+        };
+        PaginatedContactImportRows: {
+            data: components["schemas"]["ContactImportRow"][];
+            meta: components["schemas"]["PaginatedMeta"];
+        };
     };
     responses: {
         /** @description Invalid input */
@@ -2146,6 +3072,8 @@ export interface components {
         LinkId: string;
         /** @description Repeating a succeeded request with the same key returns its result instead of acting twice; reusing a key for a different request is 409 IDEMPOTENCY_KEY_REUSED. */
         IdempotencyKey: string;
+        ImportId: string;
+        ImportRowId: string;
     };
     requestBodies: never;
     headers: never;
@@ -4609,6 +5537,972 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listDocuments: {
+        parameters: {
+            query?: {
+                q?: string;
+                surface?: "blocks" | "mental_map" | "grid" | "external";
+                deleted?: boolean;
+                externalFileId?: string;
+                roomId?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    createDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDocumentInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    importDocumentCsv: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportDocumentCsvInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentVersionInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDocumentInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    restoreDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentVersionInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listDocumentGrants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentGrantList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    setDocumentGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+                memberId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetDocumentGrantInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentEmptyResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    removeDocumentGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+                memberId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentEmptyResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listDocumentRooms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentRoomLinkList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    linkDocumentRoom: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+                roomId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentEmptyResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    unlinkDocumentRoom: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+                roomId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentEmptyResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listRelatedDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentRelationList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    relateDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+                relatedDocumentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentEmptyResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    unrelateDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+                relatedDocumentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentEmptyResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getDocumentMaterialization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentMaterializationResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    queryDocumentDataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentDatasetQueryInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetQueryResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateDocumentDatasetRow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                documentId: string;
+                contactId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetWriteInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listDocumentDatasets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetDefinitionList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    queryContactsDataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetQueryInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetQueryResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateContactsDatasetRow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                contactId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetWriteInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    exportContactsDataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetExportInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetExportResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    createContactsReviewCopy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateContactsReviewInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listContactImports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactImportList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createContactImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateContactImportInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactImportResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getContactImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactImportResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    cancelContactImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactImportResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateContactImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateContactImportInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactImportResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listContactImportRows: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor returned by the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                proposal?: components["schemas"]["ImportProposal"];
+                outcome?: components["schemas"]["ImportOutcome"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedContactImportRows"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    resolveContactImportRow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+                rowId: components["parameters"]["ImportRowId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveContactImportRowInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactImportResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    commitContactImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CommitContactImportInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactImportResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
 }

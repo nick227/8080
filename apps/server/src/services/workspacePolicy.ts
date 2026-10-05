@@ -7,6 +7,12 @@ import { db, type Workspace, type WorkspaceMember, type WorkspaceRole } from '@p
 import { forbidden, httpError, notFound } from '../lib/errors'
 
 export type WorkspaceVerb =
+  | 'document.create'
+  | 'document.read'
+  | 'document.edit'
+  | 'document.manage'
+  | 'dataset.read'
+  | 'dataset.export'
   | 'workspace.read'
   | 'workspace.update'
   | 'workspace.delete'
@@ -24,6 +30,7 @@ export type WorkspaceVerb =
   | 'record.read'
   | 'record.write'
   | 'record.delete'
+  | 'record.import'
   | 'note.write'
   | 'note.delete'
   | 'link.write'
@@ -35,6 +42,12 @@ const ADMINS: readonly WorkspaceRole[] = ['owner', 'admin']
 const EVERYONE: readonly WorkspaceRole[] = ['owner', 'admin', 'member']
 
 const ROLES: Record<WorkspaceVerb, readonly WorkspaceRole[]> = {
+  'document.create': EVERYONE,
+  'document.read': EVERYONE,
+  'document.edit': EVERYONE,
+  'document.manage': EVERYONE,
+  'dataset.read': EVERYONE,
+  'dataset.export': EVERYONE,
   'workspace.read': EVERYONE,
   'workspace.update': ADMINS,
   'workspace.delete': OWNERS,
@@ -49,6 +62,8 @@ const ROLES: Record<WorkspaceVerb, readonly WorkspaceRole[]> = {
   'record.read': EVERYONE,
   'record.write': EVERYONE,
   'record.delete': ADMINS, // + the record's owner (below)
+  // Bulk canonical import; broad in V1 like record.write, its own verb so it can tighten.
+  'record.import': EVERYONE,
   'note.write': EVERYONE,
   'note.delete': ADMINS, // + the note's author (below)
   'link.write': EVERYONE,
@@ -63,11 +78,18 @@ export type PolicyTarget =
   | { kind: 'team'; leadMemberIds: readonly string[] }
   | { kind: 'record'; ownerMemberId: string | null }
   | { kind: 'note'; authorMemberId: string }
+  | { kind: 'document'; ownerMemberId: string; grants: { memberId: string; role: 'viewer' | 'editor' }[] }
 
 export type Actor = { member: WorkspaceMember; workspace: Workspace }
 
 export function can(member: Pick<WorkspaceMember, 'id' | 'role' | 'status'>, verb: WorkspaceVerb, target?: PolicyTarget): boolean {
   if (member.status !== 'active') return false
+  if (verb === 'document.read' || verb === 'document.edit' || verb === 'document.manage') {
+    if (target?.kind !== 'document') return false
+    if (member.role === 'owner' || member.role === 'admin' || target.ownerMemberId === member.id) return true
+    const grant = target.grants.find(g => g.memberId === member.id)
+    return verb === 'document.read' ? !!grant : verb === 'document.edit' ? grant?.role === 'editor' : false
+  }
   if (verb === 'team.members.manage' && target?.kind === 'team' && target.leadMemberIds.includes(member.id)) return true
   if (verb === 'record.delete' && target?.kind === 'record' && target.ownerMemberId === member.id) return true
   if (verb === 'note.delete' && target?.kind === 'note' && target.authorMemberId === member.id) return true
@@ -101,3 +123,8 @@ export function permit(actor: Actor, verb: WorkspaceVerb, target?: PolicyTarget)
 }
 
 // SQL visibility and per-object checks live together to prevent list/detail drift.
+export function documentVisibility(actor: Actor) {
+  return actor.member.role === 'owner' || actor.member.role === 'admin' ? {} : {
+    OR: [{ ownerMemberId: actor.member.id }, { grants: { some: { memberId: actor.member.id } } }],
+  }
+}

@@ -157,7 +157,7 @@ function priorExecution(req: ActionRequest) {
 
 async function replayed<T>(req: ActionRequest, previous: ActionExecution, replay?: (previous: ActionExecution) => Promise<T>) {
   const sameInput = JSON.stringify(previous.input) === JSON.stringify(json(req.input))
-  if (previous.action !== req.action || !sameInput) {
+  if (previous.actorUserId !== (req.actor.kind === 'member' ? req.actor.userId : null) || previous.targetId !== (req.target?.id ?? previous.targetId) || previous.action !== req.action || !sameInput) {
     throw conflict('This idempotency key was already used for a different request', 'IDEMPOTENCY_KEY_REUSED')
   }
   if (!replay) throw conflict('This request was already processed', 'ALREADY_PROCESSED')

@@ -1879,6 +1879,1117 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /workspaces/{workspaceId}/documents:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    get:
+      operationId: listDocuments
+      summary: listDocuments
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - in: query
+        name: q
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 200
+      - in: query
+        name: surface
+        schema:
+          type: string
+          enum:
+          - blocks
+          - mental_map
+          - grid
+          - external
+      - in: query
+        name: deleted
+        schema:
+          type: boolean
+      - in: query
+        name: externalFileId
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      - in: query
+        name: roomId
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 64
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+    post:
+      operationId: createDocument
+      summary: createDocument
+      tags:
+      - documents
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDocumentInput'
+  /workspaces/{workspaceId}/documents/import-csv:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    post:
+      operationId: importDocumentCsv
+      summary: importDocumentCsv
+      tags:
+      - documents
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportDocumentCsvInput'
+      description: UTF-8 comma-separated text, header required. Preserves strings; rejects
+        malformed widths/quotes. Maximum 500 KB, 100 columns, 5000 data rows, 20000
+        cells. Creates an independent native grid; never imports CRM contacts.
+  /workspaces/{workspaceId}/documents/{documentId}:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    - in: path
+      name: documentId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    get:
+      operationId: getDocument
+      summary: getDocument
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    patch:
+      operationId: updateDocument
+      summary: updateDocument
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDocumentInput'
+    delete:
+      operationId: deleteDocument
+      summary: deleteDocument
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentVersionInput'
+  /workspaces/{workspaceId}/documents/{documentId}/restore:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    - in: path
+      name: documentId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    post:
+      operationId: restoreDocument
+      summary: restoreDocument
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentVersionInput'
+  /workspaces/{workspaceId}/documents/{documentId}/grants:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    - in: path
+      name: documentId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    get:
+      operationId: listDocumentGrants
+      summary: listDocumentGrants
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentGrantList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /workspaces/{workspaceId}/documents/{documentId}/grants/{memberId}:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    - in: path
+      name: documentId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    - in: path
+      name: memberId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    put:
+      operationId: setDocumentGrant
+      summary: setDocumentGrant
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentEmptyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetDocumentGrantInput'
+    delete:
+      operationId: removeDocumentGrant
+      summary: removeDocumentGrant
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentEmptyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /workspaces/{workspaceId}/documents/{documentId}/rooms:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    - in: path
+      name: documentId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    get:
+      operationId: listDocumentRooms
+      summary: listDocumentRooms
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentRoomLinkList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      description: At most 100 authorized room links. Hidden rooms are omitted.
+  /workspaces/{workspaceId}/documents/{documentId}/rooms/{roomId}:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    - in: path
+      name: documentId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    - in: path
+      name: roomId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    put:
+      operationId: linkDocumentRoom
+      summary: linkDocumentRoom
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentEmptyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      operationId: unlinkDocumentRoom
+      summary: unlinkDocumentRoom
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentEmptyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /workspaces/{workspaceId}/documents/{documentId}/related:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    - in: path
+      name: documentId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    get:
+      operationId: listRelatedDocuments
+      summary: listRelatedDocuments
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentRelationList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      description: At most 100 visible relationships. Backlinks use the same undirected
+        pair; both endpoints must be readable.
+  /workspaces/{workspaceId}/documents/{documentId}/related/{relatedDocumentId}:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    - in: path
+      name: documentId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    - in: path
+      name: relatedDocumentId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    put:
+      operationId: relateDocuments
+      summary: relateDocuments
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentEmptyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      operationId: unrelateDocuments
+      summary: unrelateDocuments
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentEmptyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /workspaces/{workspaceId}/documents/{documentId}/materialization:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    - in: path
+      name: documentId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    get:
+      operationId: getDocumentMaterialization
+      summary: getDocumentMaterialization
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentMaterializationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /workspaces/{workspaceId}/documents/{documentId}/query:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    - in: path
+      name: documentId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    post:
+      operationId: queryDocumentDataset
+      summary: queryDocumentDataset
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetQueryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentDatasetQueryInput'
+  /workspaces/{workspaceId}/documents/{documentId}/rows/{contactId}:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    - in: path
+      name: documentId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    - in: path
+      name: contactId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    patch:
+      operationId: updateDocumentDatasetRow
+      summary: updateDocumentDatasetRow
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatasetWriteInput'
+      description: Requires document edit and canonical contact write permissions. View
+        filters are not access restrictions. Uses canonical ContactService with optimistic
+        version and idempotency.
+  /workspaces/{workspaceId}/document-datasets:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    get:
+      operationId: listDocumentDatasets
+      summary: listDocumentDatasets
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetDefinitionList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /workspaces/{workspaceId}/document-datasets/contacts/query:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    post:
+      operationId: queryContactsDataset
+      summary: queryContactsDataset
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetQueryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatasetQueryInput'
+      description: Current authorized contacts; dates are explicit offset-bearing instants
+        with [from,to) semantics. Each page has its own consistent read; refetch after
+        concurrent changes. No historical as-of reconstruction.
+  /workspaces/{workspaceId}/document-datasets/contacts/rows/{contactId}:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    - in: path
+      name: contactId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    patch:
+      operationId: updateContactsDatasetRow
+      summary: updateContactsDatasetRow
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatasetWriteInput'
+  /workspaces/{workspaceId}/document-datasets/contacts/export:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    post:
+      operationId: exportContactsDataset
+      summary: exportContactsDataset
+      tags:
+      - documents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetExportResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatasetExportInput'
+      description: Consistent bounded capture of all matching rows, up to 5000. Returns
+        CSV plus provenance manifest; formula-like text is escaped. No silent truncation.
+  /workspaces/{workspaceId}/document-datasets/contacts/review-copy:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+    post:
+      operationId: createContactsReviewCopy
+      summary: createContactsReviewCopy
+      tags:
+      - documents
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContactsReviewInput'
+      description: Retry-safe independent native grid copy. Retains source access requirements
+        and never grants canonical contact writeback.
+
+  # ─── canonical contact import (doc/10 §7A) ─────────────────────────────────
+  /workspaces/{workspaceId}/contact-imports:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listContactImports
+      summary: Recent contact imports (newest first, up to 50)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactImportList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createContactImport
+      summary: Preview importing a table as contacts
+      description: |
+        The explicit canonical import (an ordinary spreadsheet import never creates contacts). Source: pasted CSV,
+        or a spreadsheet document with imported rows. Without `mapping`, columns are mapped from their headers;
+        the preview proposes create / match / review / duplicate / invalid per row through the one matcher. Nothing
+        is written to contacts until commit. `previousImportId` warns when the same table was already imported.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateContactImportInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactImportResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/contact-imports/{importId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ImportId'
+    get:
+      operationId: getContactImport
+      summary: Get a contact import
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactImportResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateContactImport
+      summary: Change the mapping or options and re-run the preview
+      description: |
+        Only while previewed. Row decisions start over.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateContactImportInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactImportResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: cancelContactImport
+      summary: Cancel a previewed import (its row values are dropped)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactImportResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/contact-imports/{importId}/rows:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ImportId'
+    get:
+      operationId: listContactImportRows
+      summary: Preview / outcome rows, in source order
+      tags: [workspaces]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: proposal
+          schema: { $ref: '#/components/schemas/ImportProposal' }
+        - in: query
+          name: outcome
+          schema: { $ref: '#/components/schemas/ImportOutcome' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedContactImportRows' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/contact-imports/{importId}/rows/{rowId}/resolution:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ImportId'
+      - $ref: '#/components/parameters/ImportRowId'
+    put:
+      operationId: resolveContactImportRow
+      summary: Decide one row (create a contact, use an existing one, or skip it)
+      description: |
+        Rows proposed for review must be decided before commit. Repeated rows follow the row they repeat;
+        invalid rows can only be skipped.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResolveContactImportRowInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactImportResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/contact-imports/{importId}/commit:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ImportId'
+    post:
+      operationId: commitContactImport
+      summary: Apply the reviewed import
+      description: |
+        Creates contacts for create rows (re-checked against the matcher), links matched rows without changing those
+        contacts, skips the rest. Idempotent and resumable: a completed import returns as is; an interrupted one
+        continues. `createView` adds a live Contacts document filtered to this import (409 IMPORT_NEEDS_REVIEW while
+        rows await a decision).
+      tags: [workspaces]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommitContactImportInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactImportResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1969,6 +3080,16 @@ components:
       schema: { type: string, minLength: 1, maxLength: 120 }
       description: Repeating a succeeded request with the same key returns its result instead of acting twice; reusing a key for a different request is 409 IDEMPOTENCY_KEY_REUSED.
 
+    ImportId:
+      in: path
+      name: importId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    ImportRowId:
+      in: path
+      name: rowId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
   responses:
     BadRequest:
       description: Invalid input
@@ -2800,8 +3921,9 @@ components:
 
     Contact:
       type: object
-      required: [id, workspaceId, firstName, lastName, displayName, title, status, ownerMemberId, teamId, primaryEmail, primaryPhone, lastActivityAt, origin, externalProvider, externalId, createdAt, updatedAt, points, accounts, tags]
+      required: [version, id, workspaceId, firstName, lastName, displayName, title, status, ownerMemberId, teamId, primaryEmail, primaryPhone, lastActivityAt, origin, externalProvider, externalId, createdAt, updatedAt, points, accounts, tags]
       properties:
+        version: { type: integer, minimum: 1 }
         id: { type: string }
         workspaceId: { type: string }
         firstName: { type: [string, 'null'] }
@@ -2907,6 +4029,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        idempotencyKey: { type: string, minLength: 1, maxLength: 120 }
         firstName: { type: [string, 'null'], maxLength: 80 }
         lastName: { type: [string, 'null'], maxLength: 80 }
         displayName: { type: [string, 'null'], maxLength: 160, description: 'null re-derives it from the name or primary email/phone' }
@@ -3189,3 +4313,1073 @@ components:
         noteId: { type: string, minLength: 1, maxLength: 64 }
         roomId: { type: string, minLength: 1, maxLength: 64 }
         itemId: { type: string, minLength: 1, maxLength: 64 }
+
+    ContactsDatasetQuery:
+      type: object
+      additionalProperties: false
+      required:
+      - columns
+      properties:
+        columns:
+          type: array
+          items:
+            type: string
+            enum:
+            - id
+            - firstName
+            - lastName
+            - displayName
+            - title
+            - primaryEmail
+            - primaryPhone
+            - status
+            - createdAt
+            - updatedAt
+          minItems: 1
+          maxItems: 10
+          uniqueItems: true
+        filters:
+          type: object
+          additionalProperties: false
+          required: []
+          properties:
+            q:
+              type: string
+              maxLength: 200
+            status:
+              type: string
+              enum:
+              - active
+              - archived
+            ownerMemberId:
+              type: string
+              minLength: 1
+              maxLength: 64
+            importBatchId:
+              type: string
+              minLength: 1
+              maxLength: 64
+              description: Contacts created by one canonical import (its live result view)
+            date:
+              type: object
+              additionalProperties: false
+              required:
+              - field
+              - from
+              - to
+              properties:
+                field:
+                  type: string
+                  enum:
+                  - createdAt
+                  - updatedAt
+                from:
+                  type: string
+                  format: date-time
+                to:
+                  type: string
+                  format: date-time
+        sort:
+          type: object
+          additionalProperties: false
+          required:
+          - field
+          - direction
+          properties:
+            field:
+              type: string
+              enum:
+              - id
+              - displayName
+              - createdAt
+              - updatedAt
+            direction:
+              type: string
+              enum:
+              - asc
+              - desc
+    NativeDocumentSource:
+      type: object
+      additionalProperties: false
+      required:
+      - kind
+      - schemaVersion
+      properties:
+        kind:
+          type: string
+          enum:
+          - native
+        schemaVersion:
+          type: integer
+          enum:
+          - 1
+    DatasetDocumentSource:
+      type: object
+      additionalProperties: false
+      required:
+      - kind
+      - datasetKey
+      - datasetVersion
+      - query
+      properties:
+        kind:
+          type: string
+          enum:
+          - dataset
+        datasetKey:
+          type: string
+          enum:
+          - contacts
+        datasetVersion:
+          type: integer
+          enum:
+          - 1
+        query:
+          $ref: '#/components/schemas/ContactsDatasetQuery'
+    ExternalDocumentSource:
+      type: object
+      additionalProperties: false
+      required:
+      - kind
+      - provider
+      - url
+      properties:
+        kind:
+          type: string
+          enum:
+          - external
+        provider:
+          type: string
+          enum:
+          - google_docs
+          - google_sheets
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+    DocumentDescriptor:
+      oneOf:
+      - type: object
+        additionalProperties: false
+        required:
+        - surface
+        - source
+        properties:
+          surface:
+            type: string
+            enum:
+            - blocks
+            - mental_map
+            - grid
+          source:
+            $ref: '#/components/schemas/NativeDocumentSource'
+      - type: object
+        additionalProperties: false
+        required:
+        - surface
+        - source
+        properties:
+          surface:
+            type: string
+            enum:
+            - grid
+          source:
+            $ref: '#/components/schemas/DatasetDocumentSource'
+      - type: object
+        additionalProperties: false
+        required:
+        - surface
+        - source
+        properties:
+          surface:
+            type: string
+            enum:
+            - external
+          source:
+            $ref: '#/components/schemas/ExternalDocumentSource'
+      description: Stable surface/source union. Source kind and surface cannot be changed
+        in place. Capabilities describe currently available authorized operations; they
+        are not a substitute for server policy.
+    DocumentCapabilities:
+      type: object
+      additionalProperties: false
+      required:
+      - editMetadata
+      - manageAccess
+      - delete
+      - restore
+      - editContent
+      - showNativePresence
+      - queryDataset
+      - editRecords
+      - openExternal
+      - readMaterialization
+      - exportData
+      properties:
+        editMetadata:
+          type: boolean
+        manageAccess:
+          type: boolean
+        delete:
+          type: boolean
+        restore:
+          type: boolean
+        editContent:
+          type: boolean
+        showNativePresence:
+          type: boolean
+        queryDataset:
+          type: boolean
+        editRecords:
+          type: boolean
+        openExternal:
+          type: boolean
+        readMaterialization:
+          type: boolean
+        exportData:
+          type: boolean
+    Document:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - workspaceId
+      - ownerMemberId
+      - title
+      - version
+      - descriptor
+      - capabilities
+      - externalFileId
+      - provenance
+      - createdAt
+      - updatedAt
+      - deletedAt
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        workspaceId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        ownerMemberId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        version:
+          type: integer
+          minimum: 1
+        descriptor:
+          $ref: '#/components/schemas/DocumentDescriptor'
+        capabilities:
+          $ref: '#/components/schemas/DocumentCapabilities'
+        externalFileId:
+          type:
+          - string
+          - 'null'
+          description: Google file id of an external link (list with ?externalFileId= to warn about duplicate links; entries and their access are never merged)
+        provenance:
+          type:
+          - object
+          - 'null'
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+    CreateDocumentInput:
+      type: object
+      additionalProperties: false
+      required:
+      - title
+      - descriptor
+      - idempotencyKey
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        descriptor:
+          $ref: '#/components/schemas/DocumentDescriptor'
+        idempotencyKey:
+          type: string
+          minLength: 1
+          maxLength: 120
+    UpdateDocumentInput:
+      type: object
+      additionalProperties: false
+      required:
+      - expectedVersion
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        descriptor:
+          $ref: '#/components/schemas/DocumentDescriptor'
+    DocumentVersionInput:
+      type: object
+      additionalProperties: false
+      required:
+      - expectedVersion
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+    DocumentGrant:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - workspaceId
+      - documentId
+      - memberId
+      - role
+      - createdAt
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        workspaceId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        documentId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        memberId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        role:
+          type: string
+          enum:
+          - viewer
+          - editor
+        createdAt:
+          type: string
+          format: date-time
+    SetDocumentGrantInput:
+      type: object
+      additionalProperties: false
+      required:
+      - role
+      properties:
+        role:
+          type: string
+          enum:
+          - viewer
+          - editor
+    DocumentRoomLink:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - workspaceId
+      - documentId
+      - roomId
+      - createdAt
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        workspaceId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        documentId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        roomId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        createdAt:
+          type: string
+          format: date-time
+    DocumentRelation:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - document
+      - createdAt
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        document:
+          $ref: '#/components/schemas/Document'
+        createdAt:
+          type: string
+          format: date-time
+    GridTable:
+      type: object
+      additionalProperties: false
+      required:
+      - columns
+      - rows
+      properties:
+        columns:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - id
+            - label
+            - type
+            properties:
+              id:
+                type: string
+              label:
+                type: string
+              type:
+                type: string
+                enum:
+                - text
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - id
+            - cells
+            properties:
+              id:
+                type: string
+              cells:
+                type: object
+                additionalProperties:
+                  type:
+                  - string
+                  - 'null'
+    DocumentMaterialization:
+      type: object
+      additionalProperties: false
+      required:
+      - table
+      - provenance
+      properties:
+        table:
+          $ref: '#/components/schemas/GridTable'
+        provenance:
+          type:
+          - object
+          - 'null'
+          additionalProperties: true
+    ImportDocumentCsvInput:
+      type: object
+      additionalProperties: false
+      required:
+      - title
+      - filename
+      - csv
+      - idempotencyKey
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        filename:
+          type: string
+          minLength: 1
+          maxLength: 255
+        csv:
+          type: string
+          maxLength: 500000
+        idempotencyKey:
+          type: string
+          minLength: 1
+          maxLength: 120
+    DatasetDefinition:
+      type: object
+      additionalProperties: false
+      required:
+      - key
+      - version
+      - label
+      - mode
+      - rowKey
+      - columns
+      - dateFields
+      - sortFields
+      - refresh
+      - consistency
+      - maxPageSize
+      - maxMaterializedRows
+      - description
+      properties:
+        key:
+          type: string
+          enum:
+          - contacts
+        version:
+          type: integer
+          minimum: 1
+        label:
+          type: string
+        mode:
+          type: string
+          enum:
+          - live
+        rowKey:
+          type: string
+          enum:
+          - id
+        columns:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - key
+            - label
+            - type
+            - nullable
+            - writable
+            properties:
+              key:
+                type: string
+                enum:
+                - id
+                - firstName
+                - lastName
+                - displayName
+                - title
+                - primaryEmail
+                - primaryPhone
+                - status
+                - createdAt
+                - updatedAt
+              label:
+                type: string
+              type:
+                type: string
+                enum:
+                - text
+                - datetime
+              nullable:
+                type: boolean
+              writable:
+                type: boolean
+        dateFields:
+          type: array
+          items:
+            type: string
+            enum:
+            - createdAt
+            - updatedAt
+        sortFields:
+          type: array
+          items:
+            type: string
+            enum:
+            - id
+            - displayName
+            - createdAt
+            - updatedAt
+        refresh:
+          type: string
+          enum:
+          - on_request
+        consistency:
+          type: string
+          enum:
+          - request_snapshot
+        maxPageSize:
+          type: integer
+          minimum: 1
+        maxMaterializedRows:
+          type: integer
+          minimum: 1
+        description:
+          type: string
+    ContactsDatasetRow:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - version
+      - cells
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        version:
+          type: integer
+          minimum: 1
+        cells:
+          type: object
+          additionalProperties:
+            type:
+            - string
+            - 'null'
+    DatasetQueryInput:
+      type: object
+      additionalProperties: false
+      required:
+      - query
+      properties:
+        query:
+          $ref: '#/components/schemas/ContactsDatasetQuery'
+        cursor:
+          type: string
+          maxLength: 1000
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+    DocumentDatasetQueryInput:
+      type: object
+      additionalProperties: false
+      required: []
+      properties:
+        cursor:
+          type: string
+          maxLength: 1000
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+    DatasetWriteInput:
+      type: object
+      additionalProperties: false
+      required:
+      - expectedVersion
+      - idempotencyKey
+      - changes
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        idempotencyKey:
+          type: string
+          minLength: 1
+          maxLength: 120
+        changes:
+          type: object
+          additionalProperties: false
+          required: []
+          properties:
+            firstName:
+              type:
+              - string
+              - 'null'
+              maxLength: 80
+            lastName:
+              type:
+              - string
+              - 'null'
+              maxLength: 80
+            displayName:
+              type:
+              - string
+              - 'null'
+              maxLength: 160
+            title:
+              type:
+              - string
+              - 'null'
+              maxLength: 120
+          minProperties: 1
+    DatasetManifest:
+      type: object
+      additionalProperties: false
+      required:
+      - datasetKey
+      - datasetVersion
+      - query
+      - capturedAt
+      - timezone
+      - rowCount
+      - complete
+      properties:
+        datasetKey:
+          type: string
+          enum:
+          - contacts
+        datasetVersion:
+          type: integer
+          enum:
+          - 1
+        query:
+          $ref: '#/components/schemas/ContactsDatasetQuery'
+        capturedAt:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+        rowCount:
+          type: integer
+          minimum: 0
+        complete:
+          type: boolean
+    DatasetQueryResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - meta
+      - manifest
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactsDatasetRow'
+        meta:
+          type: object
+          additionalProperties: false
+          required:
+          - total
+          - nextCursor
+          - capturedAt
+          - consistency
+          properties:
+            total:
+              type: integer
+              minimum: 0
+            nextCursor:
+              type:
+              - string
+              - 'null'
+            capturedAt:
+              type: string
+              format: date-time
+            consistency:
+              type: string
+              enum:
+              - request_snapshot
+        manifest:
+          $ref: '#/components/schemas/DatasetManifest'
+    DatasetExportInput:
+      type: object
+      additionalProperties: false
+      required:
+      - query
+      properties:
+        query:
+          $ref: '#/components/schemas/ContactsDatasetQuery'
+    DatasetExport:
+      type: object
+      additionalProperties: false
+      required:
+      - csv
+      - manifest
+      properties:
+        csv:
+          type: string
+        manifest:
+          $ref: '#/components/schemas/DatasetManifest'
+    CreateContactsReviewInput:
+      type: object
+      additionalProperties: false
+      required:
+      - title
+      - query
+      - idempotencyKey
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        query:
+          $ref: '#/components/schemas/ContactsDatasetQuery'
+        idempotencyKey:
+          type: string
+          minLength: 1
+          maxLength: 120
+    DocumentResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Document'
+    DocumentMaterializationResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/DocumentMaterialization'
+    DatasetExportResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/DatasetExport'
+    DocumentGrantList:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentGrant'
+    DocumentRoomLinkList:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentRoomLink'
+    DocumentRelationList:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentRelation'
+    DatasetDefinitionList:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetDefinition'
+    DocumentList:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+        meta:
+          type: object
+          additionalProperties: false
+          required:
+          - nextCursor
+          properties:
+            nextCursor:
+              type:
+              - string
+              - 'null'
+    DocumentEmptyResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      properties:
+        data:
+          type: 'null'
+
+    # ─── canonical contact import (doc/10 §7A) ───────────────────────────────
+    ImportField:
+      type: string
+      enum: [firstName, lastName, displayName, title, email, phone, accountName, externalId]
+      description: accountName links (or creates) the account with exactly that name; externalId needs options.externalProvider
+
+    ImportProposal:
+      type: string
+      enum: [create, match, review, duplicate, invalid]
+
+    ImportOutcome:
+      type: string
+      enum: [created, matched, skipped]
+
+    ContactImportMapping:
+      type: object
+      description: 'Column id → contact field; each field at most once'
+      maxProperties: 100
+      additionalProperties: { $ref: '#/components/schemas/ImportField' }
+
+    ContactImportOptions:
+      type: object
+      additionalProperties: false
+      properties:
+        ownerMemberId: { type: [string, 'null'], maxLength: 64, description: Owner of the contacts this import creates }
+        tagIds:
+          type: array
+          maxItems: 50
+          items: { type: string, minLength: 1, maxLength: 64 }
+        externalProvider: { type: [string, 'null'], maxLength: 32, description: 'Where externalId values come from (e.g. hubspot); matches by (provider, id) first' }
+
+    CreateContactImportInput:
+      type: object
+      additionalProperties: false
+      required: [source]
+      properties:
+        source:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [kind, csv, filename]
+              properties:
+                kind: { type: string, enum: [csv] }
+                csv: { type: string, minLength: 1, maxLength: 600000 }
+                filename: { type: string, minLength: 1, maxLength: 255 }
+            - type: object
+              additionalProperties: false
+              required: [kind, documentId]
+              properties:
+                kind: { type: string, enum: [document] }
+                documentId: { type: string, minLength: 1, maxLength: 64 }
+        mapping: { $ref: '#/components/schemas/ContactImportMapping' }
+        options: { $ref: '#/components/schemas/ContactImportOptions' }
+
+    UpdateContactImportInput:
+      type: object
+      additionalProperties: false
+      properties:
+        mapping: { $ref: '#/components/schemas/ContactImportMapping' }
+        options: { $ref: '#/components/schemas/ContactImportOptions' }
+
+    ResolveContactImportRowInput:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action: { type: string, enum: [create, use, skip] }
+        contactId: { type: string, minLength: 1, maxLength: 64, description: Required with use }
+
+    CommitContactImportInput:
+      type: object
+      additionalProperties: false
+      properties:
+        createView: { type: boolean, description: Also create a live Contacts document showing what this import created }
+        viewTitle: { type: string, minLength: 1, maxLength: 200 }
+
+    ContactImportCounts:
+      type: object
+      properties:
+        create: { type: integer }
+        match: { type: integer }
+        review: { type: integer }
+        duplicate: { type: integer }
+        invalid: { type: integer }
+        unresolved: { type: integer, description: Review rows still waiting for a decision }
+        created: { type: integer }
+        matched: { type: integer }
+        skipped: { type: integer }
+
+    ContactImport:
+      type: object
+      required: [id, workspaceId, kind, status, source, columns, mapping, options, totalRows, counts, previousImportId, resultDocumentId, createdById, createdAt, committedAt, finishedAt, rowsPrunedAt]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        kind: { type: string, enum: [contacts] }
+        status: { type: string, enum: [previewed, committing, completed, cancelled] }
+        source:
+          type: object
+          required: [kind, documentId, filename]
+          properties:
+            kind: { type: string, enum: [csv, document] }
+            documentId: { type: [string, 'null'] }
+            filename: { type: [string, 'null'] }
+        columns:
+          type: array
+          items:
+            type: object
+            required: [id, label]
+            properties:
+              id: { type: string }
+              label: { type: string }
+        mapping: { $ref: '#/components/schemas/ContactImportMapping' }
+        options:
+          type: object
+          additionalProperties: true
+        totalRows: { type: integer }
+        counts: { $ref: '#/components/schemas/ContactImportCounts' }
+        previousImportId: { type: [string, 'null'], description: 'A completed import of the same table, if any' }
+        resultDocumentId: { type: [string, 'null'], description: The live Contacts view created at commit }
+        createdById: { type: string }
+        createdAt: { type: string, format: date-time }
+        committedAt: { type: [string, 'null'], format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+        rowsPrunedAt: { type: [string, 'null'], format: date-time, description: Row values were dropped (retention); outcomes remain }
+
+    ContactImportResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ContactImport' }
+
+    ContactImportList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ContactImport' }
+
+    ContactImportRow:
+      type: object
+      required: [id, rowNumber, sourceRowId, values, proposal, errorCode, candidates, proposedContactId, duplicateOfRow, resolution, resolvedContactId, outcome, outcomeNote, contact]
+      properties:
+        id: { type: string }
+        rowNumber: { type: integer, description: 1-based data row in the source }
+        sourceRowId: { type: [string, 'null'] }
+        values:
+          type: [object, 'null']
+          additionalProperties: { type: string }
+          description: Mapped field values; null once pruned
+        proposal: { $ref: '#/components/schemas/ImportProposal' }
+        errorCode: { type: [string, 'null'], description: 'INVALID_EMAIL, EMPTY_CONTACT, AMBIGUOUS_EMAIL, SHARED_ADDRESS' }
+        candidates:
+          type: array
+          items: { $ref: '#/components/schemas/ContactRef' }
+        proposedContactId: { type: [string, 'null'] }
+        duplicateOfRow: { type: [integer, 'null'] }
+        resolution: { type: [string, 'null'], enum: [create, use, skip, null] }
+        resolvedContactId: { type: [string, 'null'] }
+        outcome:
+          oneOf:
+            - $ref: '#/components/schemas/ImportOutcome'
+            - type: 'null'
+        outcomeNote: { type: [string, 'null'], description: 'e.g. MATCHED_AT_COMMIT, DUPLICATE_ROW, CONTACT_GONE, ACCOUNT_AMBIGUOUS' }
+        contact:
+          oneOf:
+            - $ref: '#/components/schemas/ContactRef'
+            - type: 'null'
+
+    PaginatedContactImportRows:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ContactImportRow' }
+        meta: { $ref: '#/components/schemas/PaginatedMeta' }

@@ -285,6 +285,7 @@ const byName = <T extends { name: string }>(a: T, b: T) => a.name.localeCompare(
 export function toContact(contact: ContactRow) {
   return {
     id: contact.id,
+    version: contact.version,
     workspaceId: contact.workspaceId,
     firstName: contact.firstName,
     lastName: contact.lastName,

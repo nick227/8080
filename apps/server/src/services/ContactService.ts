@@ -1,8 +1,10 @@
+import type { ContactsQuery } from '@project/shared'
+import { contactsWhere, queryHash } from './contactDataset'
 // Contacts (doc/09 §4.1). Email is a match signal, never a unique key (D2):
 // create never refuses a duplicate — it reports possible ones — and duplicates
 // are resolved by merge. Every mutation is a runAction (audit + timeline).
 import { db, Prisma, type ContactPointKind, type RecordStatus } from '@project/db'
-import { badRequest, notFound } from '../lib/errors'
+import { badRequest, conflict, notFound } from '../lib/errors'
 import { decodeKeyCursor, encodeKeyCursor, normalizeLimit, page } from '../lib/pagination'
 import { contactInclude, toAccountRef, toContact, toContactRef, type ContactRow } from '../lib/serialize'
 import { diff, runAction, subjectKey, type SubjectRef } from './actions'
@@ -34,7 +36,7 @@ const blank = (s: string | null | undefined) => (s?.trim() ? s.trim() : null)
 
 // Normalise, drop repeats (same kind + normalized value), pick one primary per kind.
 // Role addresses (info@…) are shared unless the caller says otherwise.
-function preparePoints(points: PointInput[]) {
+export function preparePoints(points: PointInput[]) {
   if (points.length > MAX_POINTS) throw badRequest(`At most ${MAX_POINTS} contact points`, 'TOO_MANY_POINTS')
   const seen = new Set<string>()
   const prepared = []
@@ -57,7 +59,7 @@ function preparePoints(points: PointInput[]) {
 const primaryOf = (points: { kind: ContactPointKind; value: string; isPrimary: boolean }[], kind: ContactPointKind) =>
   points.find((p) => p.kind === kind && p.isPrimary)?.value ?? null
 
-function displayNameOf(input: { displayName?: string | null; firstName?: string | null; lastName?: string | null }, points: { kind: ContactPointKind; value: string; isPrimary: boolean }[]) {
+export function displayNameOf(input: { displayName?: string | null; firstName?: string | null; lastName?: string | null }, points: { kind: ContactPointKind; value: string; isPrimary: boolean }[]) {
   const name = blank(input.displayName) ?? blank([blank(input.firstName), blank(input.lastName)].filter(Boolean).join(' ')) ?? primaryOf(points, 'email') ?? primaryOf(points, 'phone')
   if (!name) throw badRequest('A contact needs a name, an email or a phone number', 'EMPTY_CONTACT')
   return name.slice(0, 160)
@@ -70,10 +72,10 @@ async function loadContact(client: Tx | typeof db, contactId: string) {
 }
 
 // Replaces a contact's points and refreshes the derived primaries.
-async function writePoints(tx: Tx, workspaceId: string, contactId: string, points: ReturnType<typeof preparePoints>) {
+export async function writePoints(tx: Tx, workspaceId: string, contactId: string, points: ReturnType<typeof preparePoints>) {
   await tx.contactPoint.deleteMany({ where: { contactId } })
   if (points.length) await tx.contactPoint.createMany({ data: points.map((p) => ({ ...p, workspaceId, contactId })) })
-  await tx.contact.update({ where: { id: contactId }, data: { primaryEmail: primaryOf(points, 'email'), primaryPhone: primaryOf(points, 'phone') } })
+  await tx.contact.update({ where: { id: contactId }, data: { version: { increment: 1 }, primaryEmail: primaryOf(points, 'email'), primaryPhone: primaryOf(points, 'phone') } })
 }
 
 // Only one live primary account per contact.
@@ -81,7 +83,45 @@ async function settlePrimary(tx: Tx, contactId: string, primaryAccountId: string
   await tx.contactAccount.updateMany({ where: { contactId, accountId: { not: primaryAccountId }, isPrimary: true }, data: { isPrimary: false } })
 }
 
+// Rows strictly after the cursor in (field, id) order. displayName is never null;
+// createdAt/updatedAt are ISO instants.
+function keysetAfter(sort: { field: 'id' | 'displayName' | 'createdAt' | 'updatedAt'; direction: 'asc' | 'desc' }, cursor: { v: string | null; id: string }): Prisma.ContactWhereInput {
+  const op = sort.direction === 'asc' ? 'gt' : 'lt'
+  if (sort.field === 'id') return { id: { [op]: cursor.id } }
+  const value = sort.field === 'displayName' ? cursor.v : new Date(cursor.v ?? '')
+  if (value === null || (value instanceof Date && Number.isNaN(value.getTime()))) throw badRequest('Invalid cursor', 'INVALID_CURSOR')
+  return { OR: [{ [sort.field]: { [op]: value } }, { [sort.field]: value, id: { [op]: cursor.id } }] }
+}
+
 export class ContactService {
+  // Dataset reads stay in the canonical service; no grid-specific contact store.
+  async queryDataset(userId: string, workspaceId: string, query: ContactsQuery, opts: { cursor?: string; limit?: number; materialize?: boolean } = {}) {
+    const actor = await authorize(userId, workspaceId, opts.materialize ? 'dataset.export' : 'dataset.read')
+    permit(actor, 'record.read')
+    const where = contactsWhere(workspaceId, query)
+    const fingerprint = queryHash(query)
+    // Keyset paging on (sort field, id): a contact added or removed mid-scroll can't
+    // shift later pages (no skipped or repeated rows), unlike offsets.
+    const cursor = decodeKeyCursor<{ v: string | null; id: string; hash: string }>(opts.cursor)
+    if (cursor && (typeof cursor.id !== 'string' || cursor.hash !== fingerprint)) throw badRequest('Cursor belongs to another query', 'INVALID_CURSOR')
+    const limit = opts.materialize ? 5000 : normalizeLimit(opts.limit)
+    const sort = query.sort ?? { field: 'id', direction: 'asc' }
+    const after = opts.materialize || !cursor ? {} : keysetAfter(sort, cursor)
+    const capturedAt = new Date().toISOString()
+    return db.$transaction(async tx => {
+      const total = await tx.contact.count({ where })
+      if (opts.materialize && total > limit) throw badRequest('Narrow the query to at most 5000 contacts', 'MATERIALIZATION_LIMIT')
+      const found = await tx.contact.findMany({ where: { AND: [where, after] }, orderBy: [{ [sort.field]: sort.direction }, ...(sort.field === 'id' ? [] : [{ id: sort.direction }])], take: limit + 1 })
+      const more = !opts.materialize && found.length > limit
+      const contacts = more ? found.slice(0, limit) : found
+      const last = contacts[contacts.length - 1]
+      const rows = contacts.map(c => ({ id: c.id, version: c.version, cells: Object.fromEntries(query.columns.map(key => [key, c[key] instanceof Date ? (c[key] as Date).toISOString() : c[key]])) }))
+      const lastValue = last ? (last[sort.field] instanceof Date ? (last[sort.field] as Date).toISOString() : (last[sort.field] as string)) : null
+      return { data: rows, meta: { total, nextCursor: more && last ? encodeKeyCursor({ v: lastValue, id: last.id, hash: fingerprint }) : null, capturedAt, consistency: 'request_snapshot' as const },
+        manifest: { datasetKey: 'contacts' as const, datasetVersion: 1 as const, query, capturedAt, timezone: actor.workspace.timezone, rowCount: rows.length, complete: opts.materialize === true || (!cursor && rows.length === total) } }
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead })
+  }
+
   async list(userId: string, workspaceId: string, opts: { q?: string; ownerMemberId?: string; tagId?: string; accountId?: string; status?: RecordStatus; cursor?: string; limit?: number }) {
     await authorize(userId, workspaceId, 'record.read')
     const limit = normalizeLimit(opts.limit)
@@ -161,7 +201,7 @@ export class ContactService {
     return { data: toContact(contact), duplicates: await this.duplicatesOf(contact) }
   }
 
-  async update(ctx: WorkspaceCtx, workspaceId: string, contactId: string, input: ContactInput) {
+  async update(ctx: WorkspaceCtx, workspaceId: string, contactId: string, input: ContactInput & { expectedVersion?: number; idempotencyKey?: string }) {
     const actor = await authorize(ctx.user.id, workspaceId, 'record.write')
     const before = await db.contact.findFirst({ where: { id: contactId, workspaceId, deletedAt: null }, include: contactInclude })
     if (!before) throw notFound('Contact not found')
@@ -182,8 +222,13 @@ export class ContactService {
     await assertTags(workspaceId, input.tagIds)
 
     return runAction(
-      { action: 'contact.update', workspaceId, actor: memberActor(actor), origin: ctx.origin, input, target: { type: 'contact', id: contactId } },
+      { action: 'contact.update', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { contactId, ...input }, idempotencyKey: input.idempotencyKey, target: { type: 'contact', id: contactId } },
       async (tx) => {
+        const claimed = await tx.contact.updateMany({
+          where: { id: contactId, workspaceId, deletedAt: null, version: input.expectedVersion ?? before.version },
+          data: { version: { increment: 1 } },
+        })
+        if (!claimed.count) throw conflict('Contact changed; reload the current record before reapplying', 'CONTACT_VERSION_CONFLICT')
         await tx.contact.update({
           where: { id: contactId },
           data: {
@@ -225,7 +270,7 @@ export class ContactService {
     await runAction(
       { action: 'contact.delete', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: {}, target: { type: 'contact', id: contactId } },
       async (tx) => {
-        await tx.contact.update({ where: { id: contactId }, data: { deletedAt: new Date() } })
+        await tx.contact.update({ where: { id: contactId }, data: { version: { increment: 1 }, deletedAt: new Date() } })
         await tx.contactPoint.updateMany({ where: { contactId }, data: { live: false } })
         return { value: null }
       },
@@ -307,7 +352,7 @@ export class ContactService {
           }
         }
         const points = await tx.contactPoint.findMany({ where: { contactId: winner.id } })
-        await tx.contact.update({ where: { id: winner.id }, data: { primaryEmail: primaryOf(points, 'email'), primaryPhone: primaryOf(points, 'phone') } })
+        await tx.contact.update({ where: { id: winner.id }, data: { version: { increment: 1 }, primaryEmail: primaryOf(points, 'email'), primaryPhone: primaryOf(points, 'phone') } })
 
         // Accounts: keep the winner's row where both have one; one primary.
         const winnerAccounts = new Set((await tx.contactAccount.findMany({ where: { contactId: winner.id } })).map((ca) => ca.accountId))
@@ -338,10 +383,10 @@ export class ContactService {
         }
 
         // Earlier merges into the loser now resolve straight to the winner.
-        await tx.contact.updateMany({ where: { mergedIntoId: loser.id }, data: { mergedIntoId: winner.id } })
-        await tx.contact.update({ where: { id: loser.id }, data: { mergedIntoId: winner.id, deletedAt: new Date() } })
+        await tx.contact.updateMany({ where: { mergedIntoId: loser.id }, data: { version: { increment: 1 }, mergedIntoId: winner.id } })
+        await tx.contact.update({ where: { id: loser.id }, data: { version: { increment: 1 }, mergedIntoId: winner.id, deletedAt: new Date() } })
         const newest = [winner.lastActivityAt, loser.lastActivityAt].filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0]
-        if (newest) await tx.contact.update({ where: { id: winner.id }, data: { lastActivityAt: newest } })
+        if (newest) await tx.contact.update({ where: { id: winner.id }, data: { version: { increment: 1 }, lastActivityAt: newest } })
 
         const after = await loadContact(tx, winner.id)
         return {

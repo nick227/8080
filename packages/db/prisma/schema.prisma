@@ -82,6 +82,7 @@ enum RoomRole {
 }
 
 model Room {
+  documentLinks DocumentRoomLink[]
 
   id             String         @id @default(cuid())
   // Human-facing sequence shown as "CONVERSATION 018"
@@ -480,6 +481,10 @@ enum TeamRole {
 }
 
 model Workspace {
+  documents Document[]
+  documentGrants DocumentGrant[]
+  documentRoomLinks DocumentRoomLink[]
+  documentRelations DocumentRelation[]
 
   id              String    @id @default(cuid())
   name            String    @db.VarChar(120)
@@ -508,12 +513,16 @@ model Workspace {
   accountTags      AccountTag[]
   notes            Note[]
   links            RecordLink[]
+  imports          ImportBatch[]
+  importRows       ImportRow[]
 
   @@index([createdById])
 }
 
 // Membership requires a registered human account (doc/09 D8, D11).
 model WorkspaceMember {
+  ownedDocuments Document[]
+  documentGrants DocumentGrant[]
 
   id          String        @id @default(cuid())
   workspaceId String
@@ -541,6 +550,7 @@ model WorkspaceMember {
   createdAccounts Account[]    @relation("AccountCreator")
   notes           Note[]
   linksMade       RecordLink[]
+  imports         ImportBatch[]
 
   @@unique([workspaceId, userId])
   @@index([userId, status])
@@ -762,6 +772,7 @@ enum LinkOrigin {
 }
 
 model Contact {
+  version Int @default(1)
   id               String       @id @default(cuid())
   workspaceId      String
   firstName        String?      @db.VarChar(80)
@@ -780,6 +791,8 @@ model Contact {
   origin           RecordOrigin @default(manual)
   externalProvider String?      @db.VarChar(32)
   externalId       String?      @db.VarChar(255)
+  // The canonical import that created it (doc/10 §7A step 6)
+  importBatchId    String?
   createdById      String?
   // Set on the losing contact of a merge; its URL resolves to the winner
   mergedIntoId     String?
@@ -793,6 +806,8 @@ model Contact {
   createdBy   WorkspaceMember? @relation("ContactCreator", fields: [createdById], references: [id], onDelete: SetNull)
   mergedInto  Contact?         @relation("ContactMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   mergedFrom  Contact[]        @relation("ContactMerge")
+  importBatch ImportBatch?     @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importRows  ImportRow[]
   points      ContactPoint[]
   accounts    ContactAccount[]
   tags        ContactTag[]
@@ -804,6 +819,7 @@ model Contact {
   @@index([workspaceId, ownerMemberId])
   @@index([workspaceId, lastActivityAt])
   @@index([mergedIntoId])
+  @@index([importBatchId])
 }
 
 model ContactPoint {
@@ -994,3 +1010,194 @@ model RecordLink {
   @@index([linkedById])
 }
 
+// Documents v1: validated descriptor union is the public contract. Native payloads
+// are absent until an editor schema lands; grid materializations use GridTable v1.
+enum DocumentSurface {
+  blocks
+  mental_map
+  grid
+  external
+}
+enum DocumentSourceKind {
+  native
+  dataset
+  external
+}
+enum DocumentGrantRole {
+  viewer
+  editor
+}
+model Document {
+  id String @id @default(cuid())
+  workspaceId String
+  ownerMemberId String
+  title String @db.VarChar(200)
+  surface DocumentSurface
+  sourceKind DocumentSourceKind
+  descriptor Json
+  version Int @default(1)
+  // Only CSV imports/review copies have a payload in this backend slice.
+  payload Json?
+  provenance Json?
+  // Source protection survives conversion to an independent review copy.
+  protectedDataset String? @db.VarChar(64)
+  // Google file id extracted from an external link: warns about duplicate links
+  // in the workspace without merging entries or their access (doc/10 §3).
+  externalFileId String? @db.VarChar(128)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner WorkspaceMember @relation(fields: [ownerMemberId], references: [id])
+  grants DocumentGrant[]
+  rooms DocumentRoomLink[]
+  relationsFrom DocumentRelation[] @relation("DocumentRelationFrom")
+  relationsTo DocumentRelation[] @relation("DocumentRelationTo")
+  importsFrom ImportBatch[] @relation("ImportSource")
+  importsInto ImportBatch[] @relation("ImportResult")
+  @@index([workspaceId, deletedAt, id])
+  @@index([workspaceId, deletedAt, updatedAt, id])
+  @@index([workspaceId, externalFileId])
+  @@index([ownerMemberId])
+}
+model DocumentGrant {
+  id String @id @default(cuid())
+  workspaceId String
+  documentId String
+  memberId String
+  role DocumentGrantRole
+  createdAt DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  member WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  @@unique([documentId, memberId])
+  @@index([workspaceId, memberId])
+}
+model DocumentRoomLink {
+  id String @id @default(cuid())
+  workspaceId String
+  documentId String
+  roomId String
+  createdAt DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  @@unique([documentId, roomId])
+  @@index([workspaceId, roomId])
+}
+model DocumentRelation {
+  id String @id @default(cuid())
+  workspaceId String
+  fromId String
+  toId String
+  createdAt DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  from Document @relation("DocumentRelationFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to Document @relation("DocumentRelationTo", fields: [toId], references: [id], onDelete: Cascade)
+  @@unique([fromId, toId])
+  @@index([workspaceId, toId])
+}
+
+// ─── Canonical imports (doc/09 §3, doc/10 §7A) ───────────────────────────────
+// "Import as contacts" — distinct from an ordinary spreadsheet import, which only
+// creates a native grid document and never touches CRM records. A batch reads a
+// table (pasted CSV or an imported sheet), maps columns to fields, previews a
+// proposal per row through the one matcher, takes human review of ambiguous rows,
+// then commits in resumable chunks. Raw row values are PII: pruned after
+// IMPORT_ROW_RETENTION_DAYS (D12); outcomes and provenance stay.
+
+enum ImportKind {
+  contacts
+}
+
+enum ImportStatus {
+  previewed
+  committing
+  completed
+  cancelled
+}
+
+// What the preview proposes for a row.
+enum ImportProposal {
+  create
+  match // exactly one existing contact (external id, or one personal email holder)
+  review // ambiguous or shared-address match: a person decides
+  duplicate // repeats an earlier row of the same file
+  invalid
+}
+
+enum ImportResolution {
+  create
+  use
+  skip
+}
+
+enum ImportOutcome {
+  created
+  matched
+  skipped
+}
+
+model ImportBatch {
+  id               String       @id @default(cuid())
+  workspaceId      String
+  kind             ImportKind
+  status           ImportStatus @default(previewed)
+  // Source: an imported sheet document, or pasted/uploaded CSV text
+  sourceDocumentId String?
+  filename         String?      @db.VarChar(255)
+  sourceHash       String       @db.Char(64)
+  columns          Json // [{ id, label }]
+  mapping          Json // { columnId: field }
+  options          Json // { ownerMemberId?, tagIds?, externalProvider? }
+  // Derived counts (recomputed on preview/resolve/commit)
+  totalRows        Int          @default(0)
+  counts           Json // { create, match, review, duplicate, invalid, unresolved, created, matched, skipped }
+  resultDocumentId String?
+  createdById      String
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  committedAt      DateTime?
+  finishedAt       DateTime?
+  rowsPrunedAt     DateTime?
+
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  sourceDocument Document?       @relation("ImportSource", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  resultDocument Document?       @relation("ImportResult", fields: [resultDocumentId], references: [id], onDelete: SetNull)
+  createdBy      WorkspaceMember @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  rows           ImportRow[]
+  contacts       Contact[]
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, sourceHash])
+  @@index([status, finishedAt])
+}
+
+model ImportRow {
+  id                String            @id @default(cuid())
+  batchId           String
+  workspaceId       String
+  rowNumber         Int // 1-based data row in the source
+  sourceRowId       String?           @db.VarChar(64) // grid row id when the source is a document
+  raw               Json? // source cells; null once pruned
+  values            Json? // mapped, trimmed field values; null once pruned
+  proposal          ImportProposal
+  errorCode         String?           @db.VarChar(60)
+  candidateIds      Json? // contact ids the matcher found
+  proposedContactId String?           @db.VarChar(64)
+  duplicateOfRow    Int?
+  resolution        ImportResolution?
+  resolvedContactId String?           @db.VarChar(64)
+  outcome           ImportOutcome?
+  outcomeNote       String?           @db.VarChar(60)
+  contactId         String?
+
+  batch     ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@unique([batchId, rowNumber])
+  @@index([batchId, proposal])
+  @@index([batchId, outcome])
+  @@index([contactId])
+}

@@ -91,6 +91,15 @@ function sampleBody(op: any) {
   const ref: string = op.requestBody.content['application/json'].schema.$ref ?? ''
   const name = ref.split('/').pop()
   const samples: Record<string, object> = {
+    CreateDocumentInput: { title: 'x', descriptor: { surface: 'blocks', source: { kind: 'native', schemaVersion: 1 } }, idempotencyKey: 'x' },
+    ImportDocumentCsvInput: { title: 'x', csv: 'Header\nValue', filename: 'x.csv', idempotencyKey: 'x' },
+    UpdateDocumentInput: { expectedVersion: 1, title: 'x' },
+    DocumentVersionInput: { expectedVersion: 1 },
+    SetDocumentGrantInput: { role: 'viewer' },
+    DatasetWriteInput: { expectedVersion: 1, idempotencyKey: 'x', changes: { title: 'x' } },
+    DatasetQueryInput: { query: { columns: ['id'] } },
+    DatasetExportInput: { query: { columns: ['id'] } },
+    CreateContactsReviewInput: { title: 'x', query: { columns: ['id'] }, idempotencyKey: 'x' },
     UpdateWorkspaceInput: { name: 'x' },
     UpdateWorkspaceMemberInput: { title: 'x' },
     CreateWorkspaceInviteInput: { email: 'x@test.local' },
@@ -101,6 +110,8 @@ function sampleBody(op: any) {
     MergeContactsInput: { mergeContactId: 'x' },
     CreateTagInput: { name: 'x' },
     ShareMessageInput: { roomIds: ['x'] },
+    CreateContactImportInput: { source: { kind: 'csv', csv: 'Name\nx', filename: 'x.csv' } },
+    ResolveContactImportRowInput: { action: 'skip' },
   }
   return samples[name ?? ''] ?? {}
 }

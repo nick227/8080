@@ -126,6 +126,19 @@ const CHECKS: { name: string; sql: string }[] = [
     name: 'RecordLink.linkedBy',
     sql: "SELECT c.id AS id FROM RecordLink c JOIN WorkspaceMember p ON p.id = c.linkedById WHERE p.workspaceId <> c.workspaceId",
   },
+  { name: 'Document.ownerMemberId', sql: 'SELECT c.id FROM Document c JOIN WorkspaceMember p ON p.id = c.ownerMemberId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'DocumentGrant.documentId', sql: 'SELECT c.id FROM DocumentGrant c JOIN Document p ON p.id = c.documentId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'DocumentGrant.memberId', sql: 'SELECT c.id FROM DocumentGrant c JOIN WorkspaceMember p ON p.id = c.memberId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'DocumentRoomLink.documentId', sql: 'SELECT c.id FROM DocumentRoomLink c JOIN Document p ON p.id = c.documentId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'DocumentRelation.fromId', sql: 'SELECT c.id FROM DocumentRelation c JOIN Document p ON p.id = c.fromId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'DocumentRelation.toId', sql: 'SELECT c.id FROM DocumentRelation c JOIN Document p ON p.id = c.toId WHERE c.workspaceId <> p.workspaceId' },
+  // Canonical imports (doc/10)
+  { name: 'ImportBatch.createdBy', sql: 'SELECT c.id FROM ImportBatch c JOIN WorkspaceMember p ON p.id = c.createdById WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'ImportBatch.sourceDocument', sql: 'SELECT c.id FROM ImportBatch c JOIN Document p ON p.id = c.sourceDocumentId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'ImportBatch.resultDocument', sql: 'SELECT c.id FROM ImportBatch c JOIN Document p ON p.id = c.resultDocumentId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'ImportRow.batch', sql: 'SELECT c.id FROM ImportRow c JOIN ImportBatch p ON p.id = c.batchId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'ImportRow.contact', sql: 'SELECT c.id FROM ImportRow c JOIN Contact p ON p.id = c.contactId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'Contact.importBatch', sql: 'SELECT c.id FROM Contact c JOIN ImportBatch p ON p.id = c.importBatchId WHERE c.workspaceId <> p.workspaceId' },
 ]
 
 /** Rows whose references cross a workspace boundary, by check name. Empty = sound. */
