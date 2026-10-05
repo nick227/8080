@@ -17,6 +17,47 @@ export function cameraConstraints(deviceId: string): MediaTrackConstraints {
   return video
 }
 
+// Opens the camera with the tuned constraints. If the device refuses them (Firefox on
+// Windows rejects some webcams' resolution/frame-rate combinations with AbortError
+// "Starting videoinput failed"), steps down one hint at a time instead of dropping
+// straight to the browser default (Firefox: 640×480): no frame-rate cap, then 720p,
+// then the device alone.
+const CAMERA_STEPS: { name: string; hints: MediaTrackConstraints }[] = [
+  { name: '1080p, no frame-rate cap', hints: { width: { ideal: 1920 }, height: { ideal: 1080 } } },
+  { name: '720p', hints: { width: { ideal: 1280 }, height: { ideal: 720 } } },
+  { name: 'plain', hints: {} },
+]
+
+const refused = (cause: unknown) => {
+  const name = cause instanceof DOMException ? cause.name : ''
+  return name === 'AbortError' || name === 'NotReadableError' || name === 'OverconstrainedError'
+}
+
+export async function openCamera(deviceId: string, audio: MediaStreamConstraints['audio'] = false): Promise<MediaStream> {
+  let last: unknown
+  try {
+    return await navigator.mediaDevices.getUserMedia({ audio, video: cameraConstraints(deviceId) })
+  } catch (cause) {
+    if (!refused(cause)) throw cause
+    last = cause
+  }
+  const device: MediaTrackConstraints = deviceId
+    ? { deviceId: { exact: deviceId } }
+    : { facingMode: localStorage.getItem('camera_facing') || 'user' }
+  for (const step of CAMERA_STEPS) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio, video: { ...step.hints, ...device } })
+      const settings = stream.getVideoTracks()[0]?.getSettings()
+      console.warn(`Camera refused tuned constraints; opened with ${step.name} (${settings?.width}×${settings?.height})`, last)
+      return stream
+    } catch (cause) {
+      if (!refused(cause)) throw cause
+      last = cause
+    }
+  }
+  throw last
+}
+
 let paused = false
 
 let live: MediaStream | null = null
@@ -51,12 +92,17 @@ export function publishLiveCompositor(compositor: Compositor | null) {
   listeners.forEach((listener) => listener())
 }
 
-export function pausePreview(): Promise<void> {
+export function pausePreview(cameraDeviceId?: string): MediaStream | null {
   paused = true
-  // Drop the framing camera and the mic monitor before the recorder opens its own stream.
-  releaseFraming()
+  // Transfer the working camera without stopping/reopening the hardware.
+  const track = framingCurrent?.getVideoTracks()[0]
+  const reuse = cameraDeviceId !== undefined && track?.readyState === 'live'
+    && (!cameraDeviceId || track.getSettings().deviceId === cameraDeviceId)
+  const camera = reuse ? framingCurrent : null
+  if (reuse) framingCurrent = null
+  else releaseFraming()
   releaseAudioMonitor()
-  return Promise.resolve()
+  return camera
 }
 
 export function resumePreview() {
@@ -65,7 +111,8 @@ export function resumePreview() {
 
 let framingCurrent: MediaStream | null = null
 
-export function releaseFraming() {
+export function releaseFraming(owner?: MediaStream) {
+  if (owner && owner !== framingCurrent) return
   const held = framingCurrent
   framingCurrent = null
   held?.getTracks().forEach((track) => track.stop())

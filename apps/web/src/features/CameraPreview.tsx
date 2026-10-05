@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useCapture } from '../state/capture'
 import { useBackground } from '../state/background'
-import { cameraConstraints, claimFraming, getLiveCompositor, getLiveStream, releaseFraming, subscribeLive } from './previewStream'
+import { claimFraming, openCamera, getLiveCompositor, getLiveStream, releaseFraming, subscribeLive } from './previewStream'
 import { currentMaskSource, ensureMaskSource, facingUser, loadMaskSource, startCompositor, type Compositor } from './virtualCamera'
 import { VbgReadout } from './room/VbgReadout'
 
@@ -9,8 +9,8 @@ const stopAll = (stream: MediaStream) => stream.getTracks().forEach((track) => t
 
 // Camera view on the record surface. While recording it shows the recorder's own
 // stream (or its virtual-background compositor). Otherwise it opens a framing stream
-// that it alone owns: stopped when it unmounts (Stop → playback, Save, closing, leaving
-// camera mode) and when recording starts, so the recorder can take the camera.
+// that it owns until recording takes it over. Unmounting stops only a stream still
+// owned by the preview; it must not stop a stream transferred to the recorder.
 // Permission persists across reopens. With Blur/Photo chosen, the framing stream runs
 // through a compositor and its preview canvas replaces the raw video.
 export function CameraPreview({ deviceId, recording }: { deviceId: string; recording: boolean }) {
@@ -35,17 +35,16 @@ export function CameraPreview({ deviceId, recording }: { deviceId: string; recor
     if (live || liveCompositor || hold) return
     let gone = false
     let stream: MediaStream | null = null
-    navigator.mediaDevices
-      .getUserMedia({ audio: false, video: cameraConstraints(deviceId) })
+    openCamera(deviceId)
       .then((s) => {
         if (gone || !claimFraming(s)) return stopAll(s)
         stream = s
         setOwn(s)
       })
-      .catch(() => undefined)
+      .catch((cause: unknown) => { console.warn('Camera preview failed', cause) })
     return () => {
       gone = true
-      if (stream) releaseFraming()
+      if (stream) releaseFraming(stream)
       stream = null
       setOwn(null)
     }

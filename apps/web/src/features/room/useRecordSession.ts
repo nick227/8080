@@ -76,7 +76,8 @@ export function useRecordSession({ replyName, compose = false, onClose, onSend, 
     setFrame(kind === 'video' ? 'camera' : 'mic')
     const deviceId = kind === 'audio' && choice.kind !== 'audioinput' ? '' : choice.deviceId
     const ok = await capture.start(kind, deviceId)
-    if (!ok) ui.setError(useCapture.getState().error ?? 'Recording unavailable')
+    const error = useCapture.getState().error
+    if (!ok && error) ui.setError(error)
   }
 
   const chooseFrame = (next: RecordFrame) => {

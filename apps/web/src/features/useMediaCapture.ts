@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { publishSpectrum, useCapture } from '../state/capture'
 import { useBackground } from '../state/background'
-import { cameraConstraints, pausePreview, publishLiveCompositor, publishLiveStream, resumePreview } from './previewStream'
+import { openCamera, pausePreview, publishLiveCompositor, publishLiveStream, resumePreview } from './previewStream'
 import { compositorOutputSize, currentMaskSource, effectiveMode, facingUser, loadMaskSource, setVbgRecording, startCompositor, type Compositor } from './virtualCamera'
 
-const getConstraints = (kind: 'audio' | 'video', deviceId: string): MediaStreamConstraints => {
-  if (kind === 'audio') return { audio: deviceId ? { deviceId: { exact: deviceId } } : true }
-
-  return { audio: true, video: cameraConstraints(deviceId) }
+const openDevices = (kind: 'audio' | 'video', deviceId: string): Promise<MediaStream> => {
+  if (kind === 'audio') return navigator.mediaDevices.getUserMedia({ audio: deviceId ? { deviceId: { exact: deviceId } } : true })
+  return openCamera(deviceId, true)
 }
 
 export function useMediaCapture() {
@@ -16,6 +15,7 @@ export function useMediaCapture() {
   const chunksRef = useRef<Blob[]>([])
   const startedAtRef = useRef(0)
   const cancelledRef = useRef(false)
+  const attemptRef = useRef(0)
   const previewRef = useRef<string | null>(null)
 
   const audioCtxRef = useRef<AudioContext | null>(null)
@@ -42,27 +42,50 @@ export function useMediaCapture() {
   // (capture phase is then 'captureFailed' with `error` set).
   const start = useCallback(async (kind: 'audio' | 'video', deviceId = ''): Promise<boolean> => {
     const capture = useCapture.getState()
+    if (capture.phase === 'arming' || capture.phase === 'recording' || capture.phase === 'stopping') return false
+    const attempt = ++attemptRef.current
+    let acquiring = true
+    let device = kind === 'video' ? 'Camera and microphone' : 'Microphone'
     try {
       capture.arm(kind)
-      await pausePreview()
+      const framing = pausePreview(kind === 'video' ? deviceId : undefined)
+      streamRef.current = framing
       await new Promise(r => setTimeout(r, 400)) // allow hardware to release
 
+      if (attempt !== attemptRef.current) return false
+      if (framing) device = 'Microphone'
       let timeoutId: ReturnType<typeof setTimeout>
-      const streamPromise = navigator.mediaDevices.getUserMedia(getConstraints(kind, deviceId))
+      const streamPromise = framing ? navigator.mediaDevices.getUserMedia({ audio: true, video: false }) : openDevices(kind, deviceId)
       const timeoutPromise = new Promise<MediaStream | null>((resolve) => {
         timeoutId = setTimeout(() => resolve(null), 15000)
       })
 
-      const stream = await Promise.race([streamPromise, timeoutPromise])
-      clearTimeout(timeoutId!)
+      let stream: MediaStream | null
+      try {
+        stream = await Promise.race([streamPromise, timeoutPromise])
+      } finally {
+        clearTimeout(timeoutId!)
+      }
+      if (attempt !== attemptRef.current) {
+        stream?.getTracks().forEach(track => track.stop())
+        if (!stream) void streamPromise.then(late => late.getTracks().forEach(track => track.stop())).catch(() => {})
+        return false
+      }
 
       if (!stream) {
         streamPromise.then(s => s.getTracks().forEach(t => t.stop())).catch(() => {})
-        resumePreview()
-        const device = kind === 'video' ? 'CAMERA' : 'MICROPHONE'
-        useCapture.setState({ phase: 'idle', error: `${device} PERMISSION TIMED OUT` })
+        disposeStream()
+        useCapture.setState({ phase: 'idle', error: `${device} access timed out` })
         return false
       }
+
+      if (framing) {
+        for (const track of stream.getAudioTracks()) framing.addTrack(track)
+        stream = framing
+      }
+      // Own the stream before any compositor/recorder setup can throw.
+      streamRef.current = stream
+      acquiring = false
 
       // Virtual background: record the compositor's canvas (+ the mic), not the raw camera.
       // RecordSurface keeps Record disabled until the segmenter is ready, so this is instant.
@@ -71,6 +94,7 @@ export function useMediaCapture() {
       if (effect !== 'original') {
         // The best source available now (MODNet if its background load finished).
         const source = currentMaskSource() ?? await loadMaskSource()
+        if (attempt !== attemptRef.current) return false
         const compositor = startCompositor(source, stream, { mode: effect, photoUrl: useBackground.getState().photo?.url ?? null, mirror: facingUser(stream), fixedSize: true },
           (message) => useBackground.getState().setStatus('unavailable', message))
         compositorRef.current = compositor
@@ -116,16 +140,20 @@ export function useMediaCapture() {
       startedAtRef.current = performance.now()
       
       recorder.ondataavailable = event => {
+        if (attempt !== attemptRef.current) return
         if (event.data.size === 0) return
         // Chrome only reports the recorder's MIME type once data flows.
         if (!chunksRef.current.length && kind === 'video') setVbgRecording({ mime: event.data.type || recorder.mimeType, videoBitsPerSecond })
         chunksRef.current.push(event.data)
       }
       recorder.onerror = () => {
-        resumePreview()
+        if (attempt !== attemptRef.current) return
+        cancelledRef.current = true
+        disposeStream()
         capture.failCapture('Recording failed')
       }
       recorder.onstop = () => {
+        if (attempt !== attemptRef.current) return
         if (cancelledRef.current) {
           chunksRef.current = []
           disposeStream()
@@ -186,13 +214,14 @@ export function useMediaCapture() {
       capture.begin()
       return true
     } catch (cause) {
+      if (attempt !== attemptRef.current) return false
       disposeStream()
-      const device = kind === 'video' ? 'Camera' : 'Microphone'
+      console.error('Recording start failed', { stage: acquiring ? 'device acquisition' : 'recorder setup', kind, cause })
       const name = cause instanceof DOMException ? cause.name : ''
       const denied = name === 'NotAllowedError' || name === 'SecurityError'
-      const msg = denied ? `${device} access was blocked`
+      const msg = !acquiring ? 'Could not start recording' : denied ? `${device} access was blocked`
         : name === 'NotFoundError' || name === 'OverconstrainedError' ? `No ${device.toLowerCase()} found`
-        : name === 'NotReadableError' || name === 'AbortError' ? `${device} is in use by another app`
+        : name === 'NotReadableError' || name === 'AbortError' ? `Could not start ${device.toLowerCase()}. Close other camera or microphone sessions and retry.`
         : `${device} unavailable`
       if (denied) useCapture.setState({ phase: 'permissionDenied', error: msg })
       else capture.failCapture(msg)
@@ -202,12 +231,19 @@ export function useMediaCapture() {
 
   const stop = useCallback(() => {
     const capture = useCapture.getState()
+    if (capture.phase === 'arming') {
+      attemptRef.current++
+      disposeStream()
+      capture.cancel()
+      return
+    }
     capture.stop()
     if (recorderRef.current?.state === 'recording') recorderRef.current.stop()
-  }, [])
+  }, [disposeStream])
 
   const cancel = useCallback(() => {
     const capture = useCapture.getState()
+    attemptRef.current++
     cancelledRef.current = true
     recorderRef.current?.state === 'recording' && recorderRef.current.stop()
     disposeStream()
@@ -219,6 +255,12 @@ export function useMediaCapture() {
   }, [disposeStream])
 
   useEffect(() => () => {
+    attemptRef.current++
+    cancelledRef.current = true
+    if (recorderRef.current) {
+      recorderRef.current.onstop = null
+      if (recorderRef.current.state !== 'inactive') recorderRef.current.stop()
+    }
     disposeStream()
     if (previewRef.current) URL.revokeObjectURL(previewRef.current)
   }, [disposeStream])
