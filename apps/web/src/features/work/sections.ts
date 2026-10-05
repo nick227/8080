@@ -7,12 +7,13 @@ export const DESKS: { id: Desk; label: string }[] = [
 ]
 
 // Lenses on one business graph: person, communication, opportunity.
-export type WorkLens = 'inbox' | 'contacts' | 'sales'
+export type WorkLens = 'inbox' | 'contacts' | 'sales' | 'documents'
 
 export const WORK_LENSES: { id: WorkLens; label: string; empty: string }[] = [
   { id: 'inbox', label: 'Inbox', empty: 'Nothing waiting.' },
   { id: 'contacts', label: 'Contacts', empty: 'No one saved yet.' },
   { id: 'sales', label: 'Sales', empty: 'No leads yet.' },
+  { id: 'documents', label: 'Documents', empty: 'No documents yet.' },
 ]
 
 export type InboxNote = { id: string; from: string; subject: string }
@@ -25,7 +26,7 @@ export const calendar: CalendarEvent[] = []
 export const contacts: Contact[] = []
 export const leads: Lead[] = []
 
-export function lensCount(lens: WorkLens) {
+export function lensCount(lens: Exclude<WorkLens, 'documents'>) {
   if (lens === 'inbox') return inbox.length
   if (lens === 'contacts') return contacts.length
   return leads.length

@@ -17,6 +17,7 @@ import { roomPeopleFrom, type PresenceActivity } from '../features/room/PeopleSt
 import { ChatShell } from '../features/room/ChatShell'
 import { RoomFloor } from '../features/room/RoomFloor'
 import { WorkNav } from '../features/work/WorkNav'
+import { RoomDocuments } from '../features/documents/RoomDocuments'
 import { CalendarPage, WorkPage } from '../features/work/WorkPage'
 import type { Desk } from '../features/work/sections'
 import { loadRoomView, saveRoomView, seatsFrom, type RoomView } from '../features/room/roomViews'
@@ -228,20 +229,20 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
           <div className="work-column">
             <WorkNav desk={place} teamActive={place === 'team' && view === 'grid'} onSelect={openPlace} />
             {place === 'team' ? (
-                <RoomFloor
-                  view={view}
-                  seats={seatsFrom(people, meId, meGuest)}
-                  item={queue[0]}
-                  next={queue.slice(1)}
-                  onEnded={() => setQueue((current) => current.slice(1))}
-                  onSend={send}
-                  onActivity={onActivity}
-                  onView={chooseView}
-                  onPost={openPost}
-                  deskOpen={showDesk}
-                />
+              <RoomFloor
+                view={view}
+                seats={seatsFrom(people, meId, meGuest)}
+                item={queue[0]}
+                next={queue.slice(1)}
+                onEnded={() => setQueue((current) => current.slice(1))}
+                onSend={send}
+                onActivity={onActivity}
+                onView={chooseView}
+                onPost={openPost}
+                deskOpen={showDesk}
+              />
             ) : place === 'work' ? (
-              <WorkPage />
+              <WorkPage roomId={roomId} />
             ) : (
               <CalendarPage />
             )}
@@ -252,6 +253,8 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
           <ChatBox onSend={chat} />
         </>}
         stream={(
+          <>
+          {roomId && <RoomDocuments roomId={roomId} owner={meName} onOpen={() => openPlace('work')} />}
           <ChatStream
             key={`${roomId ?? 'pending'}:${itemsSuccess ? 'ready' : 'wait'}`}
             rows={rows}
@@ -264,6 +267,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
               if (!roomItemsResult.isFetching) void roomItemsResult.fetchNextPage()
             }}
           />
+          </>
         )}
       />
       {showDesk && (
