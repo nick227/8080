@@ -3,6 +3,7 @@ import type { DocumentRecord } from './types'
 export function markOf(doc: DocumentRecord) {
   if (doc.surface === 'blocks') return 'Block'
   if (doc.surface === 'mental_map') return 'Map'
+  if (doc.surface === 'external') return doc.shared?.externalUrl?.includes('/spreadsheets/') ? 'Google Sheet' : 'Google Doc'
   if (doc.sheet?.mode === 'dataset') return 'Contacts'
   return 'Sheet'
 }
