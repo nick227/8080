@@ -1,4 +1,5 @@
 import { useSession } from '@project/sdk'
+import { CalendarExperience } from '../calendar/CalendarExperience'
 import { DocumentsExperience } from '../documents/DocumentsExperience'
 import { DESKS, deskEmpty, type Desk } from './sections'
 
@@ -19,10 +20,9 @@ export function WorkPage({ place, roomId }: { place: Exclude<Desk, 'team' | 'cal
 }
 
 export function CalendarPage() {
-  const empty = deskEmpty('calendar')
   return (
     <section className="work-page" aria-label="Calendar">
-      {empty && <p className="work-empty">{empty}</p>}
+      <CalendarExperience />
     </section>
   )
 }
