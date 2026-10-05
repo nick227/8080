@@ -9,43 +9,13 @@ import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId } f
 import { specPath } from '../app'
 import { can, type WorkspaceVerb } from '../services/workspacePolicy'
 import { crossWorkspaceViolations } from '../services/workspaceIntegrity'
+import { caller, carolId, createWorkspace as createWs, daveId, join as joinWs, memberId, seedPeople } from './helpers/workspace'
 
 const app = buildTestApp()
 
-const carolId = 'ws-test-carol'
-const daveId = 'ws-test-dave'
-
-async function seedPerson(id: string, email: string, displayName: string) {
-  await db.user.upsert({ where: { id }, create: { id, email, passwordHash: 'x', isGuest: false }, update: {} })
-  await db.profile.upsert({ where: { userId: id }, create: { userId: id, displayName }, update: {} })
-}
-const seedPeople = async () => {
-  await seedPerson(carolId, 'carol@test.local', 'Carol')
-  await seedPerson(daveId, 'dave@test.local', 'Dave')
-}
-
-async function call(userId: string, method: string, url: string, payload?: object, headers: Record<string, string> = {}) {
-  return app.inject({ method: method as any, url, payload, headers: { ...asAuth(userId), ...headers } })
-}
-
-async function createWorkspace(ownerId = testUserId, body: object = { name: 'Acme Co' }) {
-  const res = await call(ownerId, 'POST', '/workspaces', body)
-  expect(res.statusCode).toBe(201)
-  return res.json().data as { id: string; slug: string; role: string }
-}
-
-async function memberId(workspaceId: string, userId: string) {
-  return (await db.workspaceMember.findUniqueOrThrow({ where: { workspaceId_userId: { workspaceId, userId } } })).id
-}
-
-// Invite + accept through the API.
-async function join(workspaceId: string, userId: string, email: string, role: 'admin' | 'member' = 'member') {
-  const invite = await call(testUserId, 'POST', `/workspaces/${workspaceId}/invites`, { email, role })
-  expect(invite.statusCode).toBe(201)
-  const accept = await call(userId, 'POST', '/workspace-invites/accept', { token: invite.json().token })
-  expect(accept.statusCode).toBe(200)
-  return memberId(workspaceId, userId)
-}
+const call = caller(app)
+const createWorkspace = (ownerId = testUserId, body: object = { name: 'Acme Co' }) => createWs(app, ownerId, body)
+const join = (workspaceId: string, userId: string, email: string, role: 'admin' | 'member' = 'member') => joinWs(app, workspaceId, userId, email, role)
 
 const executions = (workspaceId: string, action: string) => db.actionExecution.findMany({ where: { workspaceId, action }, orderBy: { requestedAt: 'asc' } })
 
@@ -90,15 +60,17 @@ describe('workspace access', () => {
     .flatMap(([path, item]) => ['get', 'post', 'patch', 'put', 'delete'].filter((m) => item[m]).map((m) => ({ path, method: m, op: item[m] })))
 
   it('covers every workspace route', () => {
-    expect(routes.length).toBeGreaterThanOrEqual(15)
+    expect(routes.length).toBeGreaterThanOrEqual(45)
   })
 
   for (const { path, method, op } of routes) {
     it(`${op.operationId}: requires auth, and is 404 for non-members`, async () => {
       const ws = await createWorkspace()
       await seedPeople()
-      const url = path.replace('{workspaceId}', ws.id).replace(/\{[^}]+\}/g, 'x')
-      const body = method === 'get' || method === 'delete' ? undefined : op.requestBody ? sampleBody(op) : undefined
+      // Required query parameters get a valid sample so the 404 comes from policy.
+      const query = (op.parameters ?? []).filter((p: any) => p.in === 'query' && p.required).map((p: any) => `${p.name}=x%40test.local`).join('&')
+      const url = path.replace('{workspaceId}', ws.id).replace(/\{[^}]+\}/g, 'x') + (query ? `?${query}` : '')
+      const body = method === 'get' ? undefined : op.requestBody ? sampleBody(op) : undefined
       expect((await app.inject({ method: method.toUpperCase() as any, url })).statusCode).toBe(401)
       const res = await call(daveId, method.toUpperCase(), url, body)
       expect(res.statusCode).toBe(404)
@@ -125,6 +97,10 @@ function sampleBody(op: any) {
     CreateTeamInput: { name: 'x' },
     UpdateTeamInput: { name: 'x' },
     SetTeamMemberInput: {},
+    CreateAccountInput: { name: 'x' },
+    MergeContactsInput: { mergeContactId: 'x' },
+    CreateTagInput: { name: 'x' },
+    ShareMessageInput: { roomIds: ['x'] },
   }
   return samples[name ?? ''] ?? {}
 }

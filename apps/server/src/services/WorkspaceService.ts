@@ -15,6 +15,7 @@ import {
   type UserRow,
 } from '../lib/serialize'
 import { diff, runAction, type ActionActor } from './actions'
+import { redactRooms } from './records'
 import { authorize, permit, type Actor } from './workspacePolicy'
 
 type Tx = Prisma.TransactionClient
@@ -352,7 +353,7 @@ export class WorkspaceService {
       take: limit + 1,
     })
     const result = page(rows, limit, (last) => encodeKeyCursor({ at: last.occurredAt.toISOString(), id: last.id }))
-    return { data: result.data.map(toActivity), meta: result.meta }
+    return { data: await redactRooms(userId, result.data.map(toActivity)), meta: result.meta }
   }
 
   async listActions(userId: string, workspaceId: string, opts: { cursor?: string; limit?: number; targetType?: string; targetId?: string }) {

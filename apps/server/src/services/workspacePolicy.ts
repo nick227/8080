@@ -18,6 +18,17 @@ export type WorkspaceVerb =
   | 'team.members.manage'
   | 'activity.read'
   | 'audit.read'
+  // CRM records (contacts, accounts; leads/deals later). V1 is broad (D4): every
+  // member reads and edits; deleting or merging away a record is for admins and
+  // the record's owner.
+  | 'record.read'
+  | 'record.write'
+  | 'record.delete'
+  | 'note.write'
+  | 'note.delete'
+  | 'link.write'
+  | 'tag.create'
+  | 'tag.manage'
 
 const OWNERS: readonly WorkspaceRole[] = ['owner']
 const ADMINS: readonly WorkspaceRole[] = ['owner', 'admin']
@@ -35,6 +46,14 @@ const ROLES: Record<WorkspaceVerb, readonly WorkspaceRole[]> = {
   'team.members.manage': ADMINS, // + the team's own leads (below)
   'activity.read': EVERYONE,
   'audit.read': ADMINS,
+  'record.read': EVERYONE,
+  'record.write': EVERYONE,
+  'record.delete': ADMINS, // + the record's owner (below)
+  'note.write': EVERYONE,
+  'note.delete': ADMINS, // + the note's author (below)
+  'link.write': EVERYONE,
+  'tag.create': EVERYONE,
+  'tag.manage': ADMINS,
 }
 
 // What a verb is applied to, when the answer depends on it.
@@ -42,12 +61,16 @@ export type PolicyTarget =
   // `role`: the member being changed; `grant`: the role being given to them.
   | { kind: 'member'; role: WorkspaceRole; grant?: WorkspaceRole }
   | { kind: 'team'; leadMemberIds: readonly string[] }
+  | { kind: 'record'; ownerMemberId: string | null }
+  | { kind: 'note'; authorMemberId: string }
 
 export type Actor = { member: WorkspaceMember; workspace: Workspace }
 
 export function can(member: Pick<WorkspaceMember, 'id' | 'role' | 'status'>, verb: WorkspaceVerb, target?: PolicyTarget): boolean {
   if (member.status !== 'active') return false
   if (verb === 'team.members.manage' && target?.kind === 'team' && target.leadMemberIds.includes(member.id)) return true
+  if (verb === 'record.delete' && target?.kind === 'record' && target.ownerMemberId === member.id) return true
+  if (verb === 'note.delete' && target?.kind === 'note' && target.authorMemberId === member.id) return true
   if (!ROLES[verb].includes(member.role)) return false
   // Only owners touch owners, or make someone an owner.
   if (verb === 'member.manage' && target?.kind === 'member' && member.role !== 'owner') {
@@ -76,3 +99,5 @@ export async function authorize(userId: string, workspaceId: string, verb: Works
 export function permit(actor: Actor, verb: WorkspaceVerb, target?: PolicyTarget) {
   if (!can(actor.member, verb, target)) throw forbidden('Not allowed in this workspace')
 }
+
+// SQL visibility and per-object checks live together to prevent list/detail drift.

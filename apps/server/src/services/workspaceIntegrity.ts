@@ -33,6 +33,99 @@ const CHECKS: { name: string; sql: string }[] = [
     name: 'ActivitySubject.activity',
     sql: 'SELECT s.id FROM ActivitySubject s JOIN Activity a ON a.id = s.activityId WHERE a.workspaceId <> s.workspaceId',
   },
+  // Contacts, notes and links (slice 1)
+  {
+    name: 'ActivitySubject.contact',
+    sql: "SELECT c.id AS id FROM ActivitySubject c JOIN Contact p ON p.id = c.contactId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'ActivitySubject.account',
+    sql: "SELECT c.id AS id FROM ActivitySubject c JOIN Account p ON p.id = c.accountId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'Activity.note',
+    sql: "SELECT c.id AS id FROM Activity c JOIN Note p ON p.id = c.noteId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'Contact.ownerMember',
+    sql: "SELECT c.id AS id FROM Contact c JOIN WorkspaceMember p ON p.id = c.ownerMemberId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'Contact.team',
+    sql: "SELECT c.id AS id FROM Contact c JOIN Team p ON p.id = c.teamId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'Contact.createdBy',
+    sql: "SELECT c.id AS id FROM Contact c JOIN WorkspaceMember p ON p.id = c.createdById WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'Contact.mergedInto',
+    sql: "SELECT c.id AS id FROM Contact c JOIN Contact p ON p.id = c.mergedIntoId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'ContactPoint.contact',
+    sql: "SELECT c.id AS id FROM ContactPoint c JOIN Contact p ON p.id = c.contactId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'Account.ownerMember',
+    sql: "SELECT c.id AS id FROM Account c JOIN WorkspaceMember p ON p.id = c.ownerMemberId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'Account.team',
+    sql: "SELECT c.id AS id FROM Account c JOIN Team p ON p.id = c.teamId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'Account.createdBy',
+    sql: "SELECT c.id AS id FROM Account c JOIN WorkspaceMember p ON p.id = c.createdById WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'Account.parentAccount',
+    sql: "SELECT c.id AS id FROM Account c JOIN Account p ON p.id = c.parentAccountId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'ContactAccount.contact',
+    sql: "SELECT c.id AS id FROM ContactAccount c JOIN Contact p ON p.id = c.contactId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'ContactAccount.account',
+    sql: "SELECT c.id AS id FROM ContactAccount c JOIN Account p ON p.id = c.accountId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'ContactTag.tag',
+    sql: "SELECT CONCAT(c.tagId, ':', c.contactId) AS id FROM ContactTag c JOIN Tag p ON p.id = c.tagId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'ContactTag.contact',
+    sql: "SELECT CONCAT(c.tagId, ':', c.contactId) AS id FROM ContactTag c JOIN Contact p ON p.id = c.contactId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'AccountTag.tag',
+    sql: "SELECT CONCAT(c.tagId, ':', c.accountId) AS id FROM AccountTag c JOIN Tag p ON p.id = c.tagId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'AccountTag.account',
+    sql: "SELECT CONCAT(c.tagId, ':', c.accountId) AS id FROM AccountTag c JOIN Account p ON p.id = c.accountId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'Note.authorMember',
+    sql: "SELECT c.id AS id FROM Note c JOIN WorkspaceMember p ON p.id = c.authorMemberId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'RecordLink.contact',
+    sql: "SELECT c.id AS id FROM RecordLink c JOIN Contact p ON p.id = c.contactId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'RecordLink.account',
+    sql: "SELECT c.id AS id FROM RecordLink c JOIN Account p ON p.id = c.accountId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'RecordLink.note',
+    sql: "SELECT c.id AS id FROM RecordLink c JOIN Note p ON p.id = c.noteId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'RecordLink.linkedBy',
+    sql: "SELECT c.id AS id FROM RecordLink c JOIN WorkspaceMember p ON p.id = c.linkedById WHERE p.workspaceId <> c.workspaceId",
+  },
 ]
 
 /** Rows whose references cross a workspace boundary, by check name. Empty = sound. */

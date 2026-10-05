@@ -850,6 +850,423 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Contacts, by name
+         * @description `q` matches the name (contains) or any email/phone/url (prefix). `accountId`: people currently at that account. Defaults to active contacts.
+         */
+        get: operations["listContacts"];
+        put?: never;
+        /**
+         * Create a contact
+         * @description Never refuses a likely duplicate (doc/09 D2): `duplicates` lists live contacts with the same personal email,
+         *     or the same name at the same account. Role addresses (info@…) are stored as shared unless `shared: false`.
+         */
+        post: operations["createContact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/contacts/match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * What the matcher concludes for an email
+         * @description `match`: exactly one live contact holds it as a personal address; `ambiguous`: several do; `shared`: only as a
+         *     shared/role address (never auto-matched); `none`. `account` applies the same rule to the email's domain.
+         */
+        get: operations["matchContact"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/contacts/{contactId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a contact
+         * @description A merged contact resolves to the contact it was merged into (compare ids).
+         */
+        get: operations["getContact"];
+        put?: never;
+        post?: never;
+        /** Delete a contact (admins or its owner; soft delete) */
+        delete: operations["deleteContact"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a contact
+         * @description `points` and `tagIds`, when given, replace the current set.
+         */
+        patch: operations["updateContact"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/contacts/{contactId}/duplicates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        /** Possible duplicates of a contact */
+        get: operations["listContactDuplicates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/contacts/{contactId}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge another contact into this one
+         * @description Points, accounts, tags, links and timeline move to this contact (deduplicated); the other is deleted with
+         *     `mergedIntoId` set. Needs delete rights on the merged-away contact (admin or its owner).
+         */
+        post: operations["mergeContacts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/contacts/{contactId}/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        /** Activity about a contact, newest first */
+        get: operations["getContactTimeline"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/contacts/{contactId}/accounts/{accountId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+                accountId: components["parameters"]["AccountId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Link a contact to an account, or update that link
+         * @description `isPrimary` makes it the contact's one primary account. Set `endedAt` when they leave (history stays).
+         */
+        put: operations["setContactAccount"];
+        post?: never;
+        /** Remove a contact–account link */
+        delete: operations["removeContactAccount"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Accounts, by name */
+        get: operations["listAccounts"];
+        put?: never;
+        /**
+         * Create an account
+         * @description `duplicates` lists live accounts with the same domain (a signal, not a block). Personal email domains
+         *     (gmail.com…) are refused as company domains (400 FREE_MAIL_DOMAIN).
+         */
+        post: operations["createAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/accounts/{accountId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                accountId: components["parameters"]["AccountId"];
+            };
+            cookie?: never;
+        };
+        /** Get an account */
+        get: operations["getAccount"];
+        put?: never;
+        post?: never;
+        /** Delete an account (admins or its owner; soft delete) */
+        delete: operations["deleteAccount"];
+        options?: never;
+        head?: never;
+        /** Update an account */
+        patch: operations["updateAccount"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/accounts/{accountId}/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                accountId: components["parameters"]["AccountId"];
+            };
+            cookie?: never;
+        };
+        /** Activity about an account and the people at it, newest first */
+        get: operations["getAccountTimeline"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Tags in a workspace */
+        get: operations["listTags"];
+        put?: never;
+        /** Create a tag (any member) */
+        post: operations["createTag"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/tags/{tagId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                tagId: components["parameters"]["TagId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a tag from every record (owner/admin) */
+        delete: operations["deleteTag"];
+        options?: never;
+        head?: never;
+        /** Rename or recolour a tag (owner/admin) */
+        patch: operations["updateTag"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Notes on a contact or account, newest first
+         * @description Give exactly one of `contactId` or `accountId`.
+         */
+        get: operations["listNotes"];
+        put?: never;
+        /**
+         * Add a note (text and/or media) to contacts and accounts
+         * @description Media: the caller's own uploads (POST /media), not yet attached — a voice or video note plays like any capture.
+         */
+        post: operations["createNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/notes/{noteId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                noteId: components["parameters"]["NoteId"];
+            };
+            cookie?: never;
+        };
+        /** Get a note */
+        get: operations["getNote"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a note (admins or its author)
+         * @description Room placements made by sharing stay (they are separate publications); a note never shared is purged.
+         */
+        delete: operations["deleteNote"];
+        options?: never;
+        head?: never;
+        /** Pin or unpin a note */
+        patch: operations["updateNote"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/notes/{noteId}/share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                noteId: components["parameters"]["NoteId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Share a note into conversations (its author only)
+         * @description Same rules as shareMessageToRooms. Deleting the capture in a room later removes it everywhere, the note's content included.
+         */
+        post: operations["shareNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Links of one contact, account, note or room
+         * @description Filter by exactly one. A linked room the caller can't see is returned without its id or title.
+         */
+        get: operations["listRecordLinks"];
+        put?: never;
+        /**
+         * Link a contact or account to a note or a conversation
+         * @description Exactly one subject (`contactId`/`accountId`) and one object (`noteId`, or `roomId` with an optional `itemId`).
+         *     Linking a room requires being able to see it. Conversations are linked, never owners of the record.
+         */
+        post: operations["createRecordLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/links/{linkId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                linkId: components["parameters"]["LinkId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a link */
+        delete: operations["deleteRecordLink"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rooms/{roomId}/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: components["parameters"]["RoomId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Records linked to a conversation, from the caller’s workspaces
+         * @description Only links from workspaces the caller is an active member of; nobody else learns a link exists.
+         */
+        get: operations["listRoomLinks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1297,6 +1714,13 @@ export interface components {
             occurredAt: string;
             actorMemberId: string | null;
             actor: components["schemas"]["Author"] | null;
+            /** @description The note this event is about */
+            noteId: string | null;
+            /** @description The conversation this event is about; null when the caller can't see it */
+            roomId: string | null;
+            itemId: string | null;
+            /** @description Records this event is about, e.g. contact:<id> */
+            subjects: string[];
             /** @description Display snapshot for this event type (names at the time it happened) */
             summary: {
                 [key: string]: unknown;
@@ -1332,6 +1756,317 @@ export interface components {
         PaginatedActionExecutions: {
             data: components["schemas"]["ActionExecution"][];
             meta: components["schemas"]["PaginatedMeta"];
+        };
+        /** @enum {string} */
+        RecordStatus: "active" | "archived";
+        /**
+         * @description How the record was created (not why the person showed up)
+         * @enum {string}
+         */
+        RecordOrigin: "manual" | "import" | "inbox" | "calendar" | "conversation" | "api" | "sync";
+        /** @enum {string} */
+        ContactPointKind: "email" | "phone" | "url" | "social";
+        /** @enum {string} */
+        AccountType: "prospect" | "customer" | "partner" | "vendor" | "other";
+        /** @enum {string} */
+        LinkOrigin: "manual" | "auto_match" | "import" | "system";
+        /** @enum {string} */
+        MatchResult: "match" | "none" | "ambiguous" | "shared";
+        Tag: {
+            id: string;
+            name: string;
+            color: string | null;
+        };
+        TagResponse: {
+            data: components["schemas"]["Tag"];
+        };
+        TagList: {
+            data: components["schemas"]["Tag"][];
+        };
+        CreateTagInput: {
+            name: string;
+            color?: string | null;
+        };
+        UpdateTagInput: {
+            name?: string;
+            color?: string | null;
+        };
+        ContactPoint: {
+            id: string;
+            kind: components["schemas"]["ContactPointKind"];
+            value: string;
+            label: string | null;
+            isPrimary: boolean;
+            /** @description A shared/role address (info@…): never auto-matched to this person */
+            shared: boolean;
+        };
+        ContactPointInput: {
+            kind: components["schemas"]["ContactPointKind"];
+            value: string;
+            label?: string | null;
+            isPrimary?: boolean;
+            shared?: boolean;
+        };
+        ContactAccountLink: {
+            accountId: string;
+            name: string;
+            role: string | null;
+            isPrimary: boolean;
+            /** Format: date-time */
+            startedAt: string | null;
+            /** Format: date-time */
+            endedAt: string | null;
+        };
+        Contact: {
+            id: string;
+            workspaceId: string;
+            firstName: string | null;
+            lastName: string | null;
+            displayName: string;
+            title: string | null;
+            status: components["schemas"]["RecordStatus"];
+            ownerMemberId: string | null;
+            teamId: string | null;
+            primaryEmail: string | null;
+            primaryPhone: string | null;
+            /** Format: date-time */
+            lastActivityAt: string | null;
+            origin: components["schemas"]["RecordOrigin"];
+            externalProvider: string | null;
+            externalId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            points: components["schemas"]["ContactPoint"][];
+            accounts: components["schemas"]["ContactAccountLink"][];
+            tags: components["schemas"]["Tag"][];
+        };
+        ContactRef: {
+            id: string;
+            displayName: string;
+            primaryEmail: string | null;
+        };
+        ContactResponse: {
+            data: components["schemas"]["Contact"];
+        };
+        CreatedContactResponse: {
+            data: components["schemas"]["Contact"];
+            duplicates: components["schemas"]["ContactRef"][];
+        };
+        ContactRefList: {
+            data: components["schemas"]["ContactRef"][];
+        };
+        PaginatedContacts: {
+            data: components["schemas"]["Contact"][];
+            meta: components["schemas"]["PaginatedMeta"];
+        };
+        /** @description Needs a name, an email or a phone (400 EMPTY_CONTACT). displayName defaults to first + last name. */
+        CreateContactInput: {
+            firstName?: string | null;
+            lastName?: string | null;
+            displayName?: string | null;
+            title?: string | null;
+            status?: components["schemas"]["RecordStatus"];
+            ownerMemberId?: string | null;
+            teamId?: string | null;
+            points?: components["schemas"]["ContactPointInput"][];
+            tagIds?: string[];
+            accounts?: {
+                accountId: string;
+                role?: string | null;
+                isPrimary?: boolean;
+            }[];
+            externalProvider?: string | null;
+            externalId?: string | null;
+        };
+        UpdateContactInput: {
+            firstName?: string | null;
+            lastName?: string | null;
+            /** @description null re-derives it from the name or primary email/phone */
+            displayName?: string | null;
+            title?: string | null;
+            status?: components["schemas"]["RecordStatus"];
+            ownerMemberId?: string | null;
+            teamId?: string | null;
+            points?: components["schemas"]["ContactPointInput"][];
+            tagIds?: string[];
+            externalProvider?: string | null;
+            externalId?: string | null;
+        };
+        MergeContactsInput: {
+            /** @description The contact folded into this one and deleted */
+            mergeContactId: string;
+        };
+        SetContactAccountInput: {
+            role?: string | null;
+            isPrimary?: boolean;
+            /** Format: date-time */
+            startedAt?: string | null;
+            /** Format: date-time */
+            endedAt?: string | null;
+        };
+        AccountRef: {
+            id: string;
+            name: string;
+            domain: string | null;
+        };
+        ContactMatch: {
+            email: string;
+            result: components["schemas"]["MatchResult"];
+            /** @description The matched contact when result is match */
+            matchId: string | null;
+            contacts: components["schemas"]["ContactRef"][];
+            account: {
+                result: components["schemas"]["MatchResult"];
+                matchId: string | null;
+                accounts: components["schemas"]["AccountRef"][];
+            };
+        };
+        ContactMatchResponse: {
+            data: components["schemas"]["ContactMatch"];
+        };
+        Account: {
+            id: string;
+            workspaceId: string;
+            name: string;
+            domain: string | null;
+            website: string | null;
+            industry: string | null;
+            sizeBand: string | null;
+            type: components["schemas"]["AccountType"];
+            status: components["schemas"]["RecordStatus"];
+            parentAccountId: string | null;
+            ownerMemberId: string | null;
+            teamId: string | null;
+            /** Format: date-time */
+            lastActivityAt: string | null;
+            origin: components["schemas"]["RecordOrigin"];
+            externalProvider: string | null;
+            externalId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** @description People currently at this account */
+            contactCount: number;
+            tags: components["schemas"]["Tag"][];
+        };
+        AccountResponse: {
+            data: components["schemas"]["Account"];
+        };
+        CreatedAccountResponse: {
+            data: components["schemas"]["Account"];
+            duplicates: components["schemas"]["AccountRef"][];
+        };
+        PaginatedAccounts: {
+            data: components["schemas"]["Account"][];
+            meta: components["schemas"]["PaginatedMeta"];
+        };
+        CreateAccountInput: {
+            name: string;
+            domain?: string | null;
+            website?: string | null;
+            industry?: string | null;
+            sizeBand?: string | null;
+            type?: components["schemas"]["AccountType"];
+            status?: components["schemas"]["RecordStatus"];
+            parentAccountId?: string | null;
+            ownerMemberId?: string | null;
+            teamId?: string | null;
+            tagIds?: string[];
+            externalProvider?: string | null;
+            externalId?: string | null;
+        };
+        UpdateAccountInput: {
+            name?: string;
+            domain?: string | null;
+            website?: string | null;
+            industry?: string | null;
+            sizeBand?: string | null;
+            type?: components["schemas"]["AccountType"];
+            status?: components["schemas"]["RecordStatus"];
+            parentAccountId?: string | null;
+            ownerMemberId?: string | null;
+            teamId?: string | null;
+            tagIds?: string[];
+            externalProvider?: string | null;
+            externalId?: string | null;
+        };
+        Note: {
+            id: string;
+            workspaceId: string;
+            /** @description The capture behind the note (what shareNote places in rooms) */
+            messageId: string;
+            authorMemberId: string;
+            author: components["schemas"]["Author"];
+            text: string | null;
+            media: components["schemas"]["Media"][];
+            /** @description The capture was deleted in a room it was shared to, which removes it everywhere */
+            contentRemoved: boolean;
+            /** Format: date-time */
+            pinnedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Records it is attached to, e.g. contact:<id>, account:<id> */
+            subjects: string[];
+        };
+        NoteResponse: {
+            data: components["schemas"]["Note"];
+        };
+        PaginatedNotes: {
+            data: components["schemas"]["Note"][];
+            meta: components["schemas"]["PaginatedMeta"];
+        };
+        /** @description Needs text or media, and at least one contact or account. */
+        CreateNoteInput: {
+            text?: string;
+            mediaIds?: string[];
+            contactIds?: string[];
+            accountIds?: string[];
+        };
+        UpdateNoteInput: {
+            pinned?: boolean;
+        };
+        RecordLink: {
+            id: string;
+            workspaceId: string;
+            subject: {
+                /** @enum {string} */
+                type: "contact" | "account";
+                id: string;
+                name: string;
+            };
+            object: {
+                /** @enum {string} */
+                type: "note" | "room" | "item";
+                noteId: string | null;
+                /** @description null when the caller can't see the conversation (or it was deleted) */
+                room: {
+                    id: string;
+                    number: number;
+                    title: string;
+                } | null;
+                itemId: string | null;
+            };
+            how: components["schemas"]["LinkOrigin"];
+            linkedById: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        RecordLinkResponse: {
+            data: components["schemas"]["RecordLink"];
+        };
+        RecordLinkList: {
+            data: components["schemas"]["RecordLink"][];
+        };
+        /** @description Exactly one of contactId/accountId, and exactly one of noteId/roomId (itemId only with roomId). */
+        CreateRecordLinkInput: {
+            contactId?: string;
+            accountId?: string;
+            noteId?: string;
+            roomId?: string;
+            itemId?: string;
         };
     };
     responses: {
@@ -1404,6 +2139,11 @@ export interface components {
         /** @description A WorkspaceMember id (not a user id) */
         MemberId: string;
         TeamId: string;
+        ContactId: string;
+        AccountId: string;
+        TagId: string;
+        NoteId: string;
+        LinkId: string;
         /** @description Repeating a succeeded request with the same key returns its result instead of acting twice; reusing a key for a different request is 409 IDEMPOTENCY_KEY_REUSED. */
         IdempotencyKey: string;
     };
@@ -2957,6 +3697,917 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listContacts: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor returned by the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                q?: string;
+                ownerMemberId?: string;
+                tagId?: string;
+                accountId?: string;
+                status?: components["schemas"]["RecordStatus"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedContacts"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createContact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateContactInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedContactResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    matchContact: {
+        parameters: {
+            query: {
+                email: string;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactMatchResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getContact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteContact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateContact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateContactInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listContactDuplicates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactRefList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    mergeContacts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeContactsInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getContactTimeline: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor returned by the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedActivity"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setContactAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+                accountId: components["parameters"]["AccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SetContactAccountInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    removeContactAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+                accountId: components["parameters"]["AccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listAccounts: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor returned by the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                q?: string;
+                ownerMemberId?: string;
+                tagId?: string;
+                type?: components["schemas"]["AccountType"];
+                status?: components["schemas"]["RecordStatus"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAccounts"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAccountInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedAccountResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                accountId: components["parameters"]["AccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                accountId: components["parameters"]["AccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                accountId: components["parameters"]["AccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAccountInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getAccountTimeline: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor returned by the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                accountId: components["parameters"]["AccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedActivity"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTagInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                tagId: components["parameters"]["TagId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                tagId: components["parameters"]["TagId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTagInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listNotes: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor returned by the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                contactId?: string;
+                accountId?: string;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedNotes"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateNoteInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                noteId: components["parameters"]["NoteId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                noteId: components["parameters"]["NoteId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                noteId: components["parameters"]["NoteId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateNoteInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    shareNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                noteId: components["parameters"]["NoteId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShareMessageInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShareResultResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listRecordLinks: {
+        parameters: {
+            query?: {
+                contactId?: string;
+                accountId?: string;
+                noteId?: string;
+                roomId?: string;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordLinkList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createRecordLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRecordLinkInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordLinkResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteRecordLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                linkId: components["parameters"]["LinkId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listRoomLinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: components["parameters"]["RoomId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordLinkList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
         };
     };

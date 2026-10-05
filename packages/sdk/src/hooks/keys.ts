@@ -17,4 +17,15 @@ export const keys = {
   teams: (workspaceId: string) => ['workspaces', workspaceId, 'teams'] as const,
   workspaceActivity: (workspaceId: string) => ['workspaces', workspaceId, 'activity'] as const,
   workspaceActions: (workspaceId: string, params?: object) => ['workspaces', workspaceId, 'actions', params ?? {}] as const,
+  // Contacts & co. live under the workspace, so one invalidation of ['workspaces', id]
+  // refreshes records, timelines and the activity feed together.
+  contacts: (workspaceId: string, params?: object) => ['workspaces', workspaceId, 'contacts', 'list', params ?? {}] as const,
+  contact: (workspaceId: string, contactId: string) => ['workspaces', workspaceId, 'contacts', contactId] as const,
+  accounts: (workspaceId: string, params?: object) => ['workspaces', workspaceId, 'accounts', 'list', params ?? {}] as const,
+  account: (workspaceId: string, accountId: string) => ['workspaces', workspaceId, 'accounts', accountId] as const,
+  timeline: (workspaceId: string, subject: string) => ['workspaces', workspaceId, 'timeline', subject] as const,
+  tags: (workspaceId: string) => ['workspaces', workspaceId, 'tags'] as const,
+  notes: (workspaceId: string, subject: string) => ['workspaces', workspaceId, 'notes', subject] as const,
+  links: (workspaceId: string, filter: object) => ['workspaces', workspaceId, 'links', filter] as const,
+  roomLinks: (roomId: string) => ['roomLinks', roomId] as const,
 }

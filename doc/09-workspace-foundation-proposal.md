@@ -742,3 +742,62 @@ incl. archive / set or remove member), `GET …/activity` (members), `GET …/ac
 **Tests:** `workspaces.test.ts`, 32 cases, including a spec-driven check that every
 `/workspaces/{workspaceId}…` route is 401 without auth and 404 for non-members (new
 routes are covered automatically) and the cross-workspace invariant. Server 261/261.
+
+---
+
+## 13. Slice 1 — as built (2026-10-05)
+
+Scope as narrowed on approval: Contacts + matcher + Notes + RecordLink. **Import is
+deferred to its own slice right after** (its first real use, importing leads, needs Slice
+2's Lead anyway; mapping, needs-review, one-batch-at-a-time locking, revert and row
+retention would have doubled this slice). Contacts are domain capabilities, not
+necessarily a page: the same API/hooks serve Work, Sales, Inbox, Team tiles or search.
+
+**Schema** (additive; existing models gain relation fields only): `Contact`,
+`ContactPoint`, `Account`, `ContactAccount`, `Tag`, `ContactTag`, `AccountTag`, `Note`,
+`RecordLink`; `Activity` gains its object arc (`noteId`, `roomId`, `itemId`);
+`ActivitySubject` gains `contactId`/`accountId` with timeline indexes. Enums
+`RecordStatus`, `RecordOrigin`, `ContactPointKind`, `AccountType`, `LinkOrigin`.
+
+**Server**
+- `contactMatch.ts`: the one matcher (D2) — role-address list → `shared`, free-mail domains,
+  point normalisation (email/phone/url/social), `matchContactsByEmail` (match / ambiguous /
+  shared / none), `matchAccountsByDomain`.
+- `ContactService` (create reports `duplicates`, never refuses; points replace; derived
+  `displayName`/`primaryEmail`/`primaryPhone`; contact–account links with one primary and
+  `endedAt` history; duplicates; **merge** moving points, accounts, tags, links and timeline
+  subjects with dedupe, the loser resolving to the survivor), `AccountService` (domain
+  normalisation, same-domain report, `FREE_MAIL_DOMAIN`, parent cycles refused),
+  `TagService`, `NoteService`, `LinkService`, `records.ts` (assignee/tag checks, timeline
+  query, room visibility, redaction).
+- Policy: `record.read|write` for every member; `record.delete` (delete, merge-away) for
+  admins + the record's owner; `note.delete` for admins + the author; `tag.manage` admins.
+- `runAction` drafts carry `subjects` and an `object`; `lastActivityAt` only moves forward.
+- Integrity checks for all 23 new same-workspace pairs.
+
+**API**: 30 operations — contacts (list/search/filter, create, get, update, delete, match,
+duplicates, merge, timeline, set/remove account), accounts (list, create, get, update,
+delete, timeline), tags (list, create, update, delete), notes (list by subject, create,
+get, pin, delete, share), links (list, create, delete) and `GET /rooms/{roomId}/links`
+(the room tile). SDK: `hooks/useContacts.ts`.
+
+**Decisions made while building**
+- **Account timeline** = the account's own activity + what happened to the people
+  currently there *since they joined* (`startedAt`, else link creation), not their earlier
+  history elsewhere.
+- **Linking rules (Q-B applied)**: linking a note adds the subject to the note's existing
+  activities (it appears at its original time); linking a conversation writes
+  `conversation.linked`. Unlinking removes the subject from those activities and writes
+  `link.removed`. Deleting a note removes it from timelines.
+- **Privacy of rooms (§6)**: a room can only be linked by someone who can see it; links and
+  timeline entries show a room the viewer can't see without its id or title; the room tile
+  lists links only from workspaces the viewer is an active member of.
+- **D10 refined**: deleting a capture in a room purges it everywhere (`purgeCapture`, the
+  current product rule), so a shared note's content can disappear — the note then reports
+  `contentRemoved: true`. Deleting a note never removes its placements; a never-shared note
+  is purged (file, media row, text).
+- Not yet: `Contact.avatarMediaId`, account merge (`Account.mergedIntoId`) and
+  `importBatchId` — each comes with the feature that uses it.
+
+**Tests**: `contacts.test.ts` (18) + the spec-driven access guard now covers 49
+workspace routes. Server 309/309.

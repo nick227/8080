@@ -1217,6 +1217,668 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  # ─── contacts, accounts, tags, notes, links (doc/09 slice 1) ───────────────
+  /workspaces/{workspaceId}/contacts:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listContacts
+      summary: Contacts, by name
+      description: |
+        `q` matches the name (contains) or any email/phone/url (prefix). `accountId`: people currently at that account. Defaults to active contacts.
+      tags: [workspaces]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: q
+          schema: { type: string, minLength: 1, maxLength: 200 }
+        - in: query
+          name: ownerMemberId
+          schema: { type: string, minLength: 1, maxLength: 64 }
+        - in: query
+          name: tagId
+          schema: { type: string, minLength: 1, maxLength: 64 }
+        - in: query
+          name: accountId
+          schema: { type: string, minLength: 1, maxLength: 64 }
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/RecordStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedContacts' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createContact
+      summary: Create a contact
+      description: |
+        Never refuses a likely duplicate (doc/09 D2): `duplicates` lists live contacts with the same personal email,
+        or the same name at the same account. Role addresses (info@…) are stored as shared unless `shared: false`.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateContactInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreatedContactResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/contacts/match:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: matchContact
+      summary: What the matcher concludes for an email
+      description: |
+        `match`: exactly one live contact holds it as a personal address; `ambiguous`: several do; `shared`: only as a
+        shared/role address (never auto-matched); `none`. `account` applies the same rule to the email's domain.
+      tags: [workspaces]
+      parameters:
+        - in: query
+          name: email
+          required: true
+          schema: { type: string, format: email, maxLength: 254 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactMatchResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/contacts/{contactId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ContactId'
+    get:
+      operationId: getContact
+      summary: Get a contact
+      description: |
+        A merged contact resolves to the contact it was merged into (compare ids).
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateContact
+      summary: Update a contact
+      description: |
+        `points` and `tagIds`, when given, replace the current set.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateContactInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: deleteContact
+      summary: Delete a contact (admins or its owner; soft delete)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/contacts/{contactId}/duplicates:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ContactId'
+    get:
+      operationId: listContactDuplicates
+      summary: Possible duplicates of a contact
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactRefList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/contacts/{contactId}/merge:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ContactId'
+    post:
+      operationId: mergeContacts
+      summary: Merge another contact into this one
+      description: |
+        Points, accounts, tags, links and timeline move to this contact (deduplicated); the other is deleted with
+        `mergedIntoId` set. Needs delete rights on the merged-away contact (admin or its owner).
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MergeContactsInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/contacts/{contactId}/timeline:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ContactId'
+    get:
+      operationId: getContactTimeline
+      summary: Activity about a contact, newest first
+      tags: [workspaces]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedActivity' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/contacts/{contactId}/accounts/{accountId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ContactId'
+      - $ref: '#/components/parameters/AccountId'
+    put:
+      operationId: setContactAccount
+      summary: Link a contact to an account, or update that link
+      description: |
+        `isPrimary` makes it the contact's one primary account. Set `endedAt` when they leave (history stays).
+      tags: [workspaces]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetContactAccountInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: removeContactAccount
+      summary: Remove a contact–account link
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/accounts:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listAccounts
+      summary: Accounts, by name
+      tags: [workspaces]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: q
+          schema: { type: string, minLength: 1, maxLength: 200 }
+        - in: query
+          name: ownerMemberId
+          schema: { type: string, minLength: 1, maxLength: 64 }
+        - in: query
+          name: tagId
+          schema: { type: string, minLength: 1, maxLength: 64 }
+        - in: query
+          name: type
+          schema: { $ref: '#/components/schemas/AccountType' }
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/RecordStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedAccounts' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createAccount
+      summary: Create an account
+      description: |
+        `duplicates` lists live accounts with the same domain (a signal, not a block). Personal email domains
+        (gmail.com…) are refused as company domains (400 FREE_MAIL_DOMAIN).
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAccountInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreatedAccountResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/accounts/{accountId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      operationId: getAccount
+      summary: Get an account
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateAccount
+      summary: Update an account
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateAccountInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: deleteAccount
+      summary: Delete an account (admins or its owner; soft delete)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/accounts/{accountId}/timeline:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      operationId: getAccountTimeline
+      summary: Activity about an account and the people at it, newest first
+      tags: [workspaces]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedActivity' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/tags:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listTags
+      summary: Tags in a workspace
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TagList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createTag
+      summary: Create a tag (any member)
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTagInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TagResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/tags/{tagId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/TagId'
+    patch:
+      operationId: updateTag
+      summary: Rename or recolour a tag (owner/admin)
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateTagInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TagResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: deleteTag
+      summary: Delete a tag from every record (owner/admin)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/notes:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listNotes
+      summary: Notes on a contact or account, newest first
+      description: |
+        Give exactly one of `contactId` or `accountId`.
+      tags: [workspaces]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: contactId
+          schema: { type: string, minLength: 1, maxLength: 64 }
+        - in: query
+          name: accountId
+          schema: { type: string, minLength: 1, maxLength: 64 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedNotes' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createNote
+      summary: Add a note (text and/or media) to contacts and accounts
+      description: |
+        Media: the caller's own uploads (POST /media), not yet attached — a voice or video note plays like any capture.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateNoteInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NoteResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/notes/{noteId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/NoteId'
+    get:
+      operationId: getNote
+      summary: Get a note
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NoteResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateNote
+      summary: Pin or unpin a note
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateNoteInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NoteResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteNote
+      summary: Delete a note (admins or its author)
+      description: |
+        Room placements made by sharing stay (they are separate publications); a note never shared is purged.
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/notes/{noteId}/share:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/NoteId'
+    post:
+      operationId: shareNote
+      summary: Share a note into conversations (its author only)
+      description: |
+        Same rules as shareMessageToRooms. Deleting the capture in a room later removes it everywhere, the note's content included.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ShareMessageInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShareResultResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/links:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listRecordLinks
+      summary: Links of one contact, account, note or room
+      description: |
+        Filter by exactly one. A linked room the caller can't see is returned without its id or title.
+      tags: [workspaces]
+      parameters:
+        - in: query
+          name: contactId
+          schema: { type: string, minLength: 1, maxLength: 64 }
+        - in: query
+          name: accountId
+          schema: { type: string, minLength: 1, maxLength: 64 }
+        - in: query
+          name: noteId
+          schema: { type: string, minLength: 1, maxLength: 64 }
+        - in: query
+          name: roomId
+          schema: { type: string, minLength: 1, maxLength: 64 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordLinkList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createRecordLink
+      summary: Link a contact or account to a note or a conversation
+      description: |
+        Exactly one subject (`contactId`/`accountId`) and one object (`noteId`, or `roomId` with an optional `itemId`).
+        Linking a room requires being able to see it. Conversations are linked, never owners of the record.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRecordLinkInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordLinkResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/links/{linkId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/LinkId'
+    delete:
+      operationId: deleteRecordLink
+      summary: Remove a link
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /rooms/{roomId}/links:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    get:
+      operationId: listRoomLinks
+      summary: Records linked to a conversation, from the caller’s workspaces
+      description: |
+        Only links from workspaces the caller is an active member of; nobody else learns a link exists.
+      tags: [rooms]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordLinkList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1274,6 +1936,31 @@ components:
     TeamId:
       in: path
       name: teamId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    ContactId:
+      in: path
+      name: contactId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    AccountId:
+      in: path
+      name: accountId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    TagId:
+      in: path
+      name: tagId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    NoteId:
+      in: path
+      name: noteId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    LinkId:
+      in: path
+      name: linkId
       required: true
       schema: { type: string, minLength: 1, maxLength: 64 }
     IdempotencyKey:
@@ -1955,7 +2642,7 @@ components:
 
     Activity:
       type: object
-      required: [id, type, occurredAt, actorMemberId, actor, summary]
+      required: [id, type, occurredAt, actorMemberId, actor, noteId, roomId, itemId, subjects, summary]
       properties:
         id: { type: string }
         type: { type: string, description: 'Namespaced event, e.g. member.joined, team.created' }
@@ -1965,6 +2652,13 @@ components:
           oneOf:
             - $ref: '#/components/schemas/Author'
             - type: 'null'
+        noteId: { type: [string, 'null'], description: The note this event is about }
+        roomId: { type: [string, 'null'], description: "The conversation this event is about; null when the caller can't see it" }
+        itemId: { type: [string, 'null'] }
+        subjects:
+          type: array
+          items: { type: string }
+          description: 'Records this event is about, e.g. contact:<id>'
         summary:
           type: object
           additionalProperties: true
@@ -2007,3 +2701,491 @@ components:
           type: array
           items: { $ref: '#/components/schemas/ActionExecution' }
         meta: { $ref: '#/components/schemas/PaginatedMeta' }
+
+    # ─── contacts, accounts, tags, notes, links (doc/09 slice 1) ─────────────
+    RecordStatus:
+      type: string
+      enum: [active, archived]
+
+    RecordOrigin:
+      type: string
+      enum: [manual, import, inbox, calendar, conversation, api, sync]
+      description: How the record was created (not why the person showed up)
+
+    ContactPointKind:
+      type: string
+      enum: [email, phone, url, social]
+
+    AccountType:
+      type: string
+      enum: [prospect, customer, partner, vendor, other]
+
+    LinkOrigin:
+      type: string
+      enum: [manual, auto_match, import, system]
+
+    MatchResult:
+      type: string
+      enum: [match, none, ambiguous, shared]
+
+    Tag:
+      type: object
+      required: [id, name, color]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        color: { type: [string, 'null'] }
+
+    TagResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Tag' }
+
+    TagList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Tag' }
+
+    CreateTagInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 40 }
+        color: { type: [string, 'null'], maxLength: 16 }
+
+    UpdateTagInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 40 }
+        color: { type: [string, 'null'], maxLength: 16 }
+
+    ContactPoint:
+      type: object
+      required: [id, kind, value, label, isPrimary, shared]
+      properties:
+        id: { type: string }
+        kind: { $ref: '#/components/schemas/ContactPointKind' }
+        value: { type: string }
+        label: { type: [string, 'null'] }
+        isPrimary: { type: boolean }
+        shared: { type: boolean, description: 'A shared/role address (info@…): never auto-matched to this person' }
+
+    ContactPointInput:
+      type: object
+      additionalProperties: false
+      required: [kind, value]
+      properties:
+        kind: { $ref: '#/components/schemas/ContactPointKind' }
+        value: { type: string, minLength: 1, maxLength: 255 }
+        label: { type: [string, 'null'], maxLength: 40 }
+        isPrimary: { type: boolean }
+        shared: { type: boolean }
+
+    ContactAccountLink:
+      type: object
+      required: [accountId, name, role, isPrimary, startedAt, endedAt]
+      properties:
+        accountId: { type: string }
+        name: { type: string }
+        role: { type: [string, 'null'] }
+        isPrimary: { type: boolean }
+        startedAt: { type: [string, 'null'], format: date-time }
+        endedAt: { type: [string, 'null'], format: date-time }
+
+    Contact:
+      type: object
+      required: [id, workspaceId, firstName, lastName, displayName, title, status, ownerMemberId, teamId, primaryEmail, primaryPhone, lastActivityAt, origin, externalProvider, externalId, createdAt, updatedAt, points, accounts, tags]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        firstName: { type: [string, 'null'] }
+        lastName: { type: [string, 'null'] }
+        displayName: { type: string }
+        title: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/RecordStatus' }
+        ownerMemberId: { type: [string, 'null'] }
+        teamId: { type: [string, 'null'] }
+        primaryEmail: { type: [string, 'null'] }
+        primaryPhone: { type: [string, 'null'] }
+        lastActivityAt: { type: [string, 'null'], format: date-time }
+        origin: { $ref: '#/components/schemas/RecordOrigin' }
+        externalProvider: { type: [string, 'null'] }
+        externalId: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        points:
+          type: array
+          items: { $ref: '#/components/schemas/ContactPoint' }
+        accounts:
+          type: array
+          items: { $ref: '#/components/schemas/ContactAccountLink' }
+        tags:
+          type: array
+          items: { $ref: '#/components/schemas/Tag' }
+
+    ContactRef:
+      type: object
+      required: [id, displayName, primaryEmail]
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        primaryEmail: { type: [string, 'null'] }
+
+    ContactResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Contact' }
+
+    CreatedContactResponse:
+      type: object
+      required: [data, duplicates]
+      properties:
+        data: { $ref: '#/components/schemas/Contact' }
+        duplicates:
+          type: array
+          items: { $ref: '#/components/schemas/ContactRef' }
+
+    ContactRefList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ContactRef' }
+
+    PaginatedContacts:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Contact' }
+        meta: { $ref: '#/components/schemas/PaginatedMeta' }
+
+    CreateContactInput:
+      type: object
+      additionalProperties: false
+      description: Needs a name, an email or a phone (400 EMPTY_CONTACT). displayName defaults to first + last name.
+      properties:
+        firstName: { type: [string, 'null'], maxLength: 80 }
+        lastName: { type: [string, 'null'], maxLength: 80 }
+        displayName: { type: [string, 'null'], maxLength: 160 }
+        title: { type: [string, 'null'], maxLength: 120 }
+        status: { $ref: '#/components/schemas/RecordStatus' }
+        ownerMemberId: { type: [string, 'null'], maxLength: 64 }
+        teamId: { type: [string, 'null'], maxLength: 64 }
+        points:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/ContactPointInput' }
+        tagIds:
+          type: array
+          maxItems: 50
+          items: { type: string, minLength: 1, maxLength: 64 }
+        accounts:
+          type: array
+          maxItems: 10
+          items:
+            type: object
+            additionalProperties: false
+            required: [accountId]
+            properties:
+              accountId: { type: string, minLength: 1, maxLength: 64 }
+              role: { type: [string, 'null'], maxLength: 80 }
+              isPrimary: { type: boolean }
+        externalProvider: { type: [string, 'null'], maxLength: 32 }
+        externalId: { type: [string, 'null'], maxLength: 255 }
+
+    UpdateContactInput:
+      type: object
+      additionalProperties: false
+      properties:
+        firstName: { type: [string, 'null'], maxLength: 80 }
+        lastName: { type: [string, 'null'], maxLength: 80 }
+        displayName: { type: [string, 'null'], maxLength: 160, description: 'null re-derives it from the name or primary email/phone' }
+        title: { type: [string, 'null'], maxLength: 120 }
+        status: { $ref: '#/components/schemas/RecordStatus' }
+        ownerMemberId: { type: [string, 'null'], maxLength: 64 }
+        teamId: { type: [string, 'null'], maxLength: 64 }
+        points:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/ContactPointInput' }
+        tagIds:
+          type: array
+          maxItems: 50
+          items: { type: string, minLength: 1, maxLength: 64 }
+        externalProvider: { type: [string, 'null'], maxLength: 32 }
+        externalId: { type: [string, 'null'], maxLength: 255 }
+
+    MergeContactsInput:
+      type: object
+      additionalProperties: false
+      required: [mergeContactId]
+      properties:
+        mergeContactId: { type: string, minLength: 1, maxLength: 64, description: The contact folded into this one and deleted }
+
+    SetContactAccountInput:
+      type: object
+      additionalProperties: false
+      properties:
+        role: { type: [string, 'null'], maxLength: 80 }
+        isPrimary: { type: boolean }
+        startedAt: { type: [string, 'null'], format: date-time }
+        endedAt: { type: [string, 'null'], format: date-time }
+
+    AccountRef:
+      type: object
+      required: [id, name, domain]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        domain: { type: [string, 'null'] }
+
+    ContactMatch:
+      type: object
+      required: [email, result, matchId, contacts, account]
+      properties:
+        email: { type: string }
+        result: { $ref: '#/components/schemas/MatchResult' }
+        matchId: { type: [string, 'null'], description: The matched contact when result is match }
+        contacts:
+          type: array
+          items: { $ref: '#/components/schemas/ContactRef' }
+        account:
+          type: object
+          required: [result, matchId, accounts]
+          properties:
+            result: { $ref: '#/components/schemas/MatchResult' }
+            matchId: { type: [string, 'null'] }
+            accounts:
+              type: array
+              items: { $ref: '#/components/schemas/AccountRef' }
+
+    ContactMatchResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ContactMatch' }
+
+    Account:
+      type: object
+      required: [id, workspaceId, name, domain, website, industry, sizeBand, type, status, parentAccountId, ownerMemberId, teamId, lastActivityAt, origin, externalProvider, externalId, createdAt, updatedAt, contactCount, tags]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        name: { type: string }
+        domain: { type: [string, 'null'] }
+        website: { type: [string, 'null'] }
+        industry: { type: [string, 'null'] }
+        sizeBand: { type: [string, 'null'] }
+        type: { $ref: '#/components/schemas/AccountType' }
+        status: { $ref: '#/components/schemas/RecordStatus' }
+        parentAccountId: { type: [string, 'null'] }
+        ownerMemberId: { type: [string, 'null'] }
+        teamId: { type: [string, 'null'] }
+        lastActivityAt: { type: [string, 'null'], format: date-time }
+        origin: { $ref: '#/components/schemas/RecordOrigin' }
+        externalProvider: { type: [string, 'null'] }
+        externalId: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        contactCount: { type: integer, description: People currently at this account }
+        tags:
+          type: array
+          items: { $ref: '#/components/schemas/Tag' }
+
+    AccountResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Account' }
+
+    CreatedAccountResponse:
+      type: object
+      required: [data, duplicates]
+      properties:
+        data: { $ref: '#/components/schemas/Account' }
+        duplicates:
+          type: array
+          items: { $ref: '#/components/schemas/AccountRef' }
+
+    PaginatedAccounts:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Account' }
+        meta: { $ref: '#/components/schemas/PaginatedMeta' }
+
+    CreateAccountInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        domain: { type: [string, 'null'], maxLength: 255 }
+        website: { type: [string, 'null'], maxLength: 255 }
+        industry: { type: [string, 'null'], maxLength: 80 }
+        sizeBand: { type: [string, 'null'], maxLength: 16 }
+        type: { $ref: '#/components/schemas/AccountType' }
+        status: { $ref: '#/components/schemas/RecordStatus' }
+        parentAccountId: { type: [string, 'null'], maxLength: 64 }
+        ownerMemberId: { type: [string, 'null'], maxLength: 64 }
+        teamId: { type: [string, 'null'], maxLength: 64 }
+        tagIds:
+          type: array
+          maxItems: 50
+          items: { type: string, minLength: 1, maxLength: 64 }
+        externalProvider: { type: [string, 'null'], maxLength: 32 }
+        externalId: { type: [string, 'null'], maxLength: 255 }
+
+    UpdateAccountInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        domain: { type: [string, 'null'], maxLength: 255 }
+        website: { type: [string, 'null'], maxLength: 255 }
+        industry: { type: [string, 'null'], maxLength: 80 }
+        sizeBand: { type: [string, 'null'], maxLength: 16 }
+        type: { $ref: '#/components/schemas/AccountType' }
+        status: { $ref: '#/components/schemas/RecordStatus' }
+        parentAccountId: { type: [string, 'null'], maxLength: 64 }
+        ownerMemberId: { type: [string, 'null'], maxLength: 64 }
+        teamId: { type: [string, 'null'], maxLength: 64 }
+        tagIds:
+          type: array
+          maxItems: 50
+          items: { type: string, minLength: 1, maxLength: 64 }
+        externalProvider: { type: [string, 'null'], maxLength: 32 }
+        externalId: { type: [string, 'null'], maxLength: 255 }
+
+    Note:
+      type: object
+      required: [id, workspaceId, messageId, authorMemberId, author, text, media, contentRemoved, pinnedAt, createdAt, subjects]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        messageId: { type: string, description: The capture behind the note (what shareNote places in rooms) }
+        authorMemberId: { type: string }
+        author: { $ref: '#/components/schemas/Author' }
+        text: { type: [string, 'null'] }
+        media:
+          type: array
+          items: { $ref: '#/components/schemas/Media' }
+        contentRemoved: { type: boolean, description: 'The capture was deleted in a room it was shared to, which removes it everywhere' }
+        pinnedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        subjects:
+          type: array
+          items: { type: string }
+          description: 'Records it is attached to, e.g. contact:<id>, account:<id>'
+
+    NoteResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Note' }
+
+    PaginatedNotes:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Note' }
+        meta: { $ref: '#/components/schemas/PaginatedMeta' }
+
+    CreateNoteInput:
+      type: object
+      additionalProperties: false
+      description: Needs text or media, and at least one contact or account.
+      properties:
+        text: { type: string, maxLength: 10000 }
+        mediaIds:
+          type: array
+          maxItems: 10
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 64 }
+        contactIds:
+          type: array
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 64 }
+        accountIds:
+          type: array
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 64 }
+
+    UpdateNoteInput:
+      type: object
+      additionalProperties: false
+      properties:
+        pinned: { type: boolean }
+
+    RecordLink:
+      type: object
+      required: [id, workspaceId, subject, object, how, linkedById, createdAt]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        subject:
+          type: object
+          required: [type, id, name]
+          properties:
+            type: { type: string, enum: [contact, account] }
+            id: { type: string }
+            name: { type: string }
+        object:
+          type: object
+          required: [type, noteId, room, itemId]
+          properties:
+            type: { type: string, enum: [note, room, item] }
+            noteId: { type: [string, 'null'] }
+            room:
+              description: null when the caller can't see the conversation (or it was deleted)
+              oneOf:
+                - type: object
+                  required: [id, number, title]
+                  properties:
+                    id: { type: string }
+                    number: { type: integer }
+                    title: { type: string }
+                - type: 'null'
+            itemId: { type: [string, 'null'] }
+        how: { $ref: '#/components/schemas/LinkOrigin' }
+        linkedById: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+
+    RecordLinkResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/RecordLink' }
+
+    RecordLinkList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/RecordLink' }
+
+    CreateRecordLinkInput:
+      type: object
+      additionalProperties: false
+      description: Exactly one of contactId/accountId, and exactly one of noteId/roomId (itemId only with roomId).
+      properties:
+        contactId: { type: string, minLength: 1, maxLength: 64 }
+        accountId: { type: string, minLength: 1, maxLength: 64 }
+        noteId: { type: string, minLength: 1, maxLength: 64 }
+        roomId: { type: string, minLength: 1, maxLength: 64 }
+        itemId: { type: string, minLength: 1, maxLength: 64 }

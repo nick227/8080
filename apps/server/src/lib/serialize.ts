@@ -229,7 +229,10 @@ export function toTeam(team: TeamRow) {
   }
 }
 
-export const activityInclude = { actorMember: { include: workspaceMemberInclude } } satisfies Prisma.ActivityInclude
+export const activityInclude = {
+  actorMember: { include: workspaceMemberInclude },
+  subjects: { select: { subjectKey: true }, orderBy: { subjectKey: 'asc' } },
+} satisfies Prisma.ActivityInclude
 export type ActivityRow = Prisma.ActivityGetPayload<{ include: typeof activityInclude }>
 
 export function toActivity(activity: ActivityRow) {
@@ -239,6 +242,10 @@ export function toActivity(activity: ActivityRow) {
     occurredAt: activity.occurredAt,
     actorMemberId: activity.actorMemberId,
     actor: activity.actorMember ? toAuthor(activity.actorMember.user) : null,
+    noteId: activity.noteId,
+    roomId: activity.roomId,
+    itemId: activity.itemId,
+    subjects: activity.subjects.map((s) => s.subjectKey),
     summary: (activity.summary ?? {}) as Record<string, unknown>,
   }
 }
@@ -260,5 +267,134 @@ export function toActionExecution(execution: Prisma.ActionExecutionGetPayload<ob
     errorCode: execution.errorCode,
     requestedAt: execution.requestedAt,
     finishedAt: execution.finishedAt,
+  }
+}
+
+// ─── contacts and accounts (doc/09 §4.1) ─────────────────────────────────────
+
+export const contactInclude = {
+  points: { orderBy: [{ kind: 'asc' }, { position: 'asc' }] },
+  accounts: { include: { account: { select: { id: true, name: true, deletedAt: true } } }, orderBy: { createdAt: 'asc' } },
+  tags: { include: { tag: true } },
+} satisfies Prisma.ContactInclude
+export type ContactRow = Prisma.ContactGetPayload<{ include: typeof contactInclude }>
+
+const toTag = (tag: Prisma.TagGetPayload<object>) => ({ id: tag.id, name: tag.name, color: tag.color })
+const byName = <T extends { name: string }>(a: T, b: T) => a.name.localeCompare(b.name)
+
+export function toContact(contact: ContactRow) {
+  return {
+    id: contact.id,
+    workspaceId: contact.workspaceId,
+    firstName: contact.firstName,
+    lastName: contact.lastName,
+    displayName: contact.displayName,
+    title: contact.title,
+    status: contact.status,
+    ownerMemberId: contact.ownerMemberId,
+    teamId: contact.teamId,
+    primaryEmail: contact.primaryEmail,
+    primaryPhone: contact.primaryPhone,
+    lastActivityAt: contact.lastActivityAt,
+    origin: contact.origin,
+    externalProvider: contact.externalProvider,
+    externalId: contact.externalId,
+    createdAt: contact.createdAt,
+    updatedAt: contact.updatedAt,
+    points: contact.points.map((p) => ({ id: p.id, kind: p.kind, value: p.value, label: p.label, isPrimary: p.isPrimary, shared: p.shared })),
+    accounts: contact.accounts
+      .filter((ca) => !ca.account.deletedAt)
+      .map((ca) => ({ accountId: ca.accountId, name: ca.account.name, role: ca.role, isPrimary: ca.isPrimary, startedAt: ca.startedAt, endedAt: ca.endedAt })),
+    tags: contact.tags.map((ct) => toTag(ct.tag)).sort(byName),
+  }
+}
+
+/** A short reference (match results, duplicates, links). */
+export const toContactRef = (c: { id: string; displayName: string; primaryEmail: string | null }) => ({ id: c.id, displayName: c.displayName, primaryEmail: c.primaryEmail })
+
+export const accountInclude = {
+  tags: { include: { tag: true } },
+  _count: { select: { contacts: { where: { endedAt: null, contact: { deletedAt: null } } } } },
+} satisfies Prisma.AccountInclude
+export type AccountRow = Prisma.AccountGetPayload<{ include: typeof accountInclude }>
+
+export function toAccount(account: AccountRow) {
+  return {
+    id: account.id,
+    workspaceId: account.workspaceId,
+    name: account.name,
+    domain: account.domain,
+    website: account.website,
+    industry: account.industry,
+    sizeBand: account.sizeBand,
+    type: account.type,
+    status: account.status,
+    parentAccountId: account.parentAccountId,
+    ownerMemberId: account.ownerMemberId,
+    teamId: account.teamId,
+    lastActivityAt: account.lastActivityAt,
+    origin: account.origin,
+    externalProvider: account.externalProvider,
+    externalId: account.externalId,
+    createdAt: account.createdAt,
+    updatedAt: account.updatedAt,
+    contactCount: account._count.contacts,
+    tags: account.tags.map((at) => toTag(at.tag)).sort(byName),
+  }
+}
+
+export const toAccountRef = (a: { id: string; name: string; domain: string | null }) => ({ id: a.id, name: a.name, domain: a.domain })
+export { toTag }
+
+// ─── notes and links (doc/09 §3) ─────────────────────────────────────────────
+
+export const noteInclude = {
+  message: { include: messageInclude },
+  authorMember: { select: { id: true } },
+  links: { select: { contactId: true, accountId: true } },
+} satisfies Prisma.NoteInclude
+export type NoteRow = Prisma.NoteGetPayload<{ include: typeof noteInclude }>
+
+// A capture deleted in a room is purged everywhere (purgeCapture), so the note can
+// outlive its content: `contentRemoved` tells the UI why it's empty.
+export function toNote(note: NoteRow) {
+  const removed = note.message.deletedAt !== null
+  return {
+    id: note.id,
+    workspaceId: note.workspaceId,
+    messageId: note.messageId,
+    authorMemberId: note.authorMemberId,
+    author: toAuthor(note.message.author),
+    text: removed ? null : note.message.text,
+    media: removed ? [] : note.message.media.map(toMedia),
+    contentRemoved: removed,
+    pinnedAt: note.pinnedAt,
+    createdAt: note.createdAt,
+    subjects: note.links.map((l) => (l.contactId ? `contact:${l.contactId}` : `account:${l.accountId}`)).sort(),
+  }
+}
+
+export const recordLinkInclude = {
+  contact: { select: { id: true, displayName: true, primaryEmail: true, deletedAt: true } },
+  account: { select: { id: true, name: true, domain: true, deletedAt: true } },
+  room: { select: { id: true, number: true, title: true, deletedAt: true } },
+} satisfies Prisma.RecordLinkInclude
+export type RecordLinkRow = Prisma.RecordLinkGetPayload<{ include: typeof recordLinkInclude }>
+
+// `roomVisible`: rooms the viewer can't see stay anonymous (don't leak existence).
+export function toRecordLink(link: RecordLinkRow, roomVisible: boolean) {
+  const showRoom = link.roomId !== null && roomVisible && link.room !== null && !link.room.deletedAt
+  return {
+    id: link.id,
+    workspaceId: link.workspaceId,
+    subject: link.contact
+      ? { type: 'contact' as const, id: link.contact.id, name: link.contact.displayName }
+      : { type: 'account' as const, id: link.account!.id, name: link.account!.name },
+    object: link.noteId
+      ? { type: 'note' as const, noteId: link.noteId, room: null, itemId: null }
+      : { type: link.itemId ? ('item' as const) : ('room' as const), noteId: null, room: showRoom ? { id: link.room!.id, number: link.room!.number, title: link.room!.title } : null, itemId: showRoom ? link.itemId : null },
+    how: link.how,
+    linkedById: link.linkedById,
+    createdAt: link.createdAt,
   }
 }

@@ -14,10 +14,36 @@ export type ActionActor = { kind: 'member'; userId: string; memberId?: string } 
 
 export type Changes = Record<string, [unknown, unknown]>
 
+// A CRM record an activity is about (doc/09 §3 "subject"). Exactly one id.
+export type SubjectRef = { contactId: string } | { accountId: string }
+// What the activity refers to (at most one; itemId comes with its roomId).
+export type ActivityObject = { noteId: string } | { roomId: string; itemId?: string | null }
+
 export type ActivityDraft = {
   type: string
   summary: Record<string, unknown>
   occurredAt?: Date
+  subjects?: SubjectRef[]
+  object?: ActivityObject
+}
+
+export const subjectKey = (s: SubjectRef) => ('contactId' in s ? `contact:${s.contactId}` : `account:${s.accountId}`)
+
+/** Adds subjects to existing activities (linking an object to a record, doc/09 Q-B). */
+export async function addSubjects(tx: Tx, workspaceId: string, activities: { id: string; occurredAt: Date }[], subjects: SubjectRef[]) {
+  const rows = activities.flatMap((a) => subjects.map((s) => ({ activityId: a.id, workspaceId, subjectKey: subjectKey(s), occurredAt: a.occurredAt, ...s })))
+  if (rows.length) await tx.activitySubject.createMany({ data: rows, skipDuplicates: true })
+  const newest = activities.reduce<Date | null>((max, a) => (!max || a.occurredAt > max ? a.occurredAt : max), null)
+  if (newest) await touchSubjects(tx, subjects, newest)
+}
+
+// lastActivityAt only moves forward.
+async function touchSubjects(tx: Tx, subjects: SubjectRef[], at: Date) {
+  const contactIds = subjects.flatMap((s) => ('contactId' in s ? [s.contactId] : []))
+  const accountIds = subjects.flatMap((s) => ('accountId' in s ? [s.accountId] : []))
+  const stale = { OR: [{ lastActivityAt: null }, { lastActivityAt: { lt: at } }] }
+  if (contactIds.length) await tx.contact.updateMany({ where: { id: { in: contactIds }, ...stale }, data: { lastActivityAt: at } })
+  if (accountIds.length) await tx.account.updateMany({ where: { id: { in: accountIds }, ...stale }, data: { lastActivityAt: at } })
 }
 
 export type ActionRequest = {
@@ -93,16 +119,18 @@ export async function runAction<T>(
         },
       })
       for (const activity of outcome.activities ?? []) {
-        await tx.activity.create({
+        const created = await tx.activity.create({
           data: {
             workspaceId,
             type: activity.type,
             occurredAt: activity.occurredAt ?? execution.requestedAt,
             actorMemberId,
             actionExecutionId: execution.id,
+            ...activity.object,
             summary: json(activity.summary),
           },
         })
+        if (activity.subjects?.length) await addSubjects(tx, workspaceId, [created], activity.subjects)
       }
       return outcome.value
     })

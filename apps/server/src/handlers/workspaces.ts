@@ -1,13 +1,10 @@
-import { WorkspaceService, type WorkspaceCtx } from '../services/WorkspaceService'
+import { WorkspaceService } from '../services/WorkspaceService'
 import { TeamService } from '../services/TeamService'
-import { SESSION_COOKIE } from '../lib/session'
+import { workspaceCtx as ctx } from '../lib/session'
 
 const workspaceService = new WorkspaceService()
 const teamService = new TeamService()
 
-// Recorded on every ActionExecution: the web app authenticates with the session
-// cookie, other clients with a bearer token.
-const ctx = (request: any): WorkspaceCtx => ({ user: request.user, origin: request.cookies?.[SESSION_COOKIE] ? 'ui' : 'api' })
 
 // ─── workspaces ──────────────────────────────────────────────────────────────
 

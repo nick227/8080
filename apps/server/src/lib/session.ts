@@ -32,3 +32,10 @@ export async function resolveSessionUser(request: any) {
   if (!session || session.expiresAt < new Date() || session.user.deletedAt) return null
   return session.user
 }
+
+// Who is acting on a workspace and through what, recorded on every ActionExecution:
+// the web app authenticates with the session cookie, other clients with a bearer token.
+export const workspaceCtx = (request: any): { user: any; origin: 'ui' | 'api' } => ({
+  user: request.user,
+  origin: request.cookies?.[SESSION_COOKIE] ? 'ui' : 'api',
+})

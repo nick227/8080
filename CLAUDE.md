@@ -127,6 +127,8 @@ The in-lobby River (playing posts and replies inline) was retired: the Lobby onl
 - **Permissions only in `services/workspacePolicy.ts`** (`authorize` → 404 to non-members). **Every workspace mutation goes through `runAction`** (`services/actions.ts`) in its transaction. Load related rows with `workspaceId` in the where-clause; add each new FK pair to `services/workspaceIntegrity.ts`.
 - Owners/assignees reference `WorkspaceMember.id` (rows never deleted; `removed`). A workspace always keeps an active owner (`LAST_OWNER`).
 - Rooms have no `workspaceId` (D5).
+- **Slice 1 built** (§13): Contacts/Accounts/Tags, the one matcher (`services/contactMatch.ts` — email/domain are signals, never unique keys), Notes (body = a Message; shareable into rooms), RecordLink (record ↔ note/conversation), merge, timelines. Import deferred to the next slice.
+- Timelines: linking adds the record to the object's activities; rooms the viewer can't see are redacted (`records.ts redactRooms`).
 
 ## Key Design Decisions
 

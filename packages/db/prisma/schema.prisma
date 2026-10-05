@@ -82,6 +82,7 @@ enum RoomRole {
 }
 
 model Room {
+
   id             String         @id @default(cuid())
   // Human-facing sequence shown as "CONVERSATION 018"
   number         Int            @unique @default(autoincrement())
@@ -111,6 +112,8 @@ model Room {
   members   RoomMember[]
   items     Item[]
   bots      RoomBot[]
+  links      RecordLink[]
+  activities Activity[]
 
   @@index([visibility, lastActivityAt, id])
   @@index([topic])
@@ -147,6 +150,7 @@ model Message {
   author User    @relation(fields: [authorId], references: [id])
   media  Media[]
   items  Item[]
+  note   Note?
 
   @@index([authorId])
 }
@@ -173,6 +177,8 @@ model Item {
   parent    Item?      @relation("ItemReplies", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   replies   Item[]     @relation("ItemReplies")
   reactions Reaction[]
+  links      RecordLink[]
+  activities Activity[]
 
   @@unique([roomId, number])
   @@index([parentId])
@@ -474,6 +480,7 @@ enum TeamRole {
 }
 
 model Workspace {
+
   id              String    @id @default(cuid())
   name            String    @db.VarChar(120)
   slug            String    @unique @db.VarChar(60)
@@ -492,12 +499,22 @@ model Workspace {
   actions          ActionExecution[]
   activities       Activity[]
   activitySubjects ActivitySubject[]
+  contacts         Contact[]
+  contactPoints    ContactPoint[]
+  accounts         Account[]
+  contactAccounts  ContactAccount[]
+  tags             Tag[]
+  contactTags      ContactTag[]
+  accountTags      AccountTag[]
+  notes            Note[]
+  links            RecordLink[]
 
   @@index([createdById])
 }
 
 // Membership requires a registered human account (doc/09 D8, D11).
 model WorkspaceMember {
+
   id          String        @id @default(cuid())
   workspaceId String
   userId      String
@@ -518,6 +535,12 @@ model WorkspaceMember {
   invitesSent WorkspaceInvite[]
   actions     ActionExecution[]
   activities  Activity[]
+  ownedContacts   Contact[]    @relation("ContactOwner")
+  createdContacts Contact[]    @relation("ContactCreator")
+  ownedAccounts   Account[]    @relation("AccountOwner")
+  createdAccounts Account[]    @relation("AccountCreator")
+  notes           Note[]
+  linksMade       RecordLink[]
 
   @@unique([workspaceId, userId])
   @@index([userId, status])
@@ -556,6 +579,8 @@ model Team {
 
   workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members   TeamMember[]
+  contacts  Contact[]
+  accounts  Account[]
 
   @@unique([workspaceId, name])
 }
@@ -636,8 +661,9 @@ model ActionExecution {
 }
 
 // The people-facing timeline: business events, append-only. `summary` is a
-// display snapshot, never read by logic. The object arc (inboxMessageId, taskId,
-// eventId, noteId, dealStageChangeId, roomId/itemId) arrives with each domain.
+// display snapshot, never read by logic. Object arc — what the event refers to, at
+// most one of: noteId, roomId (+ itemId). inboxMessageId, taskId, eventId,
+// dealStageChangeId arrive with their domains.
 model Activity {
   id                String   @id @default(cuid())
   workspaceId       String
@@ -646,33 +672,325 @@ model Activity {
   recordedAt        DateTime @default(now())
   actorMemberId     String?
   actionExecutionId String?
+  noteId            String?
+  roomId            String?
+  itemId            String?
   summary           Json
 
   workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   actorMember     WorkspaceMember?  @relation(fields: [actorMemberId], references: [id], onDelete: SetNull)
   actionExecution ActionExecution?  @relation(fields: [actionExecutionId], references: [id], onDelete: SetNull)
+  note            Note?             @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  room            Room?             @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  item            Item?             @relation(fields: [itemId], references: [id], onDelete: SetNull)
   subjects        ActivitySubject[]
 
   @@index([workspaceId, occurredAt, id])
   @@index([actorMemberId])
   @@index([actionExecutionId])
+  @@index([noteId])
+  @@index([roomId])
+  @@index([itemId])
 }
 
 // Which records an activity is about: one row per subject, so one email about a
-// contact, an account and a deal shows on all three timelines. The subject arc
-// columns (contactId | accountId | leadId | dealId, exactly one) and their
-// timeline indexes are added with Contacts and Sales; subjectKey ("deal:<id>")
-// keeps one row per subject.
+// contact, an account and a deal shows on all three timelines. Subject arc: exactly
+// one of contactId | accountId (leadId, dealId arrive with Sales); subjectKey
+// ("contact:<id>") keeps one row per subject. Linking an object to a subject adds
+// the subject to that object's activities; unlinking removes it (doc/09 Q-B).
 model ActivitySubject {
   id          String   @id @default(cuid())
   activityId  String
   workspaceId String
   subjectKey  String   @db.VarChar(80)
+  contactId   String?
+  accountId   String?
   occurredAt  DateTime // copied from the activity → timeline index without a join
 
   activity  Activity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  account   Account?  @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@unique([activityId, subjectKey])
   @@index([workspaceId])
+  @@index([contactId, occurredAt])
+  @@index([accountId, occurredAt])
 }
+
+// ─── Contacts (doc/09 §4.1, slice 1) ─────────────────────────────────────────
+// First-class records owned by the workspace. Email is a match signal, never a
+// unique key (D2): services/contactMatch.ts decides matches; duplicates are
+// resolved by merge. Soft delete + merge, never hard delete.
+
+enum RecordStatus {
+  active
+  archived
+}
+
+// How the row was created (not why the person showed up — that's leadSource).
+enum RecordOrigin {
+  manual
+  import
+  inbox
+  calendar
+  conversation
+  api
+  sync
+}
+
+enum ContactPointKind {
+  email
+  phone
+  url
+  social
+}
+
+enum AccountType {
+  prospect
+  customer
+  partner
+  vendor
+  other
+}
+
+enum LinkOrigin {
+  manual
+  auto_match
+  import
+  system
+}
+
+model Contact {
+  id               String       @id @default(cuid())
+  workspaceId      String
+  firstName        String?      @db.VarChar(80)
+  lastName         String?      @db.VarChar(80)
+  // Given, or derived from the name / primary email / phone when blank
+  displayName      String       @db.VarChar(160)
+  title            String?      @db.VarChar(120)
+  status           RecordStatus @default(active)
+  ownerMemberId    String?
+  teamId           String?
+  // Derived from ContactPoint (recomputed whenever points change)
+  primaryEmail     String?      @db.VarChar(255)
+  primaryPhone     String?      @db.VarChar(40)
+  // Derived: newest activity this contact is a subject of
+  lastActivityAt   DateTime?
+  origin           RecordOrigin @default(manual)
+  externalProvider String?      @db.VarChar(32)
+  externalId       String?      @db.VarChar(255)
+  createdById      String?
+  // Set on the losing contact of a merge; its URL resolves to the winner
+  mergedIntoId     String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  deletedAt        DateTime?
+
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ownerMember WorkspaceMember? @relation("ContactOwner", fields: [ownerMemberId], references: [id], onDelete: SetNull)
+  team        Team?            @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  createdBy   WorkspaceMember? @relation("ContactCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  mergedInto  Contact?         @relation("ContactMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  mergedFrom  Contact[]        @relation("ContactMerge")
+  points      ContactPoint[]
+  accounts    ContactAccount[]
+  tags        ContactTag[]
+  links       RecordLink[]
+  subjects    ActivitySubject[]
+
+  @@unique([workspaceId, externalProvider, externalId])
+  @@index([workspaceId, displayName, id])
+  @@index([workspaceId, ownerMemberId])
+  @@index([workspaceId, lastActivityAt])
+  @@index([mergedIntoId])
+}
+
+model ContactPoint {
+  id          String           @id @default(cuid())
+  workspaceId String
+  contactId   String
+  kind        ContactPointKind
+  value       String           @db.VarChar(255)
+  normalized  String           @db.VarChar(255)
+  label       String?          @db.VarChar(40)
+  isPrimary   Boolean          @default(false)
+  // Role/shared address (info@, sales@, a household inbox): never auto-matched
+  shared      Boolean          @default(false)
+  // Derived: false once the contact is deleted or merged (keeps the match index tight)
+  live        Boolean          @default(true)
+  position    Int              @default(0)
+  createdAt   DateTime         @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, kind, normalized, live]) // match lookups — deliberately NOT unique (D2)
+  @@index([contactId, position])
+}
+
+model Account {
+  id               String       @id @default(cuid())
+  workspaceId      String
+  name             String       @db.VarChar(160)
+  domain           String?      @db.VarChar(255)
+  // Normalised domain; a match signal, not unique (subsidiaries share domains)
+  domainKey        String?      @db.VarChar(255)
+  website          String?      @db.VarChar(255)
+  industry         String?      @db.VarChar(80)
+  sizeBand         String?      @db.VarChar(16)
+  type             AccountType  @default(prospect)
+  status           RecordStatus @default(active)
+  parentAccountId  String?
+  ownerMemberId    String?
+  teamId           String?
+  lastActivityAt   DateTime?
+  origin           RecordOrigin @default(manual)
+  externalProvider String?      @db.VarChar(32)
+  externalId       String?      @db.VarChar(255)
+  createdById      String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  deletedAt        DateTime?
+
+  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ownerMember   WorkspaceMember? @relation("AccountOwner", fields: [ownerMemberId], references: [id], onDelete: SetNull)
+  team          Team?            @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  createdBy     WorkspaceMember? @relation("AccountCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  parentAccount Account?         @relation("AccountParent", fields: [parentAccountId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  childAccounts Account[]        @relation("AccountParent")
+  contacts      ContactAccount[]
+  tags          AccountTag[]
+  links         RecordLink[]
+  subjects      ActivitySubject[]
+
+  @@unique([workspaceId, externalProvider, externalId])
+  @@index([workspaceId, domainKey])
+  @@index([workspaceId, name, id])
+  @@index([workspaceId, ownerMemberId])
+  @@index([parentAccountId])
+}
+
+// People change jobs: endedAt keeps the history. At most one live primary per contact (service rule).
+model ContactAccount {
+  id          String    @id @default(cuid())
+  workspaceId String
+  contactId   String
+  accountId   String
+  role        String?   @db.VarChar(80)
+  isPrimary   Boolean   @default(false)
+  startedAt   DateTime?
+  endedAt     DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, accountId])
+  @@index([accountId])
+}
+
+model Tag {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String   @db.VarChar(40)
+  color       String?  @db.VarChar(16)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts  ContactTag[]
+  accounts  AccountTag[]
+
+  @@unique([workspaceId, name])
+}
+
+// Per-domain tag joins keep real FKs (no polymorphic tag table).
+model ContactTag {
+  tagId       String
+  contactId   String
+  workspaceId String
+
+  tag       Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([tagId, contactId])
+  @@index([contactId])
+  @@index([workspaceId])
+}
+
+model AccountTag {
+  tagId       String
+  accountId   String
+  workspaceId String
+
+  tag       Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([tagId, accountId])
+  @@index([accountId])
+  @@index([workspaceId])
+}
+
+// ─── Shared: notes and links (doc/09 §3) ─────────────────────────────────────
+
+// The body is a Message (+ Media), so voice/video notes record and play like any
+// capture. No Item until the author shares it into a room (D10). Deleting a note
+// never removes its room placements; deleting the capture in a room purges it
+// everywhere, the note included (purgeCapture).
+model Note {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  messageId      String    @unique
+  authorMemberId String
+  pinnedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  deletedAt      DateTime?
+
+  workspace    Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  message      Message         @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  authorMember WorkspaceMember @relation(fields: [authorMemberId], references: [id], onDelete: Cascade)
+  links        RecordLink[]
+  activities   Activity[]
+
+  @@index([workspaceId, createdAt])
+  @@index([authorMemberId])
+}
+
+// Many-to-many "related to" between a subject and an object. Subject arc (exactly
+// one): contactId | accountId (leadId, dealId with Sales). Object arc (exactly
+// one): noteId | roomId (+ itemId for one moment in it) — threadId, taskId,
+// eventId with their domains. pairKey makes each pair unique without nullable
+// composite uniques. Conversations are linked, never owners (§6).
+model RecordLink {
+  id          String     @id @default(cuid())
+  workspaceId String
+  contactId   String?
+  accountId   String?
+  noteId      String?
+  roomId      String?
+  itemId      String?
+  pairKey     String     @db.VarChar(80) // "contact:<id>|item:<id>"
+  how         LinkOrigin @default(manual)
+  linkedById  String?
+  createdAt   DateTime   @default(now())
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact?         @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  account   Account?         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  note      Note?            @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  room      Room?            @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  item      Item?            @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  linkedBy  WorkspaceMember? @relation(fields: [linkedById], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, pairKey])
+  @@index([contactId])
+  @@index([accountId])
+  @@index([noteId])
+  @@index([roomId])
+  @@index([itemId])
+  @@index([linkedById])
+}
+
