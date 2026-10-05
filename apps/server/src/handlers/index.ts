@@ -9,6 +9,7 @@ export * from './media'
 export * from './stream'
 export * from './workspaces'
 export * from './contacts'
+export * from './inbox'
 
 export * from './documents'
 export * from './imports'

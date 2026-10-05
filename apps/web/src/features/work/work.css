@@ -49,6 +49,51 @@
   font-size: 15px;
   color: var(--muted);
 }
+.work-quiet {
+  margin: var(--space-md);
+  font-family: var(--sans);
+  font-size: var(--text-body);
+  color: var(--muted);
+}
+.work-inbox-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto auto auto auto;
+  gap: var(--space-sm);
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+}
+.work-inbox-line button { font-family: var(--mono); font-size: var(--text-xs); letter-spacing: .08em; text-transform: uppercase; }
+.work-inbox-line .work-line-title { font-family: var(--sans); font-size: var(--text-body); letter-spacing: 0; text-transform: none; text-align: left; color: var(--ink); }
+.work-inbox-line[data-needs] .work-mark { color: var(--signal); }
+.work-compose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md) var(--space-md);
+  border-bottom: 1px solid var(--line);
+}
+.work-compose input, .work-compose textarea {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: var(--text-body);
+  padding: 6px 0;
+}
+.work-compose textarea { min-height: 72px; resize: vertical; }
+.work-compose-error { margin: 0; color: var(--signal); font-size: var(--text-sm); }
+.work-adds { display: flex; align-items: center; gap: var(--space-sm); }
+.work-bar .work-add {
+  padding: var(--space-2xs) var(--space-sm);
+  border: var(--line-width) solid var(--line);
+  color: var(--ink);
+  line-height: 1.5;
+}
+.work-bar .work-add:hover,
+.work-bar .work-add:focus-visible { border-color: var(--ink); color: var(--ink); }
 .work-bar {
   display: flex;
   align-items: center;

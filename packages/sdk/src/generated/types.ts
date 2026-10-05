@@ -876,6 +876,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The caller's attention queue, newest first
+         * @description Archived rows are hidden unless `archived=true`. A member sees only their own items.
+         */
+        get: operations["listInboxItems"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/inbox/{inboxItemId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inboxItemId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Mark the caller's item read or unread */
+        patch: operations["readInboxItem"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/inbox/{inboxItemId}/star": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inboxItemId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Star or unstar the caller's item */
+        patch: operations["starInboxItem"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/inbox/{inboxItemId}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inboxItemId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Archive or restore the caller's item */
+        patch: operations["archiveInboxItem"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/compose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a follow-up to a contact
+         * @description Email is the only channel. This stores the follow-up and a contact activity. It does not deliver mail and it does not create an inbox item.
+         */
+        post: operations["sendCompose"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/contacts": {
         parameters: {
             query?: never;
@@ -2364,6 +2468,75 @@ export interface components {
             startedAt: string | null;
             /** Format: date-time */
             endedAt: string | null;
+        };
+        InboxAction: {
+            /** @enum {string} */
+            verb: "open" | "compose";
+            contactId?: string;
+            /** @enum {string} */
+            channel?: "email";
+        };
+        InboxItem: {
+            id: string;
+            workspaceId: string;
+            memberId: string;
+            type: string;
+            title: string;
+            summary: string;
+            sourceType: string;
+            sourceId: string;
+            unread: boolean;
+            starred: boolean;
+            /** Format: date-time */
+            archivedAt: string | null;
+            action: components["schemas"]["InboxAction"];
+            dedupeKey: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        InboxItemResponse: {
+            data: components["schemas"]["InboxItem"];
+        };
+        PaginatedInboxItems: {
+            data: components["schemas"]["InboxItem"][];
+            meta: components["schemas"]["PaginatedMeta"];
+        };
+        ReadInboxItemInput: {
+            unread: boolean;
+        };
+        StarInboxItemInput: {
+            starred: boolean;
+        };
+        ArchiveInboxItemInput: {
+            archived: boolean;
+        };
+        Compose: {
+            id: string;
+            workspaceId: string;
+            authorMemberId: string;
+            contactId: string;
+            channel: string;
+            destination: string;
+            subject: string;
+            body: string;
+            contextType: string;
+            contextId: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ComposeResponse: {
+            data: components["schemas"]["Compose"];
+        };
+        SendComposeInput: {
+            contactId: string;
+            /** @enum {string} */
+            channel: "email";
+            destination: string;
+            subject: string;
+            body: string;
+            contextType: string;
+            contextId: string;
+            idempotencyKey?: string;
         };
         Contact: {
             version: number;
@@ -4695,6 +4868,162 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedActionExecutions"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listInboxItems: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor returned by the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                archived?: boolean;
+                unread?: boolean;
+                starred?: boolean;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedInboxItems"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    readInboxItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inboxItemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadInboxItemInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxItemResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    starInboxItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inboxItemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StarInboxItemInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxItemResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    archiveInboxItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inboxItemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArchiveInboxItemInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxItemResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    sendCompose: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendComposeInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposeResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];

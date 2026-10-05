@@ -123,6 +123,7 @@ The in-lobby River (playing posts and replies inline) was retired: the Lobby onl
 ## Workspace foundation (2026-10-05) — spec: `doc/09-workspace-foundation-proposal.md`
 
 - Business data (Inbox, Calendar, Contacts, Sales, Tasks) belongs to a **Workspace**, never a Room; conversations only link. First-class tables, no EAV. Decisions D1–D15 in doc/09 §11; slices 0→4 in §10.
+- **Inbox (doc/11, 2026-10-05):** the attention and follow-up surface. `InboxItem` is one member's pointer to one source (unread, starred, archived). `Compose` is a shared follow-up — contact, email channel, destination, subject, body, context — opened from Contact (Message), Inbox (Reply), and Calendar (Follow up). Threads, folders, member-to-member mail, and campaigns are postponed. D3 revised.
 - **Slice 0 built** (§12): Workspace/Member/Invite/Team/TeamMember, ActionExecution (audit + idempotency), Activity/ActivitySubject (timeline). Membership = registered humans only; bots never (no `agent` actor — doc/08 §4.9).
 - **Permissions only in `services/workspacePolicy.ts`** (`authorize` → 404 to non-members). **Every workspace mutation goes through `runAction`** (`services/actions.ts`) in its transaction. Load related rows with `workspaceId` in the where-clause; add each new FK pair to `services/workspaceIntegrity.ts`.
 - Owners/assignees reference `WorkspaceMember.id` (rows never deleted; `removed`). A workspace always keeps an active owner (`LAST_OWNER`).

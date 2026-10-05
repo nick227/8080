@@ -1,6 +1,8 @@
 import { useSession } from '@project/sdk'
 import { CalendarExperience } from '../calendar/CalendarExperience'
 import { DocumentsExperience } from '../documents/DocumentsExperience'
+import { ContactsDesk } from '../inbox/ContactsDesk'
+import { InboxExperience } from '../inbox/InboxExperience'
 import { DESKS, deskEmpty, type Desk } from './sections'
 
 export function WorkPage({ place, roomId }: { place: Exclude<Desk, 'team' | 'calendar'>; roomId?: string }) {
@@ -12,6 +14,10 @@ export function WorkPage({ place, roomId }: { place: Exclude<Desk, 'team' | 'cal
     <section className="work-page" aria-label={label}>
       {place === 'documents' ? (
         <DocumentsExperience roomId={roomId} owner={owner} />
+      ) : place === 'inbox' ? (
+        <InboxExperience />
+      ) : place === 'contacts' ? (
+        <ContactsDesk />
       ) : empty ? (
         <p className="work-empty">{empty}</p>
       ) : null}

@@ -1247,6 +1247,143 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  # ─── inbox attention queue and composer (doc/11) ───────────────────────────
+  /workspaces/{workspaceId}/inbox:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listInboxItems
+      summary: The caller's attention queue, newest first
+      description: Archived rows are hidden unless `archived=true`. A member sees only their own items.
+      tags: [workspaces]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: archived
+          schema: { type: boolean, default: false }
+        - in: query
+          name: unread
+          schema: { type: boolean }
+        - in: query
+          name: starred
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedInboxItems' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/inbox/{inboxItemId}/read:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - in: path
+        name: inboxItemId
+        required: true
+        schema: { type: string }
+    patch:
+      operationId: readInboxItem
+      summary: Mark the caller's item read or unread
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReadInboxItemInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InboxItemResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/inbox/{inboxItemId}/star:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - in: path
+        name: inboxItemId
+        required: true
+        schema: { type: string }
+    patch:
+      operationId: starInboxItem
+      summary: Star or unstar the caller's item
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StarInboxItemInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InboxItemResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/inbox/{inboxItemId}/archive:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - in: path
+        name: inboxItemId
+        required: true
+        schema: { type: string }
+    patch:
+      operationId: archiveInboxItem
+      summary: Archive or restore the caller's item
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ArchiveInboxItemInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InboxItemResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/compose:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: sendCompose
+      summary: Record a follow-up to a contact
+      description: Email is the only channel. This stores the follow-up and a contact activity. It does not deliver mail and it does not create an inbox item.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SendComposeInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComposeResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   # ─── contacts, accounts, tags, notes, links (doc/09 slice 1) ───────────────
   /workspaces/{workspaceId}/contacts:
     parameters:
@@ -3964,6 +4101,106 @@ components:
         isPrimary: { type: boolean }
         startedAt: { type: [string, 'null'], format: date-time }
         endedAt: { type: [string, 'null'], format: date-time }
+
+    InboxAction:
+      type: object
+      additionalProperties: false
+      required: [verb]
+      properties:
+        verb: { type: string, enum: [open, compose] }
+        contactId: { type: string }
+        channel: { type: string, enum: [email] }
+
+    InboxItem:
+      type: object
+      required: [id, workspaceId, memberId, type, title, summary, sourceType, sourceId, unread, starred, archivedAt, action, dedupeKey, createdAt]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        memberId: { type: string }
+        type: { type: string }
+        title: { type: string }
+        summary: { type: string }
+        sourceType: { type: string }
+        sourceId: { type: string }
+        unread: { type: boolean }
+        starred: { type: boolean }
+        archivedAt: { type: [string, 'null'], format: date-time }
+        action: { $ref: '#/components/schemas/InboxAction' }
+        dedupeKey: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    InboxItemResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/InboxItem' }
+
+    PaginatedInboxItems:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/InboxItem' }
+        meta: { $ref: '#/components/schemas/PaginatedMeta' }
+
+    ReadInboxItemInput:
+      type: object
+      additionalProperties: false
+      required: [unread]
+      properties:
+        unread: { type: boolean }
+
+    StarInboxItemInput:
+      type: object
+      additionalProperties: false
+      required: [starred]
+      properties:
+        starred: { type: boolean }
+
+    ArchiveInboxItemInput:
+      type: object
+      additionalProperties: false
+      required: [archived]
+      properties:
+        archived: { type: boolean }
+
+    Compose:
+      type: object
+      required: [id, workspaceId, authorMemberId, contactId, channel, destination, subject, body, contextType, contextId, createdAt]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        authorMemberId: { type: string }
+        contactId: { type: string }
+        channel: { type: string }
+        destination: { type: string }
+        subject: { type: string }
+        body: { type: string }
+        contextType: { type: string }
+        contextId: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    ComposeResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Compose' }
+
+    SendComposeInput:
+      type: object
+      additionalProperties: false
+      required: [contactId, channel, destination, subject, body, contextType, contextId]
+      properties:
+        contactId: { type: string, minLength: 1 }
+        channel: { type: string, enum: [email] }
+        destination: { type: string, minLength: 1 }
+        subject: { type: string, minLength: 1, maxLength: 200 }
+        body: { type: string, minLength: 1 }
+        contextType: { type: string, minLength: 1, maxLength: 32 }
+        contextId: { type: string, minLength: 1, maxLength: 64 }
+        idempotencyKey: { type: string, minLength: 1, maxLength: 200 }
 
     Contact:
       type: object

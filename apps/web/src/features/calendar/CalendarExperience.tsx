@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { Composer } from '../compose/Composer'
+import { useCurrentWorkspace } from '../documents/workspace'
 import { DayView } from './DayView'
 import { dayTitle, monthName, parseDay, todayKey } from './dates'
 import { ImportModal } from './ImportModal'
@@ -19,6 +21,8 @@ export function CalendarExperience() {
   const toggle = useCalendar((state) => state.toggle)
   const remove = useCalendar((state) => state.remove)
   const [importing, setImporting] = useState(false)
+  const [following, setFollowing] = useState(false)
+  const { workspace } = useCurrentWorkspace()
   const today = todayKey()
   const onToday = view === 'day' ? cursor === today : cursor.slice(0, 7) === today.slice(0, 7)
   const title = view === 'day' ? dayTitle(cursor) : `${monthName(cursor)} ${parseDay(cursor).getFullYear()}`
@@ -48,6 +52,7 @@ export function CalendarExperience() {
         <div className="cal-tools">
           <button type="button" className="cal-btn" aria-pressed={onToday} onClick={goToday}>Today</button>
           <button type="button" className="cal-btn" data-primary="" onClick={() => setImporting(true)}>Import</button>
+          <button type="button" className="cal-btn" onClick={() => setFollowing(true)}>Follow up</button>
         </div>
       </header>
       {view === 'day' ? (
@@ -62,6 +67,10 @@ export function CalendarExperience() {
       ) : (
         <MonthView cursor={cursor} today={today} tasks={tasks} onOpen={showDay} />
       )}
+      {following && workspace && (
+        <Composer workspaceId={workspace.id} contextType="calendar" contextId={cursor} onClose={() => setFollowing(false)} />
+      )}
+      {following && !workspace && <p className="work-quiet">A workspace is required to follow up.</p>}
       {importing && (
         <ImportModal
           mode={view === 'day' ? 'list' : 'csv'}

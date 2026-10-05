@@ -515,6 +515,8 @@ model Workspace {
   links            RecordLink[]
   imports          ImportBatch[]
   importRows       ImportRow[]
+  inboxItems       InboxItem[]
+  composes         Compose[]
 
   @@index([createdById])
 }
@@ -551,6 +553,8 @@ model WorkspaceMember {
   notes           Note[]
   linksMade       RecordLink[]
   imports         ImportBatch[]
+  inboxItems      InboxItem[]
+  composes        Compose[]
 
   @@unique([workspaceId, userId])
   @@index([userId, status])
@@ -813,6 +817,7 @@ model Contact {
   tags        ContactTag[]
   links       RecordLink[]
   subjects    ActivitySubject[]
+  composes    Compose[]
 
   @@unique([workspaceId, externalProvider, externalId])
   @@index([workspaceId, displayName, id])
@@ -1200,4 +1205,52 @@ model ImportRow {
   @@index([batchId, proposal])
   @@index([batchId, outcome])
   @@index([contactId])
+}
+
+// Attention queue (doc/11). One row is one member's pointer to one source.
+// Not a mail thread. sourceType/sourceId are checked in the service, not by FK,
+// so a new domain can raise an item without a new column.
+model InboxItem {
+  id          String    @id @default(cuid())
+  workspaceId String
+  memberId    String
+  type        String    @db.VarChar(32)
+  title       String    @db.VarChar(200)
+  summary     String    @db.VarChar(500)
+  sourceType  String    @db.VarChar(32)
+  sourceId    String    @db.VarChar(64)
+  unread      Boolean   @default(true)
+  starred     Boolean   @default(false)
+  archivedAt  DateTime?
+  action      Json
+  dedupeKey   String    @db.VarChar(160)
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, dedupeKey])
+  @@index([workspaceId, memberId, archivedAt, createdAt])
+}
+
+// A follow-up addressed to a contact. Recording it is not delivery (doc/11).
+model Compose {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  authorMemberId String
+  contactId      String
+  channel        String   @db.VarChar(16)
+  destination    String   @db.VarChar(255)
+  subject        String   @db.VarChar(200)
+  body           String   @db.Text
+  contextType    String   @db.VarChar(32)
+  contextId      String   @db.VarChar(64)
+  createdAt      DateTime @default(now())
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  author    WorkspaceMember @relation(fields: [authorMemberId], references: [id], onDelete: Cascade)
+  contact   Contact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, contactId, createdAt])
+  @@index([authorMemberId])
 }

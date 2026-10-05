@@ -139,6 +139,9 @@ const CHECKS: { name: string; sql: string }[] = [
   { name: 'ImportRow.batch', sql: 'SELECT c.id FROM ImportRow c JOIN ImportBatch p ON p.id = c.batchId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'ImportRow.contact', sql: 'SELECT c.id FROM ImportRow c JOIN Contact p ON p.id = c.contactId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'Contact.importBatch', sql: 'SELECT c.id FROM Contact c JOIN ImportBatch p ON p.id = c.importBatchId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'InboxItem.member', sql: 'SELECT c.id FROM InboxItem c JOIN WorkspaceMember p ON p.id = c.memberId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'Compose.author', sql: 'SELECT c.id FROM Compose c JOIN WorkspaceMember p ON p.id = c.authorMemberId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'Compose.contact', sql: 'SELECT c.id FROM Compose c JOIN Contact p ON p.id = c.contactId WHERE c.workspaceId <> p.workspaceId' },
 ]
 
 /** Rows whose references cross a workspace boundary, by check name. Empty = sound. */

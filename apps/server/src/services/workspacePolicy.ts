@@ -36,6 +36,9 @@ export type WorkspaceVerb =
   | 'link.write'
   | 'tag.create'
   | 'tag.manage'
+  | 'inbox.read'
+  | 'inbox.update'
+  | 'compose.send'
 
 const OWNERS: readonly WorkspaceRole[] = ['owner']
 const ADMINS: readonly WorkspaceRole[] = ['owner', 'admin']
@@ -69,6 +72,9 @@ const ROLES: Record<WorkspaceVerb, readonly WorkspaceRole[]> = {
   'link.write': EVERYONE,
   'tag.create': EVERYONE,
   'tag.manage': ADMINS,
+  'inbox.read': EVERYONE,
+  'inbox.update': EVERYONE,
+  'compose.send': EVERYONE,
 }
 
 // What a verb is applied to, when the answer depends on it.
