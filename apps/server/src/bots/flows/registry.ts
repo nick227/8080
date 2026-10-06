@@ -7,7 +7,14 @@ import type { ChoiceOffer, MessageLink } from '../../lib/choice'
 type Tx = Prisma.TransactionClient
 
 /** A line the bot says for a flow, optionally offering the next choice or linking a document. */
-export type FlowSay = { text: string; offer?: Omit<ChoiceOffer, 'flow'>; links?: MessageLink[] }
+export type FlowSay = {
+  text: string
+  offer?: Omit<ChoiceOffer, 'flow'>
+  links?: MessageLink[]
+  /** Called with the posted message's item id (e.g. to point a record at the line
+   *  instead of posting a second one). Failures are logged; the line stays. */
+  onPosted?: (itemId: string) => Promise<unknown>
+}
 export type ChoiceContext = { flow: string; step: string; optionIds: string[]; userId: string; roomId: string; itemId: string }
 
 export type ChoiceFlow = {

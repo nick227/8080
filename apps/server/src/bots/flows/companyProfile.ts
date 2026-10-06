@@ -350,24 +350,22 @@ export async function generate(roomId: string, userId: string): Promise<FlowSay[
     })
     await documents.roomLink(ctx, run.workspaceId, doc.id, roomId, false)
     await db.workflowRun.update({ where: { id: run.id }, data: { status: 'done', stepId: 'done', state: { ...state, documentId: doc.id } as unknown as Prisma.InputJsonValue } })
-    void recordActivityEvent({
-      workspaceId: run.workspaceId,
-      type: 'workflow.completed',
-      title: 'Assistant finished',
-      summary: `${doc.title} is ready from the company profile.`,
-      sourceType: 'document',
-      sourceId: doc.id,
-      dedupeKey: `workflow:${run.id}:done`,
-      actorMemberId: run.memberId,
-      links: [{ type: 'document', id: doc.id, workspaceId: run.workspaceId, title: doc.title }],
-    }).catch((err: unknown) => console.error('activity event failed', err))
     const saved = `saved what I learned to the company profile: ${learned(d)}.`
     const text = drafted
       ? `I drafted ${doc.title} and ${saved}${state.inferred?.length ? ' Some of it I read from your description, so check it over.' : ''}`
       : state.mode === 'assisted'
         ? `I created ${doc.title} from a template — I couldn't reach the writing model just now — and ${saved}`
         : `I created ${doc.title} and ${saved} It's a template draft — edit it like any document.`
-    return [{ text, links: [{ type: 'document', id: doc.id, workspaceId: run.workspaceId, title: doc.title }] }]
+    const links = [{ type: 'document' as const, id: doc.id, workspaceId: run.workspaceId, title: doc.title }]
+    return [{
+      text, links,
+      // The workspace activity record points at this line instead of posting its own.
+      onPosted: (itemId) => recordActivityEvent({
+        workspaceId: run.workspaceId, type: 'workflow.completed', title: 'Assistant finished',
+        summary: `${doc.title} is ready from the company profile.`, sourceType: 'document', sourceId: doc.id,
+        dedupeKey: `workflow:${run.id}:done`, actorMemberId: run.memberId, links, itemId,
+      }),
+    }]
   } catch (error) {
     console.error(`[flow] ${COMPANY_PROFILE}: generation failed`, error)
     await db.workflowRun.update({ where: { id: run.id }, data: { status: 'failed', stepId: 'retry', state: { ...state, error: error instanceof Error ? error.message : String(error) } as unknown as Prisma.InputJsonValue } })

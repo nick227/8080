@@ -98,6 +98,13 @@ describe('the whole path (AI off)', () => {
     const [docLink] = res.json().data.message.links
     expect(docLink).toMatchObject({ type: 'document', workspaceId: ws.id, title: 'Midnight Creative — Company Description' })
 
+    // One line for one completion: the workspace activity record points at the
+    // workflow's own summary instead of posting a second line.
+    await host.idle()
+    const event = await db.activityEvent.findFirstOrThrow({ where: { workspaceId: ws.id, type: 'workflow.completed' } })
+    expect(event.itemId).toBe(link.id)
+    expect(await db.item.count({ where: { roomId, message: { workflow: 'workspace-activity' } } })).toBe(0)
+
     // A native block document with the template content, linked to the channel.
     const doc = await db.document.findUniqueOrThrow({ where: { id: docLink.id }, include: { content: true, rooms: true } })
     expect(doc).toMatchObject({ workspaceId: ws.id, surface: 'blocks', sourceKind: 'native', workspaceAccess: 'viewer' })

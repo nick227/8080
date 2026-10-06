@@ -126,7 +126,7 @@ export function RecordForm({
           description: form.description.trim() || null,
           imageUrl: form.image.trim() || null,
         }
-        if (item) await updateItem.mutateAsync({ ...data, inventoryId: item.id })
+        if (item) await updateItem.mutateAsync({ ...data, inventoryId: item.id, expectedVersion: item.version })
         else {
           const result = await createItem.mutateAsync(data)
           saved(result.id)

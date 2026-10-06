@@ -20,6 +20,9 @@ export type ActivityEventInput = {
   links?: MessageLink[]
   actorMemberId?: string | null
   deliverAt?: Date
+  /** The channel line that already announces this (e.g. a workflow's own summary). The
+   *  event points at it and posts nothing more — one line per event, not two. */
+  itemId?: string
 }
 
 const activityFlow: ChoiceFlow = { advance: () => [] }
@@ -45,6 +48,7 @@ export async function recordActivityEvent(input: ActivityEventInput) {
         dedupeKey: input.dedupeKey,
         actorMemberId: input.actorMemberId ?? null,
         deliverAt,
+        itemId: input.itemId ?? null,
       },
     })
   } catch (error) {

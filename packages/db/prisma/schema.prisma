@@ -885,6 +885,9 @@ model Inventory {
   quantity     Int? // null = service / catalog entry with no stock count
   availability Boolean      @default(true)
   imageUrl     String?      @db.VarChar(255)
+  // Optimistic concurrency: an update names the version it read and is refused (409)
+  // if the item changed since. Also the stale check for agent proposals (doc/13 §5).
+  version      Int          @default(1)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 

@@ -31,6 +31,7 @@ export const toInventoryItem = (i: {
   quantity: number | null
   availability: boolean
   imageUrl: string | null
+  version: number
   createdAt: Date
   updatedAt: Date
 }) => ({
@@ -45,6 +46,7 @@ export const toInventoryItem = (i: {
   quantity: i.quantity,
   availability: i.availability,
   imageUrl: i.imageUrl,
+  version: i.version,
   createdAt: i.createdAt,
   updatedAt: i.updatedAt,
 })
@@ -126,15 +128,20 @@ export class InventoryService {
     }
   }
 
-  async update(userId: string, workspaceId: string, inventoryId: string, input: InventoryInput) {
+  // Optimistic concurrency: one atomic statement updates the item only if it is still
+  // at the version the caller read, and bumps the version. Anything else is a 409 —
+  // never a silent overwrite of someone's newer change.
+  async update(userId: string, workspaceId: string, inventoryId: string, input: InventoryInput & { expectedVersion: number }) {
     await authorize(userId, workspaceId, 'record.write')
     await liveItem(workspaceId, inventoryId)
     if ('name' in input && !blank(input.name)) throw badRequest('An item needs a name', 'EMPTY_ITEM')
+    if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 1) throw badRequest('expectedVersion is required', 'INVALID_VERSION')
     assertValid(input)
     try {
-      const updated = await db.inventory.update({
-        where: { id: inventoryId },
+      const claimed = await db.inventory.updateMany({
+        where: { id: inventoryId, workspaceId, version: input.expectedVersion },
         data: {
+          version: { increment: 1 },
           name: 'name' in input ? blank(input.name)!.slice(0, 160) : undefined,
           sku: 'sku' in input ? blank(input.sku) : undefined,
           description: 'description' in input ? blank(input.description) : undefined,
@@ -146,7 +153,8 @@ export class InventoryService {
           imageUrl: 'imageUrl' in input ? blank(input.imageUrl) : undefined,
         },
       })
-      return toInventoryItem(updated)
+      if (!claimed.count) throw conflict('This item changed since you opened it; reload it before saving', 'INVENTORY_VERSION_CONFLICT')
+      return toInventoryItem(await liveItem(workspaceId, inventoryId))
     } catch (err) {
       skuConflict(err)
     }

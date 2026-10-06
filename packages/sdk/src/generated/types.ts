@@ -2951,6 +2951,8 @@ export interface components {
         };
         InventoryItem: {
             id: string;
+            /** @description Bumped by every update; send it back as expectedVersion */
+            version: number;
             workspaceId: string;
             name: string;
             sku: string | null;
@@ -2986,6 +2988,8 @@ export interface components {
             imageUrl?: string | null;
         };
         UpdateInventoryInput: {
+            /** @description The version you read; a newer one gives 409 INVENTORY_VERSION_CONFLICT */
+            expectedVersion: number;
             name?: string;
             sku?: string | null;
             description?: string | null;
@@ -5647,6 +5651,7 @@ export interface operations {
                 tagId?: string;
                 accountId?: string;
                 status?: components["schemas"]["RecordStatus"];
+                leadStatus?: components["schemas"]["LeadStatus"];
             };
             header?: never;
             path: {

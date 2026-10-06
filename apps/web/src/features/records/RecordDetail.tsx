@@ -271,6 +271,7 @@ function InventoryDetail({
               onClick={() =>
                 update.mutate({
                   inventoryId: item.id,
+                  expectedVersion: item.version,
                   status: item.status === 'archived' ? 'active' : 'archived',
                 })
               }
@@ -297,7 +298,7 @@ function InventoryDetail({
             value={item.availability ? 'offered' : 'paused'}
             disabled={update.isPending}
             onChange={(e) =>
-              update.mutate({ inventoryId: item.id, availability: e.target.value === 'offered' })
+              update.mutate({ inventoryId: item.id, expectedVersion: item.version, availability: e.target.value === 'offered' })
             }
           >
             <option value="offered">Offered</option>

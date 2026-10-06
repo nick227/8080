@@ -4787,9 +4787,10 @@ components:
 
     InventoryItem:
       type: object
-      required: [id, workspaceId, name, sku, description, price, category, status, quantity, availability, imageUrl, createdAt, updatedAt]
+      required: [id, workspaceId, name, sku, description, price, category, status, quantity, availability, imageUrl, version, createdAt, updatedAt]
       properties:
         id: { type: string }
+        version: { type: integer, minimum: 1, description: Bumped by every update; send it back as expectedVersion }
         workspaceId: { type: string }
         name: { type: string }
         sku: { type: [string, 'null'] }
@@ -4836,7 +4837,9 @@ components:
     UpdateInventoryInput:
       type: object
       additionalProperties: false
+      required: [expectedVersion]
       properties:
+        expectedVersion: { type: integer, minimum: 1, description: The version you read; a newer one gives 409 INVENTORY_VERSION_CONFLICT }
         name: { type: string, minLength: 1, maxLength: 160 }
         sku: { type: [string, 'null'], maxLength: 80 }
         description: { type: [string, 'null'] }

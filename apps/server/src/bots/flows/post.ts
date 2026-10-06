@@ -15,6 +15,7 @@ export async function postSays(botUserId: string, roomId: string, chat: boolean,
       const actions = say.offer ? { ...say.offer, flow } : undefined
       const item = await items.send(botUserId, roomId, { text: say.text, chat }, { actions, workflow: flow, links: say.links })
       posted.push(item.id)
+      await say.onPosted?.(item.id).catch((error) => console.error(`[flow] ${flow}: after-post hook failed`, error))
     } catch (error) {
       console.error(`[flow] ${flow}: line not posted`, error)
     }

@@ -35,8 +35,14 @@ describe('inventory', () => {
     expect(list.json().data.map((i: any) => i.name)).toEqual(['Widget', 'Window cleaning'])
     expect((await call(testUserId, 'GET', `${base}/inventory?q=W-`)).json().data.map((i: any) => i.id)).toEqual([widget.id])
 
-    const patched = await call(testUserId, 'PATCH', `${base}/inventory/${widget.id}`, { price: 15, quantity: 0, status: 'archived' })
-    expect(patched.json().data).toMatchObject({ price: 15, quantity: 0, status: 'archived' })
+    const patched = await call(testUserId, 'PATCH', `${base}/inventory/${widget.id}`, { expectedVersion: 1, price: 15, quantity: 0, status: 'archived' })
+    expect(patched.json().data).toMatchObject({ price: 15, quantity: 0, status: 'archived', version: 2 })
+    // Optimistic concurrency: the old version is refused, nothing is overwritten.
+    const stale = await call(testUserId, 'PATCH', `${base}/inventory/${widget.id}`, { expectedVersion: 1, price: 99 })
+    expect(stale.statusCode).toBe(409)
+    expect(stale.json().code).toBe('INVENTORY_VERSION_CONFLICT')
+    expect((await call(testUserId, 'PATCH', `${base}/inventory/${widget.id}`, { price: 99 })).statusCode).toBe(400) // version required
+    expect((await call(testUserId, 'GET', `${base}/inventory/${widget.id}`)).json().data).toMatchObject({ price: 15, version: 2 })
     expect((await call(testUserId, 'GET', `${base}/inventory`)).json().data.map((i: any) => i.name)).toEqual(['Window cleaning'])
     expect((await call(testUserId, 'GET', `${base}/inventory?status=archived`)).json().data).toHaveLength(1)
   })
