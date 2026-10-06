@@ -1,103 +1,38 @@
-# 11 — Inbox: attention and follow-up
+# 11 — Attention events and a future Inbox
 
-**Status:** Design, recorded 2026-10-05. This is the inbox to build. It supersedes doc/09 D3 and §4.5.
-**Date:** 2026-10-05
+**Status:** Revised 2026-10-06. Presentation moved into the workspace channel. The Inbox desk is deferred.
+**Supersedes:** the 2026-10-05 “chatty Inbox desk” presentation. Backend event history and Compose remain.
 
-Inbox tells the member what needs attention and opens the fastest follow-up. It points at other domains. It stays useful if Sales becomes Inventory. It is also the live surface: what a teammate, an assistant, or the system just did shows up here, including work scheduled for a later time.
+## Product (locked)
 
-## 1. Product
+- **Business event → one workspace `ActivityEvent` → optional chat presentation** in the shared workspace channel (doc/12).
+- Later: `ActivityEvent` → per-user notification / digest / true Inbox delivery. Do **not** fan out one shared event into N nearly identical `InboxItem` rows just to render one channel line.
+- `InboxItem` stays recipient-owned (raise / read / star / archive APIs) for that later delivery path. It is **not** the source of shared-channel activity.
+- CRM `Activity` / `ActivitySubject` remain the record timeline. Unrelated.
+- Curate aggressively. Slice 1 posts only: new contact, recorded follow-up, assistant/workflow completion. Not every CRUD.
+- Distinct from ordinary chat: posted with workflow `workspace-activity` (SYSTEM_ACTIVITY). Links deep-open Contacts / Documents / compose.
+- Hide Inbox from workspace navigation until real inbound communications (email, SMS, support) need a dedicated queue.
 
-- An inbox item is a notification. It is a message only when a real message exists.
-- The surface is chatty. A succeeded workspace action notifies every active member. A conversation placement (a person or a bot) notifies the room members who belong to a workspace. A private room does not notify people outside it. Guests have no workspace, so they get no item.
-- A timed item waits until `deliverAt`, then appears on the same list and the same stream.
-- A row is clickable. Its `action` opens the source (the room, the document, the calendar, the contact) or the composer.
-- The open desk follows the member's queue over SSE. A missed push is picked up within a couple of seconds. One process only, same as document presence.
-- Sources that raise an item: contact activity, replies, reminders, calendar events, form submissions, system notices, and later an external email. Inventory, documents, and conversations use the same pointer.
-- The composer starts from a contact and a channel. Email is the first channel. Later providers attach behind the same composer.
-- The composer is shared. Contact opens Message. Inbox opens Reply. Calendar opens Follow up.
-- There is no member-to-member mail product. People-to-people collaboration stays in Conversations.
-
-## 2. InboxItem
-
-One row is one member's attention on one source. A workspace event that several people should see is written once per member.
+## ActivityEvent
 
 ```
-InboxItem   id, workspaceId, memberId,
-            type(32),            reminder | contact | calendar | conversation | agent | system | email …
-            title(200), summary(500),
-            sourceType(32), sourceId,
-            unread Boolean, starred Boolean, archivedAt?,
-            action Json,         { verb: 'open' } | { verb: 'compose', contactId, channel: 'email' }
-            dedupeKey(160),
-            deliverAt,           hidden until this time; default now
-            createdAt
-            @@unique([memberId, dedupeKey])
-            @@index([workspaceId, memberId, archivedAt, createdAt])
+ActivityEvent  id, workspaceId,
+               type(48), title(200), summary(500),
+               sourceType, sourceId,
+               links Json?,          MessageLink[] for the channel card
+               dedupeKey(160),       @@unique([workspaceId, dedupeKey])
+               itemId?,              channel Item once presented
+               actorMemberId?,
+               deliverAt, createdAt
 ```
 
-- `type` is a varchar. A new domain does not add an enum value.
-- `sourceType` + `sourceId` is the one object this item is about. `RecordLink` stays the many-to-many relation between records. `Activity` stays the record timeline. The item copies neither.
-- The writer checks that a known source exists in the same workspace. An unknown `sourceType` is refused.
-- `unread` defaults true. Dismiss and archive are the same state: `archivedAt`. The default list hides archived rows. Trash and assignee are omitted. Assigned-to-me can be a later field.
-- `dedupeKey` is a stable event id the producer owns. A retry returns the original item. The title is never part of the key.
-- `action.verb = compose` carries the contact and channel used to open the composer. The item stays a pointer to its source.
+## Compose
 
-`raiseInboxItem` is server-only. There is no member route that creates an item. Member routes are list, mark read, star, and archive. Each goes through `runAction` (`inbox.read`, `inbox.star`, `inbox.archive`).
+Unchanged: shared follow-up to a contact on email. Recording it is not delivery. It raises one `ActivityEvent` and may open Message from a channel link.
 
-Workspace membership is required. It is not sufficient: the row's `memberId` must be the caller. Owners have no backdoor into another member's queue. CRM visibility (doc/09 D4) is unchanged.
+## Build order
 
-## 3. Composer
-
-One stored follow-up. Not a mailbox, and not a conversation `Message`.
-
-```
-Compose     id, workspaceId, authorMemberId, contactId,
-            channel(16),         email
-            destination(255),    normalizeEmail
-            subject(200),        required for email
-            body Text,
-            contextType(32), contextId,
-            createdAt
-            @@index([workspaceId, contactId, createdAt])
-            @@index([authorMemberId])
-```
-
-- `destination` uses `normalizeEmail` (trim + lower-case) from `contactMatch.ts`. The CRM matcher does not choose the address.
-- `contextType` + `contextId` is the business object the follow-up is about: the inbox source, the calendar event, or the contact.
-- Send validates the payload, writes the row, and writes an activity on the contact. It does not create a thread. The action itself still announces, like any other workspace action.
-- Provider delivery is a later worker on this same row. Until that worker exists, the row is the record of the follow-up. It is not a claim that mail left the building.
-- Reply from an inbox item opens the composer with `contactId` and the item's source already filled.
-
-The command is `compose.send`, member-facing, through `runAction`. The author is the session member.
-
-## 4. Desk
-
-The Inbox place in `apps/web/src/features/work/WorkPage.tsx` replaces the empty line "Nothing waiting." in `features/work/sections.ts`.
-
-- One list. Filters: unread, starred, archived. No Sent, Drafts, or System folders.
-- A row shows title, summary, time, unread, and starred. The row's action opens the source or the composer.
-- The composer component is mounted from Contact, Inbox, and Calendar. Those three call sites are the scope.
-
-## 5. Producers
-
-`runAction` announces every succeeded workspace action except the queue's own bookkeeping (`inbox.read`, `inbox.star`, `inbox.archive`, `inbox.raise`, `inbox.announce`). One event, one item per active member, written in that same transaction. The actor's copy is already read. Everyone else's is unread. The pointer is the action's target when that row is still there, otherwise the action execution itself (`sourceType: system`).
-
-A conversation placement announces after it is saved. The item's source is the room and its type is `conversation`, or `agent` when a bot spoke. Recipients are the room's members who hold an active workspace membership, each in their own workspace. The dedupe key is the placement id.
-
-`raiseInboxItem` remains the targeted producer: one member, one event, optional `deliverAt`. A fired reminder uses it. Until tasks exist, timed items are raised by whatever producer already knows the time.
-
-The desk subscribes to `GET /workspaces/{id}/inbox/stream` (`inbox.created`). Items whose `deliverAt` is still ahead are not listed and are not pushed until they are due.
-
-## 6. Postponed
-
-`InboxThread`, `InboxParticipant`, `InboxMessage`, mailbox sync, Sent / Drafts / System folders, campaign mail, and internal correspondence. Doc/09 §4.5 and pressure tests 4–5 stay as the sketch for a later mail model. When external email arrives, that model keeps its own tables and raises an inbox item whose source is the thread. The item is not the thread.
-
-Campaigns wait until that mail model exists. A saved audience and the list of people actually mailed are different things, and neither is an inbox folder.
-
-## 7. Build order
-
-1. `InboxItem`, `raiseInboxItem`, list, and the three state changes. Tests: another member's item is invisible; archive hides it from the default list and leaves a fanned-out copy untouched; the same `dedupeKey` returns the original row; a member route cannot create an item.
-2. `compose.send` and the shared compose surface, wired from Contact, Inbox, and Calendar. Tests: email without subject or destination is refused; send writes the compose row and a contact activity; send creates no inbox item.
-3. Live announce from workspace actions and conversation placements, `deliverAt`, and the inbox stream.
-4. Reminder producer, when tasks exist. It raises one timed item for the reminded member.
-5. External mail model, later, as a source that raises items.
+1. Schema + `recordActivityEvent` + present into workspace channel; hide Inbox nav; silence chatty `runAction` → InboxItem fan-out. *(this slice)*
+2. More curated producers (sales stage, follow-up due) and richer action buttons.
+3. All | People | Activity filter on the channel.
+4. True Inbox when inbound mail exists.

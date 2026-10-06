@@ -84,11 +84,11 @@ describe('inbox access', () => {
     expect(again.json().data.id).toBe(sent.json().data.id)
     expect((await call(testUserId, 'POST', base, letter(local.id, { idempotencyKey: 'letter-1', subject: 'Changed' }))).json().code).toBe('IDEMPOTENCY_KEY_REUSED')
     expect(await db.compose.count({ where: { workspaceId: ws.id } })).toBe(1)
-    expect(await db.inboxItem.count({ where: { workspaceId: ws.id, title: 'Follow-up: Hello' } })).toBe(2)
+    expect(await db.inboxItem.count({ where: { workspaceId: ws.id, title: 'Follow-up: Hello' } })).toBe(0)
   })
 
-  it('does not announce bookkeeping, and stops telling a removed member', async () => {
-    const { ws, alice, carol } = await setup()
+  it('does not announce bookkeeping, and a removed member keeps their old queue', async () => {
+    const { ws, carol } = await setup()
     const item = await inbox.raise(ws.id, {
       memberId: carol, type: 'system', title: 'Quiet', summary: 'Stay', sourceType: 'system', sourceId: 'q', dedupeKey: 'quiet', action: { verb: 'open' },
     })
@@ -107,7 +107,6 @@ describe('inbox access', () => {
     const stopped = await db.inboxItem.count({ where: { memberId: carol } })
     await contact(ws.id, 'After')
     expect(await db.inboxItem.count({ where: { memberId: carol } })).toBe(stopped)
-    expect(await db.inboxItem.findFirst({ where: { memberId: alice, title: 'Contact added', summary: 'contact' } })).toMatchObject({ sourceType: 'contact' })
   })
 
   it('tells a public room only to the people in it', async () => {
@@ -130,7 +129,7 @@ describe('inbox access', () => {
     expect(await db.inboxItem.findFirst({ where: { memberId: carol, dedupeKey: early.json().data.id } })).toBeNull()
   })
 
-  it('streams a new item to that member and does not replay the queue', async () => {
+  it('streams a raised item to that member and does not replay the queue', async () => {
     const { ws, carol } = await setup()
     const old = await inbox.raise(ws.id, {
       memberId: carol, type: 'system', title: 'Already there', summary: 'History', sourceType: 'system', sourceId: 'old', dedupeKey: 'old', action: { verb: 'open' },
@@ -145,14 +144,15 @@ describe('inbox access', () => {
     const seen = watch(res.body!.getReader())
     await new Promise((resolve) => setTimeout(resolve, 400))
     expect(seen.body()).not.toContain(old.id)
-    await contact(ws.id, 'Live')
+    const next = await inbox.raise(ws.id, {
+      memberId: carol, type: 'system', title: 'Live raise', summary: 'Now', sourceType: 'system', sourceId: 'live', dedupeKey: 'live', action: { verb: 'open' },
+    })
     const stop = Date.now() + 1000
-    while (!seen.body().includes('"title":"Contact added"') && Date.now() < stop) {
+    while (!seen.body().includes(next.id) && Date.now() < stop) {
       await new Promise((resolve) => setTimeout(resolve, 20))
     }
-    expect(seen.body()).toContain('"title":"Contact added"')
-    const payload = JSON.parse(/data: (\{.*\})/.exec(seen.body())![1]!) as { item: { memberId: string; unread: boolean; title: string } }
-    expect(payload.item).toMatchObject({ memberId: carol, unread: true, title: 'Contact added' })
+    expect(seen.body()).toContain(next.id)
+    expect(seen.body()).toContain('"title":"Live raise"')
     abort.abort()
   })
 })

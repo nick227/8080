@@ -1,8 +1,8 @@
 export type Desk = 'team' | 'inbox' | 'contacts' | 'sales' | 'documents' | 'calendar'
 
+/** Desks shown in the workspace nav. Inbox is deferred until real inbound mail exists. */
 export const DESKS: { id: Desk; label: string }[] = [
   { id: 'team', label: 'Team' },
-  { id: 'inbox', label: 'Inbox' },
   { id: 'contacts', label: 'Contacts' },
   { id: 'sales', label: 'Sales' },
   { id: 'documents', label: 'Documents' },

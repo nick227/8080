@@ -7,6 +7,7 @@ import { events, type DomainEvents } from './events'
 import { authorize } from './workspacePolicy'
 import { registerChoiceFlow, type ChoiceFlow, type FlowSay } from '../bots/flows/registry'
 import { postSays } from '../bots/flows/post'
+import { registerActivityFlow } from './activityEvent'
 import { COMPANY_PROFILE, companyProfileFlow, extract, generate, startOffer, startRun, textAnswer } from '../bots/flows/companyProfile'
 
 export const HOST_HANDLE = 'chatbot'
@@ -125,6 +126,7 @@ export function startWorkspaceHost() {
   const off = [
     registerChoiceFlow(COMPANY_PROFILE, companyProfileFlow),
     registerChoiceFlow(WELCOME, welcomeFlow),
+    registerActivityFlow(),
     events.on('workspace.member.activated', (e) => { void track(workspaceHost.join(e.workspaceId, e.userId, e.memberId)) }),
     events.on('item.created', (e) => { void track(workspaceHost.onItem(e)) }),
   ]

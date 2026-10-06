@@ -77,8 +77,8 @@ describe('inbox', () => {
     })).rejects.toMatchObject({ code: 'UNKNOWN_SOURCE' })
   })
 
-  it('records a follow-up on the contact and tells the workspace', async () => {
-    const { ws, alice, carol } = await setup()
+  it('records a follow-up on the contact without an inbox fan-out', async () => {
+    const { ws } = await setup()
     const contact = (await call(testUserId, 'POST', `/workspaces/${ws.id}/contacts`, { displayName: 'Dana', points: [{ kind: 'email', value: 'dana@acme.com' }] })).json().data
     expect((await call(testUserId, 'POST', `/workspaces/${ws.id}/compose`, { contactId: contact.id, channel: 'email', destination: 'not-an-email', subject: 'Hi', body: 'Hello', contextType: 'contact', contextId: contact.id })).json().code).toBe('INVALID_EMAIL')
     expect((await call(testUserId, 'POST', `/workspaces/${ws.id}/compose`, { contactId: contact.id, channel: 'email', destination: 'dana@acme.com', subject: ' ', body: 'Hello', contextType: 'contact', contextId: contact.id })).json().code).toBe('EMPTY_SUBJECT')
@@ -88,26 +88,19 @@ describe('inbox', () => {
     })
     expect(sent.statusCode).toBe(201)
     expect(sent.json().data).toMatchObject({ destination: 'dana@acme.com', subject: 'Hello', channel: 'email' })
-    const notes = await db.inboxItem.findMany({ where: { workspaceId: ws.id, title: 'Follow-up: Hello' } })
-    expect(notes.map((row) => row.memberId).sort()).toEqual([alice, carol].sort())
-    expect(notes.find((row) => row.memberId === alice)?.unread).toBe(false)
-    expect(notes.find((row) => row.memberId === carol)?.unread).toBe(true)
-    expect(notes.every((row) => row.sourceType === 'contact' && row.sourceId === contact.id)).toBe(true)
     expect(await db.compose.count({ where: { workspaceId: ws.id } })).toBe(1)
     const activity = await db.activity.findFirstOrThrow({ where: { workspaceId: ws.id, type: 'compose.recorded' } })
     expect(activity.summary).toMatchObject({ destination: 'dana@acme.com', subject: 'Hello' })
+    expect(await db.inboxItem.count({ where: { workspaceId: ws.id, title: 'Follow-up: Hello' } })).toBe(0)
     expect(await crossWorkspaceViolations()).toEqual({})
-    const contactNote = await db.inboxItem.findFirst({ where: { memberId: alice, sourceId: contact.id, title: 'Contact added' } })
-    expect(contactNote).toMatchObject({ sourceType: 'contact', title: 'Contact added' })
   })
 
-  it('points a new document at that document', async () => {
+  it('does not raise an inbox row for an ordinary document create', async () => {
     const { ws, alice } = await setup()
     const doc = (await call(testUserId, 'POST', `/workspaces/${ws.id}/documents`, {
       title: 'Brief', descriptor: { surface: 'blocks', source: { kind: 'native', schemaVersion: 1 } }, idempotencyKey: randomUUID(),
     })).json().data
-    const note = await db.inboxItem.findFirst({ where: { memberId: alice, sourceId: doc.id } })
-    expect(note).toMatchObject({ sourceType: 'document', title: 'Document added', action: { verb: 'open' } })
+    expect(await db.inboxItem.findFirst({ where: { memberId: alice, sourceId: doc.id } })).toBeNull()
   })
 
   it('hides a reminder until it is due, and a room note stays inside the room', async () => {

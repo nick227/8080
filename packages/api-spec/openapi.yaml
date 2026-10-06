@@ -3855,7 +3855,7 @@ components:
       type: object
       required: [type, id, workspaceId, title]
       properties:
-        type: { type: string, enum: [document] }
+        type: { type: string, enum: [document, contact, compose] }
         id: { type: string }
         workspaceId: { type: string }
         title: { type: string, description: The title when the link was posted }

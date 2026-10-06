@@ -8,6 +8,7 @@ import { badRequest, conflict, notFound } from '../lib/errors'
 import { decodeKeyCursor, encodeKeyCursor, normalizeLimit, page } from '../lib/pagination'
 import { contactInclude, toAccountRef, toContact, toContactRef, type ContactRow } from '../lib/serialize'
 import { diff, runAction, subjectKey, type SubjectRef } from './actions'
+import { recordActivityEvent } from './activityEvent'
 import { emailDomain, isRoleAddress, matchAccountsByDomain, matchContactsByEmail, normalizeEmail, normalizePoint } from './contactMatch'
 import { assertAssignees, assertTags, liveAccount, liveContact, replaceTags, timeline } from './records'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
@@ -198,6 +199,24 @@ export class ContactService {
         }
       },
     )
+    try {
+      await recordActivityEvent({
+        workspaceId,
+        type: 'contact.attention',
+        title: `New contact — ${contact.displayName}`,
+        summary: contact.primaryEmail ? `Added · ${contact.primaryEmail}` : 'Added to the workspace',
+        sourceType: 'contact',
+        sourceId: contact.id,
+        dedupeKey: `contact:${contact.id}:created`,
+        actorMemberId: actor.member.id,
+        links: [
+          { type: 'contact', id: contact.id, workspaceId, title: 'View contact' },
+          { type: 'compose', id: contact.id, workspaceId, title: 'Message' },
+        ],
+      })
+    } catch (err: unknown) {
+      console.error('activity event failed', err)
+    }
     return { data: toContact(contact), duplicates: await this.duplicatesOf(contact) }
   }
 

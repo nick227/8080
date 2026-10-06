@@ -146,15 +146,26 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   // Row actions go through a ref so cached rows never hold stale closures.
   const chooseOption = useChooseOption()
   const hostChannel = useHostChannel(roomId)
-  const actions = useRef({ reply: (_id: string) => {}, remove: (_id: string) => {}, choose: async (_id: string, _optionIds: string[]) => {}, openDocument: (_id: string) => {} })
+  const actions = useRef({
+    reply: (_id: string) => {},
+    remove: (_id: string) => {},
+    choose: async (_id: string, _optionIds: string[]) => {},
+    openLink: (_link: { type: string; id: string }) => {},
+  })
   actions.current = {
-    // A document a bot linked (doc/12 §5.4): it may be newer than the list, so refresh first.
-    openDocument: (id) => {
-      const docs = useDocuments.getState()
-      void docs.refresh().finally(() => {
-        useDocuments.getState().open(id)
-        openPlace('documents')
-      })
+    openLink: (link) => {
+      if (link.type === 'document') {
+        const docs = useDocuments.getState()
+        void docs.refresh().finally(() => {
+          useDocuments.getState().open(link.id)
+          openPlace('documents')
+        })
+        return
+      }
+      if (link.type === 'contact' || link.type === 'compose') {
+        openPlace('contacts')
+        return
+      }
     },
     choose: async (itemId, optionIds) => { await chooseOption.mutateAsync({ itemId, optionIds }) },
     reply: (id) => { setCompose(false); ui.startReply(id); setDesk(true) },
@@ -182,7 +193,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       choice: item.actions
         ? { actions: item.actions, choice: item.choice, meId, onChoose: (optionIds) => actions.current.choose(item.id, optionIds) }
         : undefined,
-      links: item.links?.map((link) => ({ id: link.id, title: link.title, onOpen: () => actions.current.openDocument(link.id) })),
+      links: item.links?.map((link) => ({ id: link.id, title: link.title, onOpen: () => actions.current.openLink(link) })),
       onReply: () => actions.current.reply(item.id),
       onDelete: item.author.id === meId ? () => actions.current.remove(item.id) : undefined,
     }

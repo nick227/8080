@@ -192,6 +192,7 @@ model Item {
   reactions Reaction[]
   links      RecordLink[]
   activities Activity[]
+  activityEvents ActivityEvent[]
 
   @@unique([roomId, number])
   @@index([parentId])
@@ -529,6 +530,7 @@ model Workspace {
   importRows       ImportRow[]
   documentContents DocumentContent[]
   inboxItems       InboxItem[]
+  activityEvents   ActivityEvent[]
   composes         Compose[]
   channel          WorkspaceChannel?
   workflowRuns     WorkflowRun[]
@@ -575,6 +577,7 @@ model WorkspaceMember {
   imports         ImportBatch[]
   documentEdits   DocumentContent[]
   inboxItems      InboxItem[]
+  activityEvents  ActivityEvent[]
   composes        Compose[]
   workflowRuns    WorkflowRun[]
   companyFacts    CompanyFact[]
@@ -1283,6 +1286,35 @@ model InboxItem {
 
   @@unique([memberId, dedupeKey])
   @@index([workspaceId, memberId, archivedAt, createdAt])
+}
+
+
+// Workspace-level attention event (doc/11 revised). One row per business event for
+// the whole workspace — not a per-member fan-out. Optional chat presentation points
+// at the workspace channel Item. Per-member InboxItem delivery comes later.
+model ActivityEvent {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  type          String    @db.VarChar(48)
+  title         String    @db.VarChar(200)
+  summary       String    @db.VarChar(500)
+  sourceType    String    @db.VarChar(32)
+  sourceId      String    @db.VarChar(64)
+  links         Json?
+  dedupeKey     String    @db.VarChar(160)
+  itemId        String?
+  actorMemberId String?
+  deliverAt     DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     WorkspaceMember? @relation(fields: [actorMemberId], references: [id], onDelete: SetNull)
+  item      Item?            @relation(fields: [itemId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, dedupeKey])
+  @@index([workspaceId, createdAt])
+  @@index([itemId])
+  @@index([actorMemberId])
 }
 
 // A follow-up addressed to a contact. Recording it is not delivery (doc/11).

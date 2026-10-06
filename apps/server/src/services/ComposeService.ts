@@ -5,6 +5,7 @@ import { badRequest, notFound } from '../lib/errors'
 import { normalizePoint } from './contactMatch'
 import { runAction } from './actions'
 import { assertSource } from './inboxSource'
+import { recordActivityEvent } from './activityEvent'
 import { authorize } from './workspacePolicy'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
 
@@ -43,13 +44,10 @@ export class ComposeService {
         const created = await tx.compose.create({
           data: { workspaceId, authorMemberId: actor.member.id, ...stored },
         })
-        // Keep the action target on the contact (announce + idempotency). The
-        // compose row id lives in result.
         return {
           value: serialize(created),
           result: { id: created.id },
           activities: [{ type: 'compose.recorded', summary: { channel: 'email', destination, subject, composeId: created.id }, subjects: [{ contactId: input.contactId }] }],
-          notice: { title: `Follow-up: ${subject}`, summary: destination },
         }
       },
       async (previous) => {
@@ -58,6 +56,26 @@ export class ComposeService {
         if (!row) throw notFound('Follow-up not found')
         return serialize(row)
       },
-    )
+    ).then(async (created) => {
+      try {
+        await recordActivityEvent({
+          workspaceId,
+          type: 'compose.follow_up',
+          title: `Follow-up: ${created.subject}`,
+          summary: created.destination,
+          sourceType: 'contact',
+          sourceId: created.contactId,
+          dedupeKey: `compose:${created.id}`,
+          actorMemberId: created.authorMemberId,
+          links: [
+            { type: 'contact', id: created.contactId, workspaceId, title: 'View contact' },
+            { type: 'compose', id: created.contactId, workspaceId, title: 'Message again' },
+          ],
+        })
+      } catch (err: unknown) {
+        console.error('activity event failed', err)
+      }
+      return created
+    })
   }
 }
