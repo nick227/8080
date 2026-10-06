@@ -1,10 +1,15 @@
-// Shared content of native block documents (doc/10 §10, minimal POC). Registry
+// Shared content of native block documents (doc/10 §10, minimal POC) and native
+// sheets (doc/13 §12, A2: typed cells, packages/shared/src/sheetContent.ts). Registry
 // access decides (DocumentService.access): readers read, editors save. A save is
 // optimistic — it names the version it was based on and gets 409 if someone saved
 // since, so nothing is overwritten silently. Every save is one audited action
 // (version only, never the text); the people-facing timeline is not involved.
-// Maps and sheets keep device-local content until their own slices.
+// A sheet that came from a CSV import or a generated recipe keeps that snapshot
+// (Document.payload) untouched: it is the import/recipe baseline, and edits live here.
+// Until the first save, such a sheet's content is read from the snapshot (version 0).
+// Maps keep device-local content until their own slice.
 import { db, Prisma } from '@project/db'
+import { sheetFromText, sheetProblem, type SheetContent } from '@project/shared'
 import { badRequest, httpError } from '../lib/errors'
 import { toAuthor } from '../lib/serialize'
 import { runAction } from './actions'
@@ -54,19 +59,31 @@ export function validateBlocks(content: unknown): Block[] {
   })
 }
 
+export function validateSheet(content: unknown): SheetContent {
+  const problem = sheetProblem(content)
+  if (problem) throw badRequest(problem, 'INVALID_CONTENT')
+  return content as SheetContent
+}
+
 async function blocksDocument(userId: string, workspaceId: string, documentId: string, verb: 'document.read' | 'document.edit') {
   const access = await documents.access(userId, workspaceId, documentId, verb)
-  if (access.row.surface !== 'blocks' || access.row.sourceKind !== 'native') {
-    throw badRequest('Only block documents have shared content so far', 'NOT_SHARED_CONTENT')
+  if (!['blocks', 'grid'].includes(access.row.surface) || access.row.sourceKind !== 'native') {
+    throw badRequest('Only block documents and native sheets have shared content so far', 'NOT_SHARED_CONTENT')
   }
   return access
 }
 
 async function current(documentId: string) {
   const row = await db.documentContent.findUnique({ where: { documentId }, include: { updatedBy: { include: { user: { include: { profile: true } } } } } })
+  let content = (row?.content as Block[] | SheetContent | undefined) ?? null
+  if (!row) {
+    // Never saved: an imported or generated sheet starts from its snapshot.
+    const doc = await db.document.findUnique({ where: { id: documentId }, select: { surface: true, payload: true } })
+    if (doc?.surface === 'grid' && doc.payload) content = sheetFromText(doc.payload as Parameters<typeof sheetFromText>[0])
+  }
   return {
     version: row?.version ?? 0,
-    content: (row?.content as Block[] | undefined) ?? null,
+    content,
     updatedAt: row?.updatedAt ?? null,
     updatedBy: row?.updatedBy ? toAuthor(row.updatedBy.user) : null,
   }
@@ -84,12 +101,14 @@ export class DocumentContentService {
   }
 
   async save(ctx: WorkspaceCtx, workspaceId: string, documentId: string, input: { expectedVersion: number; content: unknown }) {
-    const { actor } = await blocksDocument(ctx.user.id, workspaceId, documentId, 'document.edit')
-    const content = validateBlocks(input.content) as unknown as Prisma.InputJsonValue
+    const { actor, row } = await blocksDocument(ctx.user.id, workspaceId, documentId, 'document.edit')
+    const sheet = row.surface === 'grid'
+    const content = (sheet ? validateSheet(input.content) : validateBlocks(input.content)) as unknown as Prisma.InputJsonValue
+    const size = sheet ? { columns: (content as unknown as SheetContent).columns.length, rows: (content as unknown as SheetContent).rows.length } : { blocks: (input.content as unknown[]).length }
     const conflict = () => httpError(409, 'The document changed; reload it and reapply your edit', 'DOCUMENT_CONTENT_CONFLICT')
 
     const version = await runAction(
-      { action: 'document.content.save', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { expectedVersion: input.expectedVersion, blocks: (input.content as unknown[]).length }, target: { type: 'document', id: documentId } },
+      { action: 'document.content.save', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { expectedVersion: input.expectedVersion, ...size }, target: { type: 'document', id: documentId } },
       async (tx) => {
         let next: number
         if (input.expectedVersion === 0) {

@@ -25,7 +25,7 @@ export type SheetContent = {
   rows: { id: string; cells: Record<string, CellValue> }[]
 }
 
-export const SHEET_LIMITS = { columns: 100, rows: 5000, text: 5000, bytes: 2_000_000 } as const
+export const SHEET_LIMITS = { columns: 100, rows: 5000, text: 5000, bytes: 950_000 } as const
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/
 export function isDay(v: unknown): v is string {
@@ -54,11 +54,16 @@ export function validValue(type: CellType, v: CellValue): boolean {
   }
 }
 
+const TAKES: Record<CellType, string> = {
+  text: `text of at most ${SHEET_LIMITS.text} characters`, number: 'numbers', money: 'whole minor units (cents)', date: 'dates as YYYY-MM-DD', boolean: 'true or false',
+}
+
 /** Problems with a sheet, or null. Unknown fields and cells are problems, not ignored. */
 export function sheetProblem(raw: unknown): string | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return 'A sheet is an object'
   const s = raw as Record<string, unknown>
   if (Object.keys(s).some((k) => !['schemaVersion', 'columns', 'rows'].includes(k))) return 'Unknown sheet field'
+  if (JSON.stringify(s).length > SHEET_LIMITS.bytes) return 'The sheet is too large to save'
   if (s.schemaVersion !== 1) return 'Unsupported sheet version'
   if (!Array.isArray(s.columns) || s.columns.length > SHEET_LIMITS.columns) return `A sheet has at most ${SHEET_LIMITS.columns} columns`
   if (!Array.isArray(s.rows) || s.rows.length > SHEET_LIMITS.rows) return `A sheet has at most ${SHEET_LIMITS.rows} rows`
@@ -81,7 +86,7 @@ export function sheetProblem(raw: unknown): string | null {
     for (const [k, v] of Object.entries(r.cells as Record<string, unknown>)) {
       const col = cols.get(k)
       if (!col) return 'A cell names an unknown column'
-      if (!validValue(col.type, v as CellValue)) return `“${col.label || col.id}” holds a value that isn't ${col.type === 'boolean' ? 'yes or no' : `a ${col.type}`}`
+      if (!validValue(col.type, v as CellValue)) return `“${col.label || col.id}” takes ${TAKES[col.type]}`
     }
   }
   return null

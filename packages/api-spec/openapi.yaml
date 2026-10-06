@@ -7792,8 +7792,12 @@ components:
       properties:
         version: { type: integer, minimum: 0, description: 0 = nothing saved yet }
         content:
-          type: [array, 'null']
-          items: { $ref: '#/components/schemas/ContentBlock' }
+          description: Blocks (a block document) or a typed sheet (a native grid); null = nothing yet.
+          oneOf:
+            - type: array
+              items: { $ref: '#/components/schemas/ContentBlock' }
+            - $ref: '#/components/schemas/SheetContent'
+            - type: 'null'
         updatedAt: { type: [string, 'null'], format: date-time }
         updatedBy:
           oneOf:
@@ -7813,9 +7817,49 @@ components:
       properties:
         expectedVersion: { type: integer, minimum: 0 }
         content:
+          oneOf:
+            - type: array
+              maxItems: 500
+              items: { $ref: '#/components/schemas/ContentBlock' }
+            - $ref: '#/components/schemas/SheetContent'
+
+    SheetContent:
+      type: object
+      additionalProperties: false
+      description: |
+        A native sheet (packages/shared/src/sheetContent.ts). Raw values per column type:
+        text string · number · money = integer minor units in the column currency ·
+        date YYYY-MM-DD · boolean. Totals are computed from `total: sum`, never stored.
+        No formulas. Checked field by field on save → 400 INVALID_CONTENT.
+      required: [schemaVersion, columns, rows]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        columns:
           type: array
-          maxItems: 500
-          items: { $ref: '#/components/schemas/ContentBlock' }
+          maxItems: 100
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, label, type]
+            properties:
+              id: { type: string, minLength: 1, maxLength: 64 }
+              label: { type: string, maxLength: 200 }
+              type: { type: string, enum: [text, number, money, date, boolean] }
+              currency: { type: string, minLength: 3, maxLength: 3 }
+              total: { type: string, enum: [sum] }
+        rows:
+          type: array
+          maxItems: 5000
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, cells]
+            properties:
+              id: { type: string, minLength: 1, maxLength: 64 }
+              cells:
+                type: object
+                additionalProperties:
+                  type: [string, number, boolean, 'null']
 
     DocumentPresenceInput:
       type: object

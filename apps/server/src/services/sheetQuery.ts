@@ -7,6 +7,7 @@ import {
   CONTACT_SHEET_COLUMNS, INVENTORY_SHEET_COLUMNS, LEAD_STATUSES, SHEET_MAX_ROWS,
   type ContactSheetColumn, type ContactSheetQuery, type GridTable, type InventorySheetColumn, type InventorySheetQuery, type LeadStatusValue, type SheetQuery,
 } from '@project/shared'
+import { minorDigits, sheetAsText, type CellType, type CellValue, type SheetContent } from '@project/shared'
 import { badRequest } from '../lib/errors'
 import { localDayKey, wallTimeToUtc } from '../lib/workspaceDay'
 
@@ -24,6 +25,11 @@ function text(v: unknown, max: number, what: string) {
 }
 
 export const LEAD_LABEL: Record<string, string> = { new: 'New', contacting: 'Contacting', connected: 'Connected', qualified: 'Qualified', customer: 'Customer', lost: 'Lost' }
+const CONTACT_DATES = new Set<ContactSheetColumn>(['nextFollowUp', 'lastActivity', 'created'])
+const INVENTORY_TYPE: Record<InventorySheetColumn, CellType> = {
+  name: 'text', sku: 'text', category: 'text', price: 'money', quantity: 'number', lowStockThreshold: 'number',
+  stockValue: 'money', location: 'text', available: 'boolean', status: 'text', updated: 'date',
+}
 const CONTACT_LABEL: Record<ContactSheetColumn, string> = {
   name: 'Name', company: 'Company', title: 'Title', email: 'Email', phone: 'Phone', leadStatus: 'Lead status', leadSource: 'Lead source',
   nextFollowUp: 'Next follow-up', lastActivity: 'Last activity', owner: 'Owner', created: 'Added',
@@ -128,17 +134,20 @@ export function addDays(day: string, n: number) {
 }
 const window = (w: { from?: string; to?: string }, tz: string) => ({ ...(w.from ? { gte: dayStart(w.from, tz) } : {}), ...(w.to ? { lt: dayStart(addDays(w.to, 1), tz) } : {}) })
 const shortDay = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
-const cellDay = (d: Date | null, tz: string) => (d ? localDayKey(d, tz) : '')
+const cellDay = (d: Date | null, tz: string) => (d ? localDayKey(d, tz) : null)
+/** A price (stored as a float today, doc/13 F4) → exact minor units, rounded once here. */
+const minor = (n: number, currency: string) => Math.round(n * 10 ** minorDigits(currency))
 const money = (n: number) => (Math.round(n * 100) / 100).toFixed(2)
 
 // ─── running ──────────────────────────────────────────────────────────────────
 
 export type SheetContext = { workspaceId: string; timezone: string; currency: string }
-export type SheetResult = { table: GridTable; rowCount: number; dataHash: string; asOf: string }
+export type SheetResult = { content: SheetContent; table: GridTable; rowCount: number; dataHash: string; asOf: string }
 
 const tooLarge = (n: number) => badRequest(`That matches ${n} rows; a sheet holds at most ${SHEET_MAX_ROWS}. Narrow it down or set a limit.`, 'SHEET_TOO_LARGE')
-const hashOf = (table: GridTable) => createHash('sha256').update(JSON.stringify([table.columns, table.rows])).digest('hex')
-const finish = (table: GridTable, asOf: string, counted = table.rows.length): SheetResult => ({ table, rowCount: counted, dataHash: hashOf(table), asOf })
+const hashOf = (content: SheetContent) => createHash('sha256').update(JSON.stringify([content.columns, content.rows])).digest('hex')
+// The typed sheet is the result; the text table (with a Total line) is its snapshot for CSV and imports.
+const finish = (content: SheetContent, asOf: string): SheetResult => ({ content, table: sheetAsText(content), rowCount: content.rows.length, dataHash: hashOf(content), asOf })
 
 async function memberNames(workspaceId: string, ids: string[]) {
   if (!ids.length) return new Map<string, string>()
@@ -175,12 +184,11 @@ async function contactsSheet(ctx: SheetContext, q: ContactSheetQuery, asOf: stri
     }
     if (count.has(null) && q.groupBy === 'leadStatus') rows.push({ key: '', label: 'Not set', n: count.get(null)! })
     const head = { leadStatus: 'Lead status', leadSource: 'Lead source', owner: 'Owner' }[q.groupBy]
-    const total = rows.reduce((s, r) => s + r.n, 0)
-    const table: GridTable = {
-      columns: [{ id: 'group', label: head, type: 'text' }, { id: 'contacts', label: 'Contacts', type: 'text' }],
-      rows: [...rows.map((r, i) => ({ id: `g${i + 1}`, cells: { group: r.label, contacts: String(r.n) } })), { id: 'total', cells: { group: 'Total', contacts: String(total) } }],
-    }
-    return finish(table, asOf, rows.length)
+    return finish({
+      schemaVersion: 1,
+      columns: [{ id: 'group', label: head, type: 'text' }, { id: 'contacts', label: 'Contacts', type: 'number', total: 'sum' }],
+      rows: rows.map((r, i) => ({ id: `g${i + 1}`, cells: { group: r.label, contacts: r.n } })),
+    }, asOf)
   }
   const total = await db.contact.count({ where })
   if (total > SHEET_MAX_ROWS && !q.limit) throw tooLarge(total)
@@ -197,23 +205,24 @@ async function contactsSheet(ctx: SheetContext, q: ContactSheetQuery, asOf: stri
   })
   const owners = columns.includes('owner') ? await memberNames(ctx.workspaceId, [...new Set(found.map((c) => c.ownerMemberId).filter((x): x is string => !!x))]) : new Map()
   const tz = ctx.timezone
-  const cell = (c: typeof found[number], col: ContactSheetColumn): string => {
+  const cell = (c: typeof found[number], col: ContactSheetColumn): CellValue => {
     switch (col) {
       case 'name': return c.displayName
-      case 'company': return c.accounts[0]?.account.name ?? ''
-      case 'title': return c.title ?? ''
-      case 'email': return c.primaryEmail ?? ''
-      case 'phone': return c.primaryPhone ?? ''
-      case 'leadStatus': return c.leadStatus ? LEAD_LABEL[c.leadStatus]! : ''
-      case 'leadSource': return c.leadSource ?? ''
+      case 'company': return c.accounts[0]?.account.name ?? null
+      case 'title': return c.title
+      case 'email': return c.primaryEmail
+      case 'phone': return c.primaryPhone
+      case 'leadStatus': return c.leadStatus ? LEAD_LABEL[c.leadStatus]! : null
+      case 'leadSource': return c.leadSource
       case 'nextFollowUp': return cellDay(c.nextFollowUp, tz)
       case 'lastActivity': return cellDay(c.lastActivityAt, tz)
-      case 'owner': return c.ownerMemberId ? owners.get(c.ownerMemberId) ?? '' : ''
+      case 'owner': return c.ownerMemberId ? owners.get(c.ownerMemberId) ?? null : null
       case 'created': return cellDay(c.createdAt, tz)
     }
   }
-  const table: GridTable = {
-    columns: columns.map((id) => ({ id, label: CONTACT_LABEL[id], type: 'text' })),
+  const table: SheetContent = {
+    schemaVersion: 1,
+    columns: columns.map((id) => ({ id, label: CONTACT_LABEL[id], type: CONTACT_DATES.has(id) ? 'date' : 'text' })),
     rows: found.map((c) => ({ id: c.id, cells: Object.fromEntries(columns.map((col) => [col, cell(c, col)])) })),
   }
   return finish(table, asOf)
@@ -249,15 +258,15 @@ async function inventorySheet(ctx: SheetContext, q: InventorySheetQuery, asOf: s
       by.set(k, g)
     }
     const rows = [...by].sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)))
-    const sum = rows.reduce((s, [, g]) => ({ items: s.items + g.items, units: s.units + g.units, value: s.value + g.value }), { items: 0, units: 0, value: 0 })
-    const table: GridTable = {
-      columns: [{ id: 'category', label: 'Category', type: 'text' }, { id: 'items', label: 'Items', type: 'text' }, { id: 'units', label: 'Units in stock', type: 'text' }, { id: 'value', label: `Stock value (${ctx.currency})`, type: 'text' }],
-      rows: [
-        ...rows.map(([k, g], i) => ({ id: `g${i + 1}`, cells: { category: k || 'Uncategorized', items: String(g.items), units: String(g.units), value: money(g.value) } })),
-        { id: 'total', cells: { category: 'Total', items: String(sum.items), units: String(sum.units), value: money(sum.value) } },
+    const cur = ctx.currency
+    return finish({
+      schemaVersion: 1,
+      columns: [
+        { id: 'category', label: 'Category', type: 'text' }, { id: 'items', label: 'Items', type: 'number', total: 'sum' },
+        { id: 'units', label: 'Units in stock', type: 'number', total: 'sum' }, { id: 'value', label: `Stock value (${cur})`, type: 'money', currency: cur, total: 'sum' },
       ],
-    }
-    return finish(table, asOf, rows.length)
+      rows: rows.map(([k, g], i) => ({ id: `g${i + 1}`, cells: { category: k || 'Uncategorized', items: g.items, units: g.units, value: minor(g.value, cur) } })),
+    }, asOf)
   }
   const sort = q.sort ?? { field: 'name', direction: 'asc' }
   // Stock value isn't a column, so that order is computed here over every match.
@@ -274,24 +283,26 @@ async function inventorySheet(ctx: SheetContext, q: InventorySheetQuery, asOf: s
     found = found.sort((a, b) => ((value(a) ?? -1) - (value(b) ?? -1)) * dir).slice(0, q.limit ?? SHEET_MAX_ROWS)
   }
   const columns = q.columns!
-  const cell = (i: typeof found[number], col: InventorySheetColumn): string => {
+  const cur = ctx.currency
+  const cell = (i: typeof found[number], col: InventorySheetColumn): CellValue => {
     switch (col) {
       case 'name': return i.name
-      case 'sku': return i.sku ?? ''
-      case 'category': return i.category ?? ''
-      case 'price': return money(i.price)
-      case 'quantity': return i.quantity === null ? '' : String(i.quantity)
-      case 'lowStockThreshold': return i.lowStockThreshold === null ? '' : String(i.lowStockThreshold)
-      case 'stockValue': { const v = value(i); return v === null ? '' : money(v) }
-      case 'location': return i.location ?? ''
-      case 'available': return i.availability ? 'Yes' : 'No'
+      case 'sku': return i.sku
+      case 'category': return i.category
+      case 'price': return minor(i.price, cur)
+      case 'quantity': return i.quantity
+      case 'lowStockThreshold': return i.lowStockThreshold
+      case 'stockValue': { const v = value(i); return v === null ? null : minor(v, cur) }
+      case 'location': return i.location
+      case 'available': return i.availability
       case 'status': return i.status === 'active' ? 'Active' : 'Archived'
       case 'updated': return cellDay(i.updatedAt, ctx.timezone)
     }
   }
   const labels = INVENTORY_LABEL(ctx.currency)
-  const table: GridTable = {
-    columns: columns.map((id) => ({ id, label: labels[id], type: 'text' })),
+  const table: SheetContent = {
+    schemaVersion: 1,
+    columns: columns.map((id) => INVENTORY_TYPE[id] === 'money' ? { id, label: labels[id], type: 'money', currency: cur, ...(id === 'stockValue' ? { total: 'sum' as const } : {}) } : { id, label: labels[id], type: INVENTORY_TYPE[id] }),
     rows: found.map((i) => ({ id: i.id, cells: Object.fromEntries(columns.map((col) => [col, cell(i, col)])) })),
   }
   return finish(table, asOf)

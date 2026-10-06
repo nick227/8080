@@ -133,7 +133,7 @@ describe('presets → sheets', () => {
 
     const top = (await sheet(base, { query: { source: 'inventory', columns: ['name', 'price', 'quantity', 'stockValue'], sort: { field: 'stockValue', direction: 'desc' }, limit: 2 }, title: 'Top stock' })).json().data
     expect(top.title).toBe('Top stock')
-    expect((await rows(base, top.id)).rows.map((r) => [r.cells.name, r.cells.stockValue])).toEqual([['Drill', '358.00'], ['Bolts', '0.75']])
+    expect((await rows(base, top.id)).rows.map((r) => [r.cells.name, r.cells.stockValue])).toEqual([['Drill', '358.00'], ['Bolts', '0.75'], ['Total', '358.75']])
   })
 
   it('is retry-safe, private to its maker, and refuses non-members and bad requests', async () => {
@@ -271,3 +271,94 @@ describe('the channel', () => {
     expect(await db.document.count({ where: { workspaceId: ws.id } })).toBe(0)
   })
 })
+
+// A2 — the generated sheet is a typed, editable, server-stored spreadsheet. The
+// snapshot stays the recipe's baseline; edits never touch it; Regenerate never wipes them.
+describe('typed, editable sheets', () => {
+  const content = (base: string, id: string, who = testUserId) => call(who, 'GET', `${base}/documents/${id}/content`)
+  const save = (base: string, id: string, body: object, who = testUserId) => call(who, 'PUT', `${base}/documents/${id}/content`, body)
+
+  it('a generated sheet is typed content (version 1): money in minor units, dates, numbers; totals declared, not stored', async () => {
+    const { ws, base } = await workspace()
+    await item(ws.id, 'Drill', { category: 'Tools', price: 89.5, quantity: 4 })
+    await item(ws.id, 'Bolts', { category: 'Hardware', price: 0.25, quantity: 3 })
+    const doc = (await sheet(base, { query: { source: 'inventory', columns: ['name', 'price', 'quantity', 'stockValue', 'available', 'updated'] } })).json().data
+    const res = await content(base, doc.id)
+    expect(res.statusCode).toBe(200)
+    await validateResponse('getDocumentContent', 200, res.json())
+    const c = res.json().data
+    expect(c.version).toBe(1)
+    expect(c.content.columns).toEqual([
+      { id: 'name', label: 'Name', type: 'text' }, { id: 'price', label: 'Price (USD)', type: 'money', currency: 'USD' },
+      { id: 'quantity', label: 'In stock', type: 'number' }, { id: 'stockValue', label: 'Stock value (USD)', type: 'money', currency: 'USD', total: 'sum' },
+      { id: 'available', label: 'Available', type: 'boolean' }, { id: 'updated', label: 'Updated', type: 'date' },
+    ])
+    expect(c.content.rows.map((r: any) => [r.cells.name, r.cells.price, r.cells.quantity, r.cells.stockValue, r.cells.available])).toEqual([['Bolts', 25, 3, 75, true], ['Drill', 8950, 4, 35800, true]])
+    expect(c.content.rows[0].cells.updated).toBe(today())
+    expect(c.content.rows.some((r: any) => r.id === 'total')).toBe(false)
+  })
+
+  it('edits are saved on the server with versions; wrong-typed values are refused; provenance and the snapshot stay', async () => {
+    const { ws, base } = await workspace()
+    await item(ws.id, 'Drill', { category: 'Tools', price: 89.5, quantity: 4 })
+    const doc = (await sheet(base, { query: { source: 'inventory', columns: ['name', 'price', 'quantity'] } })).json().data
+    const v1 = (await content(base, doc.id)).json().data
+    const edited = { ...v1.content, columns: [...v1.content.columns, { id: 'note', label: 'Note', type: 'text' }], rows: [...v1.content.rows.map((r: any) => ({ ...r, cells: { ...r.cells, price: 9900, note: 'Raised' } })), { id: 'r-new', cells: { name: 'Saw', price: 3400, quantity: 12 } }] }
+    const saved = await save(base, doc.id, { expectedVersion: 1, content: edited })
+    expect(saved.statusCode).toBe(200)
+    expect(saved.json().data.version).toBe(2)
+    // Someone else saving from version 1 is refused, not merged silently.
+    expect((await save(base, doc.id, { expectedVersion: 1, content: v1.content })).json().code).toBe('DOCUMENT_CONTENT_CONFLICT')
+    for (const bad of [
+      { ...edited, rows: [{ id: 'x', cells: { price: 12.5 } }] },          // money is whole minor units
+      { ...edited, rows: [{ id: 'x', cells: { quantity: 'four' } }] },
+      { ...edited, rows: [{ id: 'x', cells: { nope: 'x' } }] },
+      { ...edited, columns: [...edited.columns, { id: 'price', label: 'Dup', type: 'text' }] },
+      { ...edited, columns: [{ id: 'a', label: 'A', type: 'text', total: 'sum' }], rows: [] },
+      { ...edited, columns: [{ id: 'a', label: 'A', type: 'money' }], rows: [] },
+      { ...edited, formula: '=SUM(A1:A3)' },
+    ]) expect((await save(base, doc.id, { expectedVersion: 2, content: bad })).statusCode, JSON.stringify(bad).slice(0, 80)).toBe(400) // spec (VALIDATION) or service (INVALID_CONTENT)
+    expect((await save(base, doc.id, { expectedVersion: 2, content: { ...edited, rows: [{ id: 'x', cells: { price: 12.5 } }] } })).json()).toMatchObject({ code: 'INVALID_CONTENT' })
+
+    const after = (await call(testUserId, 'GET', `${base}/documents/${doc.id}`)).json().data
+    expect(after.provenance).toMatchObject({ kind: 'artifact', generator: 'sheet.query' })
+    expect((await rows(base, doc.id)).rows.map((r) => r.cells.price)).toEqual(['89.50']) // the snapshot is untouched
+    // Edits are not "data changed": the recipe compares records with its own snapshot.
+    expect((await call(testUserId, 'GET', `${base}/documents/${doc.id}/recipe`)).json().data.stale).toBe(false)
+  })
+
+  it('Regenerate makes a new sheet and never wipes the edited one', async () => {
+    const { ws, base } = await workspace()
+    const drill = await item(ws.id, 'Drill', { price: 89.5, quantity: 4 })
+    const doc = (await sheet(base, { query: { source: 'inventory', columns: ['name', 'quantity'] } })).json().data
+    const v1 = (await content(base, doc.id)).json().data
+    await save(base, doc.id, { expectedVersion: 1, content: { ...v1.content, rows: v1.content.rows.map((r: any) => ({ ...r, cells: { ...r.cells, quantity: 99 } })) } })
+    await db.inventory.update({ where: { id: drill.id }, data: { quantity: 7 } })
+    expect((await call(testUserId, 'GET', `${base}/documents/${doc.id}/recipe`)).json().data.dataChanged).toBe(true)
+    const next = (await call(testUserId, 'POST', `${base}/documents/${doc.id}/regenerate`, { idempotencyKey: 'r1' })).json().data
+    expect((await content(base, next.id)).json().data.content.rows[0].cells.quantity).toBe(7)
+    expect((await content(base, doc.id)).json().data).toMatchObject({ version: 2, content: { rows: [{ cells: { quantity: 99 } }] } })
+  })
+
+  it('a CSV import starts as text columns read from its snapshot (version 0); its first save makes version 1', async () => {
+    const { base } = await workspace()
+    const doc = (await call(testUserId, 'POST', `${base}/documents/import-csv`, { title: 'Prices', csv: 'Item,Price\nBolt,0.25\n', filename: 'p.csv', idempotencyKey: 'csv-1' })).json().data
+    const v0 = (await content(base, doc.id)).json().data
+    expect(v0).toMatchObject({ version: 0, content: { schemaVersion: 1, columns: [{ id: 'c1', label: 'Item', type: 'text' }, { id: 'c2', label: 'Price', type: 'text' }], rows: [{ id: 'r1', cells: { c1: 'Bolt', c2: '0.25' } }] } })
+    // Retyping a column is the client's convertColumn + a save; the server checks the result.
+    const typed = { ...v0.content, columns: [v0.content.columns[0], { id: 'c2', label: 'Price', type: 'money', currency: 'USD', total: 'sum' }], rows: [{ id: 'r1', cells: { c1: 'Bolt', c2: 25 } }] }
+    expect((await save(base, doc.id, { expectedVersion: 0, content: typed })).json().data.version).toBe(1)
+  })
+
+  it('readers read, only editors save; dataset views have no sheet content', async () => {
+    const { ws, base } = await workspace()
+    await contact(ws.id, 'A A', { leadStatus: 'new' })
+    await join(app, ws.id, carolId, 'carol@test.local')
+    const doc = (await sheet(base, { preset: 'leads-by-stage' })).json().data
+    await call(testUserId, 'PUT', `${base}/documents/${doc.id}/workspace-access`, { role: 'viewer' })
+    expect((await content(base, doc.id, carolId)).statusCode).toBe(200)
+    const c = (await content(base, doc.id, carolId)).json().data
+    expect((await save(base, doc.id, { expectedVersion: c.version, content: c.content }, carolId)).statusCode).toBe(403)
+  })
+})
+

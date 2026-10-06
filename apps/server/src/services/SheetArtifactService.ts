@@ -87,6 +87,8 @@ export class SheetArtifactService {
           ...(input.workspaceAccess ? { workspaceAccess: input.workspaceAccess } : {}),
         },
       })
+      // The typed sheet people edit (version 1); the snapshot above stays the recipe's baseline.
+      await tx.documentContent.create({ data: { documentId: row.id, workspaceId, version: 1, content: json(result.content), updatedByMemberId: actor.member.id } })
       if (input.previousId) {
         const [fromId, toId] = [input.previousId, row.id].sort() as [string, string]
         await tx.documentRelation.create({ data: { workspaceId, fromId, toId } })

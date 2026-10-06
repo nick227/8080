@@ -4818,7 +4818,8 @@ export interface components {
         DocumentContent: {
             /** @description 0 = nothing saved yet */
             version: number;
-            content: components["schemas"]["ContentBlock"][] | null;
+            /** @description Blocks (a block document) or a typed sheet (a native grid); null = nothing yet. */
+            content: components["schemas"]["ContentBlock"][] | components["schemas"]["SheetContent"] | null;
             /** Format: date-time */
             updatedAt: string | null;
             updatedBy: components["schemas"]["Author"] | null;
@@ -4828,7 +4829,32 @@ export interface components {
         };
         SaveDocumentContentInput: {
             expectedVersion: number;
-            content: components["schemas"]["ContentBlock"][];
+            content: components["schemas"]["ContentBlock"][] | components["schemas"]["SheetContent"];
+        };
+        /**
+         * @description A native sheet (packages/shared/src/sheetContent.ts). Raw values per column type:
+         *     text string · number · money = integer minor units in the column currency ·
+         *     date YYYY-MM-DD · boolean. Totals are computed from `total: sum`, never stored.
+         *     No formulas. Checked field by field on save → 400 INVALID_CONTENT.
+         */
+        SheetContent: {
+            /** @enum {integer} */
+            schemaVersion: 1;
+            columns: {
+                id: string;
+                label: string;
+                /** @enum {string} */
+                type: "text" | "number" | "money" | "date" | "boolean";
+                currency?: string;
+                /** @enum {string} */
+                total?: "sum";
+            }[];
+            rows: {
+                id: string;
+                cells: {
+                    [key: string]: string | number | boolean | null;
+                };
+            }[];
         };
         DocumentPresenceInput: {
             editing: boolean;
