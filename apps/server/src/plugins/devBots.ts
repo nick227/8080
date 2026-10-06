@@ -16,7 +16,7 @@ import { botRuntime } from '../bots/runtime'
 import { events } from '../services/events'
 import { streamHub } from '../services/StreamHub'
 import { ItemService } from '../services/ItemService'
-import { registerChoiceFlow } from '../services/ChoiceService'
+import { registerChoiceFlow } from '../bots/flows/registry'
 import { DEMO_FLOW, demoFlow, demoStart } from '../bots/flows/demo'
 
 export default async function devBots(server: FastifyInstance) {
@@ -62,7 +62,7 @@ export default async function devBots(server: FastifyInstance) {
     const bot = await db.bot.findUnique({ where: { handle: String(handle ?? 'chatbot') } })
     if (!bot) throw { statusCode: 404, message: 'Unknown bot' }
     const say = demoStart(forUserId ?? null)
-    const item = await new ItemService().send(bot.userId, String(roomId), { text: say.text, chat: true }, { actions: { ...say.offer!, flow: DEMO_FLOW } })
+    const item = await new ItemService().send(bot.userId, String(roomId), { text: say.text, chat: true }, { actions: { ...say.offer!, flow: DEMO_FLOW }, workflow: DEMO_FLOW })
     return { data: item }
   })
 

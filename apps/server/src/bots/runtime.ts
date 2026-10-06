@@ -17,7 +17,7 @@ import { roomPresence } from '../services/presence'
 import { classify, mentionedBots, type Classified } from './classify'
 import { draw, score, type Candidate, type Filtered, type History } from './choose'
 import { GUARDS, greetedSince, type GuardCtx } from './guards'
-import { BOT_LIMITS, botsEnabled } from './limits'
+import { BOT_LIMITS, ordinaryItemWhere, botsEnabled } from './limits'
 import type { GuardSpec, LineDef, Pack, Step, Trigger, Workflow } from './pack'
 import { rngFrom, seedOf } from './rng'
 import { seatedBots } from './seating'
@@ -508,10 +508,10 @@ export class BotRuntime {
     if ((await GUARDS.seated!({ botId: run.bot.botId, roomId: run.roomId } as GuardCtx, undefined)) !== true) throw new Skip('not-seated')
     if ((await GUARDS.roomHasHumanItem!({ roomId: run.roomId } as GuardCtx, undefined)) !== true) throw new Skip('no-human-item')
     const since = new Date(Date.now() - BOT_LIMITS.roomCapWindowMs)
-    const recent = await db.item.count({ where: { roomId: run.roomId, deletedAt: null, createdAt: { gte: since }, NOT: humanAuthoredWhere } })
+    const recent = await db.item.count({ where: { roomId: run.roomId, deletedAt: null, createdAt: { gte: since }, NOT: humanAuthoredWhere, ...ordinaryItemWhere } })
     if (recent >= BOT_LIMITS.roomCap) throw new Skip('bot-cap')
     const last = await db.item.findMany({
-      where: { roomId: run.roomId, deletedAt: null },
+      where: { roomId: run.roomId, deletedAt: null, ...ordinaryItemWhere },
       orderBy: { number: 'desc' },
       take: BOT_LIMITS.maxConsecutive,
       select: { message: { select: { author: { select: { kind: true } } } } },

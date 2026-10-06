@@ -1,7 +1,7 @@
 // Dev-only demo of bot choices (doc/12 Slice A): generic options (one and many),
 // locked answers and deterministic advancement, with no product concerns. Started by
 // POST /dev/bots/offer; the real flows (welcome, company profile) come in Slice B.
-import type { ChoiceFlow, FlowSay } from '../../services/ChoiceService'
+import type { ChoiceFlow, FlowSay } from './registry'
 
 export const DEMO_FLOW = 'demo'
 

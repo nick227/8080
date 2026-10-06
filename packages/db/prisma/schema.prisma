@@ -149,6 +149,9 @@ model Message {
   actions   Json?
   // The one answer to `actions`: { optionIds, userId, at }. First choice wins.
   choice    Json?
+  // The registered workflow that posted this (doc/12). Workflow posts have their own
+  // bounded allowance and are left out of the ordinary bot caps.
+  workflow  String?   @db.VarChar(64)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?

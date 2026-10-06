@@ -3,7 +3,8 @@ import { decodeKeyCursor, encodeKeyCursor, normalizeLimit, page } from '../lib/p
 import { itemInclude, toItem, type ItemRow } from '../lib/serialize'
 import { badRequest, forbidden, notFound } from '../lib/errors'
 import { humanAuthoredWhere } from '../lib/authorship'
-import { BOT_LIMITS } from '../bots/limits'
+import { BOT_LIMITS, ordinaryItemWhere } from '../bots/limits'
+import { isRegisteredFlow } from '../bots/flows/registry'
 import { RoomService, type Actor } from './RoomService'
 import { recordChange } from './roomChanges'
 import { events } from './events'
@@ -26,6 +27,9 @@ export type InternalOpts = {
   onPlaced?: (tx: Tx, item: Placed) => Promise<void>
   /** A choice the bot offers on this message (doc/12 §4). Bots only; never from HTTP. */
   actions?: ChoiceOffer
+  /** Posted by this registered workflow: uses the workflow allowance instead of the
+   *  ordinary bot caps (doc/12). Bots only; never from HTTP. */
+  workflow?: string
 }
 
 // Message = reusable content; Item = its placement in one room.
@@ -68,13 +72,15 @@ export class ItemService {
   async send(viewerId: string, roomId: string, input: ContentInput, opts: InternalOpts = {}) {
     const content = this.content(input)
     const actions = opts.actions ? storedActions(opts.actions) : null
+    const workflow = opts.workflow ?? null
+    if (workflow && !isRegisteredFlow(workflow)) throw new Error(`Unregistered workflow: ${workflow}`)
     const { actor, room } = await rooms.authorizeActor(viewerId, roomId)
-    if (actions && actor.kind !== 'bot') throw new Error('Only bots offer choices')
+    if ((actions || workflow) && actor.kind !== 'bot') throw new Error('Only bots offer choices or post for workflows')
     await rooms.ensureHumanParticipation(actor, room)
 
     const placed = await db.$transaction(async (tx) => {
-      await this.botCap(tx, actor, roomId)
-      const msg = await this.createMessage(tx, viewerId, content, actions)
+      await this.botCap(tx, actor, roomId, workflow)
+      const msg = await this.createMessage(tx, viewerId, content, { actions, workflow })
       const result = await this.place(tx, actor, { roomId, messageId: msg.id, parentId: null, chat: input.chat === true })
       await opts.onPlaced?.(tx, result.item)
       return result
@@ -228,8 +234,9 @@ export class ItemService {
     return { text, mediaIds }
   }
 
-  private async createMessage(tx: Tx, authorId: string, content: { text: string | null; mediaIds: string[] }, actions?: object | null) {
-    const message = await tx.message.create({ data: { authorId, text: content.text, ...(actions ? { actions } : {}) }, select: { id: true } })
+  private async createMessage(tx: Tx, authorId: string, content: { text: string | null; mediaIds: string[] }, bot: { actions?: object | null; workflow?: string | null } = {}) {
+    const extra = { ...(bot.actions ? { actions: bot.actions } : {}), ...(bot.workflow ? { workflow: bot.workflow } : {}) }
+    const message = await tx.message.create({ data: { authorId, text: content.text, ...extra }, select: { id: true } })
     if (content.mediaIds.length > 0) {
       const uniqueMediaIds = Array.from(new Set(content.mediaIds))
       const medias = await tx.media.findMany({ where: { id: { in: uniqueMediaIds }, ownerId: authorId, messageId: null } })
@@ -266,20 +273,27 @@ export class ItemService {
   // every earlier bot post in this room has committed. (Any read before the lock —
   // e.g. Prisma's SELECT after an INSERT — would freeze a stale snapshot and let
   // concurrent bots overshoot.)
-  private async botCap(tx: Tx, actor: Actor, roomId: string) {
+  // Two separate budgets: a registered workflow's posts count only against the
+  // workflow allowance; ordinary bot posts count only against the ordinary caps, and
+  // workflow posts are invisible to them (neither spending them nor resetting a run).
+  private async botCap(tx: Tx, actor: Actor, roomId: string, workflow: string | null = null) {
     if (actor.kind !== 'bot') return
     await tx.$queryRaw`SELECT id FROM Room WHERE id = ${roomId} FOR UPDATE`
     const since = new Date(Date.now() - BOT_LIMITS.roomCapWindowMs)
-    const recent = await tx.item.count({ where: { roomId, deletedAt: null, createdAt: { gte: since }, NOT: humanAuthoredWhere } })
+    if (workflow) {
+      const posted = await tx.item.count({ where: { roomId, deletedAt: null, createdAt: { gte: since }, message: { workflow: { not: null } } } })
+      if (posted >= BOT_LIMITS.workflowRoomCap) throw { statusCode: 429, message: 'Room workflow allowance reached', code: 'WORKFLOW_CAP' }
+      return
+    }
+    const recent = await tx.item.count({ where: { roomId, deletedAt: null, createdAt: { gte: since }, NOT: humanAuthoredWhere, ...ordinaryItemWhere } })
     if (recent >= BOT_LIMITS.roomCap) throw { statusCode: 429, message: 'Room bot cap reached', code: 'BOT_CAP' }
     const last = await tx.item.findMany({
-      where: { roomId, deletedAt: null },
+      where: { roomId, deletedAt: null, ...ordinaryItemWhere },
       orderBy: { number: 'desc' },
       take: BOT_LIMITS.maxConsecutive,
-      select: { message: { select: { choice: true, author: { select: { kind: true } } } } },
+      select: { message: { select: { author: { select: { kind: true } } } } },
     })
-    // A bot message someone answered (doc/12 §4) was a human turn, so it ends the run.
-    if (last.length >= BOT_LIMITS.maxConsecutive && last.every((i) => i.message.author.kind === 'bot' && i.message.choice === null)) {
+    if (last.length >= BOT_LIMITS.maxConsecutive && last.every((i) => i.message.author.kind === 'bot')) {
       throw { statusCode: 429, message: 'Too many bot items in a row', code: 'BOT_CAP' }
     }
   }

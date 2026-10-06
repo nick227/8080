@@ -4,7 +4,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { db } from '@project/db'
 import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, seedRoom, seedItem, seedBotUser } from './helpers'
 import { ItemService } from '../services/ItemService'
-import { registerChoiceFlow, type ChoiceFlow } from '../services/ChoiceService'
+import { registerChoiceFlow, type ChoiceFlow } from '../bots/flows/registry'
 import { storedActions } from '../lib/choice'
 import { DEMO_FLOW, demoFlow, demoStart } from '../bots/flows/demo'
 import { BOT_LIMITS } from '../bots/limits'
@@ -170,15 +170,78 @@ describe('choose', () => {
     expect(res.json().data.message.choice).toBeNull()
   })
 
-  it('an answered bot message is a human turn: it ends a consecutive bot run', async () => {
+})
+
+describe('workflow allowance (separate from the ordinary bot caps)', () => {
+  async function busyRoom() {
     const room = await seedRoom(app, testUserId)
     await seedItem(app, testUserId, room.id, { text: 'opening post' })
     const bot = await seedBotUser()
+    return { room, bot }
+  }
+  const limit = <K extends keyof typeof BOT_LIMITS>(key: K, value: number) => {
+    const saved = BOT_LIMITS[key]
+    BOT_LIMITS[key] = value
+    unregister.push(() => { BOT_LIMITS[key] = saved })
+  }
+
+  it('an answer is not a human turn: answering does not reopen the ordinary consecutive cap', async () => {
+    const { room, bot } = await busyRoom()
     for (let i = 1; i < BOT_LIMITS.maxConsecutive; i++) await items.send(bot.userId, room.id, { text: `line ${i}`, chat: true })
     const question = await items.send(bot.userId, room.id, { text: 'Start?', chat: true }, { actions: { flow: 'test', step: 's', options: YES_NO } })
-    await expect(items.send(bot.userId, room.id, { text: 'unanswered', chat: true })).rejects.toMatchObject({ code: 'BOT_CAP' })
     expect((await choose(testUserId, question.id, ['yes'])).statusCode).toBe(200)
-    await expect(items.send(bot.userId, room.id, { text: 'answered', chat: true })).resolves.toBeTruthy()
+    await expect(items.send(bot.userId, room.id, { text: 'ordinary line', chat: true })).rejects.toMatchObject({ code: 'BOT_CAP' })
+  })
+
+  it('a registered workflow posts on its own budget, even when the ordinary caps are spent', async () => {
+    flow('test', { advance: () => [{ text: 'step two', offer: { step: 'two', options: YES_NO } }] })
+    const { room, bot } = await busyRoom()
+    for (let i = 0; i < BOT_LIMITS.maxConsecutive; i++) await items.send(bot.userId, room.id, { text: `line ${i}`, chat: true })
+    await expect(items.send(bot.userId, room.id, { text: 'capped', chat: true })).rejects.toMatchObject({ code: 'BOT_CAP' })
+    const question = await items.send(bot.userId, room.id, { text: 'Start?', chat: true }, { actions: { flow: 'test', step: 's', options: YES_NO }, workflow: 'test' })
+    expect((await choose(testUserId, question.id, ['yes'])).statusCode).toBe(200)
+    const posted = await botItems(room.id, bot.userId)
+    expect(posted.at(-1)!.message).toMatchObject({ text: 'step two', workflow: 'test' })
+  })
+
+  it('workflow posts are invisible to the ordinary caps: they neither spend them nor break a run', async () => {
+    flow('test', { advance: () => [] })
+    limit('roomCap', 2)
+    const { room, bot } = await busyRoom()
+    for (let i = 0; i < 5; i++) await items.send(bot.userId, room.id, { text: `wf ${i}`, chat: true }, { workflow: 'test' })
+    await expect(items.send(bot.userId, room.id, { text: 'ordinary 1', chat: true })).resolves.toBeTruthy()
+    await expect(items.send(bot.userId, room.id, { text: 'ordinary 2', chat: true })).resolves.toBeTruthy()
+    await expect(items.send(bot.userId, room.id, { text: 'ordinary 3', chat: true })).rejects.toMatchObject({ code: 'BOT_CAP' })
+  })
+
+  it('the allowance is bounded per room (WORKFLOW_CAP); a refused follow-up keeps the answer', async () => {
+    flow('test', { advance: () => [{ text: 'next' }] })
+    limit('workflowRoomCap', 2)
+    const { room, bot } = await busyRoom()
+    const first = await items.send(bot.userId, room.id, { text: 'q1', chat: true }, { actions: { flow: 'test', step: 's', options: YES_NO }, workflow: 'test' })
+    await items.send(bot.userId, room.id, { text: 'q2', chat: true }, { workflow: 'test' })
+    await expect(items.send(bot.userId, room.id, { text: 'q3', chat: true }, { workflow: 'test' })).rejects.toMatchObject({ code: 'WORKFLOW_CAP' })
+    const res = await choose(testUserId, first.id, ['yes'])
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data.message.choice.optionIds).toEqual(['yes'])
+    expect(await botItems(room.id, bot.userId)).toHaveLength(2) // the follow-up was refused, not the answer
+  })
+
+  it('one answer buys at most workflowPostsPerAnswer posts; a flow asking for more rolls back', async () => {
+    flow('test', { advance: () => Array.from({ length: BOT_LIMITS.workflowPostsPerAnswer + 1 }, (_, i) => ({ text: `say ${i}` })) })
+    const { room, bot } = await busyRoom()
+    const question = await items.send(bot.userId, room.id, { text: 'Start?', chat: true }, { actions: { flow: 'test', step: 's', options: YES_NO }, workflow: 'test' })
+    expect((await choose(testUserId, question.id, ['yes'])).statusCode).toBe(500)
+    const row = await db.message.findUniqueOrThrow({ where: { id: question.messageId } })
+    expect(row.choice).toBeNull()
+    expect(await botItems(room.id, bot.userId)).toHaveLength(1)
+  })
+
+  it('only registered workflows and bots can use the allowance', async () => {
+    const { room, bot } = await busyRoom()
+    await expect(items.send(bot.userId, room.id, { text: 'x' }, { workflow: 'nobody-registered-this' })).rejects.toThrow('Unregistered workflow')
+    flow('test', { advance: () => [] })
+    await expect(items.send(testUserId, room.id, { text: 'x' }, { workflow: 'test' })).rejects.toThrow('Only bots')
   })
 })
 
