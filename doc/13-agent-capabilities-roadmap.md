@@ -1,6 +1,6 @@
 # 13 — The agent: what it does, how it decides, what it needs
 
-**Status:** Plan, recorded 2026-10-06. Builds on doc/12 (chatbot host, company profile, assistant, voice), doc/09 (Workspace, `runAction`, policy), doc/10 (documents), and the Contacts and Inventory foundations.
+**Status:** Plan, recorded 2026-10-06. D0 and D1 built and committed (§9). Builds on doc/12 (chatbot host, company profile, assistant, voice), doc/09 (Workspace, `runAction`, policy), doc/10 (documents), and the Contacts and Inventory foundations.
 
 Why would a small business use this every day instead of asking a chat model to write things? Because the agent knows the company, the customer, what the business sells and what happened, and it can move the business record forward. Writing documents is one output among several, not the point.
 
@@ -40,8 +40,8 @@ Every capability follows it:
 The agent writes into the three native document types. Each surface gets one typed writer: the model never produces surface JSON directly.
 
 - **Blocks** — exists (`DocumentContentService`, doc/10 §15). Used by #2, the narrative of #8, and #4 when saved.
-- **Sheets: first priority.** Two kinds:
-  - **Live views** over workspace data, using the existing dataset descriptor (`surface: grid, source: dataset, query`): "leads to follow up this week", "contacts interested in X". The agent only chooses the query. Rows stay live and permissioned. This works today for Contacts; Inventory needs its own dataset descriptor.
+- **Sheets: the first connector to build (parallel track, D9).** Two kinds:
+  - **Live views** (first priority among sheet kinds; cheapest, no new persistence) over workspace data, using the existing dataset descriptor (`surface: grid, source: dataset, query`): "leads to follow up this week", "contacts interested in X". The agent only chooses the query. Rows stay live and permissioned. This works today for Contacts; Inventory needs its own dataset descriptor.
   - **Native sheets**: quote line items, comparison tables, a lead list snapshot. These need **server-persisted native grid content**, which doesn't exist yet: native sheets are device-local, and only CSV imports have a server copy. Build it like `DocumentContent`: versioned, a save refused if someone saved first, live, and a typed cell model (`text | number | currency | date`, ≤ N rows). The writer takes `{ columns, rows }` produced **by code** (for example, priced lines from Inventory). The model may only name the sheet or add a note row. The web grid editor must load and save it, which needs coordination with the UI owner.
 - **Maps** — device-local today. Server persistence after sheets. Uses: account/stakeholder map, service map, process outline. Lower priority.
 
@@ -82,26 +82,90 @@ Deterministic filtering first: budget, availability, category, quantity. Then th
 - **[Apply]** runs the kind's registered deterministic handler (the same service call a person's edit makes). It's idempotent, re-checks permissions and the record's version at apply time, and refuses stale proposals.
 - This is the choice primitive (doc/12 §4) with a typed payload. It is also the "important workspace changes are surfaced" half of the AI policy.
 
+### 5.1 Lifecycle rules
+- **Expiry:** a proposal becomes `expired` when the target record's version changes underneath it, or after 14 days, whichever is first. Expired proposals stay visible, greyed, with [Refresh] (re-propose against current data).
+- **Unsaved edits:** if the user has unsaved edits on the target record, the diff is shown against their draft. Apply never overwrites a draft silently; it asks to keep the edit, take the proposal, or merge field by field.
+- **Undo:** every applied proposal records the prior values. An [Undo] is offered for 10 minutes, and later through the activity log. Undo runs only if the target is still exactly at the version that proposal produced. If someone changed it afterwards, their newer work is never reversed: the old proposal is marked non-undoable, and a new corrective proposal ("Propose putting it back") is offered instead.
+- **Ambiguity:** when the matcher finds more than one candidate ("Sarah at Acme"), the proposal presents the candidates as a choice plus "New contact". It never guesses.
+- **Persistence:** pending proposals belong to the record, not the panel. They survive Previous/Next, preview close and reload.
+- **Budgets:** each workflow has a token and time cap, and shows a layout-preserving placeholder while running. On timeout it falls back to the deterministic baseline.
+- **Bulk:** one proposal kind may carry several items (for example qualifying a batch), applied per item, each independently undoable.
+
 ## 6. Foundation gaps to close on the way
 
+- ~~**Blocking now:** HEAD's web build is broken (`DeskAgent.tsx`).~~ Fixed in D0 (§9).
 - **Money:** `Inventory.price` is a `Float` with no currency. Move to integer minor units plus a currency (the workspace already has `defaultCurrency`) before quotes (#8).
 - **Interest** has no quantity, budget or note. Deals don't exist (lead status lives on Contact). Decide whether a Deal is needed before #10 can create one.
 - **Tasks** aren't built (#10). Transcripts of voice/video items don't exist (#3 and #11 work on typed text until they do).
 - **Native sheet and map content** isn't server-persisted (§3).
-- **The channel posts two lines for one completion** (the workflow summary plus the activity event, 8c61eca). Have the activity event point at the workflow's message instead of posting again.
-- **HEAD's web build is broken** (`DeskAgent.tsx` after ae164ce / 8c61eca).
+- ~~**The channel posts two lines for one completion.**~~ Fixed in D0 (§9).
 
-## 7. Order (agreed 2026-10-06)
+## 7. Order (revised 2026-10-06, by daily-use value and dependency)
 
-1. **D1 Fix a fact + the proposal primitive** (§5): the profile's [Update profile] [Just this time], and corrections from chat.
-2. **D2 More profile documents** (#2): a document-type registry (template + brief + required facts per type) on the existing engine.
-3. **D3 Sheet connector** (§3): server-persisted native grid content and a typed writer; an Inventory dataset view.
-4. **D4 Messy notes → CRM** (#3): extraction, the matcher, a proposal, apply.
-5. **D5 Contact briefing** (#4): Phase 1 retrieval + evidence pack + grounding check (§4.1–4.2).
-6. **D6 Follow-up draft** (#5) into the existing composer.
-7. **D7 Qualification** (#6).
-8. **D8 Inventory matching** (#7). Needs the money fix (§6).
-9. **D9 Proposal / quote** (#8): blocks narrative + priced sheet.
-10. **D10 Change detection** (#11) and next sales step (#10). Needs tasks/deals decisions.
+Core track (CRM value first):
+0. **D0 Unblock:** fix the web build; dedupe the channel completion message.
+1. **D1 Fix a fact + the proposal primitive** (§5, §5.1).
+2. **D2 Messy notes → CRM** (#3): extraction, matcher, proposal, apply, undo.
+3. **D3 Contact briefing** (#4): retrieval + evidence pack + grounding check, shown in the record UI (§8).
+4. **D4 Follow-up draft** (#5) into the existing composer.
+5. **D5 Qualification** (#6).
+6. **D6 Money fix, then Inventory matching** (#7).
+7. **D7 Proposal / quote** (#8): blocks narrative + priced sheet. Needs D6 and D9.
+8. **D8 Change detection** (#11) and next sales step (#10). Needs the tasks/deals decision.
+
+Parallel track (independent, can run alongside D1–D4):
+9. **D9 Sheet connector** (§3): Inventory dataset view first, then server-persisted native grid content.
+10. **D10 More profile documents** (#2): document-type registry on the existing engine.
+
+Old numbering (D2 documents, D3 sheets, D4 notes, …) is superseded by this list.
 
 Maps, query-proposing tools (§4.3), embeddings and transcripts come when a slice needs them, not before.
+
+## 8. Where the agent appears in the UI
+
+Uses the shared navigation: Contacts and Inventory areas, record bar (Back to results, position, Previous/Next), single preview panel, full record.
+- **Briefing** sits at the top of a contact's preview and full record, in the same place in both. It's read only, with [Follow up] [Draft email].
+- **Proposals** render as inline diff cards on the record they target, and also as a chat message linking to that record. They belong to the record (§5.1).
+- **Notes → CRM** starts from a single "Add notes" entry in the contacts area; the result opens the affected record in the preview.
+- **Inventory** gets matching (#7) as "Suggest items" on a contact, opening results in the single preview panel, with Back to the contact.
+- **Loading** states use placeholders that keep the final layout.
+- **Keyboard:** Apply and Dismiss are reachable by Tab, with focus returning to the card after the action.
+- **Acceptance:** run the realistic session from the navigation design with a pending proposal on one record; navigating away and back must keep the proposal and the user's place.
+
+## 9. As built
+
+### D0, unblock (2026-10-06)
+- **Type-check contract (0c3edd6):**
+  - `runAgent` takes the shared `Desk` type, so it can't drift from the desk list.
+  - `apps/web/tsconfig.json` extends `tsconfig.app.json`. A bare `tsc --noEmit` used to check nothing (a references-only config); it now checks the app.
+  - The web `build` runs `pnpm run typecheck` before `vite build`. `pnpm typecheck` is the check (CI runs it). `vite build` alone never type-checks.
+- **Inventory versioning (6ca9101):**
+  - `Inventory.version`: updates require `expectedVersion`, applied in one statement (match id + version, bump the version). A mismatch is 409 `INVENTORY_VERSION_CONFLICT`, never an overwrite. The records screens send the version they read.
+- **One channel line per completion (6ca9101):**
+  - A flow line may carry `onPosted(itemId)`. The company-profile summary records its activity event against its own item (`ActivityEvent.itemId`), so the event posts nothing more.
+- **Green suite (655a502):** access-test sample bodies for the bulk, stock and inventory-import operations. 504/504.
+
+### D1, the proposal primitive + Fix a fact (58047ea, 89f7ce4)
+58047ea, another agent's commit, picked up most of D1 mid-work. 89f7ce4 added the profile writes and the web card it depends on.
+- **Data:** `AgentProposal` holds kind, target, `baseVersion`, `proposedChange`, a frozen diff, evidence, the chat item, creator, expiry, status (pending / applied / dismissed / expired / undone), the decision and who made it, `resultVersion` and `undoData`.
+- **Kinds** (`lib/proposal.ts`, `services/proposalKinds.ts`) register when their module loads. Each handler is the only code that can validate, describe, apply, undo and revert its change. First kind: `company-profile.fact` (target = the workspace's profile; version = the profile revision).
+- **Lifecycle** (`services/ProposalService.ts`):
+  - Expiry is lazy: a target that moved, or 14 days. Writers also call `expireStale`.
+  - Apply is claimed once (concurrent clicks apply once) and is idempotent.
+  - Undo needs `version == resultVersion`, else 409 `PROPOSAL_UNDO_STALE`.
+  - Revert = a corrective proposal against the current record. Refresh = the same change again, against now.
+  - Proposing needs the kind's read verb; applying needs its apply verb (owners/admins for the profile).
+- **Profile writes:** `CompanyProfileService.setField` / `restoreField` change one field under a revision row lock and return exactly what they replaced, original statuses included.
+- **One object everywhere:** each chat `Item.proposal` is the live row. `GET /workspaces/{id}/proposals?targetType&targetId` returns the identical object. Every state change re-journals the chat item.
+- **UI:** `ProposalCard` shows before → after, then by state:
+  - pending: Apply / Not now (members see "Waiting for an owner or admin")
+  - applied: Undo
+  - stale undo: "Propose putting it back"
+  - expired: Refresh
+
+  Focus returns to the card after an action.
+- **Fix a fact** (`bots/flows/profileFix.ts`): [Fix a fact] on the description summary, or typing "fix a fact" in the channel → which fact → the value (buttons where fixed, else a typed line) → a card.
+- **Proof:**
+  - server `proposals.test.ts` 11/11, suite 504/504
+  - browser `e2e/proposals.cjs` (owner + member, desktop + mobile) 20/20 ×2
+- **Not yet:** the unsaved-edits merge (§5.1) belongs to the record forms (D2); bulk proposals; per-workflow budgets with placeholders; a record page for the company profile (its cards live in chat).
