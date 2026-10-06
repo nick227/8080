@@ -39,6 +39,20 @@ export type NoteReading = {
   facts: { key: 'need' | 'timing' | 'budget' | 'other'; value: string; quote: string }[]
 }
 export type NoteInput = { note: string; today: string; weekday: string }
+
+/** One piece of evidence the brief may cite (doc/13 D3). `when` is a plain date. */
+export type Evidence = { id: string; kind: 'contact' | 'account' | 'note' | 'activity' | 'message' | 'document'; when: string | null; title: string; text: string }
+export type Claim = { text: string; evidence: string[] }
+/** A structured brief: facts cite evidence; nextStep is labelled inference. */
+export type Brief = {
+  summary: Claim[]
+  need: Claim[]
+  recent: Claim[]
+  commitments: Claim[]
+  openQuestions: Claim[]
+  nextStep: { text: string; basis: string[] } | null
+}
+export type BriefInput = { contact: string; today: string; evidence: Evidence[] }
 export type Usage = { promptTokens: number; completionTokens: number }
 
 export interface AssistantProvider {
@@ -47,6 +61,7 @@ export interface AssistantProvider {
   extract(input: ExtractInput, signal: AbortSignal): Promise<{ facts: Facts; usage?: Usage }>
   draft(input: DraftInput, signal: AbortSignal): Promise<{ patch: Facts; document: Draft; usage?: Usage }>
   readNote?(input: NoteInput, signal: AbortSignal): Promise<{ reading: NoteReading; usage?: Usage }>
+  brief?(input: BriefInput, signal: AbortSignal): Promise<{ brief: Brief; usage?: Usage }>
 }
 
 // ─── validation ───────────────────────────────────────────────────────────────
@@ -132,6 +147,26 @@ const NOTE_SYSTEM = [
   'Copy quotes character for character from the note. Do not guess: no lead status, qualification, industry, probability or anything not written. Use null and [] freely.',
 ].join(' ')
 
+const CLAIMS = { type: 'array', items: { type: 'object', additionalProperties: false, required: ['text', 'evidence'], properties: { text: { type: 'string' }, evidence: strs } } }
+const BRIEF_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['summary', 'need', 'recent', 'commitments', 'openQuestions', 'nextStep'],
+  properties: {
+    summary: CLAIMS, need: CLAIMS, recent: CLAIMS, commitments: CLAIMS, openQuestions: CLAIMS,
+    nextStep: { type: ['object', 'null'], additionalProperties: false, required: ['text', 'basis'], properties: { text: { type: 'string' }, basis: strs } },
+  },
+}
+
+const BRIEF_SYSTEM = [
+  'You brief a salesperson before they contact someone, using only the `evidence` list (each item has an id).',
+  'Return short items, each citing the ids it rests on in `evidence`. A claim without evidence will be discarded.',
+  'summary = who they are and their company (1–2 items). need = what they want or asked for. recent = what has happened, with dates from the evidence.',
+  'commitments = what either side promised or agreed to do. openQuestions = information that is missing and matters (e.g. no email, budget unclear) — cite the evidence that shows the gap.',
+  'nextStep = one suggested next action. It is your recommendation, not a fact; still give the ids it is based on in `basis`. null if nothing sensible.',
+  'Never state a name, number, amount or date that is not in the evidence you cite. Empty lists are fine. Prefer fewer, more useful items.',
+  '',
+  WRITING_RULES,
+].join('\n')
+
 const DRAFT_SYSTEM = [
   'You write a company description for the business in `profile` and `answers`, for the audience and voice in `brief`.',
   'Use only those facts. The person\'s own words in `answers` are the best source of concrete detail: use their real examples.',
@@ -179,6 +214,11 @@ export class OpenAIAssistant implements AssistantProvider {
   async readNote(input: NoteInput, signal: AbortSignal) {
     const { json, usage } = await this.complete(NOTE_SYSTEM, input, 'note_reading', NOTE_SCHEMA, signal, 0)
     return { reading: json as NoteReading, usage }
+  }
+
+  async brief(input: BriefInput, signal: AbortSignal) {
+    const { json, usage } = await this.complete(BRIEF_SYSTEM, input, 'contact_brief', BRIEF_SCHEMA, signal, 0.2)
+    return { brief: json as Brief, usage }
   }
 
   private async complete(system: string, input: unknown, name: string, schema: object, signal: AbortSignal, temperature: number) {

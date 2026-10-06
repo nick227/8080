@@ -6,7 +6,8 @@
 import { db } from '@project/db'
 import { assistantConfig } from './config'
 import { flagCount, problemsOf, styleFlags } from './style'
-import { assistantProvider, validateDraft, validateFacts, type AssistantProvider, type DraftInput, type ExtractInput, type NoteInput, type Usage } from './provider'
+import { assistantProvider, validateDraft, validateFacts, type AssistantProvider, type BriefInput, type DraftInput, type ExtractInput, type NoteInput, type Usage } from './provider'
+import { groundBrief } from './briefGrounding'
 import { ground } from './grounding'
 
 export type AssistContext = { workspaceId: string; runId: string | null }
@@ -57,7 +58,7 @@ export async function assistantAvailable(workspaceId: string) {
 async function call<T extends { usage?: Usage }>(
   ctx: AssistContext,
   kind: 'extract' | 'generate',
-  input: ExtractInput | DraftInput | NoteInput,
+  input: ExtractInput | DraftInput | NoteInput | BriefInput,
   run: (provider: AssistantProvider, signal: AbortSignal) => Promise<T>,
   /** Re-validates whatever the provider returned; null = unusable. */
   check: (out: T) => T | null,
@@ -123,4 +124,13 @@ export async function readNote(ctx: AssistContext, input: NoteInput) {
     return p.readNote(input, s)
   }, (o) => ({ ...o, reading: ground(input.note, o.reading, input.today) }), (o) => o.reading)
   return res && { reading: (res.out.reading as ReturnType<typeof ground>), callId: res.callId }
+}
+
+/** A contact brief, grounded in the pack (doc/13 D3), or null. */
+export async function briefContact(ctx: AssistContext, input: BriefInput) {
+  const res = await call(ctx, 'generate', input, async (p, s) => {
+    if (!p.brief) throw new Error('provider cannot brief')
+    return p.brief(input, s)
+  }, (o) => ({ ...o, brief: groundBrief(o.brief, input.evidence) }), (o) => o.brief)
+  return res && { brief: res.out.brief as ReturnType<typeof groundBrief>, callId: res.callId, model: res.model }
 }

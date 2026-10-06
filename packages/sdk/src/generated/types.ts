@@ -1335,6 +1335,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/contacts/{contactId}/brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The viewer's last brief on this contact, and whether it is stale (doc/13 D3)
+         * @description Read-only. null until the viewer asks for one. `stale` is true when the evidence it was built from has changed since.
+         */
+        get: operations["getContactBrief"];
+        put?: never;
+        /**
+         * Brief me — build a fresh brief from the evidence the viewer can see
+         * @description Read-only: changes no record. Every factual item cites evidence from the pack
+         *     (the contact, its companies, notes, timeline, linked conversations and their
+         *     documents); the suggested next step is labelled inference. AI off → a
+         *     deterministic brief from the records.
+         */
+        post: operations["generateContactBrief"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/contacts/{contactId}": {
         parameters: {
             query?: never;
@@ -3079,6 +3109,51 @@ export interface components {
         };
         ProposalList: {
             data: components["schemas"]["Proposal"][];
+        };
+        BriefClaim: {
+            text: string;
+            /** @description Ids of BriefEvidence items it rests on */
+            evidence: string[];
+        };
+        BriefEvidence: {
+            /** @description e.g. note:<id>, message:<id> */
+            id: string;
+            /** @enum {string} */
+            kind: "contact" | "account" | "note" | "activity" | "message" | "document";
+            when: string | null;
+            title: string;
+            text: string;
+            /** @description Where it opens in the app, if anywhere */
+            link: null | {
+                /** @enum {string} */
+                type: "room" | "account" | "document";
+                roomId?: string;
+                id?: string;
+            };
+        };
+        ContactBrief: {
+            summary: components["schemas"]["BriefClaim"][];
+            need: components["schemas"]["BriefClaim"][];
+            recent: components["schemas"]["BriefClaim"][];
+            commitments: components["schemas"]["BriefClaim"][];
+            openQuestions: components["schemas"]["BriefClaim"][];
+            /** @description A suggestion (inference), with the evidence it is based on */
+            nextStep: null | {
+                text: string;
+                basis: string[];
+            };
+            /** Format: date-time */
+            generatedAt: string;
+            /** @enum {string} */
+            generator: "ai" | "template";
+            model: string | null;
+            /** @description The evidence changed since this brief was made */
+            stale: boolean;
+            /** @description The evidence it cites */
+            evidence: components["schemas"]["BriefEvidence"][];
+        };
+        ContactBriefResponse: {
+            data: components["schemas"]["ContactBrief"] | null;
         };
         EditProposalInput: {
             /** @description Row key → new value, e.g. { "name": "Sarah Lee", "followUp": "2026-10-09" } */
@@ -6991,6 +7066,58 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getContactBrief: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The brief, or null */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactBriefResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    generateContactBrief: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The new brief */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactBriefResponse"];
+                };
+            };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];

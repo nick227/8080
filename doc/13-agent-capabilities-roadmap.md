@@ -1,6 +1,6 @@
 # 13 — The agent: what it does, how it decides, what it needs
 
-**Status:** Plan, recorded 2026-10-06. D0, D1 and D2 built and committed (§9, §10). Builds on doc/12 (chatbot host, company profile, assistant, voice), doc/09 (Workspace, `runAction`, policy), doc/10 (documents), and the Contacts and Inventory foundations.
+**Status:** Plan, recorded 2026-10-06. D0–D3 built and committed (§9–§11). Builds on doc/12 (chatbot host, company profile, assistant, voice), doc/09 (Workspace, `runAction`, policy), doc/10 (documents), and the Contacts and Inventory foundations.
 
 Why would a small business use this every day instead of asking a chat model to write things? Because the agent knows the company, the customer, what the business sells and what happened, and it can move the business record forward. Writing documents is one output among several, not the point.
 
@@ -210,3 +210,27 @@ One capability: turn an unstructured note ("Met Sarah Lee from Brightside Dental
   - server `crmNote.test.ts` 15/15; suite 537/537
   - browser `e2e/crmnote.cjs` AI off 14/14 and real model 18/18 (desktop + mobile, owner + member)
   - proposals 20/20, Slice B 32/32, choices 26/26, live docs 6/6
+
+## 11. D3: contact briefing (built 2026-10-06)
+
+Read-only intelligence: open a contact, press **Brief me**, and a grounded brief appears at the top of the record. No record is changed. The only write is the viewer's cached brief.
+
+- **Evidence pack** (`services/contactBrief.ts` `buildPack`), bounded and built with the viewer's permissions:
+  - the contact (fields, status, follow-up, points) and its current companies
+  - the latest 12 notes (verbatim, with their D2 facts)
+  - 20 timeline entries (rooms already redacted)
+  - 15 messages from linked rooms or items the viewer can see
+  - up to 3 documents linked to those rooms (document visibility applies)
+  - 16k characters in total
+  - Each item has an id (`note:…`, `message:…`) and, where it opens, a link.
+- **Brief:** `summary`, `need`, `recent`, `commitments`, `openQuestions` (claims, each citing ids), and `nextStep` (a suggestion, with its basis).
+  - `briefGrounding.ts` drops any claim that cites nothing in the pack, or states a number, month or weekday not found in what it cites ("$8k" counts as 8,000).
+  - The next step obeys the same specifics rule and is shown apart, labelled "a suggestion, not a record".
+- **AI off** (`templateBrief`): who they are and their status, needs from note facts, recent notes and activity, gaps (no email / phone / company / budget), and the follow-up date as the next step.
+- **Stale:** `ContactBrief` (per contact × member) stores the brief, the evidence it cites and `packHash`. `stale = hash(today's pack) ≠ packHash`, so a note, message, field change or document edit makes it stale. The card says so and offers Refresh.
+- **API:** `GET` / `POST /workspaces/{id}/contacts/{contactId}/brief`. SDK: `useContactBrief`, `useGenerateBrief`. Web: `features/records/ContactBrief.tsx` at the top of the contact's overview (preview and full record). Citations are numbered and open their evidence in place; conversation evidence links to its room.
+- **Proof:**
+  - server `contactBrief.test.ts` 8/8: template, read-only snapshot, stale, permissions (private room), documents and bounds, AI grounding, fallback, per-member
+  - suite 547/547
+  - browser `e2e/brief.cjs`: AI off 16/16, real model 18/18 (desktop + mobile)
+- **Next, as buttons off the brief:** [Draft follow-up] (D4), [Schedule], [Qualify] (D5). The brief stays the read-only primitive they start from.

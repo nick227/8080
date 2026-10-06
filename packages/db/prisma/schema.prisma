@@ -546,6 +546,7 @@ model Workspace {
   companyRevisions CompanyProfileRevision[]
   assistantCalls   AssistantCall[]
   proposals        AgentProposal[]
+  contactBriefs    ContactBrief[]
 
   @@index([createdById])
 }
@@ -591,6 +592,7 @@ model WorkspaceMember {
   stockMovements  InventoryStockMovement[]
   companySources  CompanyScalarSource[]
   proposalsMade    AgentProposal[] @relation("ProposalCreator")
+  contactBriefs    ContactBrief[]
   proposalsDecided AgentProposal[] @relation("ProposalDecider")
 
   @@unique([workspaceId, userId])
@@ -860,6 +862,7 @@ model Contact {
   importBatch ImportBatch?     @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   importRows  ImportRow[]
   points      ContactPoint[]
+  briefs      ContactBrief[]
   accounts    ContactAccount[]
   tags        ContactTag[]
   links       RecordLink[]
@@ -1724,4 +1727,32 @@ model AgentProposal {
   @@index([itemId])
   @@index([createdByMemberId])
   @@index([decidedByMemberId])
+}
+
+// ─── contact briefing (doc/13 D3) ─────────────────────────────────────────────
+
+// The last brief one member saw for one contact. A cache, not a record: it holds the
+// structured brief and the evidence it cites, plus a hash of the evidence pack it was
+// built from — a different hash now means the brief is stale. Per member, because
+// the pack is built with that member's permissions (rooms they can't see stay out).
+model ContactBrief {
+  id          String   @id @default(cuid())
+  workspaceId String
+  contactId   String
+  memberId    String
+  packHash    String   @db.VarChar(64)
+  brief       Json
+  evidence    Json
+  generator   String   @db.VarChar(16) // ai | template
+  model       String?  @db.VarChar(64)
+  callId      String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  member    WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, memberId])
+  @@index([workspaceId])
+  @@index([memberId])
 }

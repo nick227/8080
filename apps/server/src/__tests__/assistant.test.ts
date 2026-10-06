@@ -355,7 +355,8 @@ describe('architecture: the model returns data, workflow code acts (static)', ()
 
   it('only workflows call it (bots/flows/*)', () => {
     for (const f of files(src).filter((f) => !f.includes('__tests__') && !f.startsWith(dir))) {
-      if (/assistant\/(calls|provider)'/.test(readFileSync(f, 'utf8'))) expect(f.includes('/bots/flows/'), f).toBe(true)
+      // A type-only import can't call the model; any real import must be a workflow.
+      if (/^import (?!type )[^\n]*assistant\/(calls|provider)'/m.test(readFileSync(f, 'utf8'))) expect(f.includes('/bots/flows/'), f).toBe(true)
     }
   })
 })

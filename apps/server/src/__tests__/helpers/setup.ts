@@ -6,6 +6,7 @@ afterEach(async () => {
   // Workspaces (doc/09) before users: Workspace.createdBy restricts user deletes.
   // Chatbot host + company profile (doc/12), proposals (doc/13): before members.
   await db.agentProposal.deleteMany()
+  await db.contactBrief.deleteMany()
   await db.companyProfileRevision.deleteMany()
   await db.companyFact.deleteMany()
   await db.companyScalarSource.deleteMany()

@@ -21,6 +21,7 @@ import { StockAdjust } from './StockAdjust'
 import { StockHistory } from './StockHistory'
 import { RecordGallery } from './RecordGallery'
 import { RecordNotes } from './RecordNotes'
+import { ContactBrief } from './ContactBrief'
 import {
   STAGES,
   contactSubtitle,
@@ -200,6 +201,7 @@ function ContactDetail({
       ) : (
         <div className="record-body">
           <div className="record-main">
+            <ContactBrief workspaceId={workspaceId} contactId={c.id} />
             <RecordGallery workspaceId={workspaceId} kind="contacts" recordId={c.id} name={c.displayName} />
             <RecordNotes workspaceId={workspaceId} subject={{ contactId: c.id }} recordName={c.displayName} />
             <section>

@@ -1821,6 +1821,43 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/contacts/{contactId}/brief:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ContactId'
+    get:
+      operationId: getContactBrief
+      summary: The viewer's last brief on this contact, and whether it is stale (doc/13 D3)
+      description: Read-only. null until the viewer asks for one. `stale` is true when the evidence it was built from has changed since.
+      tags: [contacts]
+      responses:
+        '200':
+          description: The brief, or null
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactBriefResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: generateContactBrief
+      summary: Brief me — build a fresh brief from the evidence the viewer can see
+      description: |
+        Read-only: changes no record. Every factual item cites evidence from the pack
+        (the contact, its companies, notes, timeline, linked conversations and their
+        documents); the suggested next step is labelled inference. AI off → a
+        deterministic brief from the records.
+      tags: [contacts]
+      responses:
+        '200':
+          description: The new brief
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactBriefResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /workspaces/{workspaceId}/contacts/{contactId}:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -4828,6 +4865,66 @@ components:
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/Proposal' } }
+
+    BriefClaim:
+      type: object
+      required: [text, evidence]
+      properties:
+        text: { type: string }
+        evidence: { type: array, items: { type: string }, description: Ids of BriefEvidence items it rests on }
+
+    BriefEvidence:
+      type: object
+      required: [id, kind, when, title, text, link]
+      properties:
+        id: { type: string, description: 'e.g. note:<id>, message:<id>' }
+        kind: { type: string, enum: [contact, account, note, activity, message, document] }
+        when: { type: [string, 'null'] }
+        title: { type: string }
+        text: { type: string }
+        link:
+          description: Where it opens in the app, if anywhere
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [type]
+              properties:
+                type: { type: string, enum: [room, account, document] }
+                roomId: { type: string }
+                id: { type: string }
+
+    ContactBrief:
+      type: object
+      required: [summary, need, recent, commitments, openQuestions, nextStep, generatedAt, generator, model, stale, evidence]
+      properties:
+        summary: { type: array, items: { $ref: '#/components/schemas/BriefClaim' } }
+        need: { type: array, items: { $ref: '#/components/schemas/BriefClaim' } }
+        recent: { type: array, items: { $ref: '#/components/schemas/BriefClaim' } }
+        commitments: { type: array, items: { $ref: '#/components/schemas/BriefClaim' } }
+        openQuestions: { type: array, items: { $ref: '#/components/schemas/BriefClaim' } }
+        nextStep:
+          description: A suggestion (inference), with the evidence it is based on
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [text, basis]
+              properties:
+                text: { type: string }
+                basis: { type: array, items: { type: string } }
+        generatedAt: { type: string, format: date-time }
+        generator: { type: string, enum: [ai, template] }
+        model: { type: [string, 'null'] }
+        stale: { type: boolean, description: The evidence changed since this brief was made }
+        evidence: { type: array, items: { $ref: '#/components/schemas/BriefEvidence' }, description: The evidence it cites }
+
+    ContactBriefResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/ContactBrief'
+            - type: 'null'
 
     EditProposalInput:
       type: object
