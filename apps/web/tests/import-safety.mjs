@@ -115,6 +115,7 @@ try {
   const errors = []
   page.on('pageerror', (err) => errors.push(err.message))
   await page.goto('http://imports.test/')
+  await page.getByRole('button', { name: /Upload CSV/ }).click()
   await page.getByLabel('CSV file').setInputFiles({
     name: 'contacts.csv',
     mimeType: 'text/csv',
