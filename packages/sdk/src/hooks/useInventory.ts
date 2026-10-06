@@ -14,7 +14,15 @@ function useWorkspaceWrite<V, R>(workspaceId: string, fn: (vars: V) => Promise<R
   })
 }
 
-export type InventoryListParams = { q?: string; category?: string; status?: RecordStatus; limit?: number }
+export type InventoryListParams = {
+  q?: string
+  category?: string
+  status?: RecordStatus
+  focus?: 'offered' | 'paused' | 'out'
+  sort?: 'name' | 'price' | 'updated' | 'quantity'
+  dir?: 'asc' | 'desc'
+  limit?: number
+}
 
 export function useInventory(workspaceId: string | undefined, params: InventoryListParams = {}) {
   return useInfiniteQuery({
@@ -25,6 +33,21 @@ export function useInventory(workspaceId: string | undefined, params: InventoryL
       unwrap(await getApiClient().GET('/workspaces/{workspaceId}/inventory', { params: { path: { workspaceId: workspaceId! }, query: { ...params, cursor: pageParam } } })),
     getNextPageParam: (last) => last.meta.nextCursor ?? undefined,
   })
+}
+
+export function useInventoryCounts(workspaceId: string | undefined) {
+  return useQuery({
+    queryKey: keys.inventoryCounts(workspaceId ?? ''),
+    enabled: !!workspaceId,
+    queryFn: async () =>
+      unwrap(await getApiClient().GET('/workspaces/{workspaceId}/inventory/counts', { params: { path: { workspaceId: workspaceId! } } })).data,
+  })
+}
+
+export function useBulkUpdateInventory(workspaceId: string) {
+  return useWorkspaceWrite(workspaceId, async (body: { ids: string[]; action: 'archive' | 'restore' | 'setAvailability'; availability?: boolean }) =>
+    unwrap(await getApiClient().POST('/workspaces/{workspaceId}/inventory/bulk', { params: { path: { workspaceId } }, body })).data,
+  )
 }
 
 export function useCreateInventoryItem(workspaceId: string) {
@@ -51,6 +74,15 @@ export function useContactInterests(workspaceId: string | undefined, contactId: 
     enabled: !!workspaceId && !!contactId,
     queryFn: async () =>
       unwrap(await getApiClient().GET('/workspaces/{workspaceId}/contacts/{contactId}/interests', { params: { path: { workspaceId: workspaceId!, contactId: contactId! } } })).data,
+  })
+}
+
+export function useInventoryInterests(workspaceId: string | undefined, inventoryId: string | undefined) {
+  return useQuery({
+    queryKey: keys.itemInterests(workspaceId ?? '', inventoryId ?? ''),
+    enabled: !!workspaceId && !!inventoryId,
+    queryFn: async () =>
+      unwrap(await getApiClient().GET('/workspaces/{workspaceId}/inventory/{inventoryId}/interests', { params: { path: { workspaceId: workspaceId!, inventoryId: inventoryId! } } })).data,
   })
 }
 

@@ -3,6 +3,7 @@
 import { db, Prisma, type RecordStatus } from '@project/db'
 import { badRequest, conflict, notFound } from '../lib/errors'
 import { decodeKeyCursor, encodeKeyCursor, normalizeLimit, page } from '../lib/pagination'
+import { toContactRef } from '../lib/serialize'
 import { authorize } from './workspacePolicy'
 
 export type InventoryInput = {
@@ -76,24 +77,132 @@ function skuConflict(err: unknown): never {
 }
 
 export class InventoryService {
-  async list(userId: string, workspaceId: string, opts: { q?: string; category?: string; status?: RecordStatus; cursor?: string; limit?: number }) {
+  async list(
+    userId: string,
+    workspaceId: string,
+    opts: {
+      q?: string
+      category?: string
+      status?: RecordStatus
+      focus?: 'offered' | 'paused' | 'out'
+      sort?: 'name' | 'price' | 'updated' | 'quantity'
+      dir?: 'asc' | 'desc'
+      cursor?: string
+      limit?: number
+    },
+  ) {
     await authorize(userId, workspaceId, 'record.read')
     const limit = normalizeLimit(opts.limit)
-    const cursor = decodeKeyCursor<{ n: string; id: string }>(opts.cursor)
+    const sort = opts.sort ?? 'name'
+    const dir = opts.dir === 'desc' ? 'desc' : 'asc'
+    if (opts.focus && !['offered', 'paused', 'out'].includes(opts.focus)) throw badRequest('Unknown inventory focus', 'INVALID_FOCUS')
+    if (opts.sort && !['name', 'price', 'updated', 'quantity'].includes(opts.sort)) throw badRequest('Unknown sort', 'INVALID_SORT')
+    const where = this.listWhere(workspaceId, opts)
+    const cursor = decodeKeyCursor<{ v: string | number | null; id: string; sort: string; dir: string }>(opts.cursor)
+    if (cursor) {
+      if (cursor.sort !== sort || cursor.dir !== dir) throw badRequest('Invalid cursor')
+      where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), this.cursorClause(sort, dir, cursor)]
+    }
+    const tip = dir === 'desc' ? ('desc' as const) : ('asc' as const)
+    const orderBy: Prisma.InventoryOrderByWithRelationInput[] =
+      sort === 'price'
+        ? [{ price: tip }, { id: tip }]
+        : sort === 'updated'
+          ? [{ updatedAt: tip }, { id: tip }]
+          : sort === 'quantity'
+            ? [{ quantity: tip }, { id: tip }]
+            : [{ name: tip }, { id: tip }]
+    const [rows, total] = await Promise.all([
+      db.inventory.findMany({ where, orderBy, take: limit + 1 }),
+      db.inventory.count({ where: this.listWhere(workspaceId, opts) }),
+    ])
+    const result = page(rows, limit, (last) =>
+      encodeKeyCursor({
+        v: sort === 'price' || sort === 'quantity' ? last[sort] : sort === 'updated' ? last.updatedAt.toISOString() : last.name,
+        id: last.id,
+        sort,
+        dir,
+      }),
+    )
+    return { data: result.data.map(toInventoryItem), meta: { ...result.meta, total } }
+  }
+
+  async counts(userId: string, workspaceId: string) {
+    await authorize(userId, workspaceId, 'record.read')
+    const base = { workspaceId }
+    const active = { ...base, status: 'active' as const }
+    const [all, offered, paused, outOfStock, archived] = await Promise.all([
+      db.inventory.count({ where: active }),
+      db.inventory.count({ where: { ...active, availability: true } }),
+      db.inventory.count({ where: { ...active, availability: false } }),
+      db.inventory.count({ where: { ...active, quantity: 0 } }),
+      db.inventory.count({ where: { ...base, status: 'archived' } }),
+    ])
+    return { data: { all, offered, paused, outOfStock, archived } }
+  }
+
+  async bulk(
+    userId: string,
+    workspaceId: string,
+    input: { ids: string[]; action: 'archive' | 'restore' | 'setAvailability'; availability?: boolean },
+  ) {
+    await authorize(userId, workspaceId, 'record.write')
+    const ids = [...new Set(input.ids.map((id) => id.trim()).filter(Boolean))]
+    if (!ids.length) throw badRequest('Select at least one item', 'EMPTY_BULK')
+    if (ids.length > 50) throw badRequest('At most 50 items at a time', 'BULK_TOO_LARGE')
+    if (input.action === 'setAvailability' && typeof input.availability !== 'boolean')
+      throw badRequest('Choose offered or paused', 'MISSING_AVAILABILITY')
+    const data =
+      input.action === 'archive'
+        ? { status: 'archived' as const }
+        : input.action === 'restore'
+          ? { status: 'active' as const }
+          : { availability: input.availability! }
+    const result = await db.inventory.updateMany({
+      where: { workspaceId, id: { in: ids } },
+      data: { ...data, version: { increment: 1 } },
+    })
+    return { data: { updated: result.count } }
+  }
+
+  private listWhere(
+    workspaceId: string,
+    opts: { q?: string; category?: string; status?: RecordStatus; focus?: 'offered' | 'paused' | 'out' },
+  ): Prisma.InventoryWhereInput {
     const q = opts.q?.trim()
-    const where: Prisma.InventoryWhereInput = {
+    return {
       workspaceId,
       status: opts.status ?? 'active',
       ...(opts.category ? { category: opts.category } : {}),
+      ...(opts.focus === 'offered' ? { availability: true } : {}),
+      ...(opts.focus === 'paused' ? { availability: false } : {}),
+      ...(opts.focus === 'out' ? { quantity: 0 } : {}),
       ...(q ? { OR: [{ name: { contains: q } }, { sku: { startsWith: q } }] } : {}),
     }
-    if (cursor) {
-      if (typeof cursor.n !== 'string' || typeof cursor.id !== 'string') throw badRequest('Invalid cursor')
-      where.AND = [{ OR: [{ name: { gt: cursor.n } }, { name: cursor.n, id: { gt: cursor.id } }] }]
+  }
+
+  private cursorClause(
+    sort: 'name' | 'price' | 'updated' | 'quantity',
+    dir: 'asc' | 'desc',
+    cursor: { v: string | number | null; id: string },
+  ): Prisma.InventoryWhereInput {
+    const gt = dir === 'asc'
+    const field = sort === 'price' ? 'price' : sort === 'updated' ? 'updatedAt' : sort === 'quantity' ? 'quantity' : 'name'
+    if (cursor.v === null) {
+      return {
+        OR: [
+          { [field]: null, id: gt ? { gt: cursor.id } : { lt: cursor.id } },
+          ...(gt ? [] : [{ [field]: { not: null } }]),
+        ],
+      }
     }
-    const rows = await db.inventory.findMany({ where, orderBy: [{ name: 'asc' }, { id: 'asc' }], take: limit + 1 })
-    const result = page(rows, limit, (last) => encodeKeyCursor({ n: last.name, id: last.id }))
-    return { data: result.data.map(toInventoryItem), meta: result.meta }
+    const value = sort === 'updated' ? new Date(String(cursor.v)) : cursor.v
+    return {
+      OR: [
+        { [field]: gt ? { gt: value } : { lt: value } },
+        { [field]: value, id: gt ? { gt: cursor.id } : { lt: cursor.id } },
+      ],
+    }
   }
 
   async get(userId: string, workspaceId: string, inventoryId: string) {
@@ -173,6 +282,24 @@ export class InventoryService {
     await liveContact(workspaceId, contactId)
     const rows = await db.interest.findMany({ where: { workspaceId, contactId }, include: { inventory: true }, orderBy: { createdAt: 'desc' } })
     return { data: rows.map((r) => ({ id: r.id, contactId: r.contactId, createdAt: r.createdAt, item: toInventoryItem(r.inventory) })) }
+  }
+
+  async listItemInterests(userId: string, workspaceId: string, inventoryId: string) {
+    await authorize(userId, workspaceId, 'record.read')
+    await liveItem(workspaceId, inventoryId)
+    const rows = await db.interest.findMany({
+      where: { workspaceId, inventoryId, contact: { deletedAt: null } },
+      include: { contact: true },
+      orderBy: { createdAt: 'desc' },
+    })
+    return {
+      data: rows.map((row) => ({
+        id: row.id,
+        inventoryId: row.inventoryId,
+        createdAt: row.createdAt,
+        contact: toContactRef(row.contact),
+      })),
+    }
   }
 
   async addInterest(userId: string, workspaceId: string, contactId: string, inventoryId: string) {

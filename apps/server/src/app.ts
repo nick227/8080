@@ -74,6 +74,10 @@ export async function buildApp(opts: BuildOptions = {}) {
   })
 
   // Spec-driven routing — operationId → handler export, security scheme → handler.
+  // The OpenAPI spec lists text/event-stream request/response media types; openapi-glue
+  // looks up a parser for each. SSE routes are GET-only, so this is never used for bodies.
+  server.addContentTypeParser('text/event-stream', { parseAs: 'string' }, (_req, body, done) => done(null, body))
+
   await server.register(openapiGlue, {
     specification: specPath,
     serviceHandlers: handlers,

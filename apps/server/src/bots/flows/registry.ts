@@ -9,7 +9,8 @@ type Tx = Prisma.TransactionClient
 /** A line the bot says for a flow, optionally offering the next choice or linking a document. */
 export type FlowSay = {
   text: string
-  offer?: Omit<ChoiceOffer, 'flow'>
+  /** The next choice. Its answer goes to `flow` (default: the flow posting it). */
+  offer?: Omit<ChoiceOffer, 'flow'> & { flow?: string }
   links?: MessageLink[]
   /** Called with the posted message's item id (e.g. to point a record at the line
    *  instead of posting a second one). Failures are logged; the line stays. */

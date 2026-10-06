@@ -9,6 +9,8 @@ import { registerChoiceFlow, type ChoiceFlow, type FlowSay } from '../bots/flows
 import { postSays } from '../bots/flows/post'
 import { registerActivityFlow } from './activityEvent'
 import { COMPANY_PROFILE, companyProfileFlow, extract, generate, startOffer, startRun, textAnswer } from '../bots/flows/companyProfile'
+import { PROFILE_FIX, profileFixFlow, profileFixText } from '../bots/flows/profileFix'
+import { registerProposalFlow } from './ProposalService'
 
 export const HOST_HANDLE = 'chatbot'
 export const WELCOME = 'workspace-welcome'
@@ -103,9 +105,13 @@ export class WorkspaceHost {
     if (!channel) return
     const hasMedia = (await db.media.count({ where: { message: { items: { some: { id: e.itemId } } } } })) > 0
     const advanced = await textAnswer({ roomId: e.roomId, itemId: e.itemId, actorId: e.actorId, text: e.text, hasMedia })
-    if (!advanced) return
     const bot = await hostBot()
     if (!bot) return
+    if (!advanced) {
+      const fix = await profileFixText({ roomId: e.roomId, itemId: e.itemId, actorId: e.actorId, text: e.text })
+      if (fix?.length) await postSays(bot.userId, e.roomId, e.chat, PROFILE_FIX, fix)
+      return
+    }
     await postSays(bot.userId, e.roomId, e.chat, COMPANY_PROFILE, advanced.says)
     if (advanced.extract) await postSays(bot.userId, e.roomId, e.chat, COMPANY_PROFILE, await extract(e.roomId, e.actorId))
     if (advanced.generate) await postSays(bot.userId, e.roomId, e.chat, COMPANY_PROFILE, await generate(e.roomId, e.actorId))
@@ -126,6 +132,8 @@ export function startWorkspaceHost() {
   const off = [
     registerChoiceFlow(COMPANY_PROFILE, companyProfileFlow),
     registerChoiceFlow(WELCOME, welcomeFlow),
+    registerChoiceFlow(PROFILE_FIX, profileFixFlow),
+    registerProposalFlow(),
     registerActivityFlow(),
     events.on('workspace.member.activated', (e) => { void track(workspaceHost.join(e.workspaceId, e.userId, e.memberId)) }),
     events.on('item.created', (e) => { void track(workspaceHost.onItem(e)) }),

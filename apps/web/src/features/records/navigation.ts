@@ -79,12 +79,24 @@ export function useRecordNavigation(kind: RecordKind) {
     previewKind,
     setFilter: (key: string, value: string) =>
       go(search({ [key]: value || null, record: null, preview: null, previewKind: null }), {}, true),
+    setFilters: (patch: Record<string, string | null>) =>
+      go(
+        search({
+          ...Object.fromEntries(Object.entries(patch).map(([key, value]) => [key, value || null])),
+          record: null,
+          preview: null,
+          previewKind: null,
+        }),
+        {},
+        true,
+      ),
     href: (id: string) => search({ record: id, preview: null, previewKind: null }),
     open: (id: string, results?: ResultContext) => {
       const patch: Record<string, string | null> = { record: id, preview: null, previewKind: null }
       if (results?.search) {
         const fromResults = new URLSearchParams(results.search.startsWith('?') ? results.search.slice(1) : results.search)
-        for (const key of ['q', 'stage', 'status', 'view'] as const) patch[key] = fromResults.get(key)
+        for (const key of ['q', 'stage', 'status', 'view', 'focus', 'sort', 'dir'] as const)
+          patch[key] = fromResults.get(key)
       }
       go(search(patch), { results })
     },

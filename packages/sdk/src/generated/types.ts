@@ -863,6 +863,151 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Proposals on a record (doc/13 §5), newest first */
+        get: operations["listProposals"];
+        put?: never;
+        /**
+         * Propose a typed change to one record; posts it as a card in the workspace channel
+         * @description `kind` selects a registered server-side handler that validates `change`, checks
+         *     permissions and the record's version. Proposing needs read access; applying is
+         *     the kind's own rule (e.g. owners/admins for the company profile).
+         */
+        post: operations["createProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/proposals/{proposalId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                proposalId: components["parameters"]["ProposalId"];
+            };
+            cookie?: never;
+        };
+        /** One proposal, status brought up to date */
+        get: operations["getProposal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/proposals/{proposalId}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                proposalId: components["parameters"]["ProposalId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply it (idempotent); 409 PROPOSAL_EXPIRED if the record changed since */
+        post: operations["applyProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/proposals/{proposalId}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                proposalId: components["parameters"]["ProposalId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Not now */
+        post: operations["dismissProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/proposals/{proposalId}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                proposalId: components["parameters"]["ProposalId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo an applied proposal; 409 PROPOSAL_UNDO_STALE if the record changed since (newer work is never reversed) */
+        post: operations["undoProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/proposals/{proposalId}/revert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                proposalId: components["parameters"]["ProposalId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Propose putting back what an applied proposal replaced, against the record as it is now */
+        post: operations["revertProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/proposals/{proposalId}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                proposalId: components["parameters"]["ProposalId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Propose an expired change again, against the record as it is now */
+        post: operations["refreshProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/channel": {
         parameters: {
             query?: never;
@@ -1099,6 +1244,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/contacts/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Working-view counts for contacts */
+        get: operations["countContacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/contacts/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update selected contacts
+         * @description Explicit selected ids only (at most 50). Does not imply every matching record.
+         */
+        post: operations["bulkUpdateContacts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/contacts/match": {
         parameters: {
             query?: never;
@@ -1307,6 +1493,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/inventory/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Working-view counts for inventory */
+        get: operations["countInventory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/inventory/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update selected inventory items
+         * @description Explicit selected ids only (at most 50).
+         */
+        post: operations["bulkUpdateInventory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/inventory/{inventoryId}": {
         parameters: {
             query?: never;
@@ -1327,6 +1554,26 @@ export interface paths {
         head?: never;
         /** Update an item */
         patch: operations["updateInventoryItem"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/inventory/{inventoryId}/interests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        /** Contacts interested in this item */
+        get: operations["listInventoryInterests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/workspaces/{workspaceId}/accounts": {
@@ -2202,6 +2449,8 @@ export interface components {
             changeCursor?: string;
             hasMore: boolean;
             nextCursor: string | null;
+            /** @description Full filtered count when the list endpoint provides it */
+            total?: number;
         };
         /**
          * @description Data for data-layer rules (human-authored activity, doc/08 I6). Components render `tag`, never branch on this.
@@ -2424,6 +2673,51 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        ProposalDiffRow: {
+            label: string;
+            /** @description Empty when there was nothing */
+            before: string;
+            after: string;
+        };
+        /** @description A typed change to one record, applied only on a click (doc/13 §5). Chat and record pages render this same object. */
+        Proposal: {
+            id: string;
+            /** @description Registered handler, e.g. company-profile.fact */
+            kind: string;
+            targetType: string;
+            targetId: string;
+            /** @enum {string} */
+            status: "pending" | "applied" | "dismissed" | "expired" | "undone";
+            title: string;
+            diff: components["schemas"]["ProposalDiffRow"][];
+            /** @description The record version it was proposed against */
+            baseVersion: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            decidedAt: string | null;
+            /** @description Who applied, dismissed or undid it */
+            decidedBy: string | null;
+            /**
+             * @description Who may apply it (the server still decides)
+             * @enum {string}
+             */
+            requires: "admin" | "member";
+        };
+        ProposalResponse: {
+            data: components["schemas"]["Proposal"];
+        };
+        ProposalList: {
+            data: components["schemas"]["Proposal"][];
+        };
+        CreateProposalInput: {
+            kind: string;
+            targetId: string;
+            /** @description The kind's payload; validated by its handler */
+            change: Record<string, never>;
+        };
         MessageLink: {
             /** @enum {string} */
             type: "document" | "contact" | "compose";
@@ -2503,6 +2797,8 @@ export interface components {
             anchorStartMs: number | null;
             /** @description Posted from the room chat. These stay in the chat and are not played on the stage. */
             chat: boolean;
+            /** @description The proposal this line renders as a card (live state), or null. */
+            proposal: components["schemas"]["Proposal"] | null;
             message: components["schemas"]["Message"];
             reactions: components["schemas"]["ReactionSummary"][];
             /** Format: date-time */
@@ -3012,6 +3308,53 @@ export interface components {
         };
         InterestList: {
             data: components["schemas"]["Interest"][];
+        };
+        ItemInterest: {
+            id: string;
+            inventoryId: string;
+            /** Format: date-time */
+            createdAt: string;
+            contact: components["schemas"]["ContactRef"];
+        };
+        ItemInterestList: {
+            data: components["schemas"]["ItemInterest"][];
+        };
+        ContactCounts: {
+            all: number;
+            due: number;
+            overdue: number;
+            unassigned: number;
+            archived: number;
+        };
+        ContactCountsResponse: {
+            data: components["schemas"]["ContactCounts"];
+        };
+        InventoryCounts: {
+            all: number;
+            offered: number;
+            paused: number;
+            outOfStock: number;
+            archived: number;
+        };
+        InventoryCountsResponse: {
+            data: components["schemas"]["InventoryCounts"];
+        };
+        BulkContactsInput: {
+            ids: string[];
+            /** @enum {string} */
+            action: "archive" | "restore" | "setStage";
+            leadStatus?: components["schemas"]["LeadStatus"];
+        };
+        BulkInventoryInput: {
+            ids: string[];
+            /** @enum {string} */
+            action: "archive" | "restore" | "setAvailability";
+            availability?: boolean;
+        };
+        BulkUpdateResponse: {
+            data: {
+                updated: number;
+            };
         };
         AddInterestInput: {
             inventoryId: string;
@@ -3778,6 +4121,7 @@ export interface components {
         ReactionTypeParam: components["schemas"]["ReactionType"];
         DocumentId: string;
         WorkspaceId: string;
+        ProposalId: string;
         /** @description A WorkspaceMember id (not a user id) */
         MemberId: string;
         TeamId: string;
@@ -5348,6 +5692,224 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    listProposals: {
+        parameters: {
+            query?: {
+                targetType?: string;
+                targetId?: string;
+                status?: "pending" | "applied" | "dismissed" | "expired" | "undone";
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Up to 50, each with its status brought up to date */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateProposalInput"];
+            };
+        };
+        responses: {
+            /** @description The pending proposal */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                proposalId: components["parameters"]["ProposalId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The proposal */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    applyProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                proposalId: components["parameters"]["ProposalId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The applied proposal */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    dismissProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                proposalId: components["parameters"]["ProposalId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The dismissed proposal */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    undoProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                proposalId: components["parameters"]["ProposalId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The undone proposal */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    revertProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                proposalId: components["parameters"]["ProposalId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The new, corrective proposal */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    refreshProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                proposalId: components["parameters"]["ProposalId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The new proposal */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
     openWorkspaceChannel: {
         parameters: {
             query?: never;
@@ -5652,6 +6214,10 @@ export interface operations {
                 accountId?: string;
                 status?: components["schemas"]["RecordStatus"];
                 leadStatus?: components["schemas"]["LeadStatus"];
+                /** @description Working view over active contacts (due = follow-up today; overdue excludes customer/lost) */
+                focus?: "due" | "overdue" | "unassigned";
+                sort?: "name" | "followUp" | "updated" | "activity";
+                dir?: "asc" | "desc";
             };
             header?: never;
             path: {
@@ -5698,6 +6264,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreatedContactResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    countContacts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactCountsResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    bulkUpdateContacts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkContactsInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkUpdateResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -6061,6 +6682,10 @@ export interface operations {
                 q?: string;
                 category?: string;
                 status?: components["schemas"]["RecordStatus"];
+                /** @description Working view over active items (out = tracked quantity zero) */
+                focus?: "offered" | "paused" | "out";
+                sort?: "name" | "price" | "updated" | "quantity";
+                dir?: "asc" | "desc";
             };
             header?: never;
             path: {
@@ -6114,6 +6739,61 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    countInventory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryCountsResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    bulkUpdateInventory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkInventoryInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkUpdateResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     getInventoryItem: {
@@ -6199,6 +6879,32 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    listInventoryInterests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemInterestList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     listAccounts: {

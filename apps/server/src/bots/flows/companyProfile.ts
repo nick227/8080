@@ -18,6 +18,7 @@ import { CompanyProfileService, type ProfileUpdate } from '../../services/Compan
 import { DocumentService } from '../../services/DocumentService'
 import { DocumentContentService } from '../../services/DocumentContentService'
 import { recordActivityEvent } from '../../services/activityEvent'
+import { proposals } from '../../services/ProposalService'
 import { companyDescription, list, type Audience, type Length, type ServiceArea, type Voice } from './companyDescription'
 import type { ChoiceFlow, FlowSay } from './registry'
 import { assistantAvailable, draftDocument, extractFacts } from '../assistant/calls'
@@ -322,6 +323,7 @@ export async function generate(roomId: string, userId: string): Promise<FlowSay[
       sources: state.sources as ProfileUpdate['sources'], inferred: state.inferred as ProfileUpdate['inferred'], runId: run.id,
     }
     const { revision } = await profiles.apply(ctx, run.workspaceId, update, `wf:${run.id}:profile`)
+    await proposals.expireStale(run.workspaceId, 'companyProfile', run.workspaceId, userId) // their base revision is gone
     const template = companyDescription(
       { name: d.name!, location: d.location ?? null, serviceArea: d.serviceArea ?? null, purpose: d.purpose ?? null, brandVoice: d.brandVoice ?? null, offerings: d.offerings ?? [], customers: d.customers ?? [], differentiators: d.differentiators ?? [] },
       brief,
@@ -359,6 +361,8 @@ export async function generate(roomId: string, userId: string): Promise<FlowSay[
     const links = [{ type: 'document' as const, id: doc.id, workspaceId: run.workspaceId, title: doc.title }]
     return [{
       text, links,
+      // Corrections go through a proposal (bots/flows/profileFix.ts, flow "profile-fix").
+      offer: { flow: 'profile-fix', step: 'fix', options: [{ id: 'fix', label: 'Fix a fact' }] },
       // The workspace activity record points at this line instead of posting its own.
       onPosted: (itemId) => recordActivityEvent({
         workspaceId: run.workspaceId, type: 'workflow.completed', title: 'Assistant finished',

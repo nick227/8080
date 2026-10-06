@@ -5,9 +5,13 @@ import {
   getApiClient,
   unwrap,
   keys,
+  useBulkUpdateContacts,
+  useBulkUpdateInventory,
   useContact,
+  useContactCounts,
   useContacts,
   useInventory,
+  useInventoryCounts,
   useInventoryItem,
   type Contact,
   type InventoryItem,
@@ -23,6 +27,7 @@ import {
 } from './RecordChrome'
 import { RecordDetail } from './RecordDetail'
 import { CollectionRow } from './CollectionRow'
+import { CollectionToolbar } from './CollectionToolbar'
 import { STAGES, titleCase } from './labels'
 import { RecordForm } from './RecordForm'
 import { useRecordNavigation, type RecordKind, type ResultContext } from './navigation'
@@ -81,6 +86,9 @@ function RecordWorkspace({
     ? (nav.params.get('stage') as LeadStatus)
     : undefined
   const archived = nav.params.get('status') === 'archived'
+  const focus = nav.params.get('focus') ?? ''
+  const sort = nav.params.get('sort') ?? 'name'
+  const dir = nav.params.get('dir') === 'desc' ? 'desc' : 'asc'
   const view =
     nav.params.get('view') === 'list'
       ? 'list'
@@ -89,18 +97,42 @@ function RecordWorkspace({
         : kind === 'contacts'
           ? 'list'
           : 'grid'
-  const contacts = useContacts(kind === 'contacts' ? workspaceId : undefined, {
+  const contactParams = {
     q: q.trim() || undefined,
     leadStatus: stage,
-    status: archived ? 'archived' : 'active',
-  })
-  const inventory = useInventory(kind === 'inventory' ? workspaceId : undefined, {
+    status: (archived ? 'archived' : 'active') as 'active' | 'archived',
+    focus: !archived && ['due', 'overdue', 'unassigned'].includes(focus) ? (focus as 'due' | 'overdue' | 'unassigned') : undefined,
+    sort: ['name', 'followUp', 'updated', 'activity'].includes(sort)
+      ? (sort as 'name' | 'followUp' | 'updated' | 'activity')
+      : undefined,
+    dir: dir as 'asc' | 'desc',
+  }
+  const inventoryParams = {
     q: q.trim() || undefined,
-    status: archived ? 'archived' : 'active',
-  })
+    status: (archived ? 'archived' : 'active') as 'active' | 'archived',
+    focus: !archived && ['offered', 'paused', 'out'].includes(focus) ? (focus as 'offered' | 'paused' | 'out') : undefined,
+    sort: ['name', 'price', 'updated', 'quantity'].includes(sort)
+      ? (sort as 'name' | 'price' | 'updated' | 'quantity')
+      : undefined,
+    dir: dir as 'asc' | 'desc',
+  }
+  const contacts = useContacts(kind === 'contacts' ? workspaceId : undefined, contactParams)
+  const inventory = useInventory(kind === 'inventory' ? workspaceId : undefined, inventoryParams)
+  const contactCounts = useContactCounts(kind === 'contacts' ? workspaceId : undefined)
+  const inventoryCounts = useInventoryCounts(kind === 'inventory' ? workspaceId : undefined)
+  const bulkContacts = useBulkUpdateContacts(workspaceId)
+  const bulkInventory = useBulkUpdateInventory(workspaceId)
   const list = kind === 'contacts' ? contacts : inventory
+  const counts = kind === 'contacts' ? contactCounts.data : inventoryCounts.data
   const records: (Contact | InventoryItem)[] =
     list.data?.pages.flatMap((page) => page.data as (Contact | InventoryItem)[]) ?? []
+  const total = list.data?.pages[0]?.meta.total
+  const [selected, setSelected] = useState<string[]>([])
+  const [bulkError, setBulkError] = useState('')
+  useEffect(() => {
+    setSelected([])
+    setBulkError('')
+  }, [kind, q, stage, archived, focus, sort, dir])
   const currentContact = useContact(
     kind === 'contacts' && nav.recordId ? workspaceId : undefined,
     nav.recordId ?? undefined,
@@ -269,6 +301,33 @@ function RecordWorkspace({
     restored.current = false
     nav.setFilter(key, value)
   }
+  const filters = (patch: Record<string, string>) => {
+    positions.set(positionKey, browsePosition.current)
+    restored.current = false
+    nav.setFilters(patch)
+  }
+  const runBulk = async (action: string, extra: Record<string, string | boolean> = {}) => {
+    if (!selected.length) return
+    setBulkError('')
+    try {
+      if (kind === 'contacts') {
+        await bulkContacts.mutateAsync({
+          ids: selected,
+          action: action as 'archive' | 'restore' | 'setStage',
+          leadStatus: typeof extra.leadStatus === 'string' ? (extra.leadStatus as LeadStatus) : undefined,
+        })
+      } else {
+        await bulkInventory.mutateAsync({
+          ids: selected,
+          action: action as 'archive' | 'restore' | 'setAvailability',
+          availability: typeof extra.availability === 'boolean' ? extra.availability : undefined,
+        })
+      }
+      setSelected([])
+    } catch {
+      setBulkError('Could not update the selected records. Try again.')
+    }
+  }
   useEffect(() => {
     if (nav.recordId || search === q) return
     const timer = window.setTimeout(() => filter('q', search), 200)
@@ -344,20 +403,6 @@ function RecordWorkspace({
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </label>
-              {kind === 'contacts' && (
-                <select
-                  aria-label="Filter by lead stage"
-                  value={stage ?? ''}
-                  onChange={(e) => filter('stage', e.target.value)}
-                >
-                  <option value="">All stages</option>
-                  {STAGES.map((value) => (
-                    <option key={value} value={value}>
-                      {titleCase(value)}
-                    </option>
-                  ))}
-                </select>
-              )}
               <div className="record-view-switch" aria-label="Collection view">
                 <button aria-pressed={view === 'list'} onClick={() => filter('view', 'list')}>
                   List
@@ -367,21 +412,32 @@ function RecordWorkspace({
                 </button>
               </div>
             </div>
-            <div className="record-collection-views">
-              <div>
-                <button aria-pressed={!archived} onClick={() => filter('status', 'active')}>
-                  All {kind}
-                </button>
-                <button aria-pressed={archived} onClick={() => filter('status', 'archived')}>
-                  Archived
-                </button>
-              </div>
-              <span role="status">
-                {list.isFetching && !list.isFetchingNextPage
-                  ? 'Updating…'
+            <CollectionToolbar
+              kind={kind}
+              archived={archived}
+              focus={focus}
+              sort={sort}
+              dir={dir}
+              stage={stage}
+              counts={counts}
+              selectedCount={selected.length}
+              matchingTotal={typeof total === 'number' ? total : undefined}
+              onFilter={filter}
+              onFilters={filters}
+              onBulk={(action, extra) => void runBulk(action, extra)}
+            />
+            {bulkError && (
+              <p role="alert" className="record-error">
+                {bulkError}
+              </p>
+            )}
+            <p className="record-count" role="status">
+              {list.isFetching && !list.isFetchingNextPage
+                ? 'Updating…'
+                : typeof total === 'number'
+                  ? `${total} ${total === 1 ? 'record' : 'records'}${list.hasNextPage ? ` · ${records.length} loaded` : ''}`
                   : `${records.length}${list.hasNextPage ? '+' : ''} ${records.length === 1 ? 'record' : 'records'}${list.hasNextPage ? ' loaded' : ''}`}
-              </span>
-            </div>
+            </p>
             {list.isError ? (
               <div className="record-empty" role="alert">
                 <h2>Could not load {kind}</h2>
@@ -446,9 +502,15 @@ function RecordWorkspace({
                       workspaceId={workspaceId}
                       currency={currency}
                       selected={nav.previewKind === kind && nav.previewId === record.id}
+                      checked={selected.includes(record.id)}
                       href={nav.href(record.id)}
                       onOpen={(id) => nav.open(id, context(id))}
-                      onPreview={(id, name) => nav.preview({ kind, id, name }, context(id))}
+                      onPreview={(id, label) => nav.preview({ kind, id, name: label }, context(id))}
+                      onToggle={(id) =>
+                        setSelected((current) =>
+                          current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
+                        )
+                      }
                     />
                   )
                 })}

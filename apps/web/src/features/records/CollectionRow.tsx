@@ -1,4 +1,4 @@
-import { useState, type MouseEvent } from 'react'
+import { type MouseEvent } from 'react'
 import {
   useUpdateContact,
   useUpdateInventoryItem,
@@ -27,18 +27,22 @@ export function CollectionRow({
   workspaceId,
   currency,
   selected,
+  checked,
   href,
   onOpen,
   onPreview,
+  onToggle,
 }: {
   record: Contact | InventoryItem
   kind: 'contacts' | 'inventory'
   workspaceId: string
   currency: string
   selected: boolean
+  checked: boolean
   href: string
   onOpen: (id: string) => void
   onPreview: (id: string, name: string) => void
+  onToggle: (id: string) => void
 }) {
   const person = 'displayName' in record ? record : null
   const item = !person ? (record as InventoryItem) : null
@@ -46,6 +50,15 @@ export function CollectionRow({
   const late = person ? followUpLate(person) : false
   return (
     <li className="record-tile" data-selected={selected || undefined}>
+      <label className="record-select">
+        <input
+          type="checkbox"
+          checked={checked}
+          aria-label={`Select ${name}`}
+          onChange={() => onToggle(record.id)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      </label>
       <RecordMedia name={name} src={item?.imageUrl} person={!!person} />
       <div className="record-tile-identity">
         <a

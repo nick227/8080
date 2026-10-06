@@ -6,6 +6,7 @@ import {
   useUpdateInventoryItem,
   useDeleteInventoryItem,
   useContactInterests,
+  useInventoryInterests,
   useAddContactInterest,
   useRemoveContactInterest,
   useInventory,
@@ -93,6 +94,7 @@ export function RecordDetail({
       currency={currency}
       onDeleted={onDeleted}
       onOpenRecord={onOpenRecord}
+      onRelated={onRelated}
     />
   )
 }
@@ -263,12 +265,14 @@ function InventoryDetail({
   currency,
   onDeleted,
   onOpenRecord,
+  onRelated,
 }: {
   item: InventoryItem
   workspaceId: string
   currency: string
   onDeleted: () => void
   onOpenRecord?: (kind: RecordKind, id: string) => void
+  onRelated: (ref: RecordRef) => void
 }) {
   const update = useUpdateInventoryItem(workspaceId)
   const remove = useDeleteInventoryItem(workspaceId)
@@ -360,6 +364,7 @@ function InventoryDetail({
               {item.description || 'Add a description to help your team understand this item.'}
             </p>
           </section>
+          <ItemInterests workspaceId={workspaceId} inventoryId={item.id} onRelated={onRelated} />
         </div>
         <aside className="record-properties">
           <h2>Properties</h2>
@@ -532,6 +537,46 @@ function ContactInterests({
           Could not update interests. Try again.
         </p>
       )}
+    </section>
+  )
+}
+
+function ItemInterests({
+  workspaceId,
+  inventoryId,
+  onRelated,
+}: {
+  workspaceId: string
+  inventoryId: string
+  onRelated: (ref: RecordRef) => void
+}) {
+  const interests = useInventoryInterests(workspaceId, inventoryId)
+  return (
+    <section>
+      <h2>Interested contacts</h2>
+      {interests.isLoading && <p role="status">Loading contacts…</p>}
+      {interests.isError && (
+        <p role="alert">
+          Could not load interested contacts. <button onClick={() => interests.refetch()}>Try again</button>
+        </p>
+      )}
+      {interests.data?.length === 0 && (
+        <p className="record-muted">No contacts are linked to this item yet.</p>
+      )}
+      <ul className="record-related">
+        {interests.data?.map(({ id, contact }) => (
+          <li key={id}>
+            <RecordMedia name={contact.displayName} person />
+            <button
+              className="record-related-name"
+              onClick={() => onRelated({ kind: 'contacts', id: contact.id, name: contact.displayName })}
+            >
+              {contact.displayName}
+              <small>{contact.primaryEmail || 'Contact'}</small>
+            </button>
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }

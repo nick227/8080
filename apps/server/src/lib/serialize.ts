@@ -4,6 +4,7 @@ import type { Prisma, ReactionType, WorkspaceRole } from '@project/db'
 import { youTubeThumbnailUrl, youTubeWatchUrl } from '@project/shared'
 import { playbackToken } from './playbackToken'
 import { json, type MessageLink, type StoredActions, type StoredChoice } from './choice'
+import { proposalInclude, toProposal } from './proposal'
 
 // ─── users ───────────────────────────────────────────────────────────────────
 
@@ -135,6 +136,8 @@ export function toMessage(message: MessageRow, hidden: boolean) {
 export const itemInclude = {
   message: { include: messageInclude },
   reactions: { select: { type: true, userId: true } },
+  // The proposal this line renders as a card (doc/13 §5): the live row, not a copy.
+  proposals: { take: 1, include: proposalInclude },
 } satisfies Prisma.ItemInclude
 
 export type ItemRow = Prisma.ItemGetPayload<{ include: typeof itemInclude }>
@@ -172,6 +175,7 @@ export function toItem(item: ItemRow, viewerId: string | null, muted?: ReadonlyS
     anchorStartMs: item.anchorStartMs,
     chat: item.chat,
     message: toMessage(item.message, hidden),
+    proposal: !hidden && item.proposals[0] ? toProposal(item.proposals[0]) : null,
     reactions,
     createdAt: item.createdAt,
     deletedAt: item.deletedAt,

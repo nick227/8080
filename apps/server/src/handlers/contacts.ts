@@ -19,6 +19,14 @@ export async function listContacts(request: any, reply: any) {
   return reply.send(await contacts.list(request.user.id, request.params.workspaceId, request.query))
 }
 
+export async function countContacts(request: any, reply: any) {
+  return reply.send(await contacts.counts(request.user.id, request.params.workspaceId))
+}
+
+export async function bulkUpdateContacts(request: any, reply: any) {
+  return reply.send(await contacts.bulk(request.user.id, request.params.workspaceId, request.body))
+}
+
 export async function createContact(request: any, reply: any) {
   return reply.status(201).send(await contacts.create(ctx(request), request.params.workspaceId, request.body))
 }

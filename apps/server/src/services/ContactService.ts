@@ -7,6 +7,7 @@ import { db, Prisma, type ContactPointKind, type LeadStatus, type RecordStatus }
 import { badRequest, conflict, notFound } from '../lib/errors'
 import { decodeKeyCursor, encodeKeyCursor, normalizeLimit, page } from '../lib/pagination'
 import { contactInclude, toAccountRef, toContact, toContactRef, type ContactRow } from '../lib/serialize'
+import { localDayBounds } from '../lib/workspaceDay'
 import { diff, runAction, subjectKey, type SubjectRef } from './actions'
 import { recordActivityEvent } from './activityEvent'
 import { emailDomain, isRoleAddress, matchAccountsByDomain, matchContactsByEmail, normalizeEmail, normalizePoint } from './contactMatch'
@@ -15,6 +16,21 @@ import { memberActor, type WorkspaceCtx } from './WorkspaceService'
 import { authorize, permit } from './workspacePolicy'
 
 type Tx = Prisma.TransactionClient
+export type ContactFocus = 'due' | 'overdue' | 'unassigned'
+export type ContactSort = 'name' | 'followUp' | 'updated' | 'activity'
+type ContactListOpts = {
+  q?: string
+  leadStatus?: LeadStatus
+  ownerMemberId?: string
+  tagId?: string
+  accountId?: string
+  status?: RecordStatus
+  focus?: ContactFocus
+  sort?: ContactSort
+  dir?: 'asc' | 'desc'
+  cursor?: string
+  limit?: number
+}
 
 export type PointInput = { kind: ContactPointKind; value: string; label?: string | null; isPrimary?: boolean; shared?: boolean }
 export type ContactInput = {
@@ -126,27 +142,136 @@ export class ContactService {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead })
   }
 
-  async list(userId: string, workspaceId: string, opts: { q?: string; ownerMemberId?: string; tagId?: string; accountId?: string; status?: RecordStatus; cursor?: string; limit?: number }) {
-    await authorize(userId, workspaceId, 'record.read')
+  async list(userId: string, workspaceId: string, opts: ContactListOpts) {
+    const actor = await authorize(userId, workspaceId, 'record.read')
     const limit = normalizeLimit(opts.limit)
-    const cursor = decodeKeyCursor<{ n: string; id: string }>(opts.cursor)
+    const sort = opts.sort ?? 'name'
+    const dir = opts.dir === 'desc' ? 'desc' : 'asc'
+    if (opts.focus && !['due', 'overdue', 'unassigned'].includes(opts.focus)) throw badRequest('Unknown contact focus', 'INVALID_FOCUS')
+    if (opts.sort && !['name', 'followUp', 'updated', 'activity'].includes(opts.sort)) throw badRequest('Unknown sort', 'INVALID_SORT')
+    const where = this.listWhere(workspaceId, opts, actor.workspace.timezone)
+    const cursor = decodeKeyCursor<{ v: string | null; id: string; sort: string; dir: string }>(opts.cursor)
+    if (cursor) {
+      if (cursor.sort !== sort || cursor.dir !== dir) throw badRequest('Invalid cursor')
+      where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), this.cursorClause(sort, dir, cursor)]
+    }
+    const orderBy = this.orderBy(sort, dir)
+    const [rows, total] = await Promise.all([
+      db.contact.findMany({ where, include: contactInclude, orderBy, take: limit + 1 }),
+      db.contact.count({ where: this.listWhere(workspaceId, opts, actor.workspace.timezone) }),
+    ])
+    const result = page(rows, limit, (last) =>
+      encodeKeyCursor({ v: this.sortValue(last, sort), id: last.id, sort, dir }),
+    )
+    return { data: result.data.map(toContact), meta: { ...result.meta, total } }
+  }
+
+  async counts(userId: string, workspaceId: string) {
+    const actor = await authorize(userId, workspaceId, 'record.read')
+    const base = { workspaceId, deletedAt: null as Date | null }
+    const active = { ...base, status: 'active' as const }
+    const timezone = actor.workspace.timezone
+    const [all, due, overdue, unassigned, archived] = await Promise.all([
+      db.contact.count({ where: active }),
+      db.contact.count({ where: this.listWhere(workspaceId, { status: 'active', focus: 'due' }, timezone) }),
+      db.contact.count({ where: this.listWhere(workspaceId, { status: 'active', focus: 'overdue' }, timezone) }),
+      db.contact.count({ where: this.listWhere(workspaceId, { status: 'active', focus: 'unassigned' }, timezone) }),
+      db.contact.count({ where: { ...base, status: 'archived' } }),
+    ])
+    return { data: { all, due, overdue, unassigned, archived } }
+  }
+
+  async bulk(
+    userId: string,
+    workspaceId: string,
+    input: { ids: string[]; action: 'archive' | 'restore' | 'setStage'; leadStatus?: LeadStatus },
+  ) {
+    await authorize(userId, workspaceId, 'record.write')
+    const ids = [...new Set(input.ids.map((id) => id.trim()).filter(Boolean))]
+    if (!ids.length) throw badRequest('Select at least one contact', 'EMPTY_BULK')
+    if (ids.length > 50) throw badRequest('At most 50 contacts at a time', 'BULK_TOO_LARGE')
+    if (input.action === 'setStage' && !input.leadStatus) throw badRequest('Choose a lead stage', 'MISSING_STAGE')
+    const data =
+      input.action === 'archive'
+        ? { status: 'archived' as const }
+        : input.action === 'restore'
+          ? { status: 'active' as const }
+          : { leadStatus: input.leadStatus! }
+    const result = await db.contact.updateMany({
+      where: { workspaceId, deletedAt: null, id: { in: ids } },
+      data: { ...data, version: { increment: 1 } },
+    })
+    return { data: { updated: result.count } }
+  }
+
+  private listWhere(workspaceId: string, opts: ContactListOpts, timezone: string): Prisma.ContactWhereInput {
     const q = opts.q?.trim()
-    const where: Prisma.ContactWhereInput = {
+    const { start, end } = localDayBounds(timezone)
+    const focusWhere: Prisma.ContactWhereInput =
+      opts.focus === 'unassigned'
+        ? { ownerMemberId: null }
+        : opts.focus === 'due'
+          ? {
+              nextFollowUp: { gte: start, lt: end },
+              leadStatus: { notIn: ['customer', 'lost'] },
+            }
+          : opts.focus === 'overdue'
+            ? {
+                nextFollowUp: { lt: start },
+                leadStatus: { notIn: ['customer', 'lost'] },
+              }
+            : {}
+    return {
       workspaceId,
       deletedAt: null,
       status: opts.status ?? 'active',
+      ...(opts.leadStatus ? { leadStatus: opts.leadStatus } : {}),
       ...(opts.ownerMemberId ? { ownerMemberId: opts.ownerMemberId } : {}),
       ...(opts.tagId ? { tags: { some: { tagId: opts.tagId } } } : {}),
       ...(opts.accountId ? { accounts: { some: { accountId: opts.accountId, endedAt: null } } } : {}),
       ...(q ? { OR: [{ displayName: { contains: q } }, { points: { some: { normalized: { startsWith: q.toLowerCase() } } } }] } : {}),
+      ...focusWhere,
     }
-    if (cursor) {
-      if (typeof cursor.n !== 'string' || typeof cursor.id !== 'string') throw badRequest('Invalid cursor')
-      where.AND = [{ OR: [{ displayName: { gt: cursor.n } }, { displayName: cursor.n, id: { gt: cursor.id } }] }]
+  }
+
+  private orderBy(sort: ContactSort, dir: 'asc' | 'desc'): Prisma.ContactOrderByWithRelationInput[] {
+    const tip = dir === 'desc' ? ('desc' as const) : ('asc' as const)
+    if (sort === 'followUp') return [{ nextFollowUp: tip }, { id: tip }]
+    if (sort === 'updated') return [{ updatedAt: tip }, { id: tip }]
+    if (sort === 'activity') return [{ lastActivityAt: tip }, { id: tip }]
+    return [{ displayName: tip }, { id: tip }]
+  }
+
+  private sortValue(row: { displayName: string; nextFollowUp: Date | null; updatedAt: Date; lastActivityAt: Date | null }, sort: ContactSort) {
+    if (sort === 'followUp') return row.nextFollowUp?.toISOString() ?? null
+    if (sort === 'updated') return row.updatedAt.toISOString()
+    if (sort === 'activity') return row.lastActivityAt?.toISOString() ?? null
+    return row.displayName
+  }
+
+  private cursorClause(
+    sort: ContactSort,
+    dir: 'asc' | 'desc',
+    cursor: { v: string | null; id: string },
+  ): Prisma.ContactWhereInput {
+    const gt = dir === 'asc'
+    const field =
+      sort === 'followUp' ? 'nextFollowUp' : sort === 'updated' ? 'updatedAt' : sort === 'activity' ? 'lastActivityAt' : 'displayName'
+    if (cursor.v === null) {
+      return {
+        OR: [
+          { [field]: null, id: gt ? { gt: cursor.id } : { lt: cursor.id } },
+          ...(gt ? [] : [{ [field]: { not: null } }]),
+        ],
+      }
     }
-    const rows = await db.contact.findMany({ where, include: contactInclude, orderBy: [{ displayName: 'asc' }, { id: 'asc' }], take: limit + 1 })
-    const result = page(rows, limit, (last) => encodeKeyCursor({ n: last.displayName, id: last.id }))
-    return { data: result.data.map(toContact), meta: result.meta }
+    const value = sort === 'name' ? cursor.v : new Date(cursor.v)
+    return {
+      OR: [
+        { [field]: gt ? { gt: value } : { lt: value } },
+        { [field]: value, id: gt ? { gt: cursor.id } : { lt: cursor.id } },
+      ],
+    }
   }
 
   // A merged contact resolves to the contact it was merged into (old links keep working).

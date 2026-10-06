@@ -4,7 +4,8 @@ import { afterEach } from 'vitest'
 // Clean between tests — children before parents for FK constraints.
 afterEach(async () => {
   // Workspaces (doc/09) before users: Workspace.createdBy restricts user deletes.
-  // Chatbot host + company profile (doc/12): before members (setBy/member FKs).
+  // Chatbot host + company profile (doc/12), proposals (doc/13): before members.
+  await db.agentProposal.deleteMany()
   await db.companyProfileRevision.deleteMany()
   await db.companyFact.deleteMany()
   await db.companyScalarSource.deleteMany()

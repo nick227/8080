@@ -39,7 +39,18 @@ const ws = (workspaceId: string) => ({ workspaceId })
 
 // ─── contacts ────────────────────────────────────────────────────────────────
 
-export type ContactListParams = { q?: string; leadStatus?: LeadStatus; ownerMemberId?: string; tagId?: string; accountId?: string; status?: RecordStatus; limit?: number }
+export type ContactListParams = {
+  q?: string
+  leadStatus?: LeadStatus
+  ownerMemberId?: string
+  tagId?: string
+  accountId?: string
+  status?: RecordStatus
+  focus?: 'due' | 'overdue' | 'unassigned'
+  sort?: 'name' | 'followUp' | 'updated' | 'activity'
+  dir?: 'asc' | 'desc'
+  limit?: number
+}
 
 export function useContacts(workspaceId: string | undefined, params: ContactListParams = {}) {
   return useInfiniteQuery({
@@ -50,6 +61,21 @@ export function useContacts(workspaceId: string | undefined, params: ContactList
       unwrap(await getApiClient().GET('/workspaces/{workspaceId}/contacts', { params: { path: ws(workspaceId!), query: { ...params, cursor: pageParam } } })),
     getNextPageParam: (last) => last.meta.nextCursor ?? undefined,
   })
+}
+
+export function useContactCounts(workspaceId: string | undefined) {
+  return useQuery({
+    queryKey: keys.contactCounts(workspaceId ?? ''),
+    enabled: !!workspaceId,
+    queryFn: async () =>
+      unwrap(await getApiClient().GET('/workspaces/{workspaceId}/contacts/counts', { params: { path: ws(workspaceId!) } })).data,
+  })
+}
+
+export function useBulkUpdateContacts(workspaceId: string) {
+  return useWorkspaceWrite(workspaceId, async (body: { ids: string[]; action: 'archive' | 'restore' | 'setStage'; leadStatus?: LeadStatus }) =>
+    unwrap(await getApiClient().POST('/workspaces/{workspaceId}/contacts/bulk', { params: { path: ws(workspaceId) }, body })).data,
+  )
 }
 
 /** A merged contact resolves to its survivor — compare `data.id` with the id you asked for. */

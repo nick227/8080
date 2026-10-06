@@ -20,10 +20,13 @@ export const keys = {
   // Contacts & co. live under the workspace, so one invalidation of ['workspaces', id]
   // refreshes records, timelines and the activity feed together.
   contacts: (workspaceId: string, params?: object) => ['workspaces', workspaceId, 'contacts', 'list', params ?? {}] as const,
+  contactCounts: (workspaceId: string) => ['workspaces', workspaceId, 'contacts', 'counts'] as const,
   contact: (workspaceId: string, contactId: string) => ['workspaces', workspaceId, 'contacts', contactId] as const,
   inventory: (workspaceId: string, params?: object) => ['workspaces', workspaceId, 'inventory', 'list', params ?? {}] as const,
+  inventoryCounts: (workspaceId: string) => ['workspaces', workspaceId, 'inventory', 'counts'] as const,
   inventoryItem: (workspaceId: string, inventoryId: string) => ['workspaces', workspaceId, 'inventory', inventoryId] as const,
   interests: (workspaceId: string, contactId: string) => ['workspaces', workspaceId, 'contacts', contactId, 'interests'] as const,
+  itemInterests: (workspaceId: string, inventoryId: string) => ['workspaces', workspaceId, 'inventory', inventoryId, 'interests'] as const,
   accounts: (workspaceId: string, params?: object) => ['workspaces', workspaceId, 'accounts', 'list', params ?? {}] as const,
   account: (workspaceId: string, accountId: string) => ['workspaces', workspaceId, 'accounts', accountId] as const,
   timeline: (workspaceId: string, subject: string) => ['workspaces', workspaceId, 'timeline', subject] as const,

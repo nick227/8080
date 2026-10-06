@@ -36,6 +36,23 @@ const email = (value: string, extra: object = {}) => ({ kind: 'email', value, ..
 const timelineTypes = async (url: string, as = testUserId) => (await call(as, 'GET', url)).json().data.map((a: any) => a.type)
 
 describe('contacts', () => {
+  it('filters lead stages before pagination and keeps lifecycle filtering independent', async () => {
+    const { base } = await setup()
+    await contact(base, { displayName: 'A new lead', leadStatus: 'new' })
+    const first = await contact(base, { displayName: 'B qualified', leadStatus: 'qualified' })
+    const second = await contact(base, { displayName: 'C qualified', leadStatus: 'qualified' })
+    const archived = await contact(base, { displayName: 'D archived', leadStatus: 'qualified', status: 'archived' })
+    const page = await call(testUserId, 'GET', `${base}/contacts?leadStatus=qualified&limit=1`)
+    expect(page.statusCode).toBe(200)
+    expect(page.json().data.map((row: any) => row.id)).toEqual([first.data.id])
+    const next = await call(testUserId, 'GET', `${base}/contacts?leadStatus=qualified&limit=1&cursor=${encodeURIComponent(page.json().meta.nextCursor)}`)
+    expect(next.json().data.map((row: any) => row.id)).toEqual([second.data.id])
+    expect(next.json().meta.nextCursor).toBeNull()
+    const archive = await call(testUserId, 'GET', `${base}/contacts?leadStatus=qualified&status=archived`)
+    expect(archive.json().data.map((row: any) => row.id)).toEqual([archived.data.id])
+    expect((await call(testUserId, 'GET', `${base}/contacts?leadStatus=invalid`)).statusCode).toBe(400)
+  })
+
   it('creates a contact: derived name and primaries, normalised points, role addresses shared, audit + timeline', async () => {
     const { base } = await setup()
     const res = await call(testUserId, 'POST', base + '/contacts', {

@@ -7,6 +7,14 @@ export async function listInventory(request: any, reply: any) {
   return reply.send(await inventory.list(request.user.id, request.params.workspaceId, request.query))
 }
 
+export async function countInventory(request: any, reply: any) {
+  return reply.send(await inventory.counts(request.user.id, request.params.workspaceId))
+}
+
+export async function bulkUpdateInventory(request: any, reply: any) {
+  return reply.send(await inventory.bulk(request.user.id, request.params.workspaceId, request.body))
+}
+
 export async function createInventoryItem(request: any, reply: any) {
   return reply.status(201).send({ data: await inventory.create(request.user.id, request.params.workspaceId, request.body) })
 }
@@ -41,4 +49,9 @@ export async function removeContactInterest(request: any, reply: any) {
   const { workspaceId, contactId, inventoryId } = request.params
   await inventory.removeInterest(request.user.id, workspaceId, contactId, inventoryId)
   return reply.send({ data: null })
+}
+
+export async function listInventoryInterests(request: any, reply: any) {
+  const { workspaceId, inventoryId } = request.params
+  return reply.send(await inventory.listItemInterests(request.user.id, workspaceId, inventoryId))
 }

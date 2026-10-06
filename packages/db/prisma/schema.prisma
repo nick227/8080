@@ -191,6 +191,7 @@ model Item {
   replies   Item[]     @relation("ItemReplies")
   reactions Reaction[]
   links      RecordLink[]
+  proposals  AgentProposal[]
   activities Activity[]
   activityEvents ActivityEvent[]
 
@@ -541,6 +542,7 @@ model Workspace {
   companySources   CompanyScalarSource[]
   companyRevisions CompanyProfileRevision[]
   assistantCalls   AssistantCall[]
+  proposals        AgentProposal[]
 
   @@index([createdById])
 }
@@ -584,6 +586,8 @@ model WorkspaceMember {
   workflowRuns    WorkflowRun[]
   companyFacts    CompanyFact[]
   companySources  CompanyScalarSource[]
+  proposalsMade    AgentProposal[] @relation("ProposalCreator")
+  proposalsDecided AgentProposal[] @relation("ProposalDecider")
 
   @@unique([workspaceId, userId])
   @@index([userId, status])
@@ -1590,4 +1594,53 @@ model AssistantCall {
 
   @@index([workspaceId, at])
   @@index([at])
+}
+
+// ─── agent proposals (doc/13 §5) ──────────────────────────────────────────────
+
+enum AgentProposalStatus {
+  pending
+  applied
+  dismissed
+  expired // the target changed underneath it, or it timed out
+  undone
+}
+
+// A typed change the agent (or a person, through the agent) proposes to one record.
+// `kind` selects a registered server-side handler; `proposedChange` is data that
+// handler validates — never permission to mutate anything else. Chat and the record
+// page render this same row.
+model AgentProposal {
+  id                String              @id @default(cuid())
+  workspaceId       String
+  kind              String              @db.VarChar(64)
+  targetType        String              @db.VarChar(32)
+  targetId          String              @db.VarChar(64)
+  // The target's version (or revision) the proposal was made against.
+  baseVersion       Int
+  proposedChange    Json
+  // Frozen before/after rows for display, computed by the handler at proposal time.
+  diff              Json
+  evidence          Json?
+  // The chat line that renders it (its placement), if any.
+  itemId            String?
+  createdByMemberId String
+  createdAt         DateTime            @default(now())
+  expiresAt         DateTime
+  status            AgentProposalStatus @default(pending)
+  decidedAt         DateTime?
+  decidedByMemberId String?
+  // The target version Apply produced; Undo only runs while the target is still there.
+  resultVersion     Int?
+  undoData          Json?
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy WorkspaceMember @relation("ProposalCreator", fields: [createdByMemberId], references: [id])
+  decidedBy WorkspaceMember? @relation("ProposalDecider", fields: [decidedByMemberId], references: [id])
+  item      Item?           @relation(fields: [itemId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, targetType, targetId, status])
+  @@index([itemId])
+  @@index([createdByMemberId])
+  @@index([decidedByMemberId])
 }

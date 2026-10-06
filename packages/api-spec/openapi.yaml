@@ -1230,6 +1230,161 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /workspaces/{workspaceId}/proposals:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listProposals
+      summary: Proposals on a record (doc/13 §5), newest first
+      tags: [proposals]
+      parameters:
+        - { in: query, name: targetType, schema: { type: string, maxLength: 32 } }
+        - { in: query, name: targetId, schema: { type: string, maxLength: 64 } }
+        - { in: query, name: status, schema: { type: string, enum: [pending, applied, dismissed, expired, undone] } }
+      responses:
+        '200':
+          description: Up to 50, each with its status brought up to date
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProposalList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createProposal
+      summary: Propose a typed change to one record; posts it as a card in the workspace channel
+      description: |
+        `kind` selects a registered server-side handler that validates `change`, checks
+        permissions and the record's version. Proposing needs read access; applying is
+        the kind's own rule (e.g. owners/admins for the company profile).
+      tags: [proposals]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateProposalInput' }
+      responses:
+        '201':
+          description: The pending proposal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProposalResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/proposals/{proposalId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ProposalId'
+    get:
+      operationId: getProposal
+      summary: One proposal, status brought up to date
+      tags: [proposals]
+      responses:
+        '200':
+          description: The proposal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProposalResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/proposals/{proposalId}/apply:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ProposalId'
+    post:
+      operationId: applyProposal
+      summary: Apply it (idempotent); 409 PROPOSAL_EXPIRED if the record changed since
+      tags: [proposals]
+      responses:
+        '200':
+          description: The applied proposal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProposalResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /workspaces/{workspaceId}/proposals/{proposalId}/dismiss:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ProposalId'
+    post:
+      operationId: dismissProposal
+      summary: Not now
+      tags: [proposals]
+      responses:
+        '200':
+          description: The dismissed proposal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProposalResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /workspaces/{workspaceId}/proposals/{proposalId}/undo:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ProposalId'
+    post:
+      operationId: undoProposal
+      summary: Undo an applied proposal; 409 PROPOSAL_UNDO_STALE if the record changed since (newer work is never reversed)
+      tags: [proposals]
+      responses:
+        '200':
+          description: The undone proposal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProposalResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /workspaces/{workspaceId}/proposals/{proposalId}/revert:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ProposalId'
+    post:
+      operationId: revertProposal
+      summary: Propose putting back what an applied proposal replaced, against the record as it is now
+      tags: [proposals]
+      responses:
+        '201':
+          description: The new, corrective proposal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProposalResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /workspaces/{workspaceId}/proposals/{proposalId}/refresh:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ProposalId'
+    post:
+      operationId: refreshProposal
+      summary: Propose an expired change again, against the record as it is now
+      tags: [proposals]
+      responses:
+        '201':
+          description: The new proposal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProposalResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /workspaces/{workspaceId}/channel:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -1506,6 +1661,16 @@ paths:
         - in: query
           name: leadStatus
           schema: { $ref: '#/components/schemas/LeadStatus' }
+        - in: query
+          name: focus
+          description: Working view over active contacts (due = follow-up today; overdue excludes customer/lost)
+          schema: { type: string, enum: [due, overdue, unassigned] }
+        - in: query
+          name: sort
+          schema: { type: string, enum: [name, followUp, updated, activity], default: name }
+        - in: query
+          name: dir
+          schema: { type: string, enum: [asc, desc], default: asc }
       responses:
         '200':
           description: OK
@@ -1534,6 +1699,45 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CreatedContactResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/contacts/counts:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: countContacts
+      summary: Working-view counts for contacts
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactCountsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/contacts/bulk:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: bulkUpdateContacts
+      summary: Update selected contacts
+      description: Explicit selected ids only (at most 50). Does not imply every matching record.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BulkContactsInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BulkUpdateResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -1797,6 +2001,16 @@ paths:
         - in: query
           name: status
           schema: { $ref: '#/components/schemas/RecordStatus' }
+        - in: query
+          name: focus
+          description: Working view over active items (out = tracked quantity zero)
+          schema: { type: string, enum: [offered, paused, out] }
+        - in: query
+          name: sort
+          schema: { type: string, enum: [name, price, updated, quantity], default: name }
+        - in: query
+          name: dir
+          schema: { type: string, enum: [asc, desc], default: asc }
       responses:
         '200':
           description: OK
@@ -1829,6 +2043,45 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/inventory/counts:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: countInventory
+      summary: Working-view counts for inventory
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryCountsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/inventory/bulk:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: bulkUpdateInventory
+      summary: Update selected inventory items
+      description: Explicit selected ids only (at most 50).
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BulkInventoryInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BulkUpdateResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /workspaces/{workspaceId}/inventory/{inventoryId}:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -1877,6 +2130,23 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/inventory/{inventoryId}/interests:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/InventoryId'
+    get:
+      operationId: listInventoryInterests
+      summary: Contacts interested in this item
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ItemInterestList' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -3590,6 +3860,11 @@ components:
       name: workspaceId
       required: true
       schema: { type: string, minLength: 1, maxLength: 64 }
+    ProposalId:
+      in: path
+      name: proposalId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
     MemberId:
       in: path
       name: memberId
@@ -3701,6 +3976,7 @@ components:
         changeCursor: { type: string, description: Durable room change sequence for item pages }
         hasMore: { type: boolean }
         nextCursor: { type: [string, 'null'] }
+        total: { type: integer, minimum: 0, description: Full filtered count when the list endpoint provides it }
 
     # ─── users ───────────────────────────────────────────────────────────────
     UserKind:
@@ -4018,6 +4294,54 @@ components:
           items: { $ref: '#/components/schemas/MessageLink' }
         createdAt: { type: string, format: date-time }
 
+    ProposalDiffRow:
+      type: object
+      required: [label, before, after]
+      properties:
+        label: { type: string }
+        before: { type: string, description: Empty when there was nothing }
+        after: { type: string }
+
+    Proposal:
+      type: object
+      description: A typed change to one record, applied only on a click (doc/13 §5). Chat and record pages render this same object.
+      required: [id, kind, targetType, targetId, status, title, diff, baseVersion, createdAt, expiresAt, decidedAt, decidedBy, requires]
+      properties:
+        id: { type: string }
+        kind: { type: string, description: 'Registered handler, e.g. company-profile.fact' }
+        targetType: { type: string }
+        targetId: { type: string }
+        status: { type: string, enum: [pending, applied, dismissed, expired, undone] }
+        title: { type: string }
+        diff: { type: array, items: { $ref: '#/components/schemas/ProposalDiffRow' } }
+        baseVersion: { type: integer, description: The record version it was proposed against }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        decidedAt: { type: [string, 'null'], format: date-time }
+        decidedBy: { type: [string, 'null'], description: 'Who applied, dismissed or undid it' }
+        requires: { type: string, enum: [admin, member], description: Who may apply it (the server still decides) }
+
+    ProposalResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Proposal' }
+
+    ProposalList:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Proposal' } }
+
+    CreateProposalInput:
+      type: object
+      additionalProperties: false
+      required: [kind, targetId, change]
+      properties:
+        kind: { type: string, minLength: 1, maxLength: 64 }
+        targetId: { type: string, minLength: 1, maxLength: 64 }
+        change: { type: object, description: The kind's payload; validated by its handler }
+
     MessageLink:
       type: object
       required: [type, id, workspaceId, title]
@@ -4111,7 +4435,7 @@ components:
       description: |
         Placement of a Message inside one room. The same Message can be placed in many
         rooms (share); each placement has its own number, thread position and reactions.
-      required: [id, roomId, messageId, number, parentId, anchorStartMs, chat, message, reactions, createdAt, deletedAt]
+      required: [id, roomId, messageId, number, parentId, anchorStartMs, chat, message, proposal, reactions, createdAt, deletedAt]
       properties:
         id: { type: string }
         roomId: { type: string }
@@ -4125,6 +4449,11 @@ components:
         chat:
           type: boolean
           description: Posted from the room chat. These stay in the chat and are not played on the stage.
+        proposal:
+          description: The proposal this line renders as a card (live state), or null.
+          oneOf:
+            - $ref: '#/components/schemas/Proposal'
+            - type: 'null'
         message: { $ref: '#/components/schemas/Message' }
         reactions:
           type: array
@@ -4872,6 +5201,91 @@ components:
         data:
           type: array
           items: { $ref: '#/components/schemas/Interest' }
+
+    ItemInterest:
+      type: object
+      required: [id, inventoryId, createdAt, contact]
+      properties:
+        id: { type: string }
+        inventoryId: { type: string }
+        createdAt: { type: string, format: date-time }
+        contact: { $ref: '#/components/schemas/ContactRef' }
+
+    ItemInterestList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ItemInterest' }
+
+    ContactCounts:
+      type: object
+      required: [all, due, overdue, unassigned, archived]
+      properties:
+        all: { type: integer, minimum: 0 }
+        due: { type: integer, minimum: 0 }
+        overdue: { type: integer, minimum: 0 }
+        unassigned: { type: integer, minimum: 0 }
+        archived: { type: integer, minimum: 0 }
+
+    ContactCountsResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ContactCounts' }
+
+    InventoryCounts:
+      type: object
+      required: [all, offered, paused, outOfStock, archived]
+      properties:
+        all: { type: integer, minimum: 0 }
+        offered: { type: integer, minimum: 0 }
+        paused: { type: integer, minimum: 0 }
+        outOfStock: { type: integer, minimum: 0 }
+        archived: { type: integer, minimum: 0 }
+
+    InventoryCountsResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/InventoryCounts' }
+
+    BulkContactsInput:
+      type: object
+      additionalProperties: false
+      required: [ids, action]
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { type: string, minLength: 1, maxLength: 64 }
+        action: { type: string, enum: [archive, restore, setStage] }
+        leadStatus: { $ref: '#/components/schemas/LeadStatus' }
+
+    BulkInventoryInput:
+      type: object
+      additionalProperties: false
+      required: [ids, action]
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { type: string, minLength: 1, maxLength: 64 }
+        action: { type: string, enum: [archive, restore, setAvailability] }
+        availability: { type: boolean }
+
+    BulkUpdateResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [updated]
+          properties:
+            updated: { type: integer, minimum: 0 }
 
     AddInterestInput:
       type: object

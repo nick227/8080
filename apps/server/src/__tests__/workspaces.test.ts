@@ -110,6 +110,7 @@ function sampleBody(op: any) {
     MergeContactsInput: { mergeContactId: 'x' },
     CreateInventoryInput: { name: 'x' },
     UpdateInventoryInput: { expectedVersion: 1, name: 'x' },
+    CreateProposalInput: { kind: 'company-profile.fact', targetId: 'x', change: {} },
     AddInterestInput: { inventoryId: 'x' },
     CreateTagInput: { name: 'x' },
     ShareMessageInput: { roomIds: ['x'] },
