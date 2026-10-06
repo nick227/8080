@@ -43,9 +43,10 @@ export class ComposeService {
         const created = await tx.compose.create({
           data: { workspaceId, authorMemberId: actor.member.id, ...stored },
         })
+        // Keep the action target on the contact (announce + idempotency). The
+        // compose row id lives in result.
         return {
           value: serialize(created),
-          targetId: created.id,
           result: { id: created.id },
           activities: [{ type: 'compose.recorded', summary: { channel: 'email', destination, subject, composeId: created.id }, subjects: [{ contactId: input.contactId }] }],
           notice: { title: `Follow-up: ${subject}`, summary: destination },
