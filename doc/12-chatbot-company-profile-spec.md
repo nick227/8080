@@ -1,6 +1,6 @@
 # 12 — Chatbot: guided workflows and the company profile
 
-**Status:** Design, recorded 2026-10-05. Slice A (bot message choices) committed 6461653 + 5dc9615 (§4.3). Slice B (channel, workflow, profile, template document; AI off) built 2026-10-05, uncommitted (§6.5). Slices C–D not built.
+**Status:** Design, recorded 2026-10-05. Slice A (bot message choices) committed 6461653 + 5dc9615 (§4.3). Slice B (channel, workflow, profile, template document; AI off) committed 838fe19 (§6.5), on the shared-content POC cb3fd61. Slices C–D not built.
 **Supersedes:** doc/08 §4.9 "observational only" (replaced by §2 below).
 **Builds on:** doc/08 (bot runtime, rails, ItemService posting), doc/09 (Workspace, `runAction`, policy), doc/10 (block documents, `DocumentContent`, room links).
 
@@ -226,10 +226,11 @@ When the channel is opened with no active run:
 - **Message links:** `Message.links` (`[{ type: 'document', id, workspaceId, title }]`, server-only).
   - Web: `ChatStream` renders a "Document · title" line. `Room.openDocument` refreshes the list, opens the document and switches to Documents.
   - chatbot's tile shows **Channel** (`features/room/hostChannel.tsx`, context from Room). It opens the channel of the person's first workspace.
-- **Depends on the uncommitted shared-content POC** (doc/10 §15: `DocumentContentService`, `documentHub`, `GET …/content`). That POC must be committed first.
+- **Depends on the shared-content POC** (doc/10 §15, committed cb3fd61 on its own: `DocumentContentService`, `documentHub`, `GET …/content`).
+- **Known gap:** the generated document is owned by the creator, and plain members only see documents they own or were granted (doc/10 policy). So other members see the link in the channel but can't open the document until it's shared. Decide whether workflow documents are shared with the workspace.
 - **Proof:**
   - server `host.test.ts` 14/14; full suite 422/422.
-  - browser (scratchpad `e2e/host.cjs`, isolated pair :3002/:5174, TEST DB; creator + invited member + guest; desktop + mobile) 28/28 ×2. `choices.cjs` 24/24 still passes.
+  - browser (scratchpad `e2e/host.cjs`, isolated pair :3002/:5174, TEST DB; creator + invited member + guest; desktop + mobile) 28/28 ×2. `choices.cjs` 26/26 (incl. the choices.css fallbacks) and `doclive.cjs` 6/6. All ×2, from a clean checkout of the committed tree.
 
 ## 7. AI calls
 
