@@ -324,6 +324,8 @@ Parked: D4 follow-up / email, D5 qualification, D6 matching as a stand-alone fea
 
 **AI gets language and ambiguity. Code gets identity, state, math and execution.**
 
+**AI chooses only among bounded, product-defined options. Code owns the structure, math, state and side effects** (user, 2026-10-06). The app already knows each artifact's shape. Separate inputs keep separate owners, and the AI is never asked to design the artifact.
+
 - The model never gets raw workspace dumps. It never generates or reasons about our IDs, and never produces SQL, permissions, totals, timestamps, versions or mutation state.
 - Each call does one job. Code narrows the candidates before the model sees them, and the model returns small structured output.
 - Composition calls get curated evidence packs, never whole records or history.
@@ -381,4 +383,37 @@ Parked: D4 follow-up / email, D5 qualification, D6 matching as a stand-alone fea
   - a "Create spreadsheet" entry in the Documents New menu (the user-facing action instead of the chat shortcut `sheet`; the UI owner is editing that header now)
   - a Sales model (A4)
   - workspace currency on new money columns (uses an existing money column's currency, else USD)
+
+### 12.7 A3 as built: monthly marketing budget (2026-10-06)
+
+Deliberately boring. Each of the four inputs has its own owner:
+
+| Input | Owner | How |
+|---|---|---|
+| Business type | company profile, else the person's words | profile `purpose`; otherwise typed (≤120 chars). Never decided by AI |
+| Monthly budget | the person, parsed by code | typed amount → `parseCell` money → minor units in the workspace currency. AI never sees it |
+| Goal | a button | awareness · leads · sales · retention ("Keep customers") · launch |
+| Priorities | buttons (multi) | 0–3 of 7 fixed channels: paid search, paid social, email, content and SEO, local and print, events, referrals and partners |
+
+- **Code** (`services/marketingBudget.ts`):
+  - a written-down split per goal
+  - +10 points per priority, taken proportionally from the others
+  - largest-remainder rounding: whole percents summing to 100, and amounts summing exactly to the budget; 0% channels are left out
+  - the typed sheet: Channel · Share (%) [Σ] · Per month (money) [Σ] · What it pays for
+  - storage, provenance (the inputs and the source of each), private by default; workspace-visible from the channel
+- **AI** (`budget.notes`, compose, 600/400 tokens): one short note per channel.
+  - It gets the business type, goal label, priority labels and channel names, and **no numbers**.
+  - Notes with digits, for unknown channels or duplicates are dropped and replaced with template notes. The AI-off baseline uses the templates.
+  - Real model: about 215 tokens in and 136 out, 14/14 notes usable.
+- **Entry points:**
+  - channel `budget` → business (if the profile has none) → amount → goal → priorities → "I'd make a monthly budget: …" [Make the budget] [Cancel]
+  - `POST /workspaces/{id}/budgets`
+- `getDocumentRecipe` returns the budget's recipe (`stale: false`, since there are no records to re-run), so the sheet shows what it was made from.
+- **Tests:**
+  - server `budget.test.ts` 8/8 (the split over every goal × priority mix × amount; the API; the AI seeing no digits; the full channel conversation); full suite 587/587
+  - **no new browser run**: the flow uses the existing choice buttons (including multi-select) and the A2 sheet editor
+- **Not yet:**
+  - typed free text for goal or priorities mapped by AI to the fixed lists (the buttons cover it)
+  - several months as columns
+  - a short budget note document beside the sheet
 
