@@ -1,6 +1,6 @@
 # 13 — The agent: what it does, how it decides, what it needs
 
-**Status:** Plan, recorded 2026-10-06. D0–D3 built and committed (§9–§11). Builds on doc/12 (chatbot host, company profile, assistant, voice), doc/09 (Workspace, `runAction`, policy), doc/10 (documents), and the Contacts and Inventory foundations.
+**Status:** Plan, recorded 2026-10-06. D0–D3 built and committed (§9–§11). **Direction changed 2026-10-06 (§12): generated artifacts in our own document types come next. Email and follow-up are parked.** Builds on doc/12 (chatbot host, company profile, assistant, voice), doc/09 (Workspace, `runAction`, policy), doc/10 (documents), and the Contacts and Inventory foundations.
 
 Why would a small business use this every day instead of asking a chat model to write things? Because the agent knows the company, the customer, what the business sells and what happened, and it can move the business record forward. Writing documents is one output among several, not the point.
 
@@ -234,3 +234,57 @@ Read-only intelligence: open a contact, press **Brief me**, and a grounded brief
   - suite 547/547
   - browser `e2e/brief.cjs`: AI off 16/16, real model 18/18 (desktop + mobile)
 - **Next, as buttons off the brief:** [Draft follow-up] (D4), [Schedule], [Qualify] (D5). The brief stays the read-only primitive they start from.
+
+## 12. Next direction: artifacts from Contacts, Inventory and Sales (2026-10-06)
+
+The user's call: the agent should produce **documents we support** (block documents, spreadsheets, maps) from CRM and inventory data. These should be genuinely useful exported artifacts, not more conversation features. There is no inbound or outbound email yet, so D4 (follow-up draft) and anything mail-shaped is **parked** until real use cases exist. D5 qualification and D8 change detection wait behind this track. D7 (quote) becomes an artifact here (A5).
+
+### 12.1 One pattern for every artifact
+
+```
+ask → typed spec (buttons, or the model filling a whitelisted spec) → data by code (queries,
+under the viewer's permissions) → figures by code (counts, totals, splits) → words by the model
+(only where words are the product; grounded, WRITING_RULES) → a native document → link in the channel
+```
+
+- **Numbers never come from the model.** Every table, total and percentage is computed by code from records or from the person's inputs. The model writes prose around them and may *propose* inputs (e.g. a budget split), which the person confirms with buttons.
+- **Every artifact records its recipe** in `provenance`: generator, spec, query, as-of time and a hash of the data it read. That is enough to show "the data changed since" (the D3 stale pattern) and to offer **Regenerate from current data** as a new version, never a silent overwrite.
+- **Audience** follows the document audience rule: a workspace workflow's artifact is workspace-visible.
+- **Weight matches the job:** trivial asks use no model at all, medium asks one or two calls, heavy jobs run in sections in the background with progress.
+
+### 12.2 Three weights (the user's examples)
+
+| Weight | Example | Model | Output |
+|---|---|---|---|
+| **Trivial** | "Contacts to follow up this week", "leads by stage", "inventory under 5 in stock" as a spreadsheet | None for presets; optional for turning a sentence into a whitelisted query | Live dataset view (refreshes itself) or a snapshot sheet |
+| **Medium** | A monthly marketing budget | One call: proposes channels and a split from the profile and offerings; the person confirms totals with buttons | A typed sheet (months × channels, totals by code) + a short block note on the reasoning |
+| **Heavy** | A business plan | Sectioned: one grounded call per section, bounded, resumable | A block document with linked sheets (pipeline, inventory value, budget) and an outline map |
+
+Also from CRM context: **a customer document**, a proposal or quote for one contact. It's built from the D3 evidence pack + the company profile + the chosen inventory items: a block narrative plus a priced sheet computed by code.
+
+### 12.3 Foundations this needs
+
+- **F1 Typed, server-stored native sheets.** Versioned content like `DocumentContent` (a save refused if someone saved first; live). Typed cells (`text | number | currency | percent | date`) and an optional computed totals row. Generators write it; the grid editor loads and saves it (coordinate with the UI owner).
+- **F2 An Inventory dataset view,** alongside Contacts: `InventoryQuery` with whitelisted fields and filters (name, SKU, category, price, quantity, availability, status; quantity/price ranges; category). Live views and snapshots both use it.
+- **F3 Artifact generators:** a small registry: `{ kind, spec schema, gather(viewer), compute(), compose?(model), surface }`, provenance and Regenerate. Presets register as specs.
+- **F4 Money:** `Inventory.price` → integer minor units + currency (the workspace has `defaultCurrency`). Needed before budgets, quotes and financial tables.
+- **F5 Sales:** decide the Deal model (contact/account, stage, amount, currency, expected close, line items). Until then, "pipeline" means contacts by lead status. Needed for real pipeline sheets and plan financials.
+- **F6 Server-stored maps** (versioned nodes/edges), for outline and account maps. Last: the first artifacts don't need them.
+
+### 12.4 Proposed order
+
+1. **A1 Query → spreadsheet.**
+   - F2 (Inventory dataset view)
+   - "Save as sheet": a snapshot of any Contacts or Inventory view
+   - Presets as buttons ("Follow up this week", "Leads by stage", "Low stock")
+   - Optional: a sentence → a whitelisted query, which the person sees before it runs
+
+   Trivial and almost all deterministic. It proves the recipe/provenance/Regenerate pattern on the cheapest case.
+2. **A2 Typed native sheets (F1)**, so snapshots and generated sheets are editable and numeric.
+3. **A3 Monthly marketing budget:** inputs by buttons (total, months, channels), a proposed split from the profile, totals by code, a sheet + a one-page note.
+4. **A4 Money (F4) + the Deal decision (F5).**
+5. **A5 Customer document:** a proposal/quote for one contact (brief + profile + chosen items → narrative + priced sheet).
+6. **A6 Business plan:** sectioned, background, grounded, with linked sheets.
+7. **A7 Maps (F6):** plan outline and account map.
+
+Parked: D4 follow-up / email, D5 qualification, D6 matching as a stand-alone feature (it returns inside A5), D8 change detection.
