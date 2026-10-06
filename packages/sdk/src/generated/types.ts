@@ -888,6 +888,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/crm/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Turn a messy business note into one proposed CRM change (doc/13 §10)
+         * @description Start with `text`. The note is read (grounded in its own words), matched against
+         *     contacts and accounts, and planned. Results: `proposed` (a crm.note proposal, its
+         *     card posted in the channel), `ambiguous` (send `draftId` with `contactId` or
+         *     `accountId` — an id, `new`, or for the company `none`), or `needs-person`
+         *     (send `draftId` with `about`: who it is about).
+         */
+        post: operations["addCrmNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/proposals/{proposalId}": {
         parameters: {
             query?: never;
@@ -900,7 +926,8 @@ export interface paths {
         };
         /** One proposal, status brought up to date */
         get: operations["getProposal"];
-        put?: never;
+        /** Edit a pending proposal before Apply (kinds that allow it); re-validated by its handler */
+        put: operations["editProposal"];
         post?: never;
         delete?: never;
         options?: never;
@@ -3009,6 +3036,12 @@ export interface components {
             /** @description Empty when there was nothing */
             before: string;
             after: string;
+            /** @description Present when the row can be edited (editProposal) under this name */
+            key?: string;
+            /** @description The raw value to edit (e.g. 2026-10-09 for Fri, Oct 9) */
+            value?: string;
+            /** @description The source's own words this row came from (doc/13 §10 rule 10) */
+            quote?: string;
         };
         /** @description A typed change to one record, applied only on a click (doc/13 §5). Chat and record pages render this same object. */
         Proposal: {
@@ -3036,12 +3069,48 @@ export interface components {
              * @enum {string}
              */
             requires: "admin" | "member";
+            /** @description Its kind can be edited before Apply */
+            editable: boolean;
+            /** @description Its kind can propose putting an applied change back */
+            revertible: boolean;
         };
         ProposalResponse: {
             data: components["schemas"]["Proposal"];
         };
         ProposalList: {
             data: components["schemas"]["Proposal"][];
+        };
+        EditProposalInput: {
+            /** @description Row key → new value, e.g. { "name": "Sarah Lee", "followUp": "2026-10-09" } */
+            edits: {
+                [key: string]: string;
+            };
+        };
+        AddCrmNoteInput: {
+            /** @description The note, kept verbatim */
+            text?: string;
+            draftId?: string;
+            /** @description Who the note is about (when asked) */
+            about?: string;
+            /** @description A candidate id, or new */
+            contactId?: string;
+            /** @description A candidate id, new, or none */
+            accountId?: string;
+        };
+        CrmNoteCandidate: {
+            id: string;
+            label: string;
+        };
+        CrmNoteResult: {
+            /** @enum {string} */
+            status: "proposed" | "ambiguous" | "needs-person";
+            proposal?: components["schemas"]["Proposal"];
+            draftId?: string;
+            contacts?: components["schemas"]["CrmNoteCandidate"][];
+            accounts?: components["schemas"]["CrmNoteCandidate"][];
+        };
+        CrmNoteResultResponse: {
+            data: components["schemas"]["CrmNoteResult"];
         };
         CreateProposalInput: {
             kind: string;
@@ -6251,6 +6320,45 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    addCrmNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddCrmNoteInput"];
+            };
+        };
+        responses: {
+            /** @description A choice is needed first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrmNoteResultResponse"];
+                };
+            };
+            /** @description Proposed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrmNoteResultResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     getProposal: {
         parameters: {
             query?: never;
@@ -6274,6 +6382,38 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    editProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                proposalId: components["parameters"]["ProposalId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditProposalInput"];
+            };
+        };
+        responses: {
+            /** @description The edited proposal */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     applyProposal: {

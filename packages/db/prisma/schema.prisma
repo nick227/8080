@@ -1128,6 +1128,9 @@ model Note {
   workspaceId    String
   messageId      String    @unique
   authorMemberId String
+  // What the agent read from the note, each with the note's own words (doc/13 §10):
+  // [{ key: need|timing|budget|other, value, quote }]. The note text stays verbatim.
+  facts          Json?
   pinnedAt       DateTime?
   createdAt      DateTime  @default(now())
   deletedAt      DateTime?

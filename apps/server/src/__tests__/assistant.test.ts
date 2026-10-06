@@ -353,9 +353,9 @@ describe('architecture: the model returns data, workflow code acts (static)', ()
     }
   })
 
-  it('only the company-profile workflow calls it', () => {
+  it('only workflows call it (bots/flows/*)', () => {
     for (const f of files(src).filter((f) => !f.includes('__tests__') && !f.startsWith(dir))) {
-      if (/assistant\/(calls|provider)'/.test(readFileSync(f, 'utf8'))) expect(f.endsWith('bots/flows/companyProfile.ts'), f).toBe(true)
+      if (/assistant\/(calls|provider)'/.test(readFileSync(f, 'utf8'))) expect(f.includes('/bots/flows/'), f).toBe(true)
     }
   })
 })

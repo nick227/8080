@@ -19,3 +19,10 @@
 .room-proposal-actions button:disabled { opacity: 0.5; cursor: default; }
 .room-proposal-note { margin: 0; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--muted); }
 .room-proposal-note[data-error] { color: var(--danger); }
+
+.room-proposal-quote { font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; color: var(--muted); overflow-wrap: anywhere; }
+.room-proposal-input {
+  width: 100%; min-height: 32px; padding: 4px 8px; border: var(--line-width) solid var(--line);
+  background: transparent; color: var(--ink); font: inherit;
+}
+.room-proposal-input:focus-visible { border-color: var(--ink); outline: none; }

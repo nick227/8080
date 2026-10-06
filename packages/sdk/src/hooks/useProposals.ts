@@ -33,3 +33,22 @@ export function useProposalAction(workspaceId: string) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['proposals', workspaceId] }),
   })
 }
+
+// Change a pending proposal before Apply (kinds with `editable`). The handler
+// re-validates; the card updates through the room stream too.
+export function useEditProposal(workspaceId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ proposalId, edits }: { proposalId: string; edits: Record<string, string> }) =>
+      unwrap(await getApiClient().PUT('/workspaces/{workspaceId}/proposals/{proposalId}', { params: { path: { workspaceId, proposalId } }, body: { edits } })).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['proposals', workspaceId] }),
+  })
+}
+
+// "Add notes" (doc/13 §10): a messy note → a proposal, or a choice / question first.
+export function useAddCrmNote(workspaceId: string) {
+  return useMutation({
+    mutationFn: async (body: { text?: string; draftId?: string; about?: string; contactId?: string; accountId?: string }) =>
+      unwrap(await getApiClient().POST('/workspaces/{workspaceId}/crm/notes', { params: { path: { workspaceId } }, body })).data,
+  })
+}

@@ -5,7 +5,8 @@ import { badRequest } from './errors'
 import type { WorkspaceVerb } from '../services/workspacePolicy'
 import type { WorkspaceCtx } from '../services/WorkspaceService'
 
-export type DiffRow = { label: string; before: string; after: string }
+/** `key`: the row is editable under that name. `quote`: the source's own words (doc/13 §10 rule 10). */
+export type DiffRow = { label: string; before: string; after: string; key?: string; value?: string; quote?: string }
 
 export type ProposalHandler<P = any> = {
   targetType: string
@@ -20,11 +21,15 @@ export type ProposalHandler<P = any> = {
   describe(workspaceId: string, targetId: string, change: P): Promise<{ title: string; diff: DiffRow[] }>
   /** Applies through the normal service, refusing (409) if the target is no longer
    *  at baseVersion. Returns the version it produced and what Undo needs. */
-  apply(ctx: WorkspaceCtx, workspaceId: string, targetId: string, change: P, baseVersion: number): Promise<{ resultVersion: number; undoData: unknown }>
+  apply(ctx: WorkspaceCtx, workspaceId: string, targetId: string, change: P, baseVersion: number): Promise<{ resultVersion: number; undoData: unknown; targetId?: string }>
   /** Puts the old state back, refusing (409) unless the target is still at resultVersion. */
   undo(ctx: WorkspaceCtx, workspaceId: string, targetId: string, undoData: any, resultVersion: number): Promise<void>
   /** A change that restores undoData — for a corrective proposal when Undo can't run. */
-  revert(undoData: any): P
+  revert?(undoData: any): P
+  /** Edits before Apply: returns the changed payload (validate runs after). */
+  edit?(change: P, edits: Record<string, unknown>): P
+  /** Refresh: the same intent planned again against today's records. */
+  replan?(workspaceId: string, change: P): Promise<{ targetId: string; change: P }>
 }
 
 export const kinds = new Map<string, ProposalHandler>()
@@ -60,6 +65,8 @@ export function toProposal(row: Row) {
     decidedAt: row.decidedAt,
     decidedBy: row.decidedBy?.user.profile?.displayName ?? null,
     requires: handler && ['companyProfile.edit', 'record.delete', 'member.manage'].includes(handler.applyVerb) ? ('admin' as const) : ('member' as const),
+    editable: !!handler?.edit,
+    revertible: !!handler?.revert,
   }
 }
 export type ProposalView = ReturnType<typeof toProposal>

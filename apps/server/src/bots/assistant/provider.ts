@@ -29,6 +29,16 @@ export type DraftInput = {
   revise?: { previous: Draft; problems: string[] }
 }
 export type Draft = { title: string; paragraphs: string[] }
+
+/** What a business note says (doc/13 §10). Every value must be grounded in the note
+ *  (see grounding.ts); the model's guesses never reach a record. */
+export type NoteReading = {
+  person: { firstName: string | null; lastName: string | null; title: string | null; email: string | null; phone: string | null }
+  company: { name: string | null; domain: string | null }
+  followUp: { date: string | null; quote: string | null }
+  facts: { key: 'need' | 'timing' | 'budget' | 'other'; value: string; quote: string }[]
+}
+export type NoteInput = { note: string; today: string; weekday: string }
 export type Usage = { promptTokens: number; completionTokens: number }
 
 export interface AssistantProvider {
@@ -36,6 +46,7 @@ export interface AssistantProvider {
   readonly model: string | null
   extract(input: ExtractInput, signal: AbortSignal): Promise<{ facts: Facts; usage?: Usage }>
   draft(input: DraftInput, signal: AbortSignal): Promise<{ patch: Facts; document: Draft; usage?: Usage }>
+  readNote?(input: NoteInput, signal: AbortSignal): Promise<{ reading: NoteReading; usage?: Usage }>
 }
 
 // ─── validation ───────────────────────────────────────────────────────────────
@@ -99,6 +110,28 @@ const EXTRACT_SYSTEM = [
   'Tidy values into plain words; never add marketing language or claims they did not make.',
 ].join(' ')
 
+const NOTE_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['person', 'company', 'followUp', 'facts'],
+  properties: {
+    person: { type: 'object', additionalProperties: false, required: ['firstName', 'lastName', 'title', 'email', 'phone'], properties: { firstName: str, lastName: str, title: str, email: str, phone: str } },
+    company: { type: 'object', additionalProperties: false, required: ['name', 'domain'], properties: { name: str, domain: str } },
+    followUp: { type: 'object', additionalProperties: false, required: ['date', 'quote'], properties: { date: str, quote: str } },
+    facts: {
+      type: 'array',
+      items: { type: 'object', additionalProperties: false, required: ['key', 'value', 'quote'], properties: { key: { type: 'string', enum: ['need', 'timing', 'budget', 'other'] }, value: { type: 'string' }, quote: { type: 'string' } } },
+    },
+  },
+}
+
+const NOTE_SYSTEM = [
+  'You read one note a person wrote about a business contact and return only what it states.',
+  'person = the one contact the note is about (first and last name exactly as written, title, email, phone — null if not written).',
+  'company = the organisation they belong to, exactly as written; domain only if written.',
+  'followUp = a next contact the note asks for: date as YYYY-MM-DD resolved against `today` (and `weekday`), and quote = the exact words, e.g. "call Friday". null if none.',
+  'facts = what they want (need), when (timing), how much (budget), or other concrete business facts; value = a short plain restatement, quote = the exact words from the note.',
+  'Copy quotes character for character from the note. Do not guess: no lead status, qualification, industry, probability or anything not written. Use null and [] freely.',
+].join(' ')
+
 const DRAFT_SYSTEM = [
   'You write a company description for the business in `profile` and `answers`, for the audience and voice in `brief`.',
   'Use only those facts. The person\'s own words in `answers` are the best source of concrete detail: use their real examples.',
@@ -143,6 +176,11 @@ export class OpenAIAssistant implements AssistantProvider {
   }
 
   // Low temperature: the same facts should read the same way (extraction: none at all).
+  async readNote(input: NoteInput, signal: AbortSignal) {
+    const { json, usage } = await this.complete(NOTE_SYSTEM, input, 'note_reading', NOTE_SCHEMA, signal, 0)
+    return { reading: json as NoteReading, usage }
+  }
+
   private async complete(system: string, input: unknown, name: string, schema: object, signal: AbortSignal, temperature: number) {
     const res = await fetch(`${this.cfg.baseUrl}/chat/completions`, {
       method: 'POST',

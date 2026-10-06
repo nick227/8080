@@ -6,9 +6,10 @@
 import { db } from '@project/db'
 import { assistantConfig } from './config'
 import { flagCount, problemsOf, styleFlags } from './style'
-import { assistantProvider, validateDraft, validateFacts, type AssistantProvider, type DraftInput, type ExtractInput, type Usage } from './provider'
+import { assistantProvider, validateDraft, validateFacts, type AssistantProvider, type DraftInput, type ExtractInput, type NoteInput, type Usage } from './provider'
+import { ground } from './grounding'
 
-export type AssistContext = { workspaceId: string; runId: string }
+export type AssistContext = { workspaceId: string; runId: string | null }
 
 // This process's reservations, appended synchronously at reservation so concurrent
 // callers can't all pass a stale DB count (same pattern as the router's caps).
@@ -56,7 +57,7 @@ export async function assistantAvailable(workspaceId: string) {
 async function call<T extends { usage?: Usage }>(
   ctx: AssistContext,
   kind: 'extract' | 'generate',
-  input: ExtractInput | DraftInput,
+  input: ExtractInput | DraftInput | NoteInput,
   run: (provider: AssistantProvider, signal: AbortSignal) => Promise<T>,
   /** Re-validates whatever the provider returned; null = unusable. */
   check: (out: T) => T | null,
@@ -113,4 +114,13 @@ export async function draftDocument(ctx: AssistContext, input: DraftInput) {
   if (!first || flagCount(first.flags) === 0) return first
   const second = await once({ ...input, revise: { previous: first.document, problems: problemsOf(first.flags) } })
   return second && flagCount(second.flags) < flagCount(first.flags) ? { ...second, patch: first.patch } : first
+}
+
+/** A note read and grounded (doc/13 §10), or null (off, capped, failed, invalid). */
+export async function readNote(ctx: AssistContext, input: NoteInput) {
+  const res = await call(ctx, 'extract', input, async (p, s) => {
+    if (!p.readNote) throw new Error('provider cannot read notes')
+    return p.readNote(input, s)
+  }, (o) => ({ ...o, reading: ground(input.note, o.reading, input.today) }), (o) => o.reading)
+  return res && { reading: (res.out.reading as ReturnType<typeof ground>), callId: res.callId }
 }

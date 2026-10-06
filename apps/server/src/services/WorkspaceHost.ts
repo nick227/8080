@@ -10,6 +10,7 @@ import { postSays } from '../bots/flows/post'
 import { registerActivityFlow } from './activityEvent'
 import { COMPANY_PROFILE, companyProfileFlow, extract, generate, startOffer, startRun, textAnswer } from '../bots/flows/companyProfile'
 import { PROFILE_FIX, profileFixFlow, profileFixText } from '../bots/flows/profileFix'
+import { NOTE_FLOW, noteFlow, noteText } from '../bots/flows/noteToCrm'
 import './ProposalService' // proposal kinds + card flow
 
 export const HOST_HANDLE = 'chatbot'
@@ -108,6 +109,9 @@ export class WorkspaceHost {
     const bot = await hostBot()
     if (!bot) return
     if (!advanced) {
+      // Notes first ("note: …" or a waiting draft's name), then "fix a fact".
+      const note = await noteText({ roomId: e.roomId, actorId: e.actorId, text: e.text })
+      if (note) { if (note.length) await postSays(bot.userId, e.roomId, e.chat, NOTE_FLOW, note); return }
       const fix = await profileFixText({ roomId: e.roomId, itemId: e.itemId, actorId: e.actorId, text: e.text })
       if (fix?.length) await postSays(bot.userId, e.roomId, e.chat, PROFILE_FIX, fix)
       return
@@ -133,6 +137,7 @@ export function startWorkspaceHost() {
     registerChoiceFlow(COMPANY_PROFILE, companyProfileFlow),
     registerChoiceFlow(WELCOME, welcomeFlow),
     registerChoiceFlow(PROFILE_FIX, profileFixFlow),
+    registerChoiceFlow(NOTE_FLOW, noteFlow),
     registerActivityFlow(),
     events.on('workspace.member.activated', (e) => { void track(workspaceHost.join(e.workspaceId, e.userId, e.memberId)) }),
     events.on('item.created', (e) => { void track(workspaceHost.onItem(e)) }),

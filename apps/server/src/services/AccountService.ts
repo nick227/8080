@@ -30,7 +30,7 @@ const blank = (s: string | null | undefined) => (s?.trim() ? s.trim() : null)
 
 // A domain is stored as given; its normalised key is what matching uses.
 // Personal mailbox domains (gmail.com…) never identify an organisation.
-function domainFields(domain: string | null | undefined) {
+export function domainFields(domain: string | null | undefined) {
   if (domain === undefined) return {}
   const value = blank(domain)
   if (!value) return { domain: null, domainKey: null }

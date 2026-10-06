@@ -99,7 +99,7 @@ export class ProposalService {
     // Claim it: only one Apply runs (decidedAt marks it in progress).
     const claimed = await db.agentProposal.updateMany({ where: { id, status: 'pending', decidedAt: null }, data: { decidedAt: new Date(), decidedByMemberId: actor.member.id } })
     if (!claimed.count) return this.get(ctx.user.id, workspaceId, id)
-    let outcome: { resultVersion: number; undoData: unknown }
+    let outcome: { resultVersion: number; undoData: unknown; targetId?: string }
     try {
       outcome = await handler.apply(ctx, workspaceId, row.targetId, handler.validate(row.proposedChange), row.baseVersion)
     } catch (error) {
@@ -110,10 +110,31 @@ export class ProposalService {
       throw error
     }
     const applied = await db.agentProposal.update({
-      where: { id }, data: { status: 'applied', resultVersion: outcome.resultVersion, undoData: (outcome.undoData ?? undefined) as Prisma.InputJsonValue | undefined },
+      where: { id },
+      data: {
+        status: 'applied', resultVersion: outcome.resultVersion, undoData: (outcome.undoData ?? undefined) as Prisma.InputJsonValue | undefined,
+        // A proposal that created its record now belongs to it (doc/13 §5.1).
+        ...(outcome.targetId ? { targetId: outcome.targetId } : {}),
+      },
     })
     await touch(applied, ctx.user.id)
-    await this.expireStale(workspaceId, row.targetType, row.targetId, ctx.user.id)
+    await this.expireStale(workspaceId, row.targetType, applied.targetId, ctx.user.id)
+    return this.get(ctx.user.id, workspaceId, id)
+  }
+
+  /** Changes a pending proposal before Apply, through its handler (e.g. a corrected
+   *  name). The proposer or anyone who could apply it may edit. */
+  async edit(ctx: WorkspaceCtx, workspaceId: string, id: string, edits: Record<string, unknown>) {
+    const row = await this.load(ctx.user.id, workspaceId, id)
+    const handler = handlerOf(row.kind)
+    if (!handler.edit) throw conflict('This kind of proposal cannot be edited', 'NOT_EDITABLE')
+    const actor = await authorize(ctx.user.id, workspaceId, handler.readVerb)
+    if (row.createdByMemberId !== actor.member.id) permit(actor, handler.applyVerb)
+    if ((await this.settle(row, ctx.user.id)).status !== 'pending' || row.decidedAt) throw conflict('Only a pending proposal can be edited', 'PROPOSAL_DECIDED')
+    const change = handler.validate(handler.edit(handler.validate(row.proposedChange), edits))
+    const { title, diff } = await handler.describe(workspaceId, row.targetId, change)
+    const updated = await db.agentProposal.update({ where: { id }, data: { proposedChange: change as Prisma.InputJsonValue, diff: { title, rows: diff } as Prisma.InputJsonValue } })
+    await touch(updated, ctx.user.id)
     return this.get(ctx.user.id, workspaceId, id)
   }
 
@@ -155,14 +176,18 @@ export class ProposalService {
   async revert(ctx: WorkspaceCtx, workspaceId: string, id: string) {
     const row = await this.load(ctx.user.id, workspaceId, id)
     if (row.status !== 'applied' || !row.undoData) throw conflict('Only an applied proposal can be reverted', 'PROPOSAL_NOT_APPLIED')
-    return this.propose(ctx, workspaceId, { kind: row.kind, targetId: row.targetId, change: handlerOf(row.kind).revert(row.undoData) })
+    const handler = handlerOf(row.kind)
+    if (!handler.revert) throw conflict('This kind of change has no corrective proposal; undo it while you still can', 'NOT_REVERTIBLE')
+    return this.propose(ctx, workspaceId, { kind: row.kind, targetId: row.targetId, change: handler.revert(row.undoData) })
   }
 
   /** The same change again, against the record as it is now. */
   async refresh(ctx: WorkspaceCtx, workspaceId: string, id: string) {
     const row = await this.load(ctx.user.id, workspaceId, id)
     if ((await this.settle(row, ctx.user.id)).status !== 'expired') throw conflict('Only an expired proposal can be refreshed', 'PROPOSAL_NOT_EXPIRED')
-    return this.propose(ctx, workspaceId, { kind: row.kind, targetId: row.targetId, change: row.proposedChange })
+    const handler = handlerOf(row.kind)
+    const next = handler.replan ? await handler.replan(workspaceId, handler.validate(row.proposedChange)) : { targetId: row.targetId, change: row.proposedChange }
+    return this.propose(ctx, workspaceId, { kind: row.kind, targetId: next.targetId, change: next.change })
   }
 
   /** Any write to a target makes its other pending proposals stale. Writers call this;

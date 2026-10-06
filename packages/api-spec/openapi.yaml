@@ -1273,10 +1273,64 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /workspaces/{workspaceId}/crm/notes:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: addCrmNote
+      summary: Turn a messy business note into one proposed CRM change (doc/13 §10)
+      description: |
+        Start with `text`. The note is read (grounded in its own words), matched against
+        contacts and accounts, and planned. Results: `proposed` (a crm.note proposal, its
+        card posted in the channel), `ambiguous` (send `draftId` with `contactId` or
+        `accountId` — an id, `new`, or for the company `none`), or `needs-person`
+        (send `draftId` with `about`: who it is about).
+      tags: [proposals]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddCrmNoteInput' }
+      responses:
+        '200':
+          description: A choice is needed first
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmNoteResultResponse' }
+        '201':
+          description: Proposed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmNoteResultResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /workspaces/{workspaceId}/proposals/{proposalId}:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
       - $ref: '#/components/parameters/ProposalId'
+    put:
+      operationId: editProposal
+      summary: Edit a pending proposal before Apply (kinds that allow it); re-validated by its handler
+      tags: [proposals]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EditProposalInput' }
+      responses:
+        '200':
+          description: The edited proposal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProposalResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
     get:
       operationId: getProposal
       summary: One proposal, status brought up to date
@@ -4738,11 +4792,14 @@ components:
         label: { type: string }
         before: { type: string, description: Empty when there was nothing }
         after: { type: string }
+        key: { type: string, description: Present when the row can be edited (editProposal) under this name }
+        value: { type: string, description: 'The raw value to edit (e.g. 2026-10-09 for Fri, Oct 9)' }
+        quote: { type: string, description: "The source's own words this row came from (doc/13 §10 rule 10)" }
 
     Proposal:
       type: object
       description: A typed change to one record, applied only on a click (doc/13 §5). Chat and record pages render this same object.
-      required: [id, kind, targetType, targetId, status, title, diff, baseVersion, createdAt, expiresAt, decidedAt, decidedBy, requires]
+      required: [id, kind, targetType, targetId, status, title, diff, baseVersion, createdAt, expiresAt, decidedAt, decidedBy, requires, editable, revertible]
       properties:
         id: { type: string }
         kind: { type: string, description: 'Registered handler, e.g. company-profile.fact' }
@@ -4757,6 +4814,8 @@ components:
         decidedAt: { type: [string, 'null'], format: date-time }
         decidedBy: { type: [string, 'null'], description: 'Who applied, dismissed or undid it' }
         requires: { type: string, enum: [admin, member], description: Who may apply it (the server still decides) }
+        editable: { type: boolean, description: Its kind can be edited before Apply }
+        revertible: { type: boolean, description: Its kind can propose putting an applied change back }
 
     ProposalResponse:
       type: object
@@ -4769,6 +4828,46 @@ components:
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/Proposal' } }
+
+    EditProposalInput:
+      type: object
+      additionalProperties: false
+      required: [edits]
+      properties:
+        edits: { type: object, additionalProperties: { type: string, maxLength: 254 }, description: 'Row key → new value, e.g. { "name": "Sarah Lee", "followUp": "2026-10-09" }' }
+
+    AddCrmNoteInput:
+      type: object
+      additionalProperties: false
+      properties:
+        text: { type: string, minLength: 1, maxLength: 5000, description: 'The note, kept verbatim' }
+        draftId: { type: string, minLength: 1, maxLength: 64 }
+        about: { type: string, minLength: 1, maxLength: 160, description: Who the note is about (when asked) }
+        contactId: { type: string, minLength: 1, maxLength: 64, description: 'A candidate id, or new' }
+        accountId: { type: string, minLength: 1, maxLength: 64, description: 'A candidate id, new, or none' }
+
+    CrmNoteCandidate:
+      type: object
+      required: [id, label]
+      properties:
+        id: { type: string }
+        label: { type: string }
+
+    CrmNoteResult:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [proposed, ambiguous, needs-person] }
+        proposal: { $ref: '#/components/schemas/Proposal' }
+        draftId: { type: string }
+        contacts: { type: array, items: { $ref: '#/components/schemas/CrmNoteCandidate' } }
+        accounts: { type: array, items: { $ref: '#/components/schemas/CrmNoteCandidate' } }
+
+    CrmNoteResultResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/CrmNoteResult' }
 
     CreateProposalInput:
       type: object

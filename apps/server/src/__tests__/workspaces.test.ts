@@ -113,6 +113,7 @@ function sampleBody(op: any) {
     CreateInventoryInput: { name: 'x' },
     UpdateInventoryInput: { expectedVersion: 1, name: 'x' },
     CreateProposalInput: { kind: 'company-profile.fact', targetId: 'x', change: {} },
+    EditProposalInput: { edits: {} },
     BulkContactsInput: { ids: ['x'], action: 'archive' },
     BulkInventoryInput: { ids: ['x'], action: 'archive' },
     AdjustInventoryStockInput: { expectedVersion: 1, quantity: 0 },

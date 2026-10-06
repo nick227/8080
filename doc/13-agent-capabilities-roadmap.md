@@ -1,6 +1,6 @@
 # 13 — The agent: what it does, how it decides, what it needs
 
-**Status:** Plan, recorded 2026-10-06. D0 and D1 built and committed (§9). Builds on doc/12 (chatbot host, company profile, assistant, voice), doc/09 (Workspace, `runAction`, policy), doc/10 (documents), and the Contacts and Inventory foundations.
+**Status:** Plan, recorded 2026-10-06. D0, D1 and D2 built and committed (§9, §10). Builds on doc/12 (chatbot host, company profile, assistant, voice), doc/09 (Workspace, `runAction`, policy), doc/10 (documents), and the Contacts and Inventory foundations.
 
 Why would a small business use this every day instead of asking a chat model to write things? Because the agent knows the company, the customer, what the business sells and what happened, and it can move the business record forward. Writing documents is one output among several, not the point.
 
@@ -169,3 +169,44 @@ Uses the shared navigation: Contacts and Inventory areas, record bar (Back to re
   - server `proposals.test.ts` 11/11, suite 504/504
   - browser `e2e/proposals.cjs` (owner + member, desktop + mobile) 20/20 ×2
 - **Not yet:** the unsaved-edits merge (§5.1) belongs to the record forms (D2); bulk proposals; per-workflow budgets with placeholders; a record page for the company profile (its cards live in chat).
+
+## 10. D2: messy note → proposed CRM changes (design, 2026-10-06)
+
+One capability: turn an unstructured note ("Met Sarah Lee from Brightside Dental. They want a new website early Q1, budget around $8k. She asked me to call Friday.") into one proposed CRM change.
+
+**Rules (binding for D2):**
+1. **The note is kept verbatim** as a Note (its Message text). Extraction never replaces it.
+2. **Match before creating.**
+   - Contacts: by email via the matcher, else by full name; an account named in the note narrows them.
+   - Accounts: by domain via the matcher, else by name.
+3. **Ambiguity becomes a choice, never a guess.** Several candidates → a choice message: "Sarah Lee — Brightside Dental" / "Sarah Lee — Brightside Media" / New contact. The proposal is made after the person chooses.
+4. **The model returns proposed facts; server code decides the mutation.**
+5. **Values a person entered are never silently replaced.** An existing contact's changes are diff rows. Points (email, phone) are only ever added.
+6. **One coherent operation:** kind `crm.note`, one card ("Add Sarah Lee to CRM"), not one card per field.
+7. **No aggressive inference.**
+   - Every extracted value must carry a `quote` that appears verbatim in the note; anything else is dropped (deterministic grounding check).
+   - No lead status, qualification, probability or industry from prose: a new contact gets the default status, and an existing contact's status is never touched (D5 owns qualification).
+   - Need, timing and budget are kept as the note's facts (`Note.facts`, with their quotes), not as contact fields.
+8. **Atomic:** one `crm.note.apply` action in one transaction creates the account (if new) and the contact (if new), links them, applies the field changes, and writes the note with its links and timeline activities. It reuses the services' own helpers (points, display name, domain), so records match what the services would make.
+9. **Same lifecycle as D1:**
+   - stale check: an existing contact's version; for a new contact, "still no match" is re-checked at Apply
+   - permission (`record.write`), idempotency, Undo while the contact is still at the version Apply produced
+   - Undo removes what Apply created and restores what it changed. A new account is kept if anything else links to it.
+10. **Stated vs read:** each card row shows the note's own words it came from. A normalized value (Friday → a date, "$8k" → 8,000) shows both.
+
+**Edit:** a pending `crm.note` card can be edited before Apply. Editable rows: name, company, title, email, phone, follow-up. The handler re-validates and re-describes, through `PUT /workspaces/{id}/proposals/{proposalId}`.
+
+**Entry points:**
+- API: `POST /workspaces/{id}/crm/notes` `{ text }` returns the proposal or the choice.
+- Channel: a message that starts with "note:".
+- The contacts area's "Add notes" (§8) calls the API. Wiring it is for the UI owner.
+- **AI off:** the bot asks "Who is this note about?" and matches the typed name. The result is a note-only proposal: no extracted fields.
+
+**As built (2026-10-06):**
+- Reading: `bots/assistant/provider.ts` `readNote` (strict schema, temperature 0) + `grounding.ts` (deterministic; drops are logged as `evidence.dropped`).
+- Plan / match / apply / undo: `services/crmNote.ts`. Kind `crm.note`: `services/proposalKinds.ts`. Entry: `bots/flows/noteToCrm.ts` (drafts in WorkflowRun "crm-note"). API: `addCrmNote`, `editProposal`.
+- Card: rows carry `key`/`value` (editable) and `quote` (the note's words); additions show only the new value. Cards are [Apply] [Edit] [Not now].
+- Proof:
+  - server `crmNote.test.ts` 15/15; suite 537/537
+  - browser `e2e/crmnote.cjs` AI off 14/14 and real model 18/18 (desktop + mobile, owner + member)
+  - proposals 20/20, Slice B 32/32, choices 26/26, live docs 6/6

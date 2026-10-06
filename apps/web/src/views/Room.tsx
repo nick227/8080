@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useCapture } from '../state/capture'
 import type { Proposal } from '@project/sdk'
-import { uploadMedia, useChooseOption, useDeleteItem, useMyWorkspaces, useProposalAction, useRoom, useRoomItems, useRoomParticipants, useRoomStream, useUpdateRoom } from '@project/sdk'
+import { uploadMedia, useChooseOption, useDeleteItem, useEditProposal, useMyWorkspaces, useProposalAction, useRoom, useRoomItems, useRoomParticipants, useRoomStream, useUpdateRoom } from '@project/sdk'
 import { isHumanAuthored } from '@project/shared'
 import { Panel } from '../components/Panel'
 import { Label } from '../components/Label'
@@ -152,9 +152,11 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   // Proposal cards (doc/13 §5): the workspace's own rows; owners/admins decide.
   const workspace = useMyWorkspaces().data?.[0]
   const proposalAction = useProposalAction(workspace?.id ?? '')
+  const proposalEdit = useEditProposal(workspace?.id ?? '')
   const role = workspace?.role
   const actions = useRef({
     act: (_proposalId: string, _action: ProposalAct): Promise<Proposal> => Promise.reject(new Error('not ready')),
+    edit: (_proposalId: string, _edits: Record<string, string>): Promise<Proposal> => Promise.reject(new Error('not ready')),
     reply: (_id: string) => {},
     remove: (_id: string) => {},
     choose: async (_id: string, _optionIds: string[]) => {},
@@ -162,6 +164,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   })
   actions.current = {
     act: (proposalId, action) => proposalAction.mutateAsync({ proposalId, action }),
+    edit: (proposalId, edits) => proposalEdit.mutateAsync({ proposalId, edits }),
     openLink: (link) => {
       if (link.type === 'document') {
         const docs = useDocuments.getState()
@@ -200,7 +203,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       text: item.text,
       media: stillsFrom(item.media),
       proposal: item.proposal
-        ? { proposal: item.proposal, canDecide: item.proposal.requires === 'member' || role === 'owner' || role === 'admin', onAct: (action) => actions.current.act(item.proposal!.id, action) }
+        ? { proposal: item.proposal, canDecide: item.proposal.requires === 'member' || role === 'owner' || role === 'admin', onAct: (action) => actions.current.act(item.proposal!.id, action), onEdit: (edits) => actions.current.edit(item.proposal!.id, edits) }
         : undefined,
       choice: item.actions
         ? { actions: item.actions, choice: item.choice, meId, onChoose: (optionIds) => actions.current.choose(item.id, optionIds) }
