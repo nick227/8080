@@ -1,3 +1,4 @@
+import type { Proposal } from '@project/sdk'
 export type MediaType = 'audio' | 'video' | 'image' | 'file'
 export type ReactionType = 'like' | 'ack' | 'laugh'
 
@@ -43,6 +44,7 @@ export type Item = {
   actions?: ChoiceActions // a bot's offered choice (doc/12 §4)
   choice?: Choice // its answer, once someone chose
   links?: MessageLink[] // documents a bot message points at (doc/12 §5.4)
+  proposal?: Proposal // the proposal this line renders (doc/13 §5)
   reactions: Reaction[]
   createdAt: string
 }

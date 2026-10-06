@@ -5,6 +5,8 @@ import { PersonName } from '../../components/PersonName'
 import { controllerWithin } from '../../media/controller'
 import { countAfter, groupTurns } from './groupTurns'
 import { ChoiceBar, type ChoiceView } from './ChoiceBar'
+import { ProposalCard, type ProposalView } from './ProposalCard'
+import './proposal.css'
 import './choices.css'
 import './host.css'
 
@@ -27,6 +29,7 @@ export type StreamRow = {
   text?: string
   media: StreamMedia[]
   choice?: ChoiceView
+  proposal?: ProposalView
   links?: { id: string; title: string; onOpen: () => void }[]
   status?: 'sending' | 'failed'
   onReply?: () => void
@@ -99,7 +102,8 @@ const Entry = memo(function Entry({ row }: { row: StreamRow }) {
   }
   return (
     <div ref={ref} className="room-entry" data-item-id={row.id}>
-      {row.text && <p className="room-text">{row.text}</p>}
+      {row.text && !row.proposal && <p className="room-text">{row.text}</p>}
+      {row.proposal && <ProposalCard {...row.proposal} />}
       {row.media.map((media, index) => (
         <Piece key={`${row.id}-${index}`} row={row} media={media} onPlaying={setPlaying} />
       ))}

@@ -10,7 +10,7 @@ import { postSays } from '../bots/flows/post'
 import { registerActivityFlow } from './activityEvent'
 import { COMPANY_PROFILE, companyProfileFlow, extract, generate, startOffer, startRun, textAnswer } from '../bots/flows/companyProfile'
 import { PROFILE_FIX, profileFixFlow, profileFixText } from '../bots/flows/profileFix'
-import { registerProposalFlow } from './ProposalService'
+import './ProposalService' // proposal kinds + card flow
 
 export const HOST_HANDLE = 'chatbot'
 export const WELCOME = 'workspace-welcome'
@@ -133,7 +133,6 @@ export function startWorkspaceHost() {
     registerChoiceFlow(COMPANY_PROFILE, companyProfileFlow),
     registerChoiceFlow(WELCOME, welcomeFlow),
     registerChoiceFlow(PROFILE_FIX, profileFixFlow),
-    registerProposalFlow(),
     registerActivityFlow(),
     events.on('workspace.member.activated', (e) => { void track(workspaceHost.join(e.workspaceId, e.userId, e.memberId)) }),
     events.on('item.created', (e) => { void track(workspaceHost.onItem(e)) }),

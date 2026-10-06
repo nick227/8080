@@ -3,7 +3,8 @@
 // one action (runAction) that bumps the revision and stores a snapshot. A person's
 // answer is `stated`; what a model read or tidied is `inferred`, and never replaces a
 // stated or corrected fact (doc/12 §2).
-import { db, type CompanyFactKind, type CompanyServiceArea, type CompanyVoice, type Prisma } from '@project/db'
+import { db, type CompanyFactKind, type CompanyFactStatus, type CompanyServiceArea, type CompanyVoice, type Prisma } from '@project/db'
+import { conflict } from '../lib/errors'
 import { runAction } from './actions'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
 import { authorize } from './workspacePolicy'
@@ -51,6 +52,55 @@ async function snapshot(client: Tx | typeof db, workspaceId: string) {
   }
 }
 export type ProfileSnapshot = Awaited<ReturnType<typeof snapshot>>
+
+/** One field of the profile, as it was — enough to put it back exactly (Undo). */
+export type FieldSnapshot =
+  | { field: Scalar; value: string | null; source: { status: CompanyFactStatus; sourceAnswerId: string | null; setByMemberId: string } | null }
+  | { field: keyof typeof LISTS; facts: { value: string; status: CompanyFactStatus; sourceAnswerId: string | null; sourceRunId: string | null; setByMemberId: string }[] }
+export type FieldValue = string | string[] | null
+export const isList = (field: string): field is keyof typeof LISTS => field in LISTS
+
+async function lockRevision(tx: Tx, workspaceId: string) {
+  // Locking read: the latest committed revision, whatever snapshot the tx holds.
+  const [row] = await tx.$queryRaw<{ revision: number }[]>`SELECT revision FROM CompanyProfile WHERE workspaceId = ${workspaceId} FOR UPDATE`
+  return row?.revision ?? 0
+}
+
+async function snapshotField(tx: Tx, workspaceId: string, field: Scalar | keyof typeof LISTS): Promise<FieldSnapshot> {
+  if (isList(field)) {
+    const facts = await tx.companyFact.findMany({ where: { ...factsWhere(workspaceId), kind: LISTS[field] }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] })
+    return { field, facts: facts.map((f) => ({ value: f.value, status: f.status, sourceAnswerId: f.sourceAnswerId, sourceRunId: f.sourceRunId, setByMemberId: f.setByMemberId })) }
+  }
+  const [profile, source] = await Promise.all([
+    tx.companyProfile.findUnique({ where: { workspaceId } }),
+    tx.companyScalarSource.findUnique({ where: { workspaceId_field: { workspaceId, field } } }),
+  ])
+  const value = (profile?.[field] as string | null | undefined) ?? null
+  return { field, value, source: source ? { status: source.status, sourceAnswerId: source.sourceAnswerId, setByMemberId: source.setByMemberId } : null }
+}
+
+// Writes one field as given (a person's correction, or a restore) and records a revision.
+async function writeField(tx: Tx, workspaceId: string, snapshot: FieldSnapshot) {
+  const now = new Date()
+  if ('facts' in snapshot) {
+    await tx.companyFact.updateMany({ where: { ...factsWhere(workspaceId), kind: LISTS[snapshot.field] }, data: { supersededAt: now } })
+    for (const f of snapshot.facts) await tx.companyFact.create({ data: { workspaceId, kind: LISTS[snapshot.field], ...f, value: f.value.slice(0, 500) } })
+    return tx.companyProfile.upsert({ where: { workspaceId }, create: { workspaceId, revision: 1 }, update: { revision: { increment: 1 } } })
+  }
+  const data = { [snapshot.field]: snapshot.value } as Prisma.CompanyProfileUncheckedUpdateInput
+  const profile = await tx.companyProfile.upsert({
+    where: { workspaceId },
+    create: { workspaceId, revision: 1, ...(data as object) },
+    update: { revision: { increment: 1 }, ...data },
+  })
+  if (snapshot.source) {
+    const src = { status: snapshot.source.status, sourceAnswerId: snapshot.source.sourceAnswerId, setByMemberId: snapshot.source.setByMemberId }
+    await tx.companyScalarSource.upsert({ where: { workspaceId_field: { workspaceId, field: snapshot.field } }, create: { workspaceId, field: snapshot.field, ...src }, update: src })
+  } else {
+    await tx.companyScalarSource.deleteMany({ where: { workspaceId, field: snapshot.field } })
+  }
+  return profile
+}
 
 export class CompanyProfileService {
   async get(userId: string, workspaceId: string) {
@@ -104,6 +154,42 @@ export class CompanyProfileService {
         return { value: { revision: profile.revision }, targetId: workspaceId, result: { revision: profile.revision } }
       },
       async (previous) => ({ revision: (previous.result as { revision: number } | null)?.revision ?? 0 }),
+    )
+  }
+
+  /** Sets one field, only if the profile is still at `expectedRevision` (else 409
+   *  PROFILE_REVISION_CONFLICT). The value is `corrected`: a person decided it.
+   *  Returns the new revision and the field as it was, for Undo. */
+  async setField(ctx: WorkspaceCtx, workspaceId: string, input: { field: Scalar | keyof typeof LISTS; value: FieldValue; expectedRevision: number; idempotencyKey?: string }) {
+    const actor = await authorize(ctx.user.id, workspaceId, 'companyProfile.edit')
+    const memberId = actor.member.id
+    return runAction(
+      { action: 'companyProfile.setField', workspaceId, actor: memberActor(actor), origin: ctx.origin, idempotencyKey: input.idempotencyKey, input: { field: input.field, expectedRevision: input.expectedRevision }, target: { type: 'companyProfile', id: workspaceId } },
+      async (tx) => {
+        if ((await lockRevision(tx, workspaceId)) !== input.expectedRevision) throw conflict('The company profile changed; reload it before applying', 'PROFILE_REVISION_CONFLICT')
+        const before = await snapshotField(tx, workspaceId, input.field)
+        const next: FieldSnapshot = isList(input.field)
+          ? { field: input.field, facts: (Array.isArray(input.value) ? input.value : []).map((value) => ({ value, status: 'corrected' as const, sourceAnswerId: null, sourceRunId: null, setByMemberId: memberId })) }
+          : { field: input.field as Scalar, value: typeof input.value === 'string' ? input.value : null, source: { status: 'corrected', sourceAnswerId: null, setByMemberId: memberId } }
+        const profile = await writeField(tx, workspaceId, next)
+        await tx.companyProfileRevision.create({ data: { workspaceId, revision: profile.revision, snapshot: (await snapshot(tx, workspaceId)) as unknown as Prisma.InputJsonValue } })
+        return { value: { revision: profile.revision, before }, targetId: workspaceId, result: { revision: profile.revision } }
+      },
+    )
+  }
+
+  /** Puts one field back exactly as it was — only if the profile is still at
+   *  `expectedRevision` (the revision the change being undone produced). */
+  async restoreField(ctx: WorkspaceCtx, workspaceId: string, input: { before: FieldSnapshot; expectedRevision: number }) {
+    const actor = await authorize(ctx.user.id, workspaceId, 'companyProfile.edit')
+    return runAction(
+      { action: 'companyProfile.restoreField', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { field: input.before.field, expectedRevision: input.expectedRevision }, target: { type: 'companyProfile', id: workspaceId } },
+      async (tx) => {
+        if ((await lockRevision(tx, workspaceId)) !== input.expectedRevision) throw conflict('The company profile changed since; this can no longer be undone', 'PROFILE_REVISION_CONFLICT')
+        const profile = await writeField(tx, workspaceId, input.before)
+        await tx.companyProfileRevision.create({ data: { workspaceId, revision: profile.revision, snapshot: (await snapshot(tx, workspaceId)) as unknown as Prisma.InputJsonValue } })
+        return { value: { revision: profile.revision }, targetId: workspaceId, result: { revision: profile.revision } }
+      },
     )
   }
 }

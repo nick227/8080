@@ -195,7 +195,6 @@ export class ProposalService {
 
 export const proposals = new ProposalService()
 
-/** Registers the chat flow proposal cards post under (workflow allowance). */
-export function registerProposalFlow() {
-  return registerChoiceFlow(PROPOSAL_FLOW, { advance: () => [] })
-}
+// The chat flow proposal cards post under (workflow allowance) — registered with the
+// module, like the kinds, so any process that can propose can also post the card.
+registerChoiceFlow(PROPOSAL_FLOW, { advance: () => [] })

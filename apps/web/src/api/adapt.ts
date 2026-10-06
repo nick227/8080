@@ -49,6 +49,7 @@ export function toItem(i: SdkItem): Item {
       : undefined,
     choice: i.message.choice ?? undefined,
     links: i.message.links.length ? i.message.links : undefined,
+    proposal: i.proposal ?? undefined,
     reactions: i.reactions.map(({ type, count, reacted }) => ({ type, count, reacted })),
     createdAt: i.createdAt,
   }

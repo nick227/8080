@@ -1,0 +1,21 @@
+/* Agent proposals (doc/13 §5): a framed before → after, then its actions. */
+.room-proposal { margin-top: 10px; padding: 10px 12px; border: var(--line-width) solid var(--line); max-width: 420px; outline: none; }
+.room-proposal:focus-visible { border-color: var(--ink); }
+.room-proposal[data-status="applied"], .room-proposal[data-status="undone"], .room-proposal[data-status="dismissed"], .room-proposal[data-status="expired"] { opacity: 0.85; }
+.room-proposal-title { margin: 0 0 8px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.room-proposal-row { display: grid; grid-template-columns: 1fr; gap: 2px; margin-bottom: 8px; }
+.room-proposal-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--muted); }
+.room-proposal-before { color: var(--muted); text-decoration: line-through; overflow-wrap: anywhere; }
+.room-proposal-arrow { color: var(--muted); font-size: 12px; }
+.room-proposal-after { color: var(--ink); overflow-wrap: anywhere; }
+.room-proposal[data-status="undone"] .room-proposal-after, .room-proposal[data-status="dismissed"] .room-proposal-after { text-decoration: line-through; color: var(--muted); }
+.room-proposal-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.room-proposal-actions button {
+  min-height: 32px; padding: 6px 12px; border: var(--line-width) solid var(--line);
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink);
+}
+.room-proposal-actions button:first-of-type { border-color: var(--ink); }
+.room-proposal-actions button:hover, .room-proposal-actions button:focus-visible { border-color: var(--signal); }
+.room-proposal-actions button:disabled { opacity: 0.5; cursor: default; }
+.room-proposal-note { margin: 0; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--muted); }
+.room-proposal-note[data-error] { color: var(--danger); }

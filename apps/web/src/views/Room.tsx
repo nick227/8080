@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useCapture } from '../state/capture'
-import { uploadMedia, useChooseOption, useDeleteItem, useRoom, useRoomItems, useRoomParticipants, useRoomStream, useUpdateRoom } from '@project/sdk'
+import type { Proposal } from '@project/sdk'
+import { uploadMedia, useChooseOption, useDeleteItem, useMyWorkspaces, useProposalAction, useRoom, useRoomItems, useRoomParticipants, useRoomStream, useUpdateRoom } from '@project/sdk'
 import { isHumanAuthored } from '@project/shared'
 import { Panel } from '../components/Panel'
 import { Label } from '../components/Label'
@@ -34,6 +35,7 @@ import { roomTitle } from '../utils/room'
 import { markRead, readNumber } from '../features/room/readCursor'
 import { LiveRoom } from '../features/room/live/LiveRoom'
 import { HostChannelProvider, useHostChannel } from '../features/room/hostChannel'
+import type { ProposalAct } from '../features/room/ProposalCard'
 import '../features/room/room.css'
 
 export function Room({ roomId: roomRef }: { roomId: string }) {
@@ -147,13 +149,19 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   // Row actions go through a ref so cached rows never hold stale closures.
   const chooseOption = useChooseOption()
   const hostChannel = useHostChannel(roomId)
+  // Proposal cards (doc/13 §5): the workspace's own rows; owners/admins decide.
+  const workspace = useMyWorkspaces().data?.[0]
+  const proposalAction = useProposalAction(workspace?.id ?? '')
+  const role = workspace?.role
   const actions = useRef({
+    act: (_proposalId: string, _action: ProposalAct): Promise<Proposal> => Promise.reject(new Error('not ready')),
     reply: (_id: string) => {},
     remove: (_id: string) => {},
     choose: async (_id: string, _optionIds: string[]) => {},
     openLink: (_link: { type: string; id: string }) => {},
   })
   actions.current = {
+    act: (proposalId, action) => proposalAction.mutateAsync({ proposalId, action }),
     openLink: (link) => {
       if (link.type === 'document') {
         const docs = useDocuments.getState()
@@ -178,10 +186,10 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   }
   // One row object per item, reused while the item (and who is viewing) is unchanged,
   // so a live event re-renders only the row it touched.
-  const rowCache = useRef(new WeakMap<Item, { meId: string | undefined; row: StreamRow }>())
+  const rowCache = useRef(new WeakMap<Item, { meId: string | undefined; role: string | undefined; row: StreamRow }>())
   const rowFor = useCallback((item: Item): StreamRow => {
     const cached = rowCache.current.get(item)
-    if (cached && cached.meId === meId) return cached.row
+    if (cached && cached.meId === meId && cached.role === role) return cached.row
     const row: StreamRow = {
       id: item.id,
       authorId: item.author.id,
@@ -191,6 +199,9 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       postedAt: item.createdAt,
       text: item.text,
       media: stillsFrom(item.media),
+      proposal: item.proposal
+        ? { proposal: item.proposal, canDecide: item.proposal.requires === 'member' || role === 'owner' || role === 'admin', onAct: (action) => actions.current.act(item.proposal!.id, action) }
+        : undefined,
       choice: item.actions
         ? { actions: item.actions, choice: item.choice, meId, onChoose: (optionIds) => actions.current.choose(item.id, optionIds) }
         : undefined,
@@ -198,9 +209,9 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       onReply: () => actions.current.reply(item.id),
       onDelete: item.author.id === meId ? () => actions.current.remove(item.id) : undefined,
     }
-    rowCache.current.set(item, { meId, row })
+    rowCache.current.set(item, { meId, role, row })
     return row
-  }, [meId])
+  }, [meId, role])
 
   const pendingRows: StreamRow[] = useMemo(() => pending.map((item) => ({
     id: item.id,
