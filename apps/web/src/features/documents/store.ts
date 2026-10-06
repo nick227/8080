@@ -161,6 +161,7 @@ let timer: number | undefined
 const renameTimers = new Map<string, number>()
 const pendingTitles = new Map<string, string>()
 const importedRows = new Map<string, NativeSheet>()
+const loadingRows = new Set<string>()
 
 export const useDocuments = create<State>((set, get) => {
   const ws = () => get().workspaceId!
@@ -175,6 +176,25 @@ export const useDocuments = create<State>((set, get) => {
   function setDocs(docs: DocumentRecord[], extra: Partial<State> = {}) {
     const open = docs.find((d) => d.id === get().openId)
     set({ docs, ...extra, status: extra.status ?? statusFor(open, extra.mode ?? get().mode) })
+    // Opened (e.g. from a channel link) before the list knew it: load its rows now.
+    if (open) loadRows(open)
+  }
+
+  // Server-stored rows (imported or generated sheets), fetched once per document.
+  function loadRows(doc: DocumentRecord) {
+    if (doc.shared?.kind !== 'imported' || importedRows.has(doc.id) || loadingRows.has(doc.id)) return
+    loadingRows.add(doc.id)
+    void documentsApi.materialization(ws(), doc.id).then((m) => {
+      const table = m.table as { columns: { id: string; label: string }[]; rows: { id: string; cells: Record<string, string | null> }[] }
+      const sheet: NativeSheet = {
+        mode: 'sheet',
+        columns: table.columns.map((c) => ({ id: c.id, name: c.label })),
+        rows: table.rows.map((r) => ({ id: r.id, cells: Object.fromEntries(Object.entries(r.cells).map(([k, v]) => [k, v ?? ''])) })),
+      }
+      importedRows.set(doc.id, sheet)
+      const local = readJson<Record<string, Content>>(contentKey(ws()), {})[doc.id]
+      if (!local?.sheet) set({ docs: get().docs.map((d) => (d.id === doc.id ? { ...d, sheet } : d)) })
+    }).catch((error) => set({ status: `Couldn’t load the imported rows — ${errorText(error)}` })).finally(() => loadingRows.delete(doc.id))
   }
 
   function startLocal(owner?: string) {
@@ -339,19 +359,7 @@ export const useDocuments = create<State>((set, get) => {
           me: get().me,
         })
       }
-      if (doc?.shared?.kind === 'imported' && !importedRows.has(doc.id)) {
-        void documentsApi.materialization(ws(), doc.id).then((m) => {
-          const table = m.table as { columns: { id: string; label: string }[]; rows: { id: string; cells: Record<string, string | null> }[] }
-          const sheet: NativeSheet = {
-            mode: 'sheet',
-            columns: table.columns.map((c) => ({ id: c.id, name: c.label })),
-            rows: table.rows.map((r) => ({ id: r.id, cells: Object.fromEntries(Object.entries(r.cells).map(([k, v]) => [k, v ?? ''])) })),
-          }
-          importedRows.set(doc.id, sheet)
-          const local = readJson<Record<string, Content>>(contentKey(ws()), {})[doc.id]
-          if (!local?.sheet) set({ docs: get().docs.map((d) => (d.id === doc.id ? { ...d, sheet } : d)) })
-        }).catch((error) => set({ status: `Couldn’t load the imported rows — ${errorText(error)}` }))
-      }
+      if (doc) loadRows(doc)
     },
 
     add(doc) {
