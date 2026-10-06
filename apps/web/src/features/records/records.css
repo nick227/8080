@@ -1041,7 +1041,8 @@
   border-top: var(--line-width) solid var(--line);
 }
 .record-import-section h3,
-.record-import-category h4 {
+.record-import-category h4,
+.record-import-connect-title {
   margin: 0;
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
@@ -1049,10 +1050,16 @@
   text-transform: uppercase;
   color: var(--muted);
 }
+.record-import-connect-title {
+  color: var(--ink);
+  font-size: var(--text-lg);
+  letter-spacing: normal;
+  text-transform: none;
+}
 .record-import-category {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-2xs);
   margin-top: var(--space-md);
 }
 .record-import-source-list {
@@ -1061,51 +1068,50 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
 }
 .record-import-source {
   width: 100%;
   display: grid;
-  gap: var(--space-2xs);
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  column-gap: var(--space-md);
+  row-gap: 0;
   text-align: left;
-  padding: var(--space-md);
-  border: var(--line-width) solid var(--line);
+  padding: var(--space-sm) 0;
+  border: 0;
+  border-bottom: var(--line-width) solid var(--line);
+  border-radius: 0;
   background: transparent;
   color: inherit;
   font: inherit;
   cursor: pointer;
 }
 .record-import-source:hover:not(:disabled) {
-  border-color: var(--ink);
-}
-.record-import-source:disabled {
-  opacity: 0.72;
-  cursor: default;
-}
-.record-import-source[data-available] {
-  border-color: var(--ink);
-}
-.record-import-source-name {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  font-weight: var(--weight-medium);
-}
-.record-import-source-action {
-  font-size: var(--text-sm);
   color: var(--ink);
 }
+.record-import-source:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.record-import-source[data-available] .record-import-source-name {
+  font-weight: var(--weight-medium);
+}
+.record-import-source-name {
+  grid-column: 1;
+}
+.record-import-source .record-muted {
+  grid-column: 1;
+  font-size: var(--text-sm);
+}
+.record-import-source-meta,
 .record-import-badge {
+  grid-column: 2;
+  grid-row: 1;
   font-family: var(--mono);
   font-size: var(--text-label);
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--muted);
-  border: var(--line-width) solid var(--line);
-  padding: 0.1em 0.45em;
-}
-.record-import-note {
-  font-size: var(--text-sm);
 }
 .record-import-back {
   align-self: flex-start;
@@ -1131,15 +1137,6 @@
   padding: 0;
   margin-bottom: var(--space-xs);
   font-size: var(--text-sm);
-  color: var(--muted);
-}
-.record-import-oauth {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  font-size: var(--text-sm);
-}
-.record-import-oauth > span {
   color: var(--muted);
 }
 .record-import-oauth button {

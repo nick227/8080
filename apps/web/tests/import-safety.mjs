@@ -115,13 +115,13 @@ try {
   const errors = []
   page.on('pageerror', (err) => errors.push(err.message))
   await page.goto('http://imports.test/')
-  await page.getByRole('button', { name: /Upload CSV/ }).click()
+  await page.getByRole('button', { name: 'CSV', exact: true }).click()
   await page.getByLabel('CSV file').setInputFiles({
     name: 'contacts.csv',
     mimeType: 'text/csv',
     buffer: Buffer.from('Name\nSomeone\nNew'),
   })
-  await expect(page.getByText('Ready: contacts.csv')).toBeVisible()
+  await expect(page.getByText('contacts.csv', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.getByRole('button', { name: 'Preview rows' }).click()
   await expect(page.getByText('Matched contacts remain unchanged.')).toBeVisible()

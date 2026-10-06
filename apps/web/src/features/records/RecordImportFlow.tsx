@@ -201,7 +201,6 @@ export function RecordImportFlow({
           )}
           {step === 'upload' && (
             <div className="record-import-panel">
-              <p>Choose a CSV file. Headers become mappable columns.</p>
               <label className="record-file">
                 <span>CSV file</span>
                 <input
@@ -220,7 +219,7 @@ export function RecordImportFlow({
               </label>
               {csv.trim() && (
                 <p className="record-muted" role="status">
-                  Ready: {filename}
+                  {filename}
                 </p>
               )}
               {kind === 'inventory' && matchSelect}
@@ -407,8 +406,8 @@ export function RecordImportFlow({
                 Cancel
               </button>
               {connecting && (
-                <button className="record-primary" disabled title="UI preview only">
-                  Coming soon
+                <button className="record-primary" disabled>
+                  Continue
                 </button>
               )}
             </>

@@ -37,7 +37,6 @@ export function ImportSourceStep({
     return (
       <ConnectPanel
         source={selected}
-        kind={kind}
         draft={draft}
         mode={mode}
         onDraft={(id, value) => setDraft((current) => ({ ...current, [id]: value }))}
@@ -54,29 +53,21 @@ export function ImportSourceStep({
     <div className="record-import-panel record-import-sources">
       <section className="record-import-section" aria-labelledby="import-connected">
         <h3 id="import-connected">Connected</h3>
-        <p className="record-muted">Reuse a system this workspace already knows.</p>
         <ul className="record-import-source-list">
           {CONNECTED_PREVIEWS.map((card) => (
             <li key={card.id}>
-              <button type="button" className="record-import-source" disabled title="Preview layout">
+              <button type="button" className="record-import-source" disabled>
                 <span className="record-import-source-name">{card.label}</span>
                 <span className="record-muted">{card.detail}</span>
-                <span className="record-muted">{card.lastSynced}</span>
-                <span className="record-import-source-action">{card.action}</span>
+                <span className="record-import-source-meta">{card.meta}</span>
               </button>
             </li>
           ))}
         </ul>
-        <p className="record-muted record-import-note">Preview cards — live connections arrive with Airtable / WooCommerce.</p>
       </section>
 
       <section className="record-import-section" aria-labelledby="import-new">
-        <h3 id="import-new">Connect a new source</h3>
-        <p className="record-muted">
-          {kind === 'contacts'
-            ? 'Get contacts into this workspace.'
-            : 'Get catalog rows into this workspace.'}
-        </p>
+        <h3 id="import-new">New source</h3>
         {(Object.keys(SOURCE_CATEGORY_LABEL) as ImportSource['category'][]).map((category) => {
           const group = sources.filter((s) => s.category === category)
           if (!group.length) return null
@@ -97,13 +88,8 @@ export function ImportSourceStep({
                         setPhase('connect')
                       }}
                     >
-                      <span className="record-import-source-name">
-                        {source.name}
-                        {source.status === 'preview' && (
-                          <span className="record-import-badge">Soon</span>
-                        )}
-                      </span>
-                      <span className="record-muted">{source.blurb}</span>
+                      <span className="record-import-source-name">{source.name}</span>
+                      {source.status === 'preview' && <span className="record-import-badge">Soon</span>}
                     </button>
                   </li>
                 ))}
@@ -118,7 +104,6 @@ export function ImportSourceStep({
 
 function ConnectPanel({
   source,
-  kind,
   draft,
   mode,
   onDraft,
@@ -126,7 +111,6 @@ function ConnectPanel({
   onBack,
 }: {
   source: ImportSource
-  kind: RecordKind
   draft: Record<string, string>
   mode: SyncMode
   onDraft: (id: string, value: string) => void
@@ -136,14 +120,13 @@ function ConnectPanel({
   return (
     <div className="record-import-panel">
       <button type="button" className="record-import-back" onClick={onBack}>
-        ← All sources
+        ← Sources
       </button>
-      <h3>{source.name}</h3>
-      <p className="record-muted">{source.blurb}</p>
+      <h3 className="record-import-connect-title">{source.name}</h3>
 
       {source.syncable && (
         <fieldset className="record-import-mode">
-          <legend>How should this run?</legend>
+          <legend>Mode</legend>
           <label className="record-checkbox">
             <input
               type="radio"
@@ -160,22 +143,14 @@ function ConnectPanel({
               checked={mode === 'synced'}
               onChange={() => onMode('synced')}
             />
-            <span>Keep synced · one-way into this workspace</span>
+            <span>Keep synced</span>
           </label>
         </fieldset>
       )}
 
-      <div className="record-form-group">
-        <h3>Connection</h3>
-        {source.fields.map((field) => (
-          <Field key={field.id} field={field} value={draft[field.id] ?? ''} onChange={onDraft} />
-        ))}
-      </div>
-
-      <p className="record-muted record-import-note" role="status">
-        UI preview only. {source.name} will feed {kind === 'contacts' ? 'Contacts' : 'Inventory'} through
-        the shared map → match → review pipeline once wired.
-      </p>
+      {source.fields.map((field) => (
+        <Field key={field.id} field={field} value={draft[field.id] ?? ''} onChange={onDraft} />
+      ))}
     </div>
   )
 }
@@ -192,10 +167,8 @@ function Field({
   if (field.type === 'oauth') {
     return (
       <div className="record-import-oauth">
-        <span>{field.label}</span>
-        {field.hint && <p className="record-muted">{field.hint}</p>}
         <button type="button" disabled>
-          Connect {field.label}
+          Sign in with {field.label}
         </button>
       </div>
     )
@@ -204,12 +177,12 @@ function Field({
     <label>
       <span>
         {field.label}
-        {field.required ? '' : ' (optional)'}
+        {field.optional ? ' · optional' : ''}
       </span>
       <input
         type={field.type === 'password' ? 'password' : field.type === 'url' ? 'url' : 'text'}
         value={value}
-        placeholder={field.hint}
+        placeholder={field.placeholder}
         autoComplete="off"
         spellCheck={false}
         onChange={(e) => onChange(field.id, e.target.value)}
