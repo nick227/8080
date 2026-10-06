@@ -6,6 +6,7 @@ import { controllerWithin } from '../../media/controller'
 import { countAfter, groupTurns } from './groupTurns'
 import { ChoiceBar, type ChoiceView } from './ChoiceBar'
 import './choices.css'
+import './host.css'
 
 export type StreamMedia = {
   type: MediaType
@@ -26,6 +27,7 @@ export type StreamRow = {
   text?: string
   media: StreamMedia[]
   choice?: ChoiceView
+  links?: { id: string; title: string; onOpen: () => void }[]
   status?: 'sending' | 'failed'
   onReply?: () => void
   onRetry?: () => void
@@ -101,6 +103,16 @@ const Entry = memo(function Entry({ row }: { row: StreamRow }) {
       {row.media.map((media, index) => (
         <Piece key={`${row.id}-${index}`} row={row} media={media} onPlaying={setPlaying} />
       ))}
+      {row.links && (
+        <div className="room-links">
+          {row.links.map((link) => (
+            <button key={link.id} type="button" className="room-link" onClick={link.onOpen}>
+              <span className="room-link-kind">Document</span>
+              <span className="room-link-title">{link.title}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {row.choice && <ChoiceBar {...row.choice} />}
       <div className="room-actions">
         {row.status === 'sending' && <span className="room-status">Sending</span>}

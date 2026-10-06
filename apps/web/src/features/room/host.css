@@ -1,0 +1,30 @@
+/* A document a bot message points at (doc/12 §5.4): one framed line that opens it. */
+.room-links { display: flex; flex-direction: column; gap: var(--space-sm, 8px); margin-top: var(--space-control, 10px); }
+.room-link {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: max-content;
+  max-width: 100%;
+  padding: 8px 12px;
+  border: var(--line-width) solid var(--line);
+  color: var(--ink);
+  text-align: left;
+}
+.room-link:hover, .room-link:focus-visible { border-color: var(--ink); }
+.room-link-kind { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.room-link-title { font-family: var(--content-font); font-size: 15px; overflow-wrap: anywhere; }
+.room-channel-link {
+  position: absolute;
+  top: 8px;
+  right: 8px; /* clear of the name along the bottom edge */
+  padding: 4px 8px;
+  border: var(--line-width) solid var(--line);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--bg);
+}
+.room-channel-link:hover, .room-channel-link:focus-visible { border-color: var(--ink); }

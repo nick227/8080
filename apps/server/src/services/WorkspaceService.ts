@@ -14,6 +14,7 @@ import {
   workspaceMemberInclude,
   type UserRow,
 } from '../lib/serialize'
+import { events } from './events'
 import { diff, runAction, type ActionActor } from './actions'
 import { redactRooms } from './records'
 import { authorize, permit, type Actor } from './workspacePolicy'
@@ -101,7 +102,7 @@ export class WorkspaceService {
     const slug = input.slug ?? (await freeSlug(name))
 
     try {
-      return await runAction(
+      const created = await runAction(
         { action: 'workspace.create', actor: { kind: 'member', userId: ctx.user.id }, origin: ctx.origin, input, target: { type: 'workspace' } },
         async (tx) => {
           const workspace = await tx.workspace.create({
@@ -117,6 +118,9 @@ export class WorkspaceService {
           }
         },
       )
+      const owner = await db.workspaceMember.findUniqueOrThrow({ where: { workspaceId_userId: { workspaceId: created.id, userId: ctx.user.id } }, select: { id: true } })
+      events.emit('workspace.member.activated', { workspaceId: created.id, userId: ctx.user.id, memberId: owner.id, creator: true })
+      return created
     } catch (err) {
       if (slugTaken(err)) throw conflict('That slug is taken', 'SLUG_TAKEN')
       throw err
@@ -310,7 +314,7 @@ export class WorkspaceService {
     const existing = await db.workspaceMember.findUnique({ where: { workspaceId_userId: { workspaceId: invite.workspaceId, userId: ctx.user.id } } })
     if (existing?.status === 'suspended') throw httpError(403, 'Your membership in this workspace is suspended', 'MEMBER_SUSPENDED')
 
-    return runAction(
+    const accepted = await runAction(
       {
         action: 'invite.accept',
         workspaceId: invite.workspaceId,
@@ -338,6 +342,11 @@ export class WorkspaceService {
         }
       },
     )
+    if (existing?.status !== 'active') {
+      const member = await db.workspaceMember.findUniqueOrThrow({ where: { workspaceId_userId: { workspaceId: invite.workspaceId, userId: ctx.user.id } }, select: { id: true } })
+      events.emit('workspace.member.activated', { workspaceId: invite.workspaceId, userId: ctx.user.id, memberId: member.id, creator: false })
+    }
+    return accepted
   }
 
   // ─── timeline and audit ────────────────────────────────────────────────────

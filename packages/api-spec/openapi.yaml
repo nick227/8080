@@ -1230,6 +1230,44 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /workspaces/{workspaceId}/channel:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: openWorkspaceChannel
+      summary: The workspace's shared bot channel (created on first use)
+      description: |
+        doc/12 §3. One transparent channel per workspace where chatbot hosts: every
+        active member is a member of its room and is welcomed there once (the creator's
+        welcome starts the company-profile setup). Idempotent.
+      tags: [workspaces]
+      responses:
+        '200':
+          description: The channel's room
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceChannelResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/company-profile:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: getCompanyProfile
+      summary: The workspace's company profile (doc/12 §5.2)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: Current facts; empty until the setup has run
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompanyProfileResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /workspaces/{workspaceId}/activity:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -3761,7 +3799,7 @@ components:
     Message:
       type: object
       description: Reusable content (author, text, media). Hydrated on every Item.
-      required: [id, author, text, media, actions, choice, createdAt]
+      required: [id, author, text, media, actions, choice, links, createdAt]
       properties:
         id: { type: string }
         author: { $ref: '#/components/schemas/Author' }
@@ -3780,7 +3818,58 @@ components:
           oneOf:
             - $ref: '#/components/schemas/Choice'
             - type: 'null'
+        links:
+          type: array
+          description: Things a bot message points at (doc/12 §5.4), e.g. a document it created. Empty for human messages and when hidden.
+          items: { $ref: '#/components/schemas/MessageLink' }
         createdAt: { type: string, format: date-time }
+
+    MessageLink:
+      type: object
+      required: [type, id, workspaceId, title]
+      properties:
+        type: { type: string, enum: [document] }
+        id: { type: string }
+        workspaceId: { type: string }
+        title: { type: string, description: The title when the link was posted }
+
+    WorkspaceChannelResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [roomId]
+          properties:
+            roomId: { type: string }
+
+    CompanyFact:
+      type: object
+      required: [id, kind, value, status]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [offering, customer, differentiator, goal, term, avoid] }
+        value: { type: string }
+        status: { type: string, enum: [inferred, stated, corrected], description: 'inferred = drafted by a model; stated = a person said it; corrected = a person fixed it' }
+
+    CompanyProfile:
+      type: object
+      required: [revision, name, location, serviceArea, purpose, brandVoice, facts, updatedAt]
+      properties:
+        revision: { type: integer, description: 0 until the first save }
+        name: { type: [string, 'null'] }
+        location: { type: [string, 'null'] }
+        serviceArea: { type: [string, 'null'], enum: [local, regional, national, global, null] }
+        purpose: { type: [string, 'null'] }
+        brandVoice: { type: [string, 'null'], enum: [professional, friendly, bold, technical, null] }
+        facts: { type: array, items: { $ref: '#/components/schemas/CompanyFact' } }
+        updatedAt: { type: [string, 'null'], format: date-time }
+
+    CompanyProfileResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/CompanyProfile' }
 
     ChoiceOption:
       type: object
@@ -4196,7 +4285,7 @@ components:
         actorKind: { type: string, enum: [member, system, integration] }
         actorMemberId: { type: [string, 'null'] }
         actorUserId: { type: [string, 'null'] }
-        origin: { type: string, enum: [ui, api, import, sync, system] }
+        origin: { type: string, enum: [ui, api, import, sync, system, assistant] }
         targetType: { type: [string, 'null'] }
         targetId: { type: [string, 'null'] }
         input: {}

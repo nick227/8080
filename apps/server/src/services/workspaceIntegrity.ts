@@ -5,6 +5,10 @@
 import { db } from '@project/db'
 
 const CHECKS: { name: string; sql: string }[] = [
+  // Chatbot host + company profile (doc/12)
+  { name: 'WorkflowRun.member', sql: 'SELECT r.id FROM WorkflowRun r JOIN WorkspaceMember m ON m.id = r.memberId WHERE m.workspaceId <> r.workspaceId' },
+  { name: 'CompanyFact.setBy', sql: 'SELECT f.id FROM CompanyFact f JOIN WorkspaceMember m ON m.id = f.setByMemberId WHERE m.workspaceId <> f.workspaceId' },
+  { name: 'CompanyScalarSource.setBy', sql: "SELECT CONCAT(s.workspaceId, ':', s.field) AS id FROM CompanyScalarSource s JOIN WorkspaceMember m ON m.id = s.setByMemberId WHERE m.workspaceId <> s.workspaceId" },
   {
     name: 'TeamMember.team',
     sql: 'SELECT tm.id FROM TeamMember tm JOIN Team t ON t.id = tm.teamId WHERE t.workspaceId <> tm.workspaceId',

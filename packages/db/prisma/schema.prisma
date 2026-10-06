@@ -115,6 +115,7 @@ model Room {
   bots      RoomBot[]
   links      RecordLink[]
   activities Activity[]
+  workspaceChannel WorkspaceChannel?
 
   @@index([visibility, lastActivityAt, id])
   @@index([topic])
@@ -152,6 +153,9 @@ model Message {
   // The registered workflow that posted this (doc/12). Workflow posts have their own
   // bounded allowance and are left out of the ordinary bot caps.
   workflow  String?   @db.VarChar(64)
+  // Things this bot message points at (doc/12 §5.4): [{ type: 'document', id, workspaceId, title }].
+  // Set only by server code.
+  links     Json?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -526,6 +530,12 @@ model Workspace {
   documentContents DocumentContent[]
   inboxItems       InboxItem[]
   composes         Compose[]
+  channel          WorkspaceChannel?
+  workflowRuns     WorkflowRun[]
+  companyProfile   CompanyProfile?
+  companyFacts     CompanyFact[]
+  companySources   CompanyScalarSource[]
+  companyRevisions CompanyProfileRevision[]
 
   @@index([createdById])
 }
@@ -565,6 +575,9 @@ model WorkspaceMember {
   documentEdits   DocumentContent[]
   inboxItems      InboxItem[]
   composes        Compose[]
+  workflowRuns    WorkflowRun[]
+  companyFacts    CompanyFact[]
+  companySources  CompanyScalarSource[]
 
   @@unique([workspaceId, userId])
   @@index([userId, status])
@@ -642,6 +655,7 @@ enum ActionOrigin {
   import
   sync
   system
+  assistant // a registered chatbot workflow acting for the member who answered (doc/12 §2)
 }
 
 enum ActionStatus {
@@ -1286,4 +1300,166 @@ model Compose {
 
   @@index([workspaceId, contactId, createdAt])
   @@index([authorMemberId])
+}
+
+// ─── chatbot host + company profile (doc/12) ──────────────────────────────────
+
+// The workspace's one shared, transparent bot channel (doc/12 §3). An ordinary private
+// room; workspace members are its members. Rooms stay workspace-free (D5): this row
+// is the link.
+model WorkspaceChannel {
+  workspaceId String   @id
+  roomId      String   @unique
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  room      Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
+
+enum WorkflowStatus {
+  waiting // on the person's next answer
+  working // between an answer and the next question (post-commit work)
+  paused  // the person said "Later"
+  done
+  failed
+}
+
+// One server-owned run of a registered workflow for one member (doc/12 §5.1). Steps
+// live in code; the run is only the cursor and the draft.
+model WorkflowRun {
+  id          String         @id @default(cuid())
+  workspaceId String
+  memberId    String
+  userId      String
+  roomId      String
+  workflowKey String         @db.VarChar(64)
+  version     Int
+  stepId      String         @db.VarChar(64)
+  status      WorkflowStatus
+  state       Json
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    WorkspaceMember  @relation(fields: [memberId], references: [id])
+  answers   WorkflowAnswer[]
+
+  @@index([workspaceId, workflowKey, status])
+  @@index([roomId, userId, status])
+  @@index([memberId])
+}
+
+enum WorkflowAnswerKind {
+  choice
+  text
+}
+
+// Every answer exactly as given — the provenance of each fact (doc/12 §5.3).
+model WorkflowAnswer {
+  id        String             @id @default(cuid())
+  runId     String
+  stepId    String             @db.VarChar(64)
+  kind      WorkflowAnswerKind
+  optionIds Json?
+  itemId    String?            // the chat item that carried free text
+  raw       String?            @db.Text
+  createdAt DateTime           @default(now())
+
+  run WorkflowRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([itemId])
+}
+
+enum CompanyServiceArea {
+  local
+  regional
+  national
+  global
+}
+
+enum CompanyVoice {
+  professional
+  friendly
+  bold
+  technical
+}
+
+enum CompanyFactStatus {
+  inferred  // extracted by a model (Slice C)
+  stated    // given directly by a person
+  corrected // fixed by a person afterwards
+}
+
+enum CompanyFactKind {
+  offering
+  customer
+  differentiator
+  goal
+  term
+  avoid
+}
+
+// The workspace's durable understanding of the business (doc/12 §5.2). Scalar facts
+// are columns; list facts are CompanyFact rows. Documents are derived from it.
+model CompanyProfile {
+  workspaceId String              @id
+  revision    Int                 @default(0)
+  name        String?             @db.VarChar(200)
+  location    String?             @db.VarChar(200)
+  serviceArea CompanyServiceArea?
+  purpose     String?             @db.VarChar(1000)
+  brandVoice  CompanyVoice?
+  updatedAt   DateTime            @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// Where each scalar fact came from.
+model CompanyScalarSource {
+  workspaceId    String
+  field          String            @db.VarChar(32) // name | location | serviceArea | purpose | brandVoice
+  status         CompanyFactStatus
+  sourceAnswerId String?
+  setByMemberId  String
+  updatedAt      DateTime          @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  setBy     WorkspaceMember @relation(fields: [setByMemberId], references: [id])
+
+  @@id([workspaceId, field])
+  @@index([setByMemberId])
+}
+
+model CompanyFact {
+  id             String            @id @default(cuid())
+  workspaceId    String
+  kind           CompanyFactKind
+  value          String            @db.VarChar(500)
+  status         CompanyFactStatus
+  sourceAnswerId String?
+  sourceRunId    String?
+  setByMemberId  String
+  createdAt      DateTime          @default(now())
+  supersededAt   DateTime?
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  setBy     WorkspaceMember @relation(fields: [setByMemberId], references: [id])
+
+  @@index([workspaceId, kind, supersededAt])
+  @@index([setByMemberId])
+}
+
+// A snapshot per change, so a document can name the facts it was written from.
+model CompanyProfileRevision {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  revision          Int
+  snapshot          Json
+  actionExecutionId String?
+  createdAt         DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, revision])
 }

@@ -1,11 +1,13 @@
 # Workflows (doc/08 §4.2). Step types: wait · guard · choose · act · branch.
 # Guards/acts are a typed registry in code; packs only compose them.
+# In a workspace channel the host workflows welcome people (doc/12 §3), so the
+# chatter here stays out of it; a summon still gets an answer.
 - id: greet
   on: [member.joined, presence.arrived]
   key: "greet"                      # one live greet per room; arrivals during
   steps:                            # `collect` merge into it (burst → one line)
     - wait: { min: 2s, max: 8s, collect: 6s }
-    - guard: [seated, roomHasHumanItem, subjectsPresent, { notGreetedWithin: 12h }]
+    - guard: [seated, notWorkspaceChannel, roomHasHumanItem, subjectsPresent, { notGreetedWithin: 12h }]
     - choose: { pool: "greeting.{audience}" }
     - act: { say: chat }
 
@@ -16,7 +18,7 @@
   once: true                        # persisted in BotOnce; never re-armed
   steps:
     - wait: { min: 2s, max: 5s }
-    - guard: [seated, { authorIsOwner: { final: true } }]
+    - guard: [seated, notWorkspaceChannel, { authorIsOwner: { final: true } }]
     - choose: { pool: opening }
     - act: { say: chat }
 
@@ -26,7 +28,7 @@
   key: "summon:{itemId}"
   steps:
     - wait: { min: 1.5s, max: 4s }
-    - guard: [seated, itemLive]
+    - guard: [seated, itemLive, notWorkflowAnswer]
     - branch:                       # "chatbot, play something" → a clip on stage
         if: [{ intent: media-request }]
         then:
@@ -41,7 +43,7 @@
   key: "idle"
   steps:
     - wait: { min: 1s, max: 4s }
-    - guard: [seated, humanPresent, roomHasHumanItem, { probability: 0.6 }]
+    - guard: [seated, notWorkspaceChannel, humanPresent, roomHasHumanItem, { probability: 0.6 }]
     - branch:
         if: [{ probability: 0.3 }]
         then:

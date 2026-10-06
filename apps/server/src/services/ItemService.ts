@@ -12,7 +12,7 @@ import { events } from './events'
 import { purgeCapture } from './purgeCapture'
 import { recountRooms } from './roomStats'
 import { mutes } from './MuteService'
-import { storedActions, type ChoiceOffer } from '../lib/choice'
+import { storedActions, type ChoiceOffer, type MessageLink } from '../lib/choice'
 
 const rooms = new RoomService()
 
@@ -31,6 +31,8 @@ export type InternalOpts = {
   /** Posted by this registered workflow: uses the workflow allowance instead of the
    *  ordinary bot caps (doc/12). Bots only; never from HTTP. */
   workflow?: string
+  /** Documents this bot message points at (doc/12 §5.4). Bots only; never from HTTP. */
+  links?: MessageLink[]
 }
 
 // Message = reusable content; Item = its placement in one room.
@@ -74,14 +76,15 @@ export class ItemService {
     const content = this.content(input)
     const actions = opts.actions ? storedActions(opts.actions) : null
     const workflow = opts.workflow ?? null
+    const links = opts.links?.length ? opts.links : null
     if (workflow && !isRegisteredFlow(workflow)) throw new Error(`Unregistered workflow: ${workflow}`)
     const { actor, room } = await rooms.authorizeActor(viewerId, roomId)
-    if ((actions || workflow) && actor.kind !== 'bot') throw new Error('Only bots offer choices or post for workflows')
+    if ((actions || workflow || links) && actor.kind !== 'bot') throw new Error('Only bots offer choices, link documents or post for workflows')
     await rooms.ensureHumanParticipation(actor, room)
 
     const placed = await db.$transaction(async (tx) => {
       await this.botCap(tx, actor, roomId, workflow)
-      const msg = await this.createMessage(tx, viewerId, content, { actions, workflow })
+      const msg = await this.createMessage(tx, viewerId, content, { actions, workflow, links })
       const result = await this.place(tx, actor, { roomId, messageId: msg.id, parentId: null, chat: input.chat === true })
       await opts.onPlaced?.(tx, result.item)
       return result
@@ -235,8 +238,8 @@ export class ItemService {
     return { text, mediaIds }
   }
 
-  private async createMessage(tx: Tx, authorId: string, content: { text: string | null; mediaIds: string[] }, bot: { actions?: object | null; workflow?: string | null } = {}) {
-    const extra = { ...(bot.actions ? { actions: bot.actions } : {}), ...(bot.workflow ? { workflow: bot.workflow } : {}) }
+  private async createMessage(tx: Tx, authorId: string, content: { text: string | null; mediaIds: string[] }, bot: { actions?: object | null; workflow?: string | null; links?: object[] | null } = {}) {
+    const extra = { ...(bot.actions ? { actions: bot.actions } : {}), ...(bot.workflow ? { workflow: bot.workflow } : {}), ...(bot.links ? { links: bot.links } : {}) }
     const message = await tx.message.create({ data: { authorId, text: content.text, ...extra }, select: { id: true } })
     if (content.mediaIds.length > 0) {
       const uniqueMediaIds = Array.from(new Set(content.mediaIds))

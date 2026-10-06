@@ -23,6 +23,9 @@ export type DomainEvents = {
   'presence.arrived': { roomId: string; userId: string }
   'presence.left': { roomId: string; userId: string }
   'seating.changed': { roomId: string; botId: string; seated: boolean; byUserId: string }
+  /** A registered person became an active workspace member: they created it, or
+   *  accepted an invite (doc/12 §3 — the bot channel welcomes them). */
+  'workspace.member.activated': { workspaceId: string; userId: string; memberId: string; creator: boolean }
 }
 
 type Name = keyof DomainEvents

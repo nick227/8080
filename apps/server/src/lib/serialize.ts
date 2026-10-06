@@ -3,7 +3,7 @@
 import type { Prisma, ReactionType, WorkspaceRole } from '@project/db'
 import { youTubeThumbnailUrl, youTubeWatchUrl } from '@project/shared'
 import { playbackToken } from './playbackToken'
-import { json, type StoredActions, type StoredChoice } from './choice'
+import { json, type MessageLink, type StoredActions, type StoredChoice } from './choice'
 
 // ─── users ───────────────────────────────────────────────────────────────────
 
@@ -127,6 +127,7 @@ export function toMessage(message: MessageRow, hidden: boolean) {
     media: hidden ? [] : message.media.map(toMedia),
     actions: hidden ? null : toActions(message.actions),
     choice: hidden ? null : json<StoredChoice>(message.choice),
+    links: hidden ? [] : json<MessageLink[]>(message.links) ?? [],
     createdAt: message.createdAt,
   }
 }

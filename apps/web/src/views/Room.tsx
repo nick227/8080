@@ -32,6 +32,7 @@ import { pictureOf } from '../utils/thumbnail'
 import { roomTitle } from '../utils/room'
 import { markRead, readNumber } from '../features/room/readCursor'
 import { LiveRoom } from '../features/room/live/LiveRoom'
+import { HostChannelProvider, useHostChannel } from '../features/room/hostChannel'
 import '../features/room/room.css'
 
 export function Room({ roomId: roomRef }: { roomId: string }) {
@@ -144,8 +145,17 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
 
   // Row actions go through a ref so cached rows never hold stale closures.
   const chooseOption = useChooseOption()
-  const actions = useRef({ reply: (_id: string) => {}, remove: (_id: string) => {}, choose: async (_id: string, _optionIds: string[]) => {} })
+  const hostChannel = useHostChannel(roomId)
+  const actions = useRef({ reply: (_id: string) => {}, remove: (_id: string) => {}, choose: async (_id: string, _optionIds: string[]) => {}, openDocument: (_id: string) => {} })
   actions.current = {
+    // A document a bot linked (doc/12 §5.4): it may be newer than the list, so refresh first.
+    openDocument: (id) => {
+      const docs = useDocuments.getState()
+      void docs.refresh().finally(() => {
+        useDocuments.getState().open(id)
+        openPlace('documents')
+      })
+    },
     choose: async (itemId, optionIds) => { await chooseOption.mutateAsync({ itemId, optionIds }) },
     reply: (id) => { setCompose(false); ui.startReply(id); setDesk(true) },
     remove: (id) => {
@@ -172,6 +182,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       choice: item.actions
         ? { actions: item.actions, choice: item.choice, meId, onChoose: (optionIds) => actions.current.choose(item.id, optionIds) }
         : undefined,
+      links: item.links?.map((link) => ({ id: link.id, title: link.title, onOpen: () => actions.current.openDocument(link.id) })),
       onReply: () => actions.current.reply(item.id),
       onDelete: item.author.id === meId ? () => actions.current.remove(item.id) : undefined,
     }
@@ -238,6 +249,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
           }}>×</Control>
         </Label>
       )}
+      <HostChannelProvider value={hostChannel}>
       <ChatShell
         view={view}
         stage={(
@@ -286,6 +298,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
           </>
         )}
       />
+      </HostChannelProvider>
       {showDesk && (
         <RecordSurface
           title={fresh && !replyName ? (data?.title ?? 'New Message') : undefined}

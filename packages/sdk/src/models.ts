@@ -37,6 +37,9 @@ export type Message = S['Message']
 export type ChoiceActions = S['ChoiceActions']
 export type ChoiceOption = S['ChoiceOption']
 export type Choice = S['Choice']
+export type MessageLink = S['MessageLink']
+export type CompanyProfile = S['CompanyProfile']
+export type CompanyFact = S['CompanyFact']
 
 // Workspaces (doc/09)
 export type Workspace = S['Workspace']

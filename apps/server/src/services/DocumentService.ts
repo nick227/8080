@@ -87,7 +87,9 @@ export class DocumentService {
     const last = rows[rows.length - 1]
     return { data: rows.map(r => serialize(r, actor)), meta: { nextCursor: hasMore && last ? encodeKeyCursor({ u: last.updatedAt.toISOString(), id: last.id }) : null } }
   }
-  async create(ctx: WorkspaceCtx, workspaceId: string, input: DocumentCreate, materialization?: { table: GridTable; provenance: object; protectedDataset?: 'contacts' }) {
+  // `provenance` (server-internal): where a native document came from, e.g. the chatbot
+  // workflow run and profile revision it was generated from (doc/12 §5.4).
+  async create(ctx: WorkspaceCtx, workspaceId: string, input: DocumentCreate, materialization?: { table: GridTable; provenance: object; protectedDataset?: 'contacts' }, provenance?: object) {
     const actor = await authorize(ctx.user.id, workspaceId, 'document.create')
     const descriptor = normalizeDescriptor(input.descriptor)
     if (descriptor.source.kind === 'dataset' || materialization?.protectedDataset) { permit(actor, 'dataset.read'); permit(actor, 'record.read') }
@@ -97,7 +99,7 @@ export class DocumentService {
     const contentHash = materialization ? createHash('sha256').update(JSON.stringify(materialization)).digest('hex') : null
     return runAction({ action: 'document.create', workspaceId, actor: memberActor(actor), origin: ctx.origin, target: { type: 'document' }, idempotencyKey: input.idempotencyKey,
       input: { title: normalizedTitle, descriptor, contentHash } }, async tx => {
-      const row = await tx.document.create({ data: { workspaceId, ownerMemberId: actor.member.id, title: normalizedTitle, surface: descriptor.surface, sourceKind: descriptor.source.kind, descriptor: json(descriptor), externalFileId: externalFileId(descriptor), ...(materialization ? { payload: json(materialization.table), provenance: json(materialization.provenance), protectedDataset: materialization.protectedDataset } : {}) }, include })
+      const row = await tx.document.create({ data: { workspaceId, ownerMemberId: actor.member.id, title: normalizedTitle, surface: descriptor.surface, sourceKind: descriptor.source.kind, descriptor: json(descriptor), externalFileId: externalFileId(descriptor), ...(materialization ? { payload: json(materialization.table), provenance: json(materialization.provenance), protectedDataset: materialization.protectedDataset } : provenance ? { provenance: json(provenance) } : {}) }, include })
       return { value: serialize(row, actor), targetId: row.id }
     }, async previous => this.get(ctx.user.id, workspaceId, previous.targetId!))
   }

@@ -1,6 +1,7 @@
 import { buildApp } from './app'
 import { loadPacks } from './bots/pack'
 import { startBots } from './bots/runtime'
+import { startWorkspaceHost } from './services/WorkspaceHost'
 
 async function main() {
   const server = await buildApp({ logger: true })
@@ -11,6 +12,8 @@ async function main() {
   // Bots (doc/08): packs are seeded on boot (idempotent). BOTS=off keeps them silent.
   const runtime = await startBots(loadPacks())
   server.log.info(`bots: ${runtime.seeded.map((b) => `${b.pack.handle}@${b.pack.version}`).join(', ') || 'none'}${process.env.BOTS === 'off' ? ' (BOTS=off)' : ''}`)
+  // chatbot as workspace host (doc/12): channel welcomes and the company-profile flow.
+  startWorkspaceHost()
 }
 
 main().catch((err) => {

@@ -39,6 +39,9 @@ export type WorkspaceVerb =
   | 'inbox.read'
   | 'inbox.update'
   | 'compose.send'
+  // The company profile (doc/12 §5.2): everyone reads it; owners and admins shape it.
+  | 'companyProfile.read'
+  | 'companyProfile.edit'
 
 const OWNERS: readonly WorkspaceRole[] = ['owner']
 const ADMINS: readonly WorkspaceRole[] = ['owner', 'admin']
@@ -75,6 +78,8 @@ const ROLES: Record<WorkspaceVerb, readonly WorkspaceRole[]> = {
   'inbox.read': EVERYONE,
   'inbox.update': EVERYONE,
   'compose.send': EVERYONE,
+  'companyProfile.read': EVERYONE,
+  'companyProfile.edit': ADMINS,
 }
 
 // What a verb is applied to, when the answer depends on it.

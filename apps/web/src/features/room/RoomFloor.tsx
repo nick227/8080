@@ -5,6 +5,7 @@ import { PersonIcon } from '../../components/icons'
 import { PersonName } from '../../components/PersonName'
 import type { Item, SendInput } from '../../api/types'
 import { SelfTile } from './SelfTile'
+import { ChannelButton } from './hostChannel'
 import { RoomAir } from './RoomAir'
 import type { PresenceActivity } from './PeopleStrip'
 import { tileDensity, VIEW_LABEL, type RoomView, type Seat } from './roomViews'
@@ -16,6 +17,7 @@ function FaceTile({ seat }: { seat: Seat }) {
         {seat.avatarUrl ? <img src={seat.avatarUrl} alt="" /> : <PersonIcon guest={seat.guest} />}
       </span>
       <PersonName className="room-seat-name" name={seat.name} tag={seat.tag} />
+      <ChannelButton seatId={seat.id} />
     </div>
   )
 }

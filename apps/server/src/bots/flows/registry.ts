@@ -2,12 +2,12 @@
 // under its key and may post through the workflow allowance (bots/limits.ts) — only
 // registered flows can, so the allowance can't be claimed by ordinary bot lines.
 import type { Prisma } from '@project/db'
-import type { ChoiceOffer } from '../../lib/choice'
+import type { ChoiceOffer, MessageLink } from '../../lib/choice'
 
 type Tx = Prisma.TransactionClient
 
-/** A line the bot says after a choice, optionally offering the next one. */
-export type FlowSay = { text: string; offer?: Omit<ChoiceOffer, 'flow'> }
+/** A line the bot says for a flow, optionally offering the next choice or linking a document. */
+export type FlowSay = { text: string; offer?: Omit<ChoiceOffer, 'flow'>; links?: MessageLink[] }
 export type ChoiceContext = { flow: string; step: string; optionIds: string[]; userId: string; roomId: string; itemId: string }
 
 export type ChoiceFlow = {
@@ -17,6 +17,9 @@ export type ChoiceFlow = {
    *  answer commit together; what it returns is posted after commit by the bot that
    *  asked, on the same surface. */
   advance: (tx: Tx, ctx: ChoiceContext) => Promise<FlowSay[]> | FlowSay[]
+  /** Work that can't share the choice transaction (it runs its own actions, e.g.
+   *  creating a document). Runs after the answer commits; its lines are posted too. */
+  afterCommit?: (ctx: ChoiceContext) => Promise<FlowSay[]>
 }
 
 const flows = new Map<string, ChoiceFlow>()

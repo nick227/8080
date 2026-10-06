@@ -39,6 +39,15 @@ export const GUARDS: Record<string, Guard> = {
     const n = await db.item.count({ where: { roomId: ctx.roomId, deletedAt: null, ...humanAuthoredWhere } })
     return n > 0 ? true : 'no-human-item'
   },
+  // doc/12 §3: the workspace channel's welcomes and interview belong to the host flows.
+  async notWorkspaceChannel(ctx) {
+    return (await db.workspaceChannel.findUnique({ where: { roomId: ctx.roomId }, select: { roomId: true } })) ? 'workspace-channel' : true
+  },
+  // A typed message the company-profile run consumed as an answer is not a summon.
+  async notWorkflowAnswer(ctx) {
+    if (!ctx.trigger.itemId) return true
+    return (await db.workflowAnswer.count({ where: { itemId: ctx.trigger.itemId } })) ? 'workflow-answer' : true
+  },
   async humanPresent(ctx) {
     return roomPresence.here(ctx.roomId).length > 0 ? true : 'nobody-here'
   },

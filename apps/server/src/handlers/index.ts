@@ -13,3 +13,4 @@ export * from './inbox'
 
 export * from './documents'
 export * from './imports'
+export * from './host'

@@ -12,7 +12,8 @@ import { recordChange } from './roomChanges'
 import { mutes } from './MuteService'
 import { json, type StoredActions, type StoredChoice } from '../lib/choice'
 import { BOT_LIMITS } from '../bots/limits'
-import { flowFor, type FlowSay } from '../bots/flows/registry'
+import { flowFor } from '../bots/flows/registry'
+import { postSays } from '../bots/flows/post'
 
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((id) => b.includes(id))
 
@@ -40,12 +41,12 @@ export class ChoiceService {
     if (flow?.canChoose && !(await flow.canChoose(base))) throw httpError(403, 'This choice is for someone else', 'NOT_YOUR_CHOICE')
     await rooms.ensureHumanParticipation(actor, room)
 
-    const says = await db.$transaction(async (tx) => {
+    const { says, recorded } = await db.$transaction(async (tx) => {
       // The row lock makes the first answer win when two people click at once.
       const [row] = await tx.$queryRaw<{ choice: unknown }[]>`SELECT choice FROM Message WHERE id = ${item.messageId} FOR UPDATE`
       const existing = json<StoredChoice>(row?.choice)
       if (existing) {
-        if (existing.userId === viewerId && sameSet(existing.optionIds, ids)) return [] // a repeat changes nothing
+        if (existing.userId === viewerId && sameSet(existing.optionIds, ids)) return { says: [], recorded: false } // a repeat changes nothing
         throw conflict('This choice was already answered', 'CHOICE_CLOSED')
       }
       const choice: StoredChoice = { optionIds: ids, userId: viewerId, at: new Date().toISOString() }
@@ -55,23 +56,16 @@ export class ChoiceService {
       // Bounded: one answer buys at most a few posts. A flow that wants more is a bug,
       // and throwing here rolls the answer back with it.
       if (says.length > BOT_LIMITS.workflowPostsPerAnswer) throw new Error(`${actions.flow}: ${says.length} posts for one answer (max ${BOT_LIMITS.workflowPostsPerAnswer})`)
-      return says
+      return { says, recorded: true }
     })
 
-    for (const say of says) await this.say(item.message.authorId, item.roomId, item.chat, actions.flow, say)
+    await postSays(item.message.authorId, item.roomId, item.chat, actions.flow, says)
+    if (recorded && flow?.afterCommit) {
+      const later = await flow.afterCommit({ ...base, optionIds: ids })
+      await postSays(item.message.authorId, item.roomId, item.chat, actions.flow, later.slice(0, Math.max(0, BOT_LIMITS.workflowPostsPerAnswer - says.length)))
+    }
 
     const updated = await db.item.findUniqueOrThrow({ where: { id: itemId }, include: itemInclude })
     return toItem(updated, viewerId, await mutes.mutedBy(viewerId))
-  }
-
-  // The answer is already committed; a follow-up the rails refuse (workflow cap, unseated)
-  // is logged rather than undoing the person's choice.
-  private async say(botUserId: string, roomId: string, chat: boolean, flow: string, say: FlowSay) {
-    try {
-      const actions = say.offer ? { ...say.offer, flow } : undefined
-      await items.send(botUserId, roomId, { text: say.text, chat }, { actions, workflow: flow })
-    } catch (error) {
-      console.error(`[choice] ${flow}: follow-up not posted`, error)
-    }
   }
 }

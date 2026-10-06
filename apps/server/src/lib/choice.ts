@@ -7,6 +7,8 @@ export type ChoiceOption = { id: string; label: string }
 export type ChoiceOffer = { flow: string; step: string; mode?: 'one' | 'many'; options: ChoiceOption[]; forUserId?: string | null }
 export type StoredActions = { flow: string; step: string; mode: 'one' | 'many'; options: ChoiceOption[]; forUserId: string | null }
 export type StoredChoice = { optionIds: string[]; userId: string; at: string }
+/** Something a bot message points at (doc/12 §5.4). */
+export type MessageLink = { type: 'document'; id: string; workspaceId: string; title: string }
 
 const OPTION_ID = /^[a-z0-9][a-z0-9-]{0,31}$/
 const MAX_OPTIONS = 8

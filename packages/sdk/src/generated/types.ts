@@ -863,6 +863,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/channel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The workspace's shared bot channel (created on first use)
+         * @description doc/12 §3. One transparent channel per workspace where chatbot hosts: every
+         *     active member is a member of its room and is welcomed there once (the creator's
+         *     welcome starts the company-profile setup). Idempotent.
+         */
+        post: operations["openWorkspaceChannel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/company-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** The workspace's company profile (doc/12 §5.2) */
+        get: operations["getCompanyProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/activity": {
         parameters: {
             query?: never;
@@ -2261,8 +2304,51 @@ export interface components {
             actions: components["schemas"]["ChoiceActions"] | null;
             /** @description The answer to `actions` once someone chose (first choice wins); null while open. */
             choice: components["schemas"]["Choice"] | null;
+            /** @description Things a bot message points at (doc/12 §5.4), e.g. a document it created. Empty for human messages and when hidden. */
+            links: components["schemas"]["MessageLink"][];
             /** Format: date-time */
             createdAt: string;
+        };
+        MessageLink: {
+            /** @enum {string} */
+            type: "document";
+            id: string;
+            workspaceId: string;
+            /** @description The title when the link was posted */
+            title: string;
+        };
+        WorkspaceChannelResponse: {
+            data: {
+                roomId: string;
+            };
+        };
+        CompanyFact: {
+            id: string;
+            /** @enum {string} */
+            kind: "offering" | "customer" | "differentiator" | "goal" | "term" | "avoid";
+            value: string;
+            /**
+             * @description inferred = drafted by a model; stated = a person said it; corrected = a person fixed it
+             * @enum {string}
+             */
+            status: "inferred" | "stated" | "corrected";
+        };
+        CompanyProfile: {
+            /** @description 0 until the first save */
+            revision: number;
+            name: string | null;
+            location: string | null;
+            /** @enum {string|null} */
+            serviceArea: "local" | "regional" | "national" | "global" | null;
+            purpose: string | null;
+            /** @enum {string|null} */
+            brandVoice: "professional" | "friendly" | "bold" | "technical" | null;
+            facts: components["schemas"]["CompanyFact"][];
+            /** Format: date-time */
+            updatedAt: string | null;
+        };
+        CompanyProfileResponse: {
+            data: components["schemas"]["CompanyProfile"];
         };
         ChoiceOption: {
             /** @description Stable option id the client sends back */
@@ -2543,7 +2629,7 @@ export interface components {
             actorMemberId: string | null;
             actorUserId: string | null;
             /** @enum {string} */
-            origin: "ui" | "api" | "import" | "sync" | "system";
+            origin: "ui" | "api" | "import" | "sync" | "system" | "assistant";
             targetType: string | null;
             targetId: string | null;
             input: unknown;
@@ -5046,6 +5132,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TeamResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    openWorkspaceChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The channel's room */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceChannelResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getCompanyProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current facts; empty until the setup has run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyProfileResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

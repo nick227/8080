@@ -1,6 +1,6 @@
 # 12 — Chatbot: guided workflows and the company profile
 
-**Status:** Design, recorded 2026-10-05. Slice A (bot message choices) built 2026-10-05, uncommitted (§4.3). Slices B–D not built.
+**Status:** Design, recorded 2026-10-05. Slice A (bot message choices) committed 6461653 + 5dc9615 (§4.3). Slice B (channel, workflow, profile, template document; AI off) built 2026-10-05, uncommitted (§6.5). Slices C–D not built.
 **Supersedes:** doc/08 §4.9 "observational only" (replaced by §2 below).
 **Builds on:** doc/08 (bot runtime, rails, ItemService posting), doc/09 (Workspace, `runAction`, policy), doc/10 (block documents, `DocumentContent`, room links).
 
@@ -202,6 +202,35 @@ When the channel is opened with no active run:
 - Generate unavailable → a **template** document is built from the facts ("{name} is a {location} company that {purpose}…"). The summary says it's a template, with [Try again].
 - So with `AI_ASSISTANT` off the whole flow still works end to end. That is also the test oracle.
 
+### 6.5 As built (Slice B, AI off, 2026-10-05)
+
+- **Proven path:** public welcome → creator-only setup → deterministic questions → stored profile → template Company Description → native block document linked to the channel → bot posts the link, which opens the document.
+- **Channel:** `WorkspaceChannel { workspaceId, roomId }`; `services/WorkspaceHost.ts`.
+  - The event `workspace.member.activated` is emitted by `WorkspaceService.create` and `acceptInvite`.
+  - `POST /workspaces/{id}/channel` (`openWorkspaceChannel`) is idempotent. It also welcomes the caller once, which covers workspaces made before the channel existed.
+  - Welcomes are claimed once per person (`BotOnce welcome:<userId>`). The claim is given back if the post failed.
+  - The chatbot pack's greet, opening and idle workflows skip channels (guard `notWorkspaceChannel`). A summon still works, unless that message was consumed as an answer (guard `notWorkflowAnswer`).
+- **Runs:** `WorkflowRun` / `WorkflowAnswer`. The engine is `bots/flows/companyProfile.ts`:
+  - Fixed `STEPS`: name (text) · area (choice) · location (text) · purpose (text) · offerings (text, split on `, ; newline`) · customers (many) · differentiator (text) · tone · audience · length.
+  - Steps whose field the stored profile already has are skipped, so a later run asks only the brief.
+  - A choice or a typed line moves the run inside one transaction, under a locking read (`… FOR UPDATE`) of the run row. A stale step gets 409 `STEP_CLOSED` and the click rolls back.
+  - Typed answers come only from that person, in the channel, while their run waits on a text step. Other members' messages stay chat. Too long → asked again; voice/media → "please type".
+  - Later → paused, then [Set up company profile] again.
+- **Profile:** `CompanyProfile` (scalar columns), `CompanyFact` (lists; superseded, never deleted), `CompanyScalarSource`, `CompanyProfileRevision`.
+  - `services/CompanyProfileService.ts`: `apply` writes one `companyProfile.update` action per interview, idempotent per run.
+  - Policy: `companyProfile.read` for everyone, `companyProfile.edit` for owners and admins.
+  - `GET /workspaces/{id}/company-profile` (`getCompanyProfile`).
+- **Document:** `bots/flows/companyDescription.ts` is a deterministic template (voice → opening, audience → closing, length → 1–3 paragraphs). It is created through `DocumentService.create` (new optional `provenance`: run, profile revision, `generator: 'template'`, brief), then `DocumentContentService.save` and `roomLink`.
+  - All of these actions run as the creator with origin `ActionOrigin.assistant`.
+  - Generation runs after commit (`ChoiceFlow.afterCommit`), claimed once. A failure gives [Try again], which finishes the same run.
+- **Message links:** `Message.links` (`[{ type: 'document', id, workspaceId, title }]`, server-only).
+  - Web: `ChatStream` renders a "Document · title" line. `Room.openDocument` refreshes the list, opens the document and switches to Documents.
+  - chatbot's tile shows **Channel** (`features/room/hostChannel.tsx`, context from Room). It opens the channel of the person's first workspace.
+- **Depends on the uncommitted shared-content POC** (doc/10 §15: `DocumentContentService`, `documentHub`, `GET …/content`). That POC must be committed first.
+- **Proof:**
+  - server `host.test.ts` 14/14; full suite 422/422.
+  - browser (scratchpad `e2e/host.cjs`, isolated pair :3002/:5174, TEST DB; creator + invited member + guest; desktop + mobile) 28/28 ×2. `choices.cjs` 24/24 still passes.
+
 ## 7. AI calls
 
 There are exactly two calls in this workflow. Both use strict JSON-schema output (as in the router), are validated on return, and are discarded if invalid.
@@ -242,7 +271,7 @@ Output: `{ profilePatch: <same shape as extract>, document: { title, paragraphs:
 ## 9. Slices
 
 - **A — Buttons.** Built (§4.3).
-- **B — Channel + workflow + profile, AI off.** `WorkspaceChannel`, public welcomes (creator vs member vs guest), `WorkflowRun/Answer`, profile tables + revisions, all-direct follow-ups, the template document, the summary, [Fix a fact]. Fully usable without AI.
+- **B — Channel + workflow + profile, AI off.** Built (§6.5). `WorkspaceChannel`, public welcomes (creator vs member vs guest), `WorkflowRun/Answer`, profile tables + revisions, all-direct follow-ups, the template document, the summary. Not yet: [Fix a fact] and [Write another] (§6.3). Fully usable without AI.
 - **C — AI.** Extract + generate, caps, `AssistantCall` log, fallbacks.
 - **D — More from the profile.** [Write another]: About page, sales intro, social bio. Each is a generator with its required facts + brief, on the same engine. Later: detecting profile changes in ordinary channel messages ("we aren't targeting restaurants anymore" → [Update profile] [Just this document]). That needs reading every message, so it waits for C's logs.
 
