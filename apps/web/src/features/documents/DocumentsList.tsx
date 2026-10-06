@@ -6,6 +6,7 @@ import { markOf, whenLabel } from './format'
 import { blankDoc } from './seed'
 import { useDocuments } from './store'
 import type { DocumentRecord } from './types'
+import './DocumentsList.css'
 
 type SortKey = 'title' | 'owner' | 'updated' | 'type'
 type Sort = { key: SortKey; dir: 1 | -1 }
