@@ -3210,6 +3210,106 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  # ─── shared native content (doc/10 §10 POC: block documents) ───────────────
+  /workspaces/{workspaceId}/documents/{documentId}/content:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      operationId: getDocumentContent
+      summary: The shared content of a block document
+      description: Version 0 with null content means nothing has been saved yet. Block documents only (400 NOT_SHARED_CONTENT otherwise).
+      tags: [documents]
+      responses:
+        '200':
+          description: Current content
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentContentResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: saveDocumentContent
+      x-fastify-config:
+        rateLimit: { max: 600, timeWindow: '1 minute' }
+      summary: Save the content, based on a version (editors)
+      description: |
+        Optimistic: `expectedVersion` is the version the edit was based on (0 for the first
+        save). If someone saved since, 409 DOCUMENT_CONTENT_CONFLICT — fetch the latest,
+        reapply your changes and retry; nothing is overwritten silently. Open streams get
+        `document.updated` at once.
+      tags: [documents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveDocumentContentInput' }
+      responses:
+        '200':
+          description: Saved content (new version)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentContentResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /workspaces/{workspaceId}/documents/{documentId}/presence:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/DocumentId'
+    put:
+      operationId: setDocumentPresence
+      x-fastify-config:
+        rateLimit: { max: 600, timeWindow: '1 minute' }
+      summary: Say whether you are editing (lapses after a few seconds without a renewal)
+      tags: [documents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DocumentPresenceInput' }
+      responses:
+        '200':
+          description: Noted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /workspaces/{workspaceId}/documents/{documentId}/stream:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      operationId: streamDocumentEvents
+      summary: Server-Sent Events for one shared document
+      description: |
+        `text/event-stream`. `document.updated` carries the new version (fetch the content);
+        `document.presence` lists who has the document open and who is editing. Readers only.
+        A `ping` comment keeps proxies from closing the connection. See DocumentStreamEvent.
+      tags: [documents]
+      responses:
+        '200':
+          description: Event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE frames; each data payload is a JSON DocumentStreamEvent
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -3253,6 +3353,11 @@ components:
       required: true
       schema: { $ref: '#/components/schemas/ReactionType' }
 
+    DocumentId:
+      in: path
+      name: documentId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
     WorkspaceId:
       in: path
       name: workspaceId
@@ -5779,3 +5884,78 @@ components:
           type: array
           items: { $ref: '#/components/schemas/ContactImportRow' }
         meta: { $ref: '#/components/schemas/PaginatedMeta' }
+
+    # ─── shared native content (doc/10 §10 POC) ──────────────────────────────
+    ContentBlock:
+      type: object
+      additionalProperties: false
+      required: [id, type]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 64 }
+        type: { type: string, enum: [section, title, paragraph, media] }
+        level: { type: string, enum: [body, h3, h2, h1], description: "Heading size. Absent on older blocks: title reads as h1, paragraph and media as body." }
+        text: { type: string, maxLength: 20000 }
+        mediaName: { type: string, maxLength: 255 }
+        mediaKind: { type: string, enum: [image, video, audio, file] }
+
+    DocumentContent:
+      type: object
+      required: [version, content, updatedAt, updatedBy]
+      properties:
+        version: { type: integer, minimum: 0, description: 0 = nothing saved yet }
+        content:
+          type: [array, 'null']
+          items: { $ref: '#/components/schemas/ContentBlock' }
+        updatedAt: { type: [string, 'null'], format: date-time }
+        updatedBy:
+          oneOf:
+            - $ref: '#/components/schemas/Author'
+            - type: 'null'
+
+    DocumentContentResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/DocumentContent' }
+
+    SaveDocumentContentInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, content]
+      properties:
+        expectedVersion: { type: integer, minimum: 0 }
+        content:
+          type: array
+          maxItems: 500
+          items: { $ref: '#/components/schemas/ContentBlock' }
+
+    DocumentPresenceInput:
+      type: object
+      additionalProperties: false
+      required: [editing]
+      properties:
+        editing: { type: boolean }
+
+    DocumentStreamEvent:
+      description: Payload of each document SSE message (typing for clients)
+      oneOf:
+        - type: object
+          required: [type, version, memberId, name]
+          properties:
+            type: { type: string, enum: [document.updated] }
+            version: { type: integer }
+            memberId: { type: [string, 'null'] }
+            name: { type: [string, 'null'] }
+        - type: object
+          required: [type, people]
+          properties:
+            type: { type: string, enum: [document.presence] }
+            people:
+              type: array
+              items:
+                type: object
+                required: [memberId, name, editing]
+                properties:
+                  memberId: { type: string }
+                  name: { type: string }
+                  editing: { type: boolean }

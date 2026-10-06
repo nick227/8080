@@ -1,5 +1,5 @@
 // Framework-independent platform client. Editors use the same generated contract.
-import { getApiClient, unwrap } from './client'
+import { getApiBaseUrl, getApiClient, unwrap } from './client'
 import type { components, operations } from './generated/types'
 type S = components['schemas']
 export const documentsApi = {
@@ -42,4 +42,14 @@ export const contactImportsApi = {
   rows: async (workspaceId: string, importId: string, query?: operations['listContactImportRows']['parameters']['query']) => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/contact-imports/{importId}/rows', { params: { path: { workspaceId, importId }, query } })),
   resolve: async (workspaceId: string, importId: string, rowId: string, body: S['ResolveContactImportRowInput']) => unwrap(await getApiClient().PUT('/workspaces/{workspaceId}/contact-imports/{importId}/rows/{rowId}/resolution', { params: { path: { workspaceId, importId, rowId } }, body })).data,
   commit: async (workspaceId: string, importId: string, body: S['CommitContactImportInput'] = {}) => unwrap(await getApiClient().POST('/workspaces/{workspaceId}/contact-imports/{importId}/commit', { params: { path: { workspaceId, importId } }, body })).data,
+}
+
+// Shared content of block documents (doc/10 §10 POC): versioned saves (409 =
+// someone saved since — rebase and retry) and a live event stream.
+export const documentContentApi = {
+  get: async (workspaceId: string, documentId: string) => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/documents/{documentId}/content', { params: { path: { workspaceId, documentId } } })).data,
+  save: async (workspaceId: string, documentId: string, body: S['SaveDocumentContentInput']) => unwrap(await getApiClient().PUT('/workspaces/{workspaceId}/documents/{documentId}/content', { params: { path: { workspaceId, documentId } }, body })).data,
+  presence: async (workspaceId: string, documentId: string, editing: boolean) => unwrap(await getApiClient().PUT('/workspaces/{workspaceId}/documents/{documentId}/presence', { params: { path: { workspaceId, documentId } }, body: { editing } })),
+  /** EventSource URL (open with { withCredentials: true }); events: DocumentStreamEvent. */
+  streamUrl: (workspaceId: string, documentId: string) => `${getApiBaseUrl()}/workspaces/${workspaceId}/documents/${documentId}/stream`,
 }

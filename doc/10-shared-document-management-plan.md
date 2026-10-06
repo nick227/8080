@@ -579,3 +579,17 @@ Server, OpenAPI and SDK only; the web Documents UI (commit a65f081) still edits 
 Tests: `documents.test.ts` (13) and `contactImports.test.ts` (9); the spec-driven access guard covers every workspace route (now 78). Server 362/362.
 
 **CI caveat (separate integration issue, not part of this seam):** at the time of this commit HEAD cannot `pnpm install --frozen-lockfile` — `livekit-server-sdk` is in `pnpm-lock.yaml` but not yet in `apps/server/package.json` (the LiveKit work is still uncommitted). This seam was verified in a clean worktree installed without the frozen lockfile; it does not depend on LiveKit.
+
+## 15. Shared native content — block document POC (2026-10-05)
+
+Proves the core of §10 for one surface: a native **block document** is shared, live and durable. Maps and sheets keep device-local content.
+
+- **Model:** `DocumentContent` (documentId, workspaceId, version, content JSON, updatedBy, updatedAt) — one row per document, no update log or checkpoints yet.
+- **Save:** `PUT …/documents/{id}/content { expectedVersion, content }` — optimistic; a save based on an old version gets 409 `DOCUMENT_CONTENT_CONFLICT`, nothing is overwritten. Registry access decides (readers read, editors save). One audited action per save (version and block count only, never text); no people-facing timeline entries.
+- **Live:** `GET …/documents/{id}/stream` (SSE): `document.updated` (new version → fetch) pushed by an in-process hub at once, backed by a 2 s version check; `document.presence` lists who has it open and who is editing (`PUT …/presence`, lapses after 4 s).
+- **Client** (`features/documents/liveBlocks.ts`): edits save ~300 ms after typing pauses; a 409 or a pushed update rebases this browser's changed blocks onto the latest (three-way, per block id). Different blocks edited at once both survive; the same block edited by both keeps the other person's text and shows "Conflict · … kept their text" until the next edit. The losing text is kept in a **recovery box** under the save state ("Your unsaved text": Add as new section — inserted after the contested section, never over it — Copy, Dismiss), stored in the browser so it survives a refresh. The first open of a document with no shared content uploads this browser's device copy as version 1.
+- **Shown in the editor:** "Alice is editing" / "Alice is here", and the save state (Saving… / Saved · shared / Conflict).
+- **Proof** (two browsers, isolated pair): same document; edits arrive in ~330–360 ms both ways; presence; concurrent different-block edits both survive; same-block collision is a visible conflict with nothing overwritten; the losing text is recoverable (also after a refresh) and comes back as a new section; refresh keeps the latest content.
+- **Block model:** the editor now writes `section` blocks with a heading `level` (body/h3/h2/h1); `title`/`paragraph`/`media` stay valid so older documents still open.
+
+Not in this POC (by design): CRDT/character merge, offline editing, reorder merging (remote order wins), undo/redo, history, cursors, multi-server fan-out, mid-session revocation beyond the stream's 2 s access check, media files inside blocks (still device-local), maps and sheets.

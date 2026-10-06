@@ -1953,6 +1953,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/documents/{documentId}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The shared content of a block document
+         * @description Version 0 with null content means nothing has been saved yet. Block documents only (400 NOT_SHARED_CONTENT otherwise).
+         */
+        get: operations["getDocumentContent"];
+        /**
+         * Save the content, based on a version (editors)
+         * @description Optimistic: `expectedVersion` is the version the edit was based on (0 for the first
+         *     save). If someone saved since, 409 DOCUMENT_CONTENT_CONFLICT — fetch the latest,
+         *     reapply your changes and retry; nothing is overwritten silently. Open streams get
+         *     `document.updated` at once.
+         */
+        put: operations["saveDocumentContent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/documents/{documentId}/presence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Say whether you are editing (lapses after a few seconds without a renewal) */
+        put: operations["setDocumentPresence"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/documents/{documentId}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Server-Sent Events for one shared document
+         * @description `text/event-stream`. `document.updated` carries the new version (fetch the content);
+         *     `document.presence` lists who has the document open and who is editing. Readers only.
+         *     A `ping` comment keeps proxies from closing the connection. See DocumentStreamEvent.
+         */
+        get: operations["streamDocumentEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3292,6 +3367,54 @@ export interface components {
             data: components["schemas"]["ContactImportRow"][];
             meta: components["schemas"]["PaginatedMeta"];
         };
+        ContentBlock: {
+            id: string;
+            /** @enum {string} */
+            type: "section" | "title" | "paragraph" | "media";
+            /**
+             * @description Heading size. Absent on older blocks: title reads as h1, paragraph and media as body.
+             * @enum {string}
+             */
+            level?: "body" | "h3" | "h2" | "h1";
+            text?: string;
+            mediaName?: string;
+            /** @enum {string} */
+            mediaKind?: "image" | "video" | "audio" | "file";
+        };
+        DocumentContent: {
+            /** @description 0 = nothing saved yet */
+            version: number;
+            content: components["schemas"]["ContentBlock"][] | null;
+            /** Format: date-time */
+            updatedAt: string | null;
+            updatedBy: components["schemas"]["Author"] | null;
+        };
+        DocumentContentResponse: {
+            data: components["schemas"]["DocumentContent"];
+        };
+        SaveDocumentContentInput: {
+            expectedVersion: number;
+            content: components["schemas"]["ContentBlock"][];
+        };
+        DocumentPresenceInput: {
+            editing: boolean;
+        };
+        /** @description Payload of each document SSE message (typing for clients) */
+        DocumentStreamEvent: {
+            /** @enum {string} */
+            type: "document.updated";
+            version: number;
+            memberId: string | null;
+            name: string | null;
+        } | {
+            /** @enum {string} */
+            type: "document.presence";
+            people: {
+                memberId: string;
+                name: string;
+                editing: boolean;
+            }[];
+        };
     };
     responses: {
         /** @description Invalid input */
@@ -3359,6 +3482,7 @@ export interface components {
         UserId: string;
         ItemId: string;
         ReactionTypeParam: components["schemas"]["ReactionType"];
+        DocumentId: string;
         WorkspaceId: string;
         /** @description A WorkspaceMember id (not a user id) */
         MemberId: string;
@@ -7046,6 +7170,124 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    getDocumentContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current content */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentContentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    saveDocumentContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveDocumentContentInput"];
+            };
+        };
+        responses: {
+            /** @description Saved content (new version) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentContentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    setDocumentPresence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentPresenceInput"];
+            };
+        };
+        responses: {
+            /** @description Noted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    streamDocumentEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Event stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

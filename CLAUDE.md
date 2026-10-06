@@ -131,6 +131,7 @@ The in-lobby River (playing posts and replies inline) was retired: the Lobby onl
 - **Slice 1 built** (§13): Contacts/Accounts/Tags, the one matcher (`services/contactMatch.ts` — email/domain are signals, never unique keys), Notes (body = a Message; shareable into rooms), RecordLink (record ↔ note/conversation), merge, timelines. Import deferred to the next slice.
 - Timelines: linking adds the record to the object's activities; rooms the viewer can't see are redacted (`records.ts redactRooms`).
 - **Documents backend seam** (doc/10 §14): registry/descriptor union, grants, relations, room links, Google links (`externalFileId`), Contacts dataset (keyset query, export, review copy, versioned writeback). **Import has two paths**: ordinary sheet CSV → native grid (no CRM writes); "import as contacts" → `ContactImportService` (preview via the matcher, review, resumable idempotent commit, `Contact.importBatchId`). Lead import should reuse `ImportBatch`.
+- **Shared block documents (POC, doc/10 §15):** `DocumentContent` (versioned whole-document JSON), `PUT …/content` with expectedVersion (409 = rebase), SSE `…/stream` (updated + presence) via in-process `documentHub` + 2 s version check; client `liveBlocks.ts` rebases per block. Maps/sheets still device-local.
 
 ## Key Design Decisions
 

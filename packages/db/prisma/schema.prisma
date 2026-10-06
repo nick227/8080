@@ -523,6 +523,7 @@ model Workspace {
   links            RecordLink[]
   imports          ImportBatch[]
   importRows       ImportRow[]
+  documentContents DocumentContent[]
   inboxItems       InboxItem[]
   composes         Compose[]
 
@@ -561,6 +562,7 @@ model WorkspaceMember {
   notes           Note[]
   linksMade       RecordLink[]
   imports         ImportBatch[]
+  documentEdits   DocumentContent[]
   inboxItems      InboxItem[]
   composes        Compose[]
 
@@ -1066,6 +1068,7 @@ model Document {
   rooms DocumentRoomLink[]
   relationsFrom DocumentRelation[] @relation("DocumentRelationFrom")
   relationsTo DocumentRelation[] @relation("DocumentRelationTo")
+  content DocumentContent?
   importsFrom ImportBatch[] @relation("ImportSource")
   importsInto ImportBatch[] @relation("ImportResult")
   @@index([workspaceId, deletedAt, id])
@@ -1213,6 +1216,27 @@ model ImportRow {
   @@index([batchId, proposal])
   @@index([batchId, outcome])
   @@index([contactId])
+}
+
+// ─── Shared native content (doc/10 §10, minimal POC) ─────────────────────────
+// The whole content of a native block document, versioned: a save names the
+// version it was based on and is refused (409) if someone saved since — clients
+// rebase their changed blocks onto the latest and retry, or show a conflict.
+// No CRDT, no update log, no checkpoints yet: one row per document.
+model DocumentContent {
+  documentId        String   @id
+  workspaceId       String
+  version           Int
+  content           Json // [{ id, type: title|paragraph|media, text?, mediaName?, mediaKind? }]
+  updatedByMemberId String?
+  updatedAt         DateTime @updatedAt
+
+  document  Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  updatedBy WorkspaceMember? @relation(fields: [updatedByMemberId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([updatedByMemberId])
 }
 
 // Attention queue (doc/11). One row is one member's pointer to one source.

@@ -4,6 +4,7 @@ import { usePeers } from '../presence'
 import { useDocuments } from '../store'
 import { usePresence, type Person } from '../liveBlocks'
 import { SectionBlock } from './SectionBlock'
+import { ConflictRecovery } from '../ConflictRecovery'
 import '../live.css'
 import './letter.css'
 
@@ -44,6 +45,7 @@ export function BlockEditor({ doc }: { doc: DocumentRecord }) {
             <span className="work-sync-state" role="status" data-conflict={/^Conflict/.test(status) ? '' : undefined}>{status}</span>
           </div>
         )}
+        {live && <ConflictRecovery doc={doc} />}
         <article className="letter-sheet" aria-label="Page" onMouseDown={focusPage}>
           {blocks.map((block) => (
             <SectionBlock

@@ -112,10 +112,12 @@ function sampleBody(op: any) {
     ShareMessageInput: { roomIds: ['x'] },
     CreateContactImportInput: { source: { kind: 'csv', csv: 'Name\nx', filename: 'x.csv' } },
     ResolveContactImportRowInput: { action: 'skip' },
+    SaveDocumentContentInput: { expectedVersion: 0, content: [] },
     ReadInboxItemInput: { unread: false },
     StarInboxItemInput: { starred: true },
     ArchiveInboxItemInput: { archived: true },
     SendComposeInput: { contactId: 'x', channel: 'email', destination: 'a@b.co', subject: 'x', body: 'x', contextType: 'contact', contextId: 'x' },
+    DocumentPresenceInput: { editing: true },
   }
   return samples[name ?? ''] ?? {}
 }

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { documentsApi, getApiClient, unwrap, type Document as ServerDocument } from '@project/sdk'
 import type { DocumentRecord, NativeSheet, SharedInfo } from './types'
 import { starterDocs } from './seed'
+import { attachBlocks, blocksChanged, detachBlocks, isAttached } from './liveBlocks'
 
 // The Documents list. With a workspace, entries come from the shared server
 // registry (identity, title, owner, sharing, room links, deletion — doc/10 §3);
@@ -35,6 +36,8 @@ type State = {
   mode: Mode
   workspaceId: string | null
   members: Member[]
+  // This person's workspace member id (presence: "me" vs others)
+  me: string | null
   ensure: (owner?: string) => void
   open: (id: string | null) => void
   add: (doc: DocumentRecord) => void
@@ -143,7 +146,9 @@ export function statusFor(doc: DocumentRecord | undefined, mode: Mode): string {
     case 'dataset': return 'Live data · edits update contacts'
     case 'external': return 'Opens in Google'
     case 'imported': return 'Imported values · your edits stay on this device'
-    case 'native': return doc.shared.mine ? 'Content saved on this device only · not shared yet' : 'Content stays on its owner’s device until shared editing'
+    // Block documents are shared and live (liveBlocks.ts); maps and sheets not yet.
+    case 'native': if (doc.surface === 'blocks') return 'Shared · live'
+      return doc.shared.mine ? 'Content saved on this device only · not shared yet' : 'Content stays on its owner’s device until shared editing'
   }
 }
 
@@ -228,6 +233,7 @@ export const useDocuments = create<State>((set, get) => {
     set({ openId: adoptedId ?? (docs.some((d) => d.id === openId) ? openId : null) })
     setDocs(docs, { ready: true, mode: 'shared' })
     context = { me: mine, members }
+    set({ me: mine })
     return true
   }
 
@@ -273,6 +279,7 @@ export const useDocuments = create<State>((set, get) => {
     mode: 'starting',
     workspaceId: null,
     members: [],
+    me: null,
 
     ensure(owner) {
       if (get().ready || starting) return
@@ -301,7 +308,9 @@ export const useDocuments = create<State>((set, get) => {
           return
         }
         const docs = await loadShared(ws(), context.me, context.members)
-        setDocs(docs)
+        // An open, live block document keeps its synced blocks (not the device copy).
+        const current = new Map(get().docs.map((d) => [d.id, d]))
+        setDocs(docs.map((d) => (isAttached(d.id) ? { ...d, blocks: current.get(d.id)?.blocks ?? d.blocks } : d)))
       } catch {
         // keep showing what we have; the next tick retries
       }
@@ -314,7 +323,20 @@ export const useDocuments = create<State>((set, get) => {
         if (doc.shared?.externalUrl) window.open(doc.shared.externalUrl, '_blank', 'noopener,noreferrer')
         return
       }
+      const previous = get().openId
+      if (previous && previous !== id) detachBlocks(previous)
       set({ openId: id, status: statusFor(doc, get().mode) })
+      // Shared block documents sync live with everyone who has them open.
+      if (doc && doc.surface === 'blocks' && doc.shared?.kind === 'native' && get().mode === 'shared' && !isAttached(doc.id)) {
+        const docId = doc.id
+        attachBlocks(ws(), docId, {
+          blocks: () => get().docs.find((d) => d.id === docId)?.blocks,
+          apply: (blocks) => set({ docs: get().docs.map((d) => (d.id === docId ? { ...d, blocks } : d)) }),
+          status: (text) => { if (get().openId === docId) set({ status: text }) },
+          canEdit: doc.shared.canEdit,
+          me: get().me,
+        })
+      }
       if (doc?.shared?.kind === 'imported' && !importedRows.has(doc.id)) {
         void documentsApi.materialization(ws(), doc.id).then((m) => {
           const table = m.table as { columns: { id: string; label: string }[]; rows: { id: string; cells: Record<string, string | null> }[] }
@@ -363,7 +385,9 @@ export const useDocuments = create<State>((set, get) => {
         return
       }
       // Content → this browser; the title → the shared registry (debounced, versioned).
-      if (!saveContent(next)) set({ status: 'Unsynced on this device' })
+      if (blocksChanged(id)) {
+        // live block document: saved to the shared content (liveBlocks.ts)
+      } else if (!saveContent(next)) set({ status: 'Unsynced on this device' })
       if (next.title !== before.title && next.shared) {
         pendingTitles.set(id, next.title)
         window.clearTimeout(renameTimers.get(id))
@@ -374,6 +398,7 @@ export const useDocuments = create<State>((set, get) => {
     remove(id) {
       const doc = get().docs.find((d) => d.id === id)
       if (!doc) return
+      detachBlocks(id)
       const docs = get().docs.filter((d) => d.id !== id)
       const openId = get().openId === id ? null : get().openId
       if (get().mode !== 'shared' || !doc.shared) {
