@@ -1,63 +1,79 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
+  ApiError,
+  getApiClient,
+  unwrap,
+  useCreateAccount,
   useCreateContact,
   useCreateInventoryItem,
   useUpdateContact,
   useUpdateInventoryItem,
+  useWorkspaceMembers,
   type Contact,
+  type ContactRef,
   type InventoryItem,
 } from '@project/sdk'
 import { RecordFormDialog } from './RecordChrome'
+import { ContactFields, InventoryFields, type FormDraft } from './formFields'
 import type { RecordKind } from './navigation'
 
 export function RecordForm({
   kind,
   workspaceId,
+  currency = 'USD',
   contact,
   item,
   onClose,
   onSaved,
+  onOpenRecord,
 }: {
   kind: RecordKind
   workspaceId: string
+  currency?: string
   contact?: Contact
   item?: InventoryItem
   onClose: () => void
   onSaved: (id: string) => void
+  onOpenRecord?: (kind: RecordKind, id: string) => void
 }) {
-  const [initial] = useState(() => ({
+  const primary = contact?.accounts.find((a) => a.isPrimary) ?? contact?.accounts[0]
+  const [initial] = useState<FormDraft>(() => ({
     name: contact?.displayName ?? item?.name ?? '',
+    email: contact?.primaryEmail ?? '',
+    phone: contact?.primaryPhone ?? '',
+    company: primary?.name ?? '',
+    stage: contact?.leadStatus ?? 'new',
+    ownerId: contact?.ownerMemberId ?? '',
     source: contact?.leadSource ?? '',
-    price: String(item?.price ?? ''),
+    price: item ? String(item.price) : '',
     sku: item?.sku ?? '',
     category: item?.category ?? '',
     description: item?.description ?? '',
+    offered: item?.availability ?? true,
     tracking: item?.quantity != null,
     quantity: String(item?.quantity ?? ''),
     image: item?.imageUrl ?? '',
   }))
   const draftKey = `records.draft:${workspaceId}:${kind}:${contact?.id ?? item?.id ?? 'new'}`
-  const [restoredDraft] = useState(() => {
-    try {
-      const saved = JSON.parse(sessionStorage.getItem(draftKey) || 'null')
-      if (
-        saved &&
-        Object.keys(initial).every((key) => typeof saved[key] === typeof initial[key as keyof typeof initial])
-      )
-        return saved as typeof initial
-    } catch {
-      /* Storage may be unavailable. */
-    }
-    return null
-  })
+  const [restoredDraft] = useState(() => readDraft(draftKey, initial))
   const [form, setForm] = useState(restoredDraft ?? initial)
+  const [fieldError, setFieldError] = useState<Partial<Record<keyof FormDraft, string>>>({})
   const [error, setError] = useState('')
+  const [duplicates, setDuplicates] = useState<ContactRef[] | null>(null)
+  const [skuConflictId, setSkuConflictId] = useState<string | null>(null)
+  const [createdId, setCreatedId] = useState<string | null>(null)
+  const members = useWorkspaceMembers(kind === 'contacts' ? workspaceId : undefined)
   const createContact = useCreateContact(workspaceId)
+  const createAccount = useCreateAccount(workspaceId)
   const createItem = useCreateInventoryItem(workspaceId)
   const updateContact = useUpdateContact(workspaceId)
   const updateItem = useUpdateInventoryItem(workspaceId)
   const pending =
-    createContact.isPending || createItem.isPending || updateContact.isPending || updateItem.isPending
+    createContact.isPending ||
+    createAccount.isPending ||
+    createItem.isPending ||
+    updateContact.isPending ||
+    updateItem.isPending
   const dirty = JSON.stringify(initial) !== JSON.stringify(form)
   useEffect(() => {
     try {
@@ -67,17 +83,6 @@ export function RecordForm({
       /* Keep editing in memory. */
     }
   }, [draftKey, dirty, form])
-  const clearDraft = () => {
-    try {
-      sessionStorage.removeItem(draftKey)
-    } catch {
-      /* Optional persistence. */
-    }
-  }
-  const saved = (id: string) => {
-    clearDraft()
-    onSaved(id)
-  }
   useEffect(() => {
     if (!dirty) return
     const warn = (e: BeforeUnloadEvent) => {
@@ -87,72 +92,152 @@ export function RecordForm({
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty])
+  const clearDraft = () => {
+    try {
+      sessionStorage.removeItem(draftKey)
+    } catch {
+      /* Optional persistence. */
+    }
+  }
+  const finish = (id: string) => {
+    clearDraft()
+    onSaved(id)
+  }
   const close = () => {
     if (!pending && (!dirty || window.confirm('Discard unsaved changes?'))) {
       clearDraft()
       onClose()
     }
   }
+  const set = <K extends keyof FormDraft>(key: K, value: FormDraft[K]) => {
+    setForm((current) => ({ ...current, [key]: value }))
+    setFieldError((current) => ({ ...current, [key]: undefined }))
+  }
   const save = async (event: FormEvent) => {
     event.preventDefault()
     setError('')
-    if (!form.name.trim()) return setError('Enter a name.')
-    try {
-      if (kind === 'contacts') {
-        const data = { displayName: form.name.trim(), leadSource: form.source.trim() || null }
-        if (contact)
-          await updateContact.mutateAsync({
-            ...data,
-            contactId: contact.id,
-            expectedVersion: contact.version,
-          })
-        else {
-          const result = await createContact.mutateAsync(data)
-          saved(result.data.id)
-          return
-        }
-      } else {
-        const price = form.price.trim() ? Number(form.price) : 0
-        const quantity = form.tracking ? Number(form.quantity) : null
-        if (!Number.isFinite(price) || price < 0) return setError('Enter a price of zero or more.')
-        if (form.tracking && (!form.quantity.trim() || !Number.isInteger(quantity) || quantity! < 0))
-          return setError('Enter a whole stock quantity of zero or more.')
-        const data = {
-          name: form.name.trim(),
-          price,
-          quantity,
-          sku: form.sku.trim() || null,
-          category: form.category.trim() || null,
-          description: form.description.trim() || null,
-          imageUrl: form.image.trim() || null,
-        }
-        if (item) await updateItem.mutateAsync({ ...data, inventoryId: item.id, expectedVersion: item.version })
-        else {
-          const result = await createItem.mutateAsync(data)
-          saved(result.id)
-          return
-        }
+    setSkuConflictId(null)
+    const nextErrors: Partial<Record<keyof FormDraft, string>> = {}
+    if (!form.name.trim()) nextErrors.name = 'Enter a name.'
+    if (kind === 'inventory') {
+      const price = form.price.trim() ? Number(form.price) : 0
+      if (!Number.isFinite(price) || price < 0) nextErrors.price = 'Enter a price of zero or more.'
+      if (form.tracking) {
+        const quantity = Number(form.quantity)
+        if (!form.quantity.trim() || !Number.isInteger(quantity) || quantity < 0)
+          nextErrors.quantity = 'Enter a whole stock quantity of zero or more.'
       }
-      saved(contact?.id ?? item!.id)
+    }
+    setFieldError(nextErrors)
+    if (Object.keys(nextErrors).length) return
+    try {
+      if (kind === 'contacts') await saveContact()
+      else await saveInventory()
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'SKU_TAKEN' && form.sku.trim()) {
+        const match = await findSku(workspaceId, form.sku.trim(), item?.id)
+        setSkuConflictId(match)
+        setError(match ? 'That SKU is already used.' : err.message)
+        return
+      }
+      if (err instanceof ApiError && err.code === 'INVENTORY_VERSION_CONFLICT') {
+        setError('This item changed elsewhere. Refresh and try again.')
+        return
+      }
       setError(err instanceof Error ? err.message : 'Could not save. Your changes are still here; try again.')
     }
   }
-  const field = (
-    key: Exclude<keyof typeof form, 'tracking'>,
-    label: string,
-    props: React.InputHTMLAttributes<HTMLInputElement> = {},
-  ) => (
-    <label>
-      <span>{label}</span>
-      <input
-        {...props}
-        value={form[key]}
-        onChange={(event) => setForm({ ...form, [key]: event.target.value })}
-      />
-    </label>
-  )
+  const saveContact = async () => {
+    const points = [
+      ...(form.email.trim() ? [{ kind: 'email' as const, value: form.email.trim(), isPrimary: true }] : []),
+      ...(form.phone.trim() ? [{ kind: 'phone' as const, value: form.phone.trim(), isPrimary: true }] : []),
+      ...(contact?.points
+        .filter((point) => point.kind !== 'email' && point.kind !== 'phone')
+        .map((point) => ({
+          kind: point.kind,
+          value: point.value,
+          label: point.label,
+          isPrimary: point.isPrimary,
+          shared: point.shared,
+        })) ?? []),
+    ]
+    const body = {
+      displayName: form.name.trim(),
+      leadStatus: form.stage,
+      ownerMemberId: form.ownerId || null,
+      leadSource: form.source.trim() || null,
+      points: points.length ? points : contact ? [] : undefined,
+      accounts:
+        !contact && form.company.trim()
+          ? [{ accountId: (await createAccount.mutateAsync({ name: form.company.trim() })).data.id, isPrimary: true }]
+          : undefined,
+    }
+    if (contact) {
+      const { accounts: _accounts, ...patch } = body
+      await updateContact.mutateAsync({ ...patch, contactId: contact.id, expectedVersion: contact.version })
+      finish(contact.id)
+      return
+    }
+    const result = await createContact.mutateAsync(body)
+    if (result.duplicates.length) {
+      setCreatedId(result.data.id)
+      setDuplicates(result.duplicates)
+      clearDraft()
+      return
+    }
+    finish(result.data.id)
+  }
+  const saveInventory = async () => {
+    const price = form.price.trim() ? Number(form.price) : 0
+    const quantity = form.tracking ? Number(form.quantity) : null
+    const data = {
+      name: form.name.trim(),
+      price,
+      quantity,
+      availability: form.offered,
+      sku: form.sku.trim() || null,
+      category: form.category.trim() || null,
+      description: form.description.trim() || null,
+      imageUrl: form.image.trim() || null,
+    }
+    if (item) {
+      await updateItem.mutateAsync({ ...data, inventoryId: item.id, expectedVersion: item.version })
+      finish(item.id)
+      return
+    }
+    finish((await createItem.mutateAsync(data)).id)
+  }
   const title = `${contact || item ? 'Edit' : 'Add'} ${kind === 'contacts' ? 'contact' : 'inventory item'}`
+  if (duplicates && createdId)
+    return (
+      <RecordFormDialog title="Possible duplicates" onClose={() => finish(createdId)}>
+        <div className="record-form-fields">
+          <p>Created. These contacts may already cover the same person:</p>
+          <ul className="record-related">
+            {duplicates.map((dup) => (
+              <li key={dup.id}>
+                <button
+                  type="button"
+                  className="record-related-name"
+                  onClick={() => {
+                    onOpenRecord?.('contacts', dup.id)
+                    onClose()
+                  }}
+                >
+                  {dup.displayName}
+                  <small>{dup.primaryEmail || 'Open existing contact'}</small>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <footer>
+            <button type="button" className="record-primary" onClick={() => finish(createdId)}>
+              Keep and open new contact
+            </button>
+          </footer>
+        </div>
+      </RecordFormDialog>
+    )
   return (
     <RecordFormDialog title={title} onClose={close}>
       <form className="record-form" onSubmit={save}>
@@ -162,54 +247,28 @@ export function RecordForm({
               Your unfinished changes have been restored.
             </p>
           )}
-          {field('name', 'Name', { autoFocus: true, required: true, maxLength: 160 })}
           {kind === 'contacts' ? (
-            field('source', 'Source', { maxLength: 80 })
+            <ContactFields
+              form={form}
+              set={set}
+              fieldError={fieldError}
+              members={members.data ?? []}
+              creating={!contact}
+            />
           ) : (
-            <>
-              <div className="record-field-pair">
-                {field('price', 'Price', { inputMode: 'decimal', placeholder: '0.00' })}
-                {field('sku', 'SKU', { maxLength: 80 })}
-              </div>
-              {field('category', 'Category', { maxLength: 80 })}
-              <label>
-                <span>Description</span>
-                <textarea
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  rows={4}
-                />
-              </label>
-              {field('image', 'Primary image URL', { type: 'url', maxLength: 255, placeholder: 'https://…' })}
-              <label className="record-checkbox">
-                <input
-                  type="checkbox"
-                  checked={form.tracking}
-                  onChange={(e) => {
-                    const tracking = e.target.checked
-                    if (
-                      !tracking &&
-                      item?.quantity != null &&
-                      !window.confirm('Stop tracking stock? The saved quantity will be cleared.')
-                    )
-                      return
-                    setForm({ ...form, tracking })
-                  }}
-                />
-                <span>Track stock for this item</span>
-              </label>
-              {form.tracking ? (
-                field('quantity', 'In stock', { required: true, inputMode: 'numeric', placeholder: '0' })
-              ) : (
-                <p className="record-muted">
-                  Products and services can both be offered without a stock count.
-                </p>
-              )}
-            </>
+            <InventoryFields form={form} set={set} fieldError={fieldError} currency={currency} item={item} />
           )}
           {error && (
             <p role="alert" className="record-error">
               {error}
+              {skuConflictId && onOpenRecord && (
+                <>
+                  {' '}
+                  <button type="button" onClick={() => onOpenRecord('inventory', skuConflictId)}>
+                    Open existing item
+                  </button>
+                </>
+              )}
             </p>
           )}
         </div>
@@ -224,4 +283,24 @@ export function RecordForm({
       </form>
     </RecordFormDialog>
   )
+}
+
+function readDraft(key: string, initial: FormDraft) {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(key) || 'null')
+    if (saved && Object.keys(initial).every((k) => typeof saved[k] === typeof initial[k as keyof FormDraft]))
+      return saved as FormDraft
+  } catch {
+    /* Storage may be unavailable. */
+  }
+  return null
+}
+
+async function findSku(workspaceId: string, sku: string, except?: string) {
+  const page = unwrap(
+    await getApiClient().GET('/workspaces/{workspaceId}/inventory', {
+      params: { path: { workspaceId }, query: { q: sku, status: 'active' } },
+    }),
+  )
+  return page.data.find((row) => row.sku === sku && row.id !== except)?.id ?? null
 }

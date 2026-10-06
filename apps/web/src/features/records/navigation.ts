@@ -80,8 +80,14 @@ export function useRecordNavigation(kind: RecordKind) {
     setFilter: (key: string, value: string) =>
       go(search({ [key]: value || null, record: null, preview: null, previewKind: null }), {}, true),
     href: (id: string) => search({ record: id, preview: null, previewKind: null }),
-    open: (id: string, results?: ResultContext) =>
-      go(search({ record: id, preview: null, previewKind: null }), { results }),
+    open: (id: string, results?: ResultContext) => {
+      const patch: Record<string, string | null> = { record: id, preview: null, previewKind: null }
+      if (results?.search) {
+        const fromResults = new URLSearchParams(results.search.startsWith('?') ? results.search.slice(1) : results.search)
+        for (const key of ['q', 'stage', 'status', 'view'] as const) patch[key] = fromResults.get(key)
+      }
+      go(search(patch), { results })
+    },
     preview: (ref: RecordRef, results?: ResultContext) =>
       go(search({ preview: ref.id, previewKind: ref.kind }), {
         ...state,

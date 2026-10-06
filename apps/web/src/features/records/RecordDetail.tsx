@@ -16,48 +16,47 @@ import {
 } from '@project/sdk'
 import { RecordMedia } from './RecordChrome'
 import { RecordForm } from './RecordForm'
+import { StockAdjust } from './StockAdjust'
+import {
+  STAGES,
+  contactSubtitle,
+  dateLabel,
+  localDay,
+  priceLabel,
+  stockLabel,
+  titleCase,
+} from './labels'
+import { useSaveFeedback } from './saveFeedback'
 import type { RecordKind, RecordRef } from './navigation'
 
-export const STAGES: LeadStatus[] = ['new', 'contacting', 'connected', 'qualified', 'customer', 'lost']
-export const titleCase = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
-export const dateLabel = (value: string | null) =>
-  value
-    ? new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-    : 'Not set'
-export const localDay = (value: string | null) => {
-  if (!value) return ''
-  const d = new Date(value)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-export const priceLabel = (value: number) =>
-  value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-export const stockLabel = (item: InventoryItem) =>
-  item.quantity === null
-    ? 'Stock not tracked'
-    : item.quantity === 0
-      ? 'Out of stock'
-      : `${item.quantity} in stock`
-export const contactSubtitle = (contact: Contact) =>
-  contact.accounts.find((account) => account.isPrimary)?.name ??
-  contact.accounts[0]?.name ??
-  contact.primaryEmail ??
-  contact.title ??
-  'Contact'
+export {
+  STAGES,
+  contactSubtitle,
+  dateLabel,
+  localDay,
+  priceLabel,
+  stockLabel,
+  titleCase,
+} from './labels'
 
 export function RecordDetail({
   kind,
   id,
   workspaceId,
+  currency = 'USD',
   onRelated,
   onMessage,
   onDeleted,
+  onOpenRecord,
 }: {
   kind: RecordKind
   id: string
   workspaceId: string
+  currency?: string
   onRelated: (ref: RecordRef) => void
   onMessage: (id: string) => void
   onDeleted: () => void
+  onOpenRecord?: (kind: RecordKind, id: string) => void
 }) {
   const contact = useContact(kind === 'contacts' ? workspaceId : undefined, id)
   const item = useInventoryItem(kind === 'inventory' ? workspaceId : undefined, id)
@@ -81,26 +80,40 @@ export function RecordDetail({
       key={id}
       contact={contact.data!}
       workspaceId={workspaceId}
+      currency={currency}
       onRelated={onRelated}
       onMessage={onMessage}
+      onOpenRecord={onOpenRecord}
     />
   ) : (
-    <InventoryDetail key={id} item={item.data!} workspaceId={workspaceId} onDeleted={onDeleted} />
+    <InventoryDetail
+      key={id}
+      item={item.data!}
+      workspaceId={workspaceId}
+      currency={currency}
+      onDeleted={onDeleted}
+      onOpenRecord={onOpenRecord}
+    />
   )
 }
 
 function ContactDetail({
   contact: c,
   workspaceId,
+  currency,
   onRelated,
   onMessage,
+  onOpenRecord,
 }: {
   contact: Contact
   workspaceId: string
+  currency: string
   onRelated: (ref: RecordRef) => void
   onMessage: (id: string) => void
+  onOpenRecord?: (kind: RecordKind, id: string) => void
 }) {
   const update = useUpdateContact(workspaceId)
+  const feedback = useSaveFeedback(update.isPending, update.error)
   const [editing, setEditing] = useState(false)
   const [tab, setTab] = useState('overview')
   const change = (data: Parameters<typeof update.mutate>[0]) =>
@@ -160,19 +173,14 @@ function ContactDetail({
             }
           />
         </label>
-        <span role="status">
-          {update.isPending
-            ? 'Saving…'
-            : update.isSuccess
-              ? 'Saved'
-              : c.nextFollowUp
-                ? dateLabel(c.nextFollowUp)
-                : 'Set the next step for this relationship'}
+        <span role="status" data-failed={feedback.failed || undefined}>
+          {feedback.label ||
+            (c.nextFollowUp ? dateLabel(c.nextFollowUp) : 'Set the next step for this relationship')}
         </span>
       </div>
-      {update.isError && (
+      {feedback.failed && (
         <p role="alert" className="record-error">
-          Could not save this change. Try again.
+          {feedback.label}
         </p>
       )}
       <nav className="record-tabs" aria-label="Contact sections">
@@ -204,7 +212,12 @@ function ContactDetail({
                 </div>
               )}
             </section>
-            <ContactInterests workspaceId={workspaceId} contactId={c.id} onRelated={onRelated} />
+            <ContactInterests
+              workspaceId={workspaceId}
+              contactId={c.id}
+              currency={currency}
+              onRelated={onRelated}
+            />
             <section>
               <h2>Recent activity</h2>
               <Activity workspaceId={workspaceId} contactId={c.id} compact />
@@ -233,9 +246,11 @@ function ContactDetail({
         <RecordForm
           kind="contacts"
           workspaceId={workspaceId}
+          currency={currency}
           contact={c}
           onClose={() => setEditing(false)}
           onSaved={() => setEditing(false)}
+          onOpenRecord={onOpenRecord}
         />
       )}
     </article>
@@ -245,15 +260,22 @@ function ContactDetail({
 function InventoryDetail({
   item,
   workspaceId,
+  currency,
   onDeleted,
+  onOpenRecord,
 }: {
   item: InventoryItem
   workspaceId: string
+  currency: string
   onDeleted: () => void
+  onOpenRecord?: (kind: RecordKind, id: string) => void
 }) {
   const update = useUpdateInventoryItem(workspaceId)
   const remove = useDeleteInventoryItem(workspaceId)
+  const feedback = useSaveFeedback(update.isPending, update.error ?? remove.error)
   const [editing, setEditing] = useState(false)
+  const [adjusting, setAdjusting] = useState(false)
+  const tracked = item.quantity != null
   return (
     <article className="record-detail">
       <header className="record-masthead">
@@ -263,9 +285,13 @@ function InventoryDetail({
           <h1>{item.name}</h1>
           <p>{[item.category, item.sku].filter(Boolean).join(' · ') || 'Catalog item'}</p>
           <div className="record-actions">
-            <button className="record-primary" onClick={() => setEditing(true)}>
-              Edit item
+            <button
+              className="record-primary"
+              onClick={() => (tracked ? setAdjusting(true) : setEditing(true))}
+            >
+              {tracked ? 'Adjust stock' : 'Edit item'}
             </button>
+            {tracked && <button onClick={() => setEditing(true)}>Edit</button>}
             <button
               disabled={update.isPending}
               onClick={() =>
@@ -298,7 +324,11 @@ function InventoryDetail({
             value={item.availability ? 'offered' : 'paused'}
             disabled={update.isPending}
             onChange={(e) =>
-              update.mutate({ inventoryId: item.id, expectedVersion: item.version, availability: e.target.value === 'offered' })
+              update.mutate({
+                inventoryId: item.id,
+                expectedVersion: item.version,
+                availability: e.target.value === 'offered',
+              })
             }
           >
             <option value="offered">Offered</option>
@@ -308,19 +338,13 @@ function InventoryDetail({
       </header>
       <div className="record-attention">
         <strong>{stockLabel(item)}</strong>
-        <span role="status">
-          {update.isPending
-            ? 'Saving…'
-            : update.isSuccess
-              ? 'Saved'
-              : item.availability
-                ? 'Offered in your catalog'
-                : 'Offering paused'}
+        <span role="status" data-failed={feedback.failed || undefined}>
+          {feedback.label || (item.availability ? 'Offered in your catalog' : 'Offering paused')}
         </span>
       </div>
-      {(update.isError || remove.isError) && (
+      {feedback.failed && (
         <p className="record-error" role="alert">
-          Could not save this change. Try again.
+          {feedback.label}
         </p>
       )}
       <div className="record-body">
@@ -341,7 +365,7 @@ function InventoryDetail({
           <h2>Properties</h2>
           <dl>
             <dt>Price</dt>
-            <dd className="record-price">{priceLabel(item.price)}</dd>
+            <dd className="record-price">{priceLabel(item.price, currency)}</dd>
             <dt>Category</dt>
             <dd>{item.category || 'Not set'}</dd>
             <dt>SKU</dt>
@@ -359,11 +383,14 @@ function InventoryDetail({
         <RecordForm
           kind="inventory"
           workspaceId={workspaceId}
+          currency={currency}
           item={item}
           onClose={() => setEditing(false)}
           onSaved={() => setEditing(false)}
+          onOpenRecord={onOpenRecord}
         />
       )}
+      {adjusting && <StockAdjust item={item} workspaceId={workspaceId} onClose={() => setAdjusting(false)} />}
     </article>
   )
 }
@@ -426,10 +453,12 @@ function Activity({
 function ContactInterests({
   workspaceId,
   contactId,
+  currency,
   onRelated,
 }: {
   workspaceId: string
   contactId: string
+  currency: string
   onRelated: (ref: RecordRef) => void
 }) {
   const interests = useContactInterests(workspaceId, contactId)
@@ -462,7 +491,7 @@ function ContactInterests({
             >
               {item.name}
               <small>
-                {item.category || item.sku || 'Inventory'} · {priceLabel(item.price)}
+                {item.category || item.sku || 'Inventory'} · {priceLabel(item.price, currency)}
               </small>
             </button>
             <button

@@ -23,6 +23,7 @@ const people = Array.from({ length: 30 }, (_, index) => ({
   nextFollowUp: null,
   primaryEmail: `person${index + 1}@example.com`,
   primaryPhone: null,
+  ownerMemberId: null,
   accounts: [],
   tags: [],
   points: [],
@@ -43,6 +44,7 @@ const items = [
     status: 'active',
     imageUrl: null,
     description: 'Camera and lens package.',
+    version: 1,
     createdAt: stamp,
     updatedAt: stamp,
   },
@@ -58,6 +60,7 @@ const items = [
     status: 'active',
     imageUrl: null,
     description: 'Portable studio light.',
+    version: 1,
     createdAt: stamp,
     updatedAt: stamp,
   },
@@ -90,7 +93,29 @@ try {
     const method = route.request().method()
     const json = (data) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(data) })
     if (path === '/auth/guest') return json({ data: { id: 'u1', displayName: 'Test owner', isGuest: false } })
-    if (path === '/workspaces') return json({ data: [{ id: 'w1', name: 'Studio' }] })
+    if (path === '/workspaces')
+      return json({ data: [{ id: 'w1', name: 'Studio', defaultCurrency: 'USD' }] })
+    if (path.endsWith('/members'))
+      return json({
+        data: [
+          {
+            id: 'm1',
+            workspaceId: 'w1',
+            user: { id: 'u1', name: 'Test owner', avatarUrl: null, kind: 'human', tag: null },
+            email: 'owner@example.com',
+            role: 'owner',
+            status: 'active',
+            title: null,
+            timezone: null,
+            joinedAt: stamp,
+            removedAt: null,
+          },
+        ],
+      })
+    if (path.endsWith('/accounts') && method === 'POST') {
+      const body = route.request().postDataJSON()
+      return json({ data: { id: 'a1', name: body.name, workspaceId: 'w1' }, duplicates: [] })
+    }
     if (path.endsWith('/timeline')) return json({ data: [], meta: { nextCursor: null } })
     if (path.endsWith('/interests'))
       return json({ data: [{ id: 'interest1', contactId: 'c8', item: items[0], createdAt: stamp }] })
@@ -105,14 +130,35 @@ try {
             body: JSON.stringify({ error: 'Test save failure. Try again.' }),
           })
         const record = rows.find((row) => row.id === match[2])
-        Object.assign(record, route.request().postDataJSON())
+        const body = route.request().postDataJSON()
+        Object.assign(record, body)
+        if ('version' in record) record.version = (record.version ?? 1) + 1
         return json({ data: record })
       }
       if (method === 'POST') {
         const body = route.request().postDataJSON()
-        const record = { ...rows[0], ...body, id: `new-${rows.length}` }
+        if (match[1] === 'inventory' && body.sku && rows.some((row) => row.sku === body.sku))
+          return route.fulfill({
+            status: 409,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'Another item already uses that code', code: 'SKU_TAKEN' }),
+          })
+        const record = {
+          ...rows[0],
+          ...body,
+          id: `new-${rows.length}`,
+          version: 1,
+          displayName: body.displayName ?? rows[0].displayName,
+          name: body.name ?? rows[0].name,
+          primaryEmail: body.points?.find((p) => p.kind === 'email')?.value ?? null,
+          primaryPhone: body.points?.find((p) => p.kind === 'phone')?.value ?? null,
+          accounts: body.accounts?.length ? [{ accountId: 'a1', name: 'Acme', role: null, isPrimary: true }] : [],
+          quantity: Object.prototype.hasOwnProperty.call(body, 'quantity') ? body.quantity : rows[0].quantity,
+        }
         rows.push(record)
-        return json({ data: record, duplicates: [] })
+        return match[1] === 'contacts'
+          ? json({ data: record, duplicates: [] })
+          : json({ data: record })
       }
       if (match[2]) {
         const record = rows.find((row) => row.id === match[2])
@@ -125,12 +171,16 @@ try {
             })
       }
       const q = (url.searchParams.get('q') || '').toLowerCase()
-      const filtered = rows.filter(
-        (row) =>
-          (!url.searchParams.get('leadStatus') || row.leadStatus === url.searchParams.get('leadStatus')) &&
-          (row.displayName ?? row.name).toLowerCase().includes(q) &&
-          row.status === (url.searchParams.get('status') || 'active'),
-      )
+      const filtered = rows.filter((row) => {
+        const status = url.searchParams.get('status') || 'active'
+        if (row.status !== status) return false
+        if (url.searchParams.get('leadStatus') && row.leadStatus !== url.searchParams.get('leadStatus'))
+          return false
+        if (!q) return true
+        const name = (row.displayName ?? row.name ?? '').toLowerCase()
+        const sku = (row.sku ?? '').toLowerCase()
+        return name.includes(q) || sku.startsWith(q)
+      })
       const start = Number(url.searchParams.get('cursor') || 0)
       return json({
         data: filtered.slice(start, start + 12),
@@ -149,7 +199,9 @@ try {
   await expect(page.locator('[data-record-link]')).toHaveCount(1)
   await page.getByRole('combobox', { name: 'Filter by lead stage' }).selectOption('')
   await page.getByRole('searchbox', { name: 'Search contacts' }).fill('Contact')
+  await expect(page.locator('[data-record-link]')).toHaveCount(12)
   const eight = page.getByRole('link', { name: 'Contact 08', exact: true })
+  await expect(eight).toBeVisible()
   await eight.scrollIntoViewIfNeeded()
   const scroll = await page.locator('.records-scroll').evaluate((el) => el.scrollTop)
   await eight.click()
@@ -158,8 +210,11 @@ try {
   await page.getByRole('button', { name: 'Next →', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Contact 09' })).toBeVisible()
   await page.goBack()
-  await expect(page.getByRole('heading', { name: 'Contact 08' })).toBeVisible()
-  await page.getByRole('button', { name: /^Camera package/ }).click()
+  await expect(page.getByRole('heading', { name: 'Contact 08', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Interested in' })).toBeVisible()
+  const interest = page.locator('.record-related').getByRole('button', { name: /^Camera package/ })
+  await expect(interest).toBeVisible()
+  await interest.click()
   const preview = page.getByRole('region', { name: 'Camera package preview' })
   await expect(preview.getByRole('heading', { name: 'Camera package' })).toBeVisible()
   await preview.getByRole('button', { name: 'Open full record' }).click()
@@ -167,7 +222,7 @@ try {
   await expect(page.getByRole('button', { name: '← Contact 08', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '← Contact 08', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Contact 08' })).toBeVisible()
-  await page.getByRole('button', { name: '← Search “Contact”' }).click()
+  await page.getByRole('button', { name: /← Search .+Contact.+/ }).click()
   await expect(page.getByRole('searchbox', { name: 'Search contacts' })).toHaveValue('Contact')
   assert.ok(
     Math.abs((await page.locator('.records-scroll').evaluate((el) => el.scrollTop)) - scroll) < 5,
@@ -268,22 +323,56 @@ try {
   await page.getByRole('link', { name: 'Studio light', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Studio light', exact: true })).toBeVisible()
   await page.screenshot({ path: '/tmp/records-detail-light.png' })
-  await page.getByRole('button', { name: 'Edit item', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Adjust stock', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Adjust stock', exact: true }).click()
+  const stock = page.getByRole('dialog', { name: 'Adjust stock' })
+  await stock.getByRole('textbox', { name: 'New quantity' }).fill('4')
+  await stock.getByRole('button', { name: 'Save quantity' }).click()
+  await expect(page.getByText('4 in stock', { exact: true }).first()).toBeVisible()
+  assert.equal(items[1].quantity, 4)
+  await page.getByRole('button', { name: 'Edit', exact: true }).click()
   await page
-    .getByRole('dialog')
+    .getByRole('dialog', { name: 'Edit inventory item' })
     .getByRole('textbox', { name: 'Name', exact: true })
     .fill('Unfinished studio edit')
   page.once('dialog', (dialog) => dialog.accept())
   await page.reload()
-  await page.getByRole('button', { name: 'Edit item', exact: true }).click()
-  await expect(page.getByRole('dialog').getByRole('textbox', { name: 'Name', exact: true })).toHaveValue(
-    'Unfinished studio edit',
-  )
+  await page.getByRole('button', { name: 'Edit', exact: true }).click()
+  await expect(
+    page.getByRole('dialog', { name: 'Edit inventory item' }).getByRole('textbox', { name: 'Name', exact: true }),
+  ).toHaveValue('Unfinished studio edit')
   page.once('dialog', (dialog) => dialog.accept())
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+
+  await page.getByRole('button', { name: '← All inventory' }).click()
+  await page.getByRole('button', { name: '+ Add item' }).click()
+  const createItem = page.getByRole('dialog', { name: 'Add inventory item' })
+  await createItem.getByRole('textbox', { name: 'Name', exact: true }).fill('Duplicate cam')
+  await createItem.getByRole('textbox', { name: 'SKU', exact: true }).fill('CAM-01')
+  await createItem.getByRole('button', { name: 'Create' }).click()
+  await expect(createItem.getByRole('alert')).toContainText('That SKU is already used')
+  await createItem.getByRole('button', { name: 'Open existing item' }).click()
+  await expect(page.getByRole('heading', { name: 'Camera kit' })).toBeVisible()
+
+  await page
+    .getByRole('navigation', { name: 'Workspace' })
+    .getByRole('button', { name: 'Contacts', exact: true })
+    .click()
+  await page.getByLabel('Stage for Contact 01').selectOption('qualified')
+  await expect(page.getByLabel('Stage for Contact 01')).toHaveValue('qualified')
+  assert.equal(people[0].leadStatus, 'qualified')
+  await page.getByRole('button', { name: '+ Add contact' }).click()
+  const createContact = page.getByRole('dialog', { name: 'Add contact' })
+  await createContact.getByRole('textbox', { name: 'Name', exact: true }).fill('Ada Lovelace')
+  await createContact.getByRole('textbox', { name: 'Email', exact: true }).fill('ada@example.com')
+  await createContact.getByRole('combobox', { name: 'Lead stage' }).selectOption('contacting')
+  await createContact.getByRole('button', { name: 'Create' }).click()
+  await expect(page.getByRole('heading', { name: 'Ada Lovelace' })).toBeVisible()
+  await expect(page.getByRole('combobox', { name: 'Lead stage' })).toHaveValue('contacting')
+
   assert.deepEqual(errors, [], 'No browser runtime errors')
   console.log(
-    'Passed: browse/record history, related preview and return, scroll/focus restoration, arrow navigation, area memory, refresh, failed saves, stock zero, pagination, direct links, mobile layout, and light theme.',
+    'Passed: browse/record history, related preview and return, scroll/focus restoration, arrow navigation, area memory, refresh, failed saves, stock zero/adjust, pagination, direct links, mobile layout, light theme, SKU conflict, inline stage, and create contact.',
   )
 } finally {
   await browser.close()

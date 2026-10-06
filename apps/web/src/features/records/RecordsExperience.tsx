@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -16,28 +16,19 @@ import {
 import { useCurrentWorkspace } from '../documents/workspace'
 import { Composer } from '../compose/Composer'
 import {
-  RecordMedia,
   RecordPreviewPanel,
   RecordStepper,
   RecordFormDialog,
   useNarrowRecords,
 } from './RecordChrome'
-import {
-  RecordDetail,
-  STAGES,
-  contactSubtitle,
-  dateLabel,
-  localDay,
-  priceLabel,
-  stockLabel,
-  titleCase,
-} from './RecordDetail'
+import { RecordDetail } from './RecordDetail'
+import { CollectionRow } from './CollectionRow'
+import { STAGES, titleCase } from './labels'
 import { RecordForm } from './RecordForm'
 import { useRecordNavigation, type RecordKind, type ResultContext } from './navigation'
 import './records.css'
 
 const positions = new Map<string, number>()
-const plainClick = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey
 
 export function RecordsExperience({ kind }: { kind: RecordKind }) {
   const { workspace, loading, guest, create, creating, createError } = useCurrentWorkspace()
@@ -59,16 +50,33 @@ export function RecordsExperience({ kind }: { kind: RecordKind }) {
         {createError && <p role="alert">{createError}</p>}
       </div>
     )
-  return <RecordWorkspace key={`${workspace.id}:${kind}`} kind={kind} workspaceId={workspace.id} />
+  return (
+    <RecordWorkspace
+      key={`${workspace.id}:${kind}`}
+      kind={kind}
+      workspaceId={workspace.id}
+      currency={workspace.defaultCurrency || 'USD'}
+    />
+  )
 }
 
-function RecordWorkspace({ kind, workspaceId }: { kind: RecordKind; workspaceId: string }) {
+function RecordWorkspace({
+  kind,
+  workspaceId,
+  currency,
+}: {
+  kind: RecordKind
+  workspaceId: string
+  currency: string
+}) {
   const nav = useRecordNavigation(kind)
   const container = useRef<HTMLDivElement>(null)
   const narrow = useNarrowRecords(container)
   const location = useLocation()
   const queryClient = useQueryClient()
   const q = nav.params.get('q') ?? ''
+  const [search, setSearch] = useState(q)
+  useEffect(() => setSearch(q), [q])
   const stage = STAGES.includes(nav.params.get('stage') as LeadStatus)
     ? (nav.params.get('stage') as LeadStatus)
     : undefined
@@ -170,15 +178,24 @@ function RecordWorkspace({ kind, workspaceId }: { kind: RecordKind; workspaceId:
   useEffect(() => {
     restored.current = false
   }, [positionKey])
-  const context = (id: string): ResultContext => ({
-    kind,
-    ids: records.map((record) => record.id),
-    complete: !list.hasNextPage,
-    label: q ? `Search “${q}”` : label,
-    search: browseSearch,
-    scroll: scroller.current?.scrollTop ?? 0,
-    focusId: id,
-  })
+  const context = (id: string): ResultContext => {
+    const params = new URLSearchParams(location.search)
+    params.delete('record')
+    params.delete('preview')
+    params.delete('previewKind')
+    params.set('desk', kind)
+    if (search.trim()) params.set('q', search.trim())
+    else params.delete('q')
+    return {
+      kind,
+      ids: records.map((record) => record.id),
+      complete: !list.hasNextPage,
+      label: search.trim() ? `Search “${search.trim()}”` : label,
+      search: `?${params}`,
+      scroll: scroller.current?.scrollTop ?? 0,
+      focusId: id,
+    }
+  }
   const results = nav.state.results?.kind === kind ? nav.state.results : undefined
   const activeId = nav.previewId && nav.previewKind === kind ? nav.previewId : nav.recordId
   const activeIndex = results && activeId ? results.ids.indexOf(activeId) : -1
@@ -252,6 +269,11 @@ function RecordWorkspace({ kind, workspaceId }: { kind: RecordKind; workspaceId:
     restored.current = false
     nav.setFilter(key, value)
   }
+  useEffect(() => {
+    if (nav.recordId || search === q) return
+    const timer = window.setTimeout(() => filter('q', search), 200)
+    return () => window.clearTimeout(timer)
+  }, [search, q, nav.recordId])
   const title = kind === 'contacts' ? 'Contacts' : 'Inventory'
   const previewRef = nav.state.trail?.at(-1)
   const previewTitle = previewRef?.name ?? titleCase(nav.previewKind)
@@ -289,9 +311,11 @@ function RecordWorkspace({ kind, workspaceId }: { kind: RecordKind; workspaceId:
               kind={kind}
               id={nav.recordId}
               workspaceId={workspaceId}
+              currency={currency}
               onMessage={setMessageId}
               onRelated={nav.preview}
               onDeleted={nav.back}
+              onOpenRecord={(target, id) => nav.open(id)}
             />
           </>
         ) : (
@@ -316,8 +340,8 @@ function RecordWorkspace({ kind, workspaceId }: { kind: RecordKind; workspaceId:
                 <input
                   type="search"
                   placeholder={kind === 'contacts' ? 'Search contacts…' : 'Search name or SKU…'}
-                  value={q}
-                  onChange={(e) => filter('q', e.target.value)}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                 />
               </label>
               {kind === 'contacts' && (
@@ -413,68 +437,19 @@ function RecordWorkspace({ kind, workspaceId }: { kind: RecordKind; workspaceId:
                 }}
               >
                 {records.map((record) => {
-                  const person = 'displayName' in record ? record : null
-                  const item = 'name' in record ? record : null
-                  const name = person?.displayName ?? item!.name
-                  const selected = nav.previewKind === kind && nav.previewId === record.id
-                  const late =
-                    person?.nextFollowUp &&
-                    localDay(person.nextFollowUp) < localDay(new Date().toISOString()) &&
-                    person.leadStatus !== 'customer' &&
-                    person.leadStatus !== 'lost'
+                  const name = 'displayName' in record ? record.displayName : record.name
                   return (
-                    <li className="record-tile" key={record.id} data-selected={selected || undefined}>
-                      <RecordMedia name={name} src={item?.imageUrl} person={!!person} />
-                      <div className="record-tile-identity">
-                        <a
-                          href={nav.href(record.id)}
-                          data-record-link={record.id}
-                          onClick={(event) => {
-                            if (plainClick(event)) {
-                              event.preventDefault()
-                              nav.open(record.id, context(record.id))
-                            }
-                          }}
-                        >
-                          {name}
-                        </a>
-                        <span>
-                          {person ? contactSubtitle(person) : item!.category || item!.sku || 'Catalog item'}
-                        </span>
-                      </div>
-                      <span className="record-tile-state">
-                        {person
-                          ? titleCase(person.leadStatus ?? 'new')
-                          : item!.availability
-                            ? 'Offered'
-                            : 'Paused'}
-                      </span>
-                      <span
-                        className="record-tile-meta"
-                        data-attention={!!late || item?.quantity === 0 || undefined}
-                      >
-                        {person ? (
-                          person.nextFollowUp ? (
-                            `${late ? 'Overdue · ' : 'Follow-up · '}${dateLabel(person.nextFollowUp)}`
-                          ) : (
-                            'No follow-up set'
-                          )
-                        ) : (
-                          <>
-                            {priceLabel(item!.price)}
-                            <small>{stockLabel(item!)}</small>
-                          </>
-                        )}
-                      </span>
-                      <button
-                        className="record-preview-button"
-                        aria-label={`Preview ${name}`}
-                        aria-pressed={selected}
-                        onClick={() => nav.preview({ kind, id: record.id, name }, context(record.id))}
-                      >
-                        Preview ↗
-                      </button>
-                    </li>
+                    <CollectionRow
+                      key={record.id}
+                      record={record}
+                      kind={kind}
+                      workspaceId={workspaceId}
+                      currency={currency}
+                      selected={nav.previewKind === kind && nav.previewId === record.id}
+                      href={nav.href(record.id)}
+                      onOpen={(id) => nav.open(id, context(id))}
+                      onPreview={(id, name) => nav.preview({ kind, id, name }, context(id))}
+                    />
                   )
                 })}
               </ul>
@@ -515,9 +490,14 @@ function RecordWorkspace({ kind, workspaceId }: { kind: RecordKind; workspaceId:
             kind={nav.previewKind}
             id={nav.previewId}
             workspaceId={workspaceId}
+            currency={currency}
             onMessage={setMessageId}
             onRelated={nav.related}
             onDeleted={nav.closePreview}
+            onOpenRecord={(target, id) => {
+              if (target === kind) nav.open(id)
+              else nav.expand({ kind: target, id, name: titleCase(target) }, fullName)
+            }}
           />
         </RecordPreviewPanel>
       )}
@@ -525,10 +505,16 @@ function RecordWorkspace({ kind, workspaceId }: { kind: RecordKind; workspaceId:
         <RecordForm
           kind={kind}
           workspaceId={workspaceId}
+          currency={currency}
           onClose={() => setAdding(false)}
           onSaved={(id) => {
             setAdding(false)
             nav.open(id)
+          }}
+          onOpenRecord={(target, id) => {
+            setAdding(false)
+            if (target === kind) nav.open(id)
+            else nav.expand({ kind: target, id, name: titleCase(target) }, fullName)
           }}
         />
       )}

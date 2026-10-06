@@ -641,6 +641,19 @@
 .record-form label > span {
   color: var(--muted);
 }
+.record-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+.record-form-group h3 {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--muted);
+}
 .record-form textarea {
   resize: vertical;
 }
@@ -655,6 +668,43 @@
 }
 .record-form .record-checkbox input {
   min-height: auto;
+}
+.record-stock-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-md);
+  margin: 0;
+}
+.record-stock-summary div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.record-stock-summary dt {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.record-stock-summary dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.record-tile-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+.record-tile-state select {
+  width: 100%;
+}
+.record-tile-state small,
+.record-attention [data-failed] {
+  font-size: var(--text-label);
+  color: var(--muted);
+}
+.record-tile-state small[data-failed],
+.record-attention [data-failed='true'] {
+  color: var(--danger);
 }
 .record-form footer {
   display: flex;
