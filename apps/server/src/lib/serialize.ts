@@ -3,6 +3,7 @@
 import type { Prisma, ReactionType, WorkspaceRole } from '@project/db'
 import { youTubeThumbnailUrl, youTubeWatchUrl } from '@project/shared'
 import { playbackToken } from './playbackToken'
+import { json, type StoredActions, type StoredChoice } from './choice'
 
 // ─── users ───────────────────────────────────────────────────────────────────
 
@@ -112,12 +113,20 @@ export const messageInclude = {
 export type MessageRow = Prisma.MessageGetPayload<{ include: typeof messageInclude }>
 
 // `hidden` → this placement was deleted: content is withheld in this room only.
+// The routing (flow, step) stays on the server; clients see only what to render.
+function toActions(value: unknown) {
+  const actions = json<StoredActions>(value)
+  return actions ? { mode: actions.mode, options: actions.options, forUserId: actions.forUserId } : null
+}
+
 export function toMessage(message: MessageRow, hidden: boolean) {
   return {
     id: message.id,
     author: toAuthor(message.author),
     text: hidden ? null : message.text,
     media: hidden ? [] : message.media.map(toMedia),
+    actions: hidden ? null : toActions(message.actions),
+    choice: hidden ? null : json<StoredChoice>(message.choice),
     createdAt: message.createdAt,
   }
 }

@@ -480,6 +480,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/items/{itemId}/choice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                itemId: components["parameters"]["ItemId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Answer a bot message's choice (first choice wins; repeating it is a no-op)
+         * @description Records the caller's answer on the message and lets the flow that asked advance
+         *     deterministically (the bot's follow-up arrives as a new item). The click is never
+         *     sent to a model. 400 NOT_A_CHOICE / INVALID_CHOICE, 403 NOT_YOUR_CHOICE,
+         *     409 CHOICE_CLOSED (already answered differently, or the item was deleted).
+         */
+        post: operations["chooseOption"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/items/{itemId}/reactions/{type}": {
         parameters: {
             query?: never;
@@ -2133,8 +2158,35 @@ export interface components {
             text: string | null;
             /** @description Empty when the Item placement is deleted */
             media: components["schemas"]["Media"][];
+            /** @description A choice a bot offers on this message (doc/12 §4). Null for every human message, and when hidden. */
+            actions: components["schemas"]["ChoiceActions"] | null;
+            /** @description The answer to `actions` once someone chose (first choice wins); null while open. */
+            choice: components["schemas"]["Choice"] | null;
             /** Format: date-time */
             createdAt: string;
+        };
+        ChoiceOption: {
+            /** @description Stable option id the client sends back */
+            id: string;
+            label: string;
+        };
+        /** @description Generic choices, not just yes/no. `one` takes exactly one option; `many` takes one or more. */
+        ChoiceActions: {
+            /** @enum {string} */
+            mode: "one" | "many";
+            options: components["schemas"]["ChoiceOption"][];
+            /** @description Only this person may choose; null means anyone who can act in the room (the flow may still gate it) */
+            forUserId: string | null;
+        };
+        Choice: {
+            optionIds: string[];
+            /** @description Who chose */
+            userId: string;
+            /** Format: date-time */
+            at: string;
+        };
+        ChooseInput: {
+            optionIds: string[];
         };
         /**
          * @description Placement of a Message inside one room. The same Message can be placed in many
@@ -4111,6 +4163,37 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    chooseOption: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                itemId: components["parameters"]["ItemId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChooseInput"];
+            };
+        };
+        responses: {
+            /** @description The answered item */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     addReaction: {

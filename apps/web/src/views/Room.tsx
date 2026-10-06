@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useCapture } from '../state/capture'
-import { uploadMedia, useDeleteItem, useRoom, useRoomItems, useRoomParticipants, useRoomStream, useUpdateRoom } from '@project/sdk'
+import { uploadMedia, useChooseOption, useDeleteItem, useRoom, useRoomItems, useRoomParticipants, useRoomStream, useUpdateRoom } from '@project/sdk'
 import { isHumanAuthored } from '@project/shared'
 import { Panel } from '../components/Panel'
 import { Label } from '../components/Label'
@@ -143,8 +143,10 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   }
 
   // Row actions go through a ref so cached rows never hold stale closures.
-  const actions = useRef({ reply: (_id: string) => {}, remove: (_id: string) => {} })
+  const chooseOption = useChooseOption()
+  const actions = useRef({ reply: (_id: string) => {}, remove: (_id: string) => {}, choose: async (_id: string, _optionIds: string[]) => {} })
   actions.current = {
+    choose: async (itemId, optionIds) => { await chooseOption.mutateAsync({ itemId, optionIds }) },
     reply: (id) => { setCompose(false); ui.startReply(id); setDesk(true) },
     remove: (id) => {
       void removeItem.mutateAsync(id).catch((error: unknown) => {
@@ -167,6 +169,9 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       postedAt: item.createdAt,
       text: item.text,
       media: stillsFrom(item.media),
+      choice: item.actions
+        ? { actions: item.actions, choice: item.choice, meId, onChoose: (optionIds) => actions.current.choose(item.id, optionIds) }
+        : undefined,
       onReply: () => actions.current.reply(item.id),
       onDelete: item.author.id === meId ? () => actions.current.remove(item.id) : undefined,
     }

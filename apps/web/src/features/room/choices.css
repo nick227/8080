@@ -1,0 +1,29 @@
+/* Bot message choices (doc/12 §4) — one mono set, hairline frames, signal for the answer. */
+.room-choice { margin-top: var(--space-control); }
+.room-choice-options { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.room-choice-options button {
+  min-height: var(--control-size);
+  padding: var(--space-1) var(--space-2);
+  border: var(--line-width) solid var(--line);
+  font-family: var(--mono);
+  font-size: var(--text-label);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink);
+  transition: border-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out);
+}
+.room-choice[data-state="open"] .room-choice-options button:not(:disabled):hover,
+.room-choice-options button:focus-visible { border-color: var(--ink); }
+.room-choice-options button[aria-pressed="true"] { border-color: var(--signal); color: var(--signal); }
+.room-choice-options button:disabled { cursor: default; opacity: 1; } /* the global .35 would hide the answer */
+.room-choice:not([data-state="open"]) .room-choice-options button[aria-pressed="false"],
+.room-choice[aria-busy] .room-choice-options button[aria-pressed="false"] { opacity: 0.4; }
+.room-choice-done { color: var(--muted); }
+.room-choice-note {
+  margin: var(--space-1) 0 0;
+  font-family: var(--mono);
+  font-size: var(--text-label);
+  letter-spacing: var(--tracking-label);
+  color: var(--muted);
+}
+.room-choice-note[data-error] { color: var(--danger); }

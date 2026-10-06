@@ -144,6 +144,11 @@ model Message {
   id        String    @id @default(cuid())
   authorId  String
   text      String?   @db.Text
+  // Bot-offered choice (doc/12 §4): { flow, step, mode, options, forUserId }. Set only
+  // by server code (never from HTTP) and only on bot-authored messages.
+  actions   Json?
+  // The one answer to `actions`: { optionIds, userId, at }. First choice wins.
+  choice    Json?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?

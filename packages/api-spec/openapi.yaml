@@ -668,6 +668,37 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
 
   # ─── reactions ─────────────────────────────────────────────────────────────
+  /items/{itemId}/choice:
+    parameters:
+      - $ref: '#/components/parameters/ItemId'
+    post:
+      operationId: chooseOption
+      x-fastify-config:
+        rateLimit: { max: 60, timeWindow: '1 minute' }
+      summary: Answer a bot message's choice (first choice wins; repeating it is a no-op)
+      description: |
+        Records the caller's answer on the message and lets the flow that asked advance
+        deterministically (the bot's follow-up arrives as a new item). The click is never
+        sent to a model. 400 NOT_A_CHOICE / INVALID_CHOICE, 403 NOT_YOUR_CHOICE,
+        409 CHOICE_CLOSED (already answered differently, or the item was deleted).
+      tags: [items]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChooseInput' }
+      responses:
+        '200':
+          description: The answered item
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ItemResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /items/{itemId}/reactions/{type}:
     parameters:
       - $ref: '#/components/parameters/ItemId'
@@ -3603,7 +3634,7 @@ components:
     Message:
       type: object
       description: Reusable content (author, text, media). Hydrated on every Item.
-      required: [id, author, text, media, createdAt]
+      required: [id, author, text, media, actions, choice, createdAt]
       properties:
         id: { type: string }
         author: { $ref: '#/components/schemas/Author' }
@@ -3612,7 +3643,58 @@ components:
           type: array
           description: Empty when the Item placement is deleted
           items: { $ref: '#/components/schemas/Media' }
+        actions:
+          description: A choice a bot offers on this message (doc/12 §4). Null for every human message, and when hidden.
+          oneOf:
+            - $ref: '#/components/schemas/ChoiceActions'
+            - type: 'null'
+        choice:
+          description: The answer to `actions` once someone chose (first choice wins); null while open.
+          oneOf:
+            - $ref: '#/components/schemas/Choice'
+            - type: 'null'
         createdAt: { type: string, format: date-time }
+
+    ChoiceOption:
+      type: object
+      required: [id, label]
+      properties:
+        id: { type: string, description: Stable option id the client sends back }
+        label: { type: string }
+
+    ChoiceActions:
+      type: object
+      description: Generic choices, not just yes/no. `one` takes exactly one option; `many` takes one or more.
+      required: [mode, options, forUserId]
+      properties:
+        mode: { type: string, enum: [one, many] }
+        options:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items: { $ref: '#/components/schemas/ChoiceOption' }
+        forUserId:
+          type: [string, 'null']
+          description: Only this person may choose; null means anyone who can act in the room (the flow may still gate it)
+
+    Choice:
+      type: object
+      required: [optionIds, userId, at]
+      properties:
+        optionIds: { type: array, items: { type: string } }
+        userId: { type: string, description: Who chose }
+        at: { type: string, format: date-time }
+
+    ChooseInput:
+      type: object
+      required: [optionIds]
+      properties:
+        optionIds:
+          type: array
+          minItems: 1
+          maxItems: 8
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 32 }
 
     Item:
       type: object

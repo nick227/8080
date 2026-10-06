@@ -44,6 +44,10 @@ export function toItem(i: SdkItem): Item {
     },
     text: i.message.text ?? undefined,
     media: i.message.media.length ? i.message.media.map(toMedia) : undefined,
+    actions: i.message.actions
+      ? { mode: i.message.actions.mode, options: i.message.actions.options, forUserId: i.message.actions.forUserId ?? undefined }
+      : undefined,
+    choice: i.message.choice ?? undefined,
     reactions: i.reactions.map(({ type, count, reacted }) => ({ type, count, reacted })),
     createdAt: i.createdAt,
   }

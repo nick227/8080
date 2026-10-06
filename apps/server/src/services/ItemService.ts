@@ -10,6 +10,7 @@ import { events } from './events'
 import { purgeCapture } from './purgeCapture'
 import { recountRooms } from './roomStats'
 import { mutes } from './MuteService'
+import { storedActions, type ChoiceOffer } from '../lib/choice'
 
 const rooms = new RoomService()
 
@@ -23,6 +24,8 @@ export type InternalOpts = {
   /** Runs inside the placing transaction after the Item exists — e.g. claiming a
    *  bot once-key, so the claim and the post commit or roll back together. */
   onPlaced?: (tx: Tx, item: Placed) => Promise<void>
+  /** A choice the bot offers on this message (doc/12 §4). Bots only; never from HTTP. */
+  actions?: ChoiceOffer
 }
 
 // Message = reusable content; Item = its placement in one room.
@@ -64,12 +67,14 @@ export class ItemService {
 
   async send(viewerId: string, roomId: string, input: ContentInput, opts: InternalOpts = {}) {
     const content = this.content(input)
+    const actions = opts.actions ? storedActions(opts.actions) : null
     const { actor, room } = await rooms.authorizeActor(viewerId, roomId)
+    if (actions && actor.kind !== 'bot') throw new Error('Only bots offer choices')
     await rooms.ensureHumanParticipation(actor, room)
 
     const placed = await db.$transaction(async (tx) => {
       await this.botCap(tx, actor, roomId)
-      const msg = await this.createMessage(tx, viewerId, content)
+      const msg = await this.createMessage(tx, viewerId, content, actions)
       const result = await this.place(tx, actor, { roomId, messageId: msg.id, parentId: null, chat: input.chat === true })
       await opts.onPlaced?.(tx, result.item)
       return result
@@ -223,8 +228,8 @@ export class ItemService {
     return { text, mediaIds }
   }
 
-  private async createMessage(tx: Tx, authorId: string, content: { text: string | null; mediaIds: string[] }) {
-    const message = await tx.message.create({ data: { authorId, text: content.text }, select: { id: true } })
+  private async createMessage(tx: Tx, authorId: string, content: { text: string | null; mediaIds: string[] }, actions?: object | null) {
+    const message = await tx.message.create({ data: { authorId, text: content.text, ...(actions ? { actions } : {}) }, select: { id: true } })
     if (content.mediaIds.length > 0) {
       const uniqueMediaIds = Array.from(new Set(content.mediaIds))
       const medias = await tx.media.findMany({ where: { id: { in: uniqueMediaIds }, ownerId: authorId, messageId: null } })
@@ -271,9 +276,10 @@ export class ItemService {
       where: { roomId, deletedAt: null },
       orderBy: { number: 'desc' },
       take: BOT_LIMITS.maxConsecutive,
-      select: { message: { select: { author: { select: { kind: true } } } } },
+      select: { message: { select: { choice: true, author: { select: { kind: true } } } } },
     })
-    if (last.length >= BOT_LIMITS.maxConsecutive && last.every((i) => i.message.author.kind === 'bot')) {
+    // A bot message someone answered (doc/12 §4) was a human turn, so it ends the run.
+    if (last.length >= BOT_LIMITS.maxConsecutive && last.every((i) => i.message.author.kind === 'bot' && i.message.choice === null)) {
       throw { statusCode: 429, message: 'Too many bot items in a row', code: 'BOT_CAP' }
     }
   }

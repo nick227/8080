@@ -34,6 +34,9 @@ export type SendMessageInput = S['SendMessageInput']
 export type ReplyToItemInput = S['ReplyToItemInput']
 export type ShareMessageInput = S['ShareMessageInput']
 export type Message = S['Message']
+export type ChoiceActions = S['ChoiceActions']
+export type ChoiceOption = S['ChoiceOption']
+export type Choice = S['Choice']
 
 // Workspaces (doc/09)
 export type Workspace = S['Workspace']

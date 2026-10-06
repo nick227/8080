@@ -5,6 +5,7 @@
 //   POST /dev/bots/dry-run   { handle, roomId, text, pool? }   classify + score, posts nothing
 //   POST /dev/bots/fire      { handle, workflow, roomId, userId?, itemId? }   run it for real
 //   POST /dev/bots/seat      { handle, roomId, seated }        seat/kick bypassing the owner check
+//   POST /dev/bots/offer     { handle, roomId, forUserId? }    post the demo choice (doc/12 Slice A)
 //   GET  /dev/bots/decisions?roomId=&limit=           newest decisions first
 //   GET  /dev/bots/routes?roomId=&limit=              AI router (shadow) vs deterministic, newest first
 //   POST /dev/bots/routes/:id/label  { agent, shouldRespond }   human ground truth
@@ -14,6 +15,9 @@ import { db } from '@project/db'
 import { botRuntime } from '../bots/runtime'
 import { events } from '../services/events'
 import { streamHub } from '../services/StreamHub'
+import { ItemService } from '../services/ItemService'
+import { registerChoiceFlow } from '../services/ChoiceService'
+import { DEMO_FLOW, demoFlow, demoStart } from '../bots/flows/demo'
 
 export default async function devBots(server: FastifyInstance) {
   const runtime = () => {
@@ -50,6 +54,16 @@ export default async function devBots(server: FastifyInstance) {
     events.emit('seating.changed', { roomId, botId: bot.id, seated: state === 'seated', byUserId: bot.userId })
     streamHub.publishParticipants(roomId)
     return { data: { handle, roomId, state } }
+  })
+
+  registerChoiceFlow(DEMO_FLOW, demoFlow)
+  server.post('/dev/bots/offer', async (request: any) => {
+    const { handle, roomId, forUserId } = request.body ?? {}
+    const bot = await db.bot.findUnique({ where: { handle: String(handle ?? 'chatbot') } })
+    if (!bot) throw { statusCode: 404, message: 'Unknown bot' }
+    const say = demoStart(forUserId ?? null)
+    const item = await new ItemService().send(bot.userId, String(roomId), { text: say.text, chat: true }, { actions: { ...say.offer!, flow: DEMO_FLOW } })
+    return { data: item }
   })
 
   server.get('/dev/bots/decisions', async (request: any) => {

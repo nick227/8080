@@ -40,9 +40,19 @@ export type Item = {
   author: Author
   text?: string
   media?: Media[]
+  actions?: ChoiceActions // a bot's offered choice (doc/12 §4)
+  choice?: Choice // its answer, once someone chose
   reactions: Reaction[]
   createdAt: string
 }
+
+export type ChoiceActions = {
+  mode: 'one' | 'many'
+  options: { id: string; label: string }[]
+  forUserId?: string // only this person may answer
+}
+
+export type Choice = { optionIds: string[]; userId: string; at: string }
 
 // A capture or file chosen in the UI but not uploaded yet. Room.send uploads it
 // (SDK uploadMedia) and attaches the returned id.

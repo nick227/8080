@@ -567,7 +567,13 @@ The `choose` and `act` step types are where AI plugs in. Nothing else changes:
   falling back to a library `choose`. Its output goes through the same rails and the same
   `ItemService` path, and is logged in the same `BotDecision`.
 
-### 4.9 AI policy — observational only (binding, 2026-10-04)
+### 4.9 AI policy — observational only (2026-10-04; superseded 2026-10-05)
+
+> **Superseded by doc/12 §2 (2026-10-05):** AI may extract facts, draft content and
+> trigger deterministic workflows. The model returns data and deterministic code acts.
+> Changes are surfaced to the user, with approval only where the product decides it
+> matters. The router below stays shadow-only, and its rails still apply.
+
 
 > **Until the agent action model and the permission system are designed, OpenAI is
 > observational only. It may classify and recommend, but it cannot create
@@ -661,7 +667,7 @@ Slices, each gated on the previous one's logs:
    (`BotRoute`, agree/disagree) so the two can be compared. A deterministic prefilter
    decides whether to call at all (mentioned → always; otherwise sampled), with
    per-room and per-day caps, a timeout, and AI off by default.
-2. **One AI agent (chatbot).** *Blocked by §4.9 until the agent action model and
+2. **One AI agent (chatbot).** *(Unblocked 2026-10-05 for guided workflows: see doc/12.) Previously blocked by §4.9 until the agent action model and
    permission system are designed.* It would generate text only, through the same
    workflow, rails and posting path. A timeout or error falls back to the deterministic
    line.
