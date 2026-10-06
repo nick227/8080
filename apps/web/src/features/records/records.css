@@ -829,6 +829,92 @@
   overflow: auto;
   flex: 1;
 }
+.record-collection-actions {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+.record-import {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-height: min(70vh, 640px);
+}
+.record-import-steps {
+  display: flex;
+  gap: var(--space-md);
+  font-family: var(--mono);
+  font-size: var(--text-label);
+  letter-spacing: var(--tracking-label);
+  color: var(--muted);
+}
+.record-import-steps [data-current] {
+  color: var(--ink);
+  border-bottom: 2px solid var(--ink);
+}
+.record-import-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  flex: 1;
+  min-height: 0;
+}
+.record-import-panel textarea {
+  width: 100%;
+  min-height: 12rem;
+  resize: vertical;
+}
+.record-import-panel footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: auto;
+}
+.record-import-map {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.record-import-map th,
+.record-import-map td {
+  text-align: left;
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: var(--line-width) solid var(--line);
+  vertical-align: middle;
+}
+.record-import-counts,
+.record-import-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+}
+.record-import-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  border: var(--line-width) solid var(--line);
+}
+.record-import-rows li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  padding: var(--space-sm);
+  border-bottom: var(--line-width) solid var(--line);
+}
+.record-import-resolve {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+}
+.record-file input[type='file'] {
+  display: block;
+  margin-top: var(--space-2xs);
+}
 @container records (max-width: 760px) {
   .record-collection-tools {
     flex-wrap: wrap;

@@ -30,6 +30,7 @@ import { CollectionRow } from './CollectionRow'
 import { CollectionToolbar } from './CollectionToolbar'
 import { STAGES, titleCase } from './labels'
 import { RecordForm } from './RecordForm'
+import { RecordImportFlow } from './RecordImportFlow'
 import { useRecordNavigation, type RecordKind, type ResultContext } from './navigation'
 import './records.css'
 
@@ -143,6 +144,7 @@ function RecordWorkspace({
   )
   const fullName = currentContact.data?.displayName ?? currentItem.data?.name ?? titleCase(kind)
   const [adding, setAdding] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [messageId, setMessageId] = useState<string | null>(null)
   const [navigationError, setNavigationError] = useState('')
   const scroller = useRef<HTMLDivElement>(null)
@@ -389,9 +391,12 @@ function RecordWorkspace({
                     : 'What you offer, all in one place.'}
                 </p>
               </div>
-              <button className="record-primary" onClick={() => setAdding(true)}>
-                + Add {kind === 'contacts' ? 'contact' : 'item'}
-              </button>
+              <div className="record-collection-actions">
+                <button onClick={() => setImporting(true)}>Import</button>
+                <button className="record-primary" onClick={() => setAdding(true)}>
+                  + Add {kind === 'contacts' ? 'contact' : 'item'}
+                </button>
+              </div>
             </header>
             <div className="record-collection-tools">
               <label className="record-search">
@@ -579,6 +584,9 @@ function RecordWorkspace({
             else nav.expand({ kind: target, id, name: titleCase(target) }, fullName)
           }}
         />
+      )}
+      {importing && (
+        <RecordImportFlow kind={kind} workspaceId={workspaceId} onClose={() => setImporting(false)} />
       )}
       {messageId && (
         <RecordFormDialog title="Message contact" onClose={() => setMessageId(null)}>

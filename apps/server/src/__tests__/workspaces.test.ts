@@ -111,6 +111,7 @@ function sampleBody(op: any) {
     CreateInventoryInput: { name: 'x' },
     UpdateInventoryInput: { expectedVersion: 1, name: 'x' },
     CreateProposalInput: { kind: 'company-profile.fact', targetId: 'x', change: {} },
+    CreateInventoryImportInput: { source: { kind: 'csv', csv: 'Name\nA', filename: 'x.csv' } },
     AddInterestInput: { inventoryId: 'x' },
     CreateTagInput: { name: 'x' },
     ShareMessageInput: { roomIds: ['x'] },

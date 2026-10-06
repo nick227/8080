@@ -46,6 +46,17 @@ export const contactImportsApi = {
   commit: async (workspaceId: string, importId: string, body: S['CommitContactImportInput'] = {}) => unwrap(await getApiClient().POST('/workspaces/{workspaceId}/contact-imports/{importId}/commit', { params: { path: { workspaceId, importId } }, body })).data,
 }
 
+export const inventoryImportsApi = {
+  list: async (workspaceId: string) => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/inventory-imports', { params: { path: { workspaceId } } })).data,
+  preview: async (workspaceId: string, body: S['CreateInventoryImportInput']) => unwrap(await getApiClient().POST('/workspaces/{workspaceId}/inventory-imports', { params: { path: { workspaceId } }, body })).data,
+  get: async (workspaceId: string, importId: string) => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/inventory-imports/{importId}', { params: { path: { workspaceId, importId } } })).data,
+  remap: async (workspaceId: string, importId: string, body: S['UpdateInventoryImportInput']) => unwrap(await getApiClient().PATCH('/workspaces/{workspaceId}/inventory-imports/{importId}', { params: { path: { workspaceId, importId } }, body })).data,
+  cancel: async (workspaceId: string, importId: string) => unwrap(await getApiClient().DELETE('/workspaces/{workspaceId}/inventory-imports/{importId}', { params: { path: { workspaceId, importId } } })).data,
+  rows: async (workspaceId: string, importId: string, query?: operations['listInventoryImportRows']['parameters']['query']) => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/inventory-imports/{importId}/rows', { params: { path: { workspaceId, importId }, query } })),
+  resolve: async (workspaceId: string, importId: string, rowId: string, body: S['ResolveInventoryImportRowInput']) => unwrap(await getApiClient().PUT('/workspaces/{workspaceId}/inventory-imports/{importId}/rows/{rowId}/resolution', { params: { path: { workspaceId, importId, rowId } }, body })).data,
+  commit: async (workspaceId: string, importId: string) => unwrap(await getApiClient().POST('/workspaces/{workspaceId}/inventory-imports/{importId}/commit', { params: { path: { workspaceId, importId } } })).data,
+}
+
 // Shared content of block documents (doc/10 §10 POC): versioned saves (409 =
 // someone saved since — rebase and retry) and a live event stream.
 export const documentContentApi = {

@@ -892,14 +892,18 @@ model Inventory {
   // Optimistic concurrency: an update names the version it read and is refused (409)
   // if the item changed since. Also the stale check for agent proposals (doc/13 §5).
   version      Int          @default(1)
+  importBatchId String?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  interests Interest[]
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  importBatch ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  interests   Interest[]
+  importRows  ImportRow[]
 
   @@unique([workspaceId, sku])
   @@index([workspaceId, name])
+  @@index([importBatchId])
 }
 
 // A contact's interest in one inventory item (idempotent per contact+item).
@@ -1210,6 +1214,7 @@ model DocumentRelation {
 
 enum ImportKind {
   contacts
+  inventory
 }
 
 enum ImportStatus {
@@ -1269,6 +1274,7 @@ model ImportBatch {
   createdBy      WorkspaceMember @relation(fields: [createdById], references: [id], onDelete: Cascade)
   rows           ImportRow[]
   contacts       Contact[]
+  inventoryItems Inventory[]
 
   @@index([workspaceId, createdAt])
   @@index([workspaceId, sourceHash])
@@ -1285,23 +1291,26 @@ model ImportRow {
   values            Json? // mapped, trimmed field values; null once pruned
   proposal          ImportProposal
   errorCode         String?           @db.VarChar(60)
-  candidateIds      Json? // contact ids the matcher found
-  proposedContactId String?           @db.VarChar(64)
+  candidateIds      Json? // matched record ids the domain matcher found
+  proposedContactId String?           @db.VarChar(64) // proposed contact or inventory id
   duplicateOfRow    Int?
   resolution        ImportResolution?
   resolvedContactId String?           @db.VarChar(64)
   outcome           ImportOutcome?
   outcomeNote       String?           @db.VarChar(60)
   contactId         String?
+  inventoryId       String?
 
   batch     ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
   workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact   Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  inventory Inventory?  @relation(fields: [inventoryId], references: [id], onDelete: SetNull)
 
   @@unique([batchId, rowNumber])
   @@index([batchId, proposal])
   @@index([batchId, outcome])
   @@index([contactId])
+  @@index([inventoryId])
 }
 
 // ─── Shared native content (doc/10 §10, minimal POC) ─────────────────────────

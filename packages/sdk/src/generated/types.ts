@@ -2358,6 +2358,118 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/inventory-imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Recent inventory imports (newest first, up to 50) */
+        get: operations["listInventoryImports"];
+        put?: never;
+        /**
+         * Preview importing a table as inventory
+         * @description SKU matches an existing item uniquely; duplicate SKUs in the file are flagged.
+         *     Matched rows skip by default, or update mapped non-empty fields when `options.onMatch` is `update`.
+         *     Blank cells leave existing values unchanged. Nothing is written until commit.
+         */
+        post: operations["createInventoryImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/inventory-imports/{importId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+            };
+            cookie?: never;
+        };
+        /** Get an inventory import */
+        get: operations["getInventoryImport"];
+        put?: never;
+        post?: never;
+        /** Cancel a previewed inventory import */
+        delete: operations["cancelInventoryImport"];
+        options?: never;
+        head?: never;
+        /** Remap columns or change match behaviour and re-preview */
+        patch: operations["updateInventoryImport"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/inventory-imports/{importId}/rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+            };
+            cookie?: never;
+        };
+        /** Paginated preview / outcome rows */
+        get: operations["listInventoryImportRows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/inventory-imports/{importId}/rows/{rowId}/resolution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+                rowId: components["parameters"]["ImportRowId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Decide create / use existing / skip for one row */
+        put: operations["resolveInventoryImportRow"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/inventory-imports/{importId}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply the reviewed inventory import
+         * @description Creates new items, matches or updates by SKU per options, skips the rest.
+         *     Idempotent and resumable like contact import.
+         */
+        post: operations["commitInventoryImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/documents/{documentId}/content": {
         parameters: {
             query?: never;
@@ -4002,6 +4114,110 @@ export interface components {
         };
         PaginatedContactImportRows: {
             data: components["schemas"]["ContactImportRow"][];
+            meta: components["schemas"]["PaginatedMeta"];
+        };
+        /** @enum {string} */
+        InventoryImportField: "name" | "sku" | "description" | "price" | "category" | "quantity" | "availability";
+        /** @description Column id → inventory field; each field at most once */
+        InventoryImportMapping: {
+            [key: string]: components["schemas"]["InventoryImportField"];
+        };
+        InventoryImportOptions: {
+            /**
+             * @description When a SKU matches an existing item — skip (default) or update mapped non-empty fields
+             * @enum {string}
+             */
+            onMatch?: "skip" | "update";
+        };
+        CreateInventoryImportInput: {
+            source: {
+                /** @enum {string} */
+                kind: "csv";
+                csv: string;
+                filename: string;
+            } | {
+                /** @enum {string} */
+                kind: "document";
+                documentId: string;
+            };
+            mapping?: components["schemas"]["InventoryImportMapping"];
+            options?: components["schemas"]["InventoryImportOptions"];
+        };
+        UpdateInventoryImportInput: {
+            mapping?: components["schemas"]["InventoryImportMapping"];
+            options?: components["schemas"]["InventoryImportOptions"];
+        };
+        ResolveInventoryImportRowInput: {
+            /** @enum {string} */
+            action: "create" | "use" | "skip";
+            /** @description Required with use */
+            inventoryId?: string;
+        };
+        InventoryImport: {
+            id: string;
+            workspaceId: string;
+            /** @enum {string} */
+            kind: "inventory";
+            /** @enum {string} */
+            status: "previewed" | "committing" | "completed" | "cancelled";
+            source: {
+                /** @enum {string} */
+                kind: "csv" | "document";
+                documentId: string | null;
+                filename: string | null;
+            };
+            columns: {
+                id: string;
+                label: string;
+            }[];
+            mapping: components["schemas"]["InventoryImportMapping"];
+            options: components["schemas"]["InventoryImportOptions"];
+            totalRows: number;
+            counts: components["schemas"]["ContactImportCounts"];
+            previousImportId: string | null;
+            resultDocumentId: string | null;
+            createdById: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            committedAt: string | null;
+            /** Format: date-time */
+            finishedAt: string | null;
+            /** Format: date-time */
+            rowsPrunedAt: string | null;
+        };
+        InventoryImportResponse: {
+            data: components["schemas"]["InventoryImport"];
+        };
+        InventoryImportList: {
+            data: components["schemas"]["InventoryImport"][];
+        };
+        InventoryImportRef: {
+            id: string;
+            name: string;
+            sku: string | null;
+        };
+        InventoryImportRow: {
+            id: string;
+            rowNumber: number;
+            sourceRowId: string | null;
+            values: {
+                [key: string]: string;
+            } | null;
+            proposal: components["schemas"]["ImportProposal"];
+            errorCode: string | null;
+            candidates: components["schemas"]["InventoryImportRef"][];
+            proposedInventoryId: string | null;
+            duplicateOfRow: number | null;
+            /** @enum {string|null} */
+            resolution: "create" | "use" | "skip" | null;
+            resolvedInventoryId: string | null;
+            outcome: components["schemas"]["ImportOutcome"] | null;
+            outcomeNote: string | null;
+            item: components["schemas"]["InventoryImportRef"] | null;
+        };
+        PaginatedInventoryImportRows: {
+            data: components["schemas"]["InventoryImportRow"][];
             meta: components["schemas"]["PaginatedMeta"];
         };
         ContentBlock: {
@@ -8480,6 +8696,238 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ContactImportResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listInventoryImports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryImportList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createInventoryImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInventoryImportInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryImportResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getInventoryImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryImportResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    cancelInventoryImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryImportResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateInventoryImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateInventoryImportInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryImportResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listInventoryImportRows: {
+        parameters: {
+            query?: {
+                proposal?: components["schemas"]["ImportProposal"];
+                outcome?: components["schemas"]["ImportOutcome"];
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedInventoryImportRows"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    resolveInventoryImportRow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+                rowId: components["parameters"]["ImportRowId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveInventoryImportRowInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryImportResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    commitInventoryImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                importId: components["parameters"]["ImportId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryImportResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];

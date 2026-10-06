@@ -3707,6 +3707,175 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  # ─── inventory import (doc/13 slice 4) ──────────────────────────────────────
+  /workspaces/{workspaceId}/inventory-imports:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listInventoryImports
+      summary: Recent inventory imports (newest first, up to 50)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryImportList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createInventoryImport
+      summary: Preview importing a table as inventory
+      description: |
+        SKU matches an existing item uniquely; duplicate SKUs in the file are flagged.
+        Matched rows skip by default, or update mapped non-empty fields when `options.onMatch` is `update`.
+        Blank cells leave existing values unchanged. Nothing is written until commit.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateInventoryImportInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryImportResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/inventory-imports/{importId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ImportId'
+    get:
+      operationId: getInventoryImport
+      summary: Get an inventory import
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryImportResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateInventoryImport
+      summary: Remap columns or change match behaviour and re-preview
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateInventoryImportInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryImportResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: cancelInventoryImport
+      summary: Cancel a previewed inventory import
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryImportResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/inventory-imports/{importId}/rows:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ImportId'
+    get:
+      operationId: listInventoryImportRows
+      summary: Paginated preview / outcome rows
+      tags: [workspaces]
+      parameters:
+        - name: proposal
+          in: query
+          schema: { $ref: '#/components/schemas/ImportProposal' }
+        - name: outcome
+          in: query
+          schema: { $ref: '#/components/schemas/ImportOutcome' }
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedInventoryImportRows' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/inventory-imports/{importId}/rows/{rowId}/resolution:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ImportId'
+      - $ref: '#/components/parameters/ImportRowId'
+    put:
+      operationId: resolveInventoryImportRow
+      summary: Decide create / use existing / skip for one row
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResolveInventoryImportRowInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryImportResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/inventory-imports/{importId}/commit:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ImportId'
+    post:
+      operationId: commitInventoryImport
+      summary: Apply the reviewed inventory import
+      description: |
+        Creates new items, matches or updates by SKU per options, skips the rest.
+        Idempotent and resumable like contact import.
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryImportResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   # ─── shared native content (doc/10 §10 POC: block documents) ───────────────
   /workspaces/{workspaceId}/documents/{documentId}/content:
     parameters:
@@ -6708,6 +6877,158 @@ components:
         data:
           type: array
           items: { $ref: '#/components/schemas/ContactImportRow' }
+        meta: { $ref: '#/components/schemas/PaginatedMeta' }
+
+    InventoryImportField:
+      type: string
+      enum: [name, sku, description, price, category, quantity, availability]
+
+    InventoryImportMapping:
+      type: object
+      description: 'Column id → inventory field; each field at most once'
+      maxProperties: 100
+      additionalProperties: { $ref: '#/components/schemas/InventoryImportField' }
+
+    InventoryImportOptions:
+      type: object
+      additionalProperties: false
+      properties:
+        onMatch:
+          type: string
+          enum: [skip, update]
+          description: When a SKU matches an existing item — skip (default) or update mapped non-empty fields
+
+    CreateInventoryImportInput:
+      type: object
+      additionalProperties: false
+      required: [source]
+      properties:
+        source:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [kind, csv, filename]
+              properties:
+                kind: { type: string, enum: [csv] }
+                csv: { type: string, minLength: 1, maxLength: 600000 }
+                filename: { type: string, minLength: 1, maxLength: 255 }
+            - type: object
+              additionalProperties: false
+              required: [kind, documentId]
+              properties:
+                kind: { type: string, enum: [document] }
+                documentId: { type: string, minLength: 1, maxLength: 64 }
+        mapping: { $ref: '#/components/schemas/InventoryImportMapping' }
+        options: { $ref: '#/components/schemas/InventoryImportOptions' }
+
+    UpdateInventoryImportInput:
+      type: object
+      additionalProperties: false
+      properties:
+        mapping: { $ref: '#/components/schemas/InventoryImportMapping' }
+        options: { $ref: '#/components/schemas/InventoryImportOptions' }
+
+    ResolveInventoryImportRowInput:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action: { type: string, enum: [create, use, skip] }
+        inventoryId: { type: string, minLength: 1, maxLength: 64, description: Required with use }
+
+    InventoryImport:
+      type: object
+      required: [id, workspaceId, kind, status, source, columns, mapping, options, totalRows, counts, previousImportId, resultDocumentId, createdById, createdAt, committedAt, finishedAt, rowsPrunedAt]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        kind: { type: string, enum: [inventory] }
+        status: { type: string, enum: [previewed, committing, completed, cancelled] }
+        source:
+          type: object
+          required: [kind, documentId, filename]
+          properties:
+            kind: { type: string, enum: [csv, document] }
+            documentId: { type: [string, 'null'] }
+            filename: { type: [string, 'null'] }
+        columns:
+          type: array
+          items:
+            type: object
+            required: [id, label]
+            properties:
+              id: { type: string }
+              label: { type: string }
+        mapping: { $ref: '#/components/schemas/InventoryImportMapping' }
+        options: { $ref: '#/components/schemas/InventoryImportOptions' }
+        totalRows: { type: integer }
+        counts: { $ref: '#/components/schemas/ContactImportCounts' }
+        previousImportId: { type: [string, 'null'] }
+        resultDocumentId: { type: [string, 'null'] }
+        createdById: { type: string }
+        createdAt: { type: string, format: date-time }
+        committedAt: { type: [string, 'null'], format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+        rowsPrunedAt: { type: [string, 'null'], format: date-time }
+
+    InventoryImportResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/InventoryImport' }
+
+    InventoryImportList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/InventoryImport' }
+
+    InventoryImportRef:
+      type: object
+      required: [id, name, sku]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        sku: { type: [string, 'null'] }
+
+    InventoryImportRow:
+      type: object
+      required: [id, rowNumber, sourceRowId, values, proposal, errorCode, candidates, proposedInventoryId, duplicateOfRow, resolution, resolvedInventoryId, outcome, outcomeNote, item]
+      properties:
+        id: { type: string }
+        rowNumber: { type: integer }
+        sourceRowId: { type: [string, 'null'] }
+        values:
+          type: [object, 'null']
+          additionalProperties: { type: string }
+        proposal: { $ref: '#/components/schemas/ImportProposal' }
+        errorCode: { type: [string, 'null'] }
+        candidates:
+          type: array
+          items: { $ref: '#/components/schemas/InventoryImportRef' }
+        proposedInventoryId: { type: [string, 'null'] }
+        duplicateOfRow: { type: [integer, 'null'] }
+        resolution: { type: [string, 'null'], enum: [create, use, skip, null] }
+        resolvedInventoryId: { type: [string, 'null'] }
+        outcome:
+          oneOf:
+            - $ref: '#/components/schemas/ImportOutcome'
+            - type: 'null'
+        outcomeNote: { type: [string, 'null'] }
+        item:
+          oneOf:
+            - $ref: '#/components/schemas/InventoryImportRef'
+            - type: 'null'
+
+    PaginatedInventoryImportRows:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/InventoryImportRow' }
         meta: { $ref: '#/components/schemas/PaginatedMeta' }
 
     # ─── shared native content (doc/10 §10 POC) ──────────────────────────────

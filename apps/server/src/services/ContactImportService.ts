@@ -206,7 +206,7 @@ async function toImport(batch: ImportBatch) {
 }
 
 async function loadBatch(workspaceId: string, importId: string) {
-  const batch = await db.importBatch.findFirst({ where: { id: importId, workspaceId } })
+  const batch = await db.importBatch.findFirst({ where: { id: importId, workspaceId, kind: 'contacts' } })
   if (!batch) throw notFound('Import not found')
   return batch
 }
@@ -223,7 +223,11 @@ async function liveTarget(tx: Tx, workspaceId: string, contactId: string | null)
 export class ContactImportService {
   async list(userId: string, workspaceId: string) {
     await authorize(userId, workspaceId, 'record.read')
-    const batches = await db.importBatch.findMany({ where: { workspaceId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 50 })
+    const batches = await db.importBatch.findMany({
+      where: { workspaceId, kind: 'contacts' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 50,
+    })
     return Promise.all(batches.map(toImport))
   }
 

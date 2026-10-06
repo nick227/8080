@@ -3,4 +3,4 @@ export * from './hooks'
 export type * from './generated/types'
 export type * from './models'
 
-export { documentsApi, documentDatasetsApi, contactImportsApi, documentContentApi } from './documents'
+export { documentsApi, documentDatasetsApi, contactImportsApi, inventoryImportsApi, documentContentApi } from './documents'
