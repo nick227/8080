@@ -536,6 +536,7 @@ model Workspace {
   companyFacts     CompanyFact[]
   companySources   CompanyScalarSource[]
   companyRevisions CompanyProfileRevision[]
+  assistantCalls   AssistantCall[]
 
   @@index([createdById])
 }
@@ -1466,4 +1467,35 @@ model CompanyProfileRevision {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, revision])
+}
+
+// One AI call made by a chatbot workflow (doc/12 §7): extract facts from a typed
+// description, or draft a document. Logged whether it succeeded or not; caps and the
+// daily spend are counted from here. The model's output is data — workflow code
+// decides what to do with it.
+enum AssistantCallKind {
+  extract
+  generate
+}
+
+model AssistantCall {
+  id               String            @id @default(cuid())
+  workspaceId      String
+  runId            String?
+  kind             AssistantCallKind
+  provider         String            @db.VarChar(32)
+  model            String?           @db.VarChar(64)
+  inputChars       Int
+  promptTokens     Int?
+  completionTokens Int?
+  costUsd          Float?
+  latencyMs        Int?
+  error            String?           @db.VarChar(160)
+  result           Json?
+  at               DateTime          @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, at])
+  @@index([at])
 }

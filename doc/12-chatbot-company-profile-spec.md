@@ -1,6 +1,6 @@
 # 12 — Chatbot: guided workflows and the company profile
 
-**Status:** Design, recorded 2026-10-05. Slice A (bot message choices) committed 6461653 + 5dc9615 (§4.3). Slice B (channel, workflow, profile, template document; AI off) committed 838fe19 (§6.5), on the shared-content POC cb3fd61. Slices C–D not built.
+**Status:** Design, recorded 2026-10-05. Slice A (bot message choices) committed 6461653 + 5dc9615 (§4.3). Slice B (channel, workflow, profile, template document; AI off) committed 838fe19 (§6.5), on the shared-content POC cb3fd61. Slice C (assistant: one extraction + one drafting call) built 2026-10-06 (§7.4). Slice D not built.
 **Supersedes:** doc/08 §4.9 "observational only" (replaced by §2 below).
 **Builds on:** doc/08 (bot runtime, rails, ItemService posting), doc/09 (Workspace, `runAction`, policy), doc/10 (block documents, `DocumentContent`, room links).
 
@@ -262,6 +262,35 @@ Output: `{ profilePatch: <same shape as extract>, document: { title, paragraphs:
 - **Log every call** (`AssistantCall`: workspace, run, step, model, input size, latency, tokens, cost, result/error). The same fields as `BotRoute`.
 - The provider can be injected (`setAssistantProvider`) so tests never use the network.
 
+### 7.4 As built (Slice C, 2026-10-06)
+
+- **Module** `bots/assistant/`:
+  - `config.ts`: `AI_ASSISTANT=on` + `OPENAI_API_KEY` + `OPENAI_ASSISTANT_MODEL` (falls back to `OPENAI_ROUTER_MODEL`). Never on under test or with `BOTS=off`.
+  - `provider.ts`: `OpenAIAssistant` makes strict JSON-schema calls. `validateFacts` / `validateDraft` clip and dedupe. `setAssistantProvider` swaps in a fake for tests.
+  - `calls.ts`: `extractFacts`, `draftDocument`, `assistantAvailable`. Output is re-validated whatever the provider. Every call is logged in `AssistantCall` (kind, model, input size, tokens, estimated cost, latency, error, result).
+- **Caps:**
+  - per workspace per day (`AI_ASSISTANT_WORKSPACE_DAILY_MAX` 20)
+  - all workspaces per day (`AI_ASSISTANT_DAILY_MAX` 500)
+  - spend per day (`AI_ASSISTANT_DAILY_USD` 2)
+  - timeouts (extract 15 s, generate 30 s)
+  - Capacity is reserved in-process before the call (no stale-count race).
+- **Flow** (`bots/flows/companyProfile.ts`):
+  - **Mode:** chosen at setup. With the assistant available it's assisted: one open `about` question (≤ 2000 chars). Otherwise it's direct, the Slice B interview unchanged.
+  - **Extraction:** runs after the answer commits, claimed once. It fills only unknown fields; those fields become `inferred`.
+  - **Follow-ups:** at most 3, for what's still missing, in step order (so the name always comes first). Then the brief.
+  - **Drafting:** one call gets the profile, the person's own words question by question, and the brief. Its tidy-up (`profilePatch`) may refine only inferred or unknown fields.
+  - **Any failure:** a failed, invalid or capped extraction gives "let me ask a few quick questions instead" and the direct interview. A failed, invalid or capped draft gives the template, and the summary says so.
+  - **Provenance:** `generator: ai | template`, `model`, `assistantCallId`.
+- **Approval rule, enforced in `CompanyProfileService.apply`:** an inferred value never replaces a stored `stated` or `corrected` fact, scalar or list.
+- **Enforcement (static, `assistant.test.ts`):**
+  - `bots/assistant/*` imports no service that posts, publishes, creates documents, changes the profile or runs actions.
+  - It writes only `AssistantCall`.
+  - Only the company-profile workflow imports it.
+- **Proof:**
+  - server `assistant.test.ts` 14/14 (fake provider: happy path, ≤3 follow-ups, extract failure / timeout, invalid draft, off, workspace cap, spend cap, the stated-fact rule, request shape); full suite 458/458.
+  - one real call each against gpt-4.1-mini (extract ~5.8 s cold, draft ~2.6 s, ~1k tokens in total).
+- **Not yet:** [Fix a fact] / correcting the profile from chat (§6.3); a confidence threshold (the prompt asks for null instead of guesses).
+
 ## 8. Enforcement
 
 - Static architecture test: `bots/assistant/*` (the AI calls) imports no service that posts, publishes, creates documents, or writes profile rows. It writes only `AssistantCall`. Only `bots/workflows/*` calls it.
@@ -281,7 +310,7 @@ Output: `{ profilePatch: <same shape as extract>, document: { title, paragraphs:
 
 - **A — Buttons.** Built (§4.3).
 - **B — Channel + workflow + profile, AI off.** Built (§6.5). `WorkspaceChannel`, public welcomes (creator vs member vs guest), `WorkflowRun/Answer`, profile tables + revisions, all-direct follow-ups, the template document, the summary. Not yet: [Fix a fact] and [Write another] (§6.3). Fully usable without AI.
-- **C — AI.** Extract + generate, caps, `AssistantCall` log, fallbacks.
+- **C — AI.** Built (§7.4). Extract + generate, caps, `AssistantCall` log, fallbacks.
 - **D — More from the profile.** [Write another]: About page, sales intro, social bio. Each is a generator with its required facts + brief, on the same engine. Later: detecting profile changes in ordinary channel messages ("we aren't targeting restaurants anymore" → [Update profile] [Just this document]). That needs reading every message, so it waits for C's logs.
 
 ## 10. Open questions

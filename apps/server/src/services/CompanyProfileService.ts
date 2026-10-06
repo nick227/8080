@@ -1,8 +1,8 @@
 // The workspace's company profile (doc/12 §5.2): durable facts the chatbot writes
 // documents from. Scalars are columns, lists are CompanyFact rows, and every change is
 // one action (runAction) that bumps the revision and stores a snapshot. A person's
-// answer is `stated`; Slice C's model drafts will be `inferred` and may never replace a
-// stated or corrected fact silently.
+// answer is `stated`; what a model read or tidied is `inferred`, and never replaces a
+// stated or corrected fact (doc/12 §2).
 import { db, type CompanyFactKind, type CompanyServiceArea, type CompanyVoice, type Prisma } from '@project/db'
 import { runAction } from './actions'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
@@ -26,6 +26,9 @@ export type ProfileUpdate = {
   differentiators?: string[]
   /** field → WorkflowAnswer id */
   sources: Partial<Record<Scalar | keyof typeof LISTS, string>>
+  /** Fields a model read or tidied rather than a person stating them. They never
+   *  replace a stored stated or corrected fact. */
+  inferred?: (Scalar | keyof typeof LISTS)[]
   runId?: string
 }
 
@@ -69,24 +72,31 @@ export class CompanyProfileService {
     return runAction(
       { action: 'companyProfile.update', workspaceId, actor: memberActor(actor), origin: ctx.origin, idempotencyKey, input: { fields, runId: update.runId ?? null }, target: { type: 'companyProfile', id: workspaceId } },
       async (tx) => {
-        const scalars = Object.fromEntries(SCALARS.filter((f) => update[f] !== undefined).map((f) => [f, update[f]]))
+        // The approval rule (doc/12 §2): an inferred value may fill a gap or replace an
+        // inferred value, never something a person stated or corrected.
+        const inferred = new Set(update.inferred ?? [])
+        const firm = new Set((await tx.companyScalarSource.findMany({ where: { workspaceId, status: { in: ['stated', 'corrected'] } } })).map((s) => s.field))
+        const firmKinds = new Set((await tx.companyFact.findMany({ where: { ...factsWhere(workspaceId), status: { in: ['stated', 'corrected'] } }, select: { kind: true } })).map((f) => f.kind))
+        const skip = (field: Scalar | keyof typeof LISTS) =>
+          inferred.has(field) && (field in LISTS ? firmKinds.has(LISTS[field as keyof typeof LISTS]) : firm.has(field))
+        const scalars = Object.fromEntries(SCALARS.filter((f) => update[f] !== undefined && !skip(f)).map((f) => [f, update[f]]))
         const profile = await tx.companyProfile.upsert({
           where: { workspaceId },
           create: { workspaceId, revision: 1, ...scalars },
           update: { revision: { increment: 1 }, ...scalars },
         })
         for (const field of SCALARS) {
-          if (update[field] === undefined) continue
-          const data = { status: 'stated' as const, sourceAnswerId: update.sources[field] ?? null, setByMemberId: memberId }
+          if (update[field] === undefined || skip(field)) continue
+          const data = { status: inferred.has(field) ? ('inferred' as const) : ('stated' as const), sourceAnswerId: update.sources[field] ?? null, setByMemberId: memberId }
           await tx.companyScalarSource.upsert({ where: { workspaceId_field: { workspaceId, field } }, create: { workspaceId, field, ...data }, update: data })
         }
         const now = new Date()
         for (const [list, kind] of Object.entries(LISTS) as [keyof typeof LISTS, CompanyFactKind][]) {
           const values = update[list]
-          if (values === undefined) continue
+          if (values === undefined || skip(list)) continue
           await tx.companyFact.updateMany({ where: { ...factsWhere(workspaceId), kind }, data: { supersededAt: now } })
           for (const value of values) {
-            await tx.companyFact.create({ data: { workspaceId, kind, value: value.slice(0, 500), status: 'stated', sourceAnswerId: update.sources[list] ?? null, sourceRunId: update.runId ?? null, setByMemberId: memberId } })
+            await tx.companyFact.create({ data: { workspaceId, kind, value: value.slice(0, 500), status: inferred.has(list) ? 'inferred' : 'stated', sourceAnswerId: update.sources[list] ?? null, sourceRunId: update.runId ?? null, setByMemberId: memberId } })
           }
         }
         const snap = await snapshot(tx, workspaceId)

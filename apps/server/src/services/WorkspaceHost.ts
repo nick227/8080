@@ -7,7 +7,7 @@ import { events, type DomainEvents } from './events'
 import { authorize } from './workspacePolicy'
 import { registerChoiceFlow, type ChoiceFlow, type FlowSay } from '../bots/flows/registry'
 import { postSays } from '../bots/flows/post'
-import { COMPANY_PROFILE, companyProfileFlow, generate, startOffer, startRun, textAnswer } from '../bots/flows/companyProfile'
+import { COMPANY_PROFILE, companyProfileFlow, extract, generate, startOffer, startRun, textAnswer } from '../bots/flows/companyProfile'
 
 export const HOST_HANDLE = 'chatbot'
 export const WELCOME = 'workspace-welcome'
@@ -106,6 +106,7 @@ export class WorkspaceHost {
     const bot = await hostBot()
     if (!bot) return
     await postSays(bot.userId, e.roomId, e.chat, COMPANY_PROFILE, advanced.says)
+    if (advanced.extract) await postSays(bot.userId, e.roomId, e.chat, COMPANY_PROFILE, await extract(e.roomId, e.actorId))
     if (advanced.generate) await postSays(bot.userId, e.roomId, e.chat, COMPANY_PROFILE, await generate(e.roomId, e.actorId))
   }
 }

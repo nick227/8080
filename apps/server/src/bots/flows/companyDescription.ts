@@ -9,9 +9,9 @@ export type Length = 'short' | 'medium' | 'detailed'
 
 export type ProfileFacts = {
   name: string
-  location: string
+  location: string | null
   serviceArea: ServiceArea | null
-  purpose: string
+  purpose: string | null
   brandVoice: Voice | null
   offerings: string[]
   customers: string[]
@@ -36,11 +36,12 @@ const CLOSING: Record<Audience, (name: string) => string> = {
   general: (n) => `That is what ${n} is about.`,
 }
 
-const OPENING: Record<Voice, (name: string, where: string) => string> = {
-  professional: (n, w) => `${n} is a company based in ${w}.`,
-  friendly: (n, w) => `${n} is a team based in ${w}.`,
-  bold: (n, w) => `${n}, based in ${w}, does things its own way.`,
-  technical: (n, w) => `${n} is based in ${w}.`,
+// `w` (where it's based) may be unknown in an assisted run that skipped asking.
+const OPENING: Record<Voice, (name: string, where: string | null) => string> = {
+  professional: (n, w) => (w ? `${n} is a company based in ${w}.` : `${n} is a company.`),
+  friendly: (n, w) => (w ? `${n} is a team based in ${w}.` : `${n} is a team.`),
+  bold: (n, w) => (w ? `${n}, based in ${w}, does things its own way.` : `${n} does things its own way.`),
+  technical: (n, w) => (w ? `${n} is based in ${w}.` : `${n} is a company.`),
 }
 
 /** "a", "a and b", "a, b and c" */
@@ -68,10 +69,10 @@ export function companyDescription(p: ProfileFacts, brief: Brief): { title: stri
 
   const paragraphs =
     brief.length === 'short'
-      ? [[opening, sentence(p.purpose), CLOSING[brief.audience](p.name)]]
+      ? [[opening, sentence(p.purpose ?? ''), CLOSING[brief.audience](p.name)]]
       : brief.length === 'medium'
-        ? [[opening, sentence(p.purpose), serves], [offers, different, CLOSING[brief.audience](p.name)]]
-        : [[opening, sentence(p.purpose)], [serves, offers], [different ? `What makes ${p.name} different: ${different}` : ''], [CLOSING[brief.audience](p.name)]]
+        ? [[opening, sentence(p.purpose ?? ''), serves], [offers, different, CLOSING[brief.audience](p.name)]]
+        : [[opening, sentence(p.purpose ?? '')], [serves, offers], [different ? `What makes ${p.name} different: ${different}` : ''], [CLOSING[brief.audience](p.name)]]
 
   const body = paragraphs.map((parts) => parts.filter(Boolean).join(' ')).filter(Boolean)
   return {

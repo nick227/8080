@@ -1,9 +1,16 @@
-// The company-profile workflow, AI off (doc/12 §6, Slice B). The server owns the
-// order of questions; a choice or a typed answer moves the run one step, inside a
-// transaction that holds the run's row lock. Every answer is stored as given
-// (WorkflowAnswer). When the interview is complete, the answers become one profile
-// revision, a template Company Description is created as a native block document,
-// linked to the channel, and the bot posts the link.
+// The company-profile workflow (doc/12 §6–7). The server owns the order of questions;
+// a choice or a typed answer moves the run one step, inside a transaction that holds
+// the run's row lock. Every answer is stored as given (WorkflowAnswer).
+//
+// Two modes, chosen when setup starts:
+//   direct   (AI off, capped, or a call failed): every fact is asked, the document is
+//            the deterministic template — Slice B, the fallback and the test oracle.
+//   assisted (Slice C): one open question → the model extracts what it can (marked
+//            inferred) → at most FOLLOW_UPS questions for what's missing → the brief →
+//            the model drafts the document. The model only returns data; this file
+//            decides what is asked, saved and created.
+// Either way the answers become one profile revision and a native block document,
+// shared with the workspace and linked to the channel, and the bot posts the link.
 import { db, type Prisma, type WorkflowStatus } from '@project/db'
 import { conflict } from '../../lib/errors'
 import { authorize } from '../../services/workspacePolicy'
@@ -12,6 +19,8 @@ import { DocumentService } from '../../services/DocumentService'
 import { DocumentContentService } from '../../services/DocumentContentService'
 import { companyDescription, list, type Audience, type Length, type ServiceArea, type Voice } from './companyDescription'
 import type { ChoiceFlow, FlowSay } from './registry'
+import { assistantAvailable, draftDocument, extractFacts } from '../assistant/calls'
+import type { Facts } from '../assistant/provider'
 
 type Tx = Prisma.TransactionClient
 
@@ -31,7 +40,19 @@ export type Draft = {
   length?: Length
 }
 type Field = keyof Draft
-export type RunState = { draft: Draft; sources: Partial<Record<Field, string>>; documentId?: string; error?: string }
+export type RunState = {
+  draft: Draft
+  sources: Partial<Record<Field, string>>
+  mode?: 'direct' | 'assisted'
+  /** Fields the model read from the person's description (status inferred, not stated). */
+  inferred?: Field[]
+  /** Assisted mode: the fact questions still worth asking, in order (≤ FOLLOW_UPS). */
+  followUps?: string[]
+  documentId?: string
+  error?: string
+}
+const FOLLOW_UPS = 3
+const BRIEF = ['tone', 'audience', 'length']
 
 type Option = { id: string; label: string }
 type ChoiceStep = { id: string; kind: 'choice'; field: Field; mode?: 'one' | 'many'; options: Option[]; ask: (d: Draft) => string; value: (ids: string[]) => Draft[Field] }
@@ -73,6 +94,17 @@ const known = (d: Draft, field: Field) => {
   return Array.isArray(v) ? v.length > 0 : v !== undefined && v !== null && v !== ''
 }
 export const nextStep = (d: Draft) => STEPS.find((s) => !known(d, s.field)) ?? null
+
+/** The next question for this run: everything unknown (direct), or the chosen
+ *  follow-ups and then the brief (assisted). */
+export function nextFor(state: RunState) {
+  if (state.mode !== 'assisted') return nextStep(state.draft)
+  const ids = [...(state.followUps ?? []), ...BRIEF]
+  return ids.map((id) => STEP.get(id)!).find((s) => !known(state.draft, s.field)) ?? null
+}
+
+// The open question that starts an assisted run.
+const ABOUT = { id: 'about', max: 2000, ask: 'Tell me about your company in your own words: its name, where you are, what you do, who you do it for, and what makes you different.' }
 
 function ask(step: Step, d: Draft, userId: string): FlowSay {
   return step.kind === 'choice'
@@ -126,7 +158,7 @@ export async function startRun(input: { workspaceId: string; memberId: string; u
 }
 
 type Answer = { stepId: string; kind: 'choice'; optionIds: string[] } | { stepId: string; kind: 'text'; text: string; itemId: string }
-type Advanced = { says: FlowSay[]; generate: boolean }
+type Advanced = { says: FlowSay[]; generate: boolean; extract?: boolean }
 
 async function save(tx: Tx, run: LockedRun, stepId: string, status: WorkflowStatus, state: RunState) {
   await tx.workflowRun.update({ where: { id: run.id }, data: { stepId, status, state: state as unknown as Prisma.InputJsonValue } })
@@ -149,15 +181,27 @@ async function answer(tx: Tx, run: LockedRun, a: Answer): Promise<Advanced> {
       await save(tx, run, 'start', 'paused', state)
       return { says: [{ text: "No problem. Whenever you're ready:", offer: { step: 'start', options: START.slice(0, 1), forUserId: run.userId } }], generate: false }
     }
+    // Setup: with the assistant available, one open question replaces the fact
+    // questions; otherwise the direct interview.
+    state.mode = (await assistantAvailable(run.workspaceId)) ? 'assisted' : 'direct'
+    if (state.mode === 'assisted') {
+      await save(tx, run, ABOUT.id, 'waiting', state)
+      return { says: [{ text: ABOUT.ask }], generate: false }
+    }
+  } else if (a.stepId === ABOUT.id) {
+    if (a.kind !== 'text' || run.status !== 'waiting') throw conflict('That question was already answered', 'STEP_CLOSED')
+    await save(tx, run, 'extract', 'working', state)
+    return { says: [{ text: 'Thanks — reading that now.' }], generate: false, extract: true }
   } else {
     const step = STEP.get(a.stepId)
     if (!step || step.kind !== a.kind || run.status !== 'waiting') throw conflict('That question was already answered', 'STEP_CLOSED')
     const value = a.kind === 'choice' ? (step as ChoiceStep).value(a.optionIds) : (step as TextStep).value(a.text)
     ;(state.draft as Record<string, unknown>)[step.field] = value
     state.sources[step.field] = record.id
+    state.inferred = (state.inferred ?? []).filter((f) => f !== step.field) // now stated
   }
 
-  const next = nextStep(state.draft)
+  const next = nextFor(state)
   if (next) {
     await save(tx, run, next.id, 'waiting', state)
     return { says: [ask(next, state.draft, run.userId)], generate: false }
@@ -166,21 +210,77 @@ async function answer(tx: Tx, run: LockedRun, a: Answer): Promise<Advanced> {
   return { says: [{ text: 'Thanks — writing your company description now.' }], generate: true }
 }
 
-// ─── generation (AI off: the template) ────────────────────────────────────────
+// ─── extraction (assisted) ────────────────────────────────────────────────────
+
+const factsOf = (d: Draft): Facts => ({
+  name: d.name ?? null, location: d.location ?? null, serviceArea: d.serviceArea ?? null, purpose: d.purpose ?? null,
+  brandVoice: d.brandVoice ?? null, offerings: d.offerings ?? [], customers: d.customers ?? [], differentiators: d.differentiators ?? [],
+})
+const FACT_FIELDS = ['name', 'location', 'serviceArea', 'purpose', 'brandVoice', 'offerings', 'customers', 'differentiators'] as const
+
+/** Fills unknown fields from the model's facts; returns the fields it filled. Known
+ *  fields (from the profile or an answer) are never replaced here. */
+function fill(state: RunState, facts: Facts, sourceId: string | undefined) {
+  const filled: Field[] = []
+  for (const field of FACT_FIELDS) {
+    const value = facts[field]
+    if (known(state.draft, field) || value === null || (Array.isArray(value) && value.length === 0)) continue
+    ;(state.draft as Record<string, unknown>)[field] = value
+    if (sourceId) state.sources[field] = sourceId
+    filled.push(field)
+  }
+  state.inferred = [...new Set([...(state.inferred ?? []), ...filled])]
+  return filled
+}
+
+/** After the open answer commits: one extraction call, then the first follow-up (or,
+ *  if the call didn't work out, the direct interview). Claimed once. */
+export async function extract(roomId: string, userId: string): Promise<FlowSay[]> {
+  const run = await db.workflowRun.findFirst({ where: { workflowKey: COMPANY_PROFILE, roomId, userId, status: 'working', stepId: 'extract' }, orderBy: { createdAt: 'desc' } })
+  if (!run) return []
+  const claimed = await db.workflowRun.updateMany({ where: { id: run.id, status: 'working', stepId: 'extract' }, data: { stepId: 'extracting' } })
+  if (claimed.count === 0) return []
+  const state = run.state as unknown as RunState
+  const about = await db.workflowAnswer.findFirst({ where: { runId: run.id, stepId: ABOUT.id }, orderBy: { createdAt: 'desc' } })
+  const result = about?.raw ? await extractFacts({ workspaceId: run.workspaceId, runId: run.id }, { text: about.raw, known: factsOf(state.draft) }) : null
+
+  const says: FlowSay[] = []
+  if (result) {
+    fill(state, result.facts, about?.id)
+    // Ask about what's still unknown — the name always, then the first few others.
+    const missing = STEPS.filter((s) => !BRIEF.includes(s.id) && !known(state.draft, s.field)).map((s) => s.id)
+    state.followUps = missing.slice(0, FOLLOW_UPS)
+  } else {
+    state.mode = 'direct'
+    says.push({ text: "I couldn't read that just now, so let me ask a few quick questions instead." })
+  }
+  const next = nextFor(state)!
+  await db.workflowRun.update({ where: { id: run.id }, data: { stepId: next.id, status: 'waiting', state: state as unknown as Prisma.InputJsonValue } })
+  says.push(ask(next, state.draft, userId))
+  return says
+}
+
+// ─── generation ───────────────────────────────────────────────────────────────
 
 const documents = new DocumentService()
 const contents = new DocumentContentService()
 
 const learned = (d: Draft) =>
   list([
-    'your name',
-    'where you work',
-    'what you do',
+    d.name ? 'your name' : '',
+    d.location || d.serviceArea ? 'where you work' : '',
+    d.purpose ? 'what you do' : '',
     d.offerings?.length ? `${d.offerings.length} ${d.offerings.length === 1 ? 'offering' : 'offerings'}` : '',
     d.customers?.length ? 'who you sell to' : '',
     d.differentiators?.length ? 'what makes you different' : '',
     d.brandVoice ? `a ${d.brandVoice} voice` : '',
   ].filter(Boolean))
+
+/** The person's own words, question by question (what the drafting call is given). */
+async function answersOf(runId: string, d: Draft) {
+  const rows = await db.workflowAnswer.findMany({ where: { runId, kind: 'text' }, orderBy: { createdAt: 'asc' } })
+  return rows.filter((r) => r.raw).map((r) => ({ question: r.stepId === ABOUT.id ? ABOUT.ask : STEP.get(r.stepId)?.ask(d) ?? r.stepId, answer: r.raw! }))
+}
 
 /** Runs the post-interview work once (the claim is atomic) and says how it went. */
 export async function generate(roomId: string, userId: string): Promise<FlowSay[]> {
@@ -193,17 +293,42 @@ export async function generate(roomId: string, userId: string): Promise<FlowSay[
   try {
     const user = await db.user.findUniqueOrThrow({ where: { id: userId }, include: { profile: true } })
     const ctx = { user, origin: 'assistant' as const }
+    const brief = { audience: d.audience ?? 'general', length: d.length ?? 'medium' }
+
+    // Assisted: one drafting call. Its tidy-up may refine only what the model inferred
+    // or what is still unknown — never a fact a person stated (doc/12 §2).
+    const drafted = state.mode === 'assisted'
+      ? await draftDocument({ workspaceId: run.workspaceId, runId: run.id }, {
+          documentType: 'company-description', profile: factsOf(d), answers: await answersOf(run.id, d),
+          brief: { audience: brief.audience, length: brief.length, voice: d.brandVoice ?? null },
+        })
+      : null
+    if (drafted) {
+      const inferred = new Set(state.inferred ?? [])
+      for (const field of FACT_FIELDS) {
+        const value = drafted.patch[field]
+        if (value === null || (Array.isArray(value) && value.length === 0)) continue
+        if (known(d, field) && !inferred.has(field)) continue
+        ;(d as Record<string, unknown>)[field] = value
+        inferred.add(field)
+      }
+      state.inferred = [...inferred]
+    }
+
     const update: ProfileUpdate = {
       name: d.name, location: d.location, serviceArea: d.serviceArea, purpose: d.purpose, brandVoice: d.brandVoice,
       offerings: d.offerings, customers: d.customers, differentiators: d.differentiators,
-      sources: state.sources as ProfileUpdate['sources'], runId: run.id,
+      sources: state.sources as ProfileUpdate['sources'], inferred: state.inferred as ProfileUpdate['inferred'], runId: run.id,
     }
     const { revision } = await profiles.apply(ctx, run.workspaceId, update, `wf:${run.id}:profile`)
-    const brief = { audience: d.audience ?? 'general', length: d.length ?? 'medium' }
-    const { title, blocks } = companyDescription(
-      { name: d.name!, location: d.location!, serviceArea: d.serviceArea ?? null, purpose: d.purpose!, brandVoice: d.brandVoice ?? null, offerings: d.offerings ?? [], customers: d.customers ?? [], differentiators: d.differentiators ?? [] },
+    const template = companyDescription(
+      { name: d.name!, location: d.location ?? null, serviceArea: d.serviceArea ?? null, purpose: d.purpose ?? null, brandVoice: d.brandVoice ?? null, offerings: d.offerings ?? [], customers: d.customers ?? [], differentiators: d.differentiators ?? [] },
       brief,
     )
+    const title = drafted?.document.title ?? template.title
+    const blocks = drafted
+      ? [{ id: 'title', type: 'section' as const, level: 'h1' as const, text: d.name! }, ...drafted.document.paragraphs.map((text, i) => ({ id: `p${i + 1}`, type: 'section' as const, level: 'body' as const, text }))]
+      : template.blocks
     const doc = await documents.create(
       ctx, run.workspaceId,
       { title, descriptor: { surface: 'blocks', source: { kind: 'native', schemaVersion: 1 } }, idempotencyKey: `wf:${run.id}:doc` },
@@ -211,17 +336,26 @@ export async function generate(roomId: string, userId: string): Promise<FlowSay[
       // Generated from the workspace's profile by a workspace workflow, so it belongs to
       // the workspace's audience from the start — the link below is only posted once
       // that is in place (doc/12 §5.4). Owners and admins can narrow or broaden it.
-      { provenance: { kind: 'chatbot_workflow', workflow: COMPANY_PROFILE, version: VERSION, runId: run.id, profileRevision: revision, generator: 'template', brief }, workspaceAccess: 'viewer' },
+      {
+        provenance: {
+          kind: 'chatbot_workflow', workflow: COMPANY_PROFILE, version: VERSION, runId: run.id, profileRevision: revision, brief,
+          generator: drafted ? 'ai' : 'template', ...(drafted ? { model: drafted.model, assistantCallId: drafted.callId } : {}),
+        },
+        workspaceAccess: 'viewer',
+      },
     )
     await contents.save(ctx, run.workspaceId, doc.id, { expectedVersion: 0, content: blocks }).catch((error) => {
       if ((error as { code?: string }).code !== 'DOCUMENT_CONTENT_CONFLICT') throw error // already written by an earlier try
     })
     await documents.roomLink(ctx, run.workspaceId, doc.id, roomId, false)
     await db.workflowRun.update({ where: { id: run.id }, data: { status: 'done', stepId: 'done', state: { ...state, documentId: doc.id } as unknown as Prisma.InputJsonValue } })
-    return [{
-      text: `I created ${doc.title} and saved what I learned to the company profile: ${learned(d)}. It's a template draft — edit it like any document.`,
-      links: [{ type: 'document', id: doc.id, workspaceId: run.workspaceId, title: doc.title }],
-    }]
+    const saved = `saved what I learned to the company profile: ${learned(d)}.`
+    const text = drafted
+      ? `I drafted ${doc.title} and ${saved}${state.inferred?.length ? ' Some of it I read from your description, so check it over.' : ''}`
+      : state.mode === 'assisted'
+        ? `I created ${doc.title} from a template — I couldn't reach the writing model just now — and ${saved}`
+        : `I created ${doc.title} and ${saved} It's a template draft — edit it like any document.`
+    return [{ text, links: [{ type: 'document', id: doc.id, workspaceId: run.workspaceId, title: doc.title }] }]
   } catch (error) {
     console.error(`[flow] ${COMPANY_PROFILE}: generation failed`, error)
     await db.workflowRun.update({ where: { id: run.id }, data: { status: 'failed', stepId: 'retry', state: { ...state, error: error instanceof Error ? error.message : String(error) } as unknown as Prisma.InputJsonValue } })
@@ -252,8 +386,8 @@ export async function textAnswer(item: { roomId: string; itemId: string; actorId
   return db.$transaction(async (tx) => {
     const run = await lockRun(tx, item.roomId, item.actorId)
     if (!run || run.status !== 'waiting') return null
-    const step = STEP.get(run.stepId)
-    if (!step || step.kind !== 'text') return null
+    const step = run.stepId === ABOUT.id ? { id: ABOUT.id, max: ABOUT.max } : STEP.get(run.stepId)
+    if (!step || ('kind' in step && step.kind !== 'text')) return null
     const text = item.text?.trim() ?? ''
     if (!text) return item.hasMedia ? { says: [{ text: 'For now, please type your answer.' }], generate: false } : null
     if (text.length > step.max) return { says: [{ text: `That's a bit long — can you keep it under ${step.max} characters?` }], generate: false }
