@@ -21,8 +21,9 @@ import { keys } from './keys'
 // tiles or search. Mutations invalidate the workspace subtree (records, timelines
 // and activity all move together).
 
-type Subject = { contactId: string } | { accountId: string }
-const subjectKeyOf = (s: Subject) => ('contactId' in s ? `contact:${s.contactId}` : `account:${s.accountId}`)
+export type Subject = { contactId: string } | { accountId: string } | { inventoryId: string }
+const subjectKeyOf = (s: Subject) =>
+  'contactId' in s ? `contact:${s.contactId}` : 'accountId' in s ? `account:${s.accountId}` : `inventory:${s.inventoryId}`
 
 function useWorkspaceWrite<V, R>(workspaceId: string, fn: (vars: V) => Promise<R>, also?: (vars: V) => readonly unknown[][]) {
   const queryClient = useQueryClient()
@@ -189,7 +190,7 @@ export function useDeleteAccount(workspaceId: string) {
 // ─── timelines ───────────────────────────────────────────────────────────────
 
 /** A contact's or account's timeline, newest first. */
-export function useRecordTimeline(workspaceId: string | undefined, subject: Subject | undefined, params: { limit?: number } = {}) {
+export function useRecordTimeline(workspaceId: string | undefined, subject: Exclude<Subject, { inventoryId: string }> | undefined, params: { limit?: number } = {}) {
   return useInfiniteQuery({
     queryKey: keys.timeline(workspaceId ?? '', subject ? subjectKeyOf(subject) : ''),
     enabled: !!workspaceId && !!subject,
@@ -245,7 +246,7 @@ export function useNotes(workspaceId: string | undefined, subject: Subject | und
   })
 }
 
-/** Text and/or media (the caller's own uploads, e.g. a voice capture) on contacts/accounts. */
+/** Text and/or media (the caller's own uploads, e.g. a voice capture) on contacts/accounts/inventory. */
 export function useCreateNote(workspaceId: string) {
   return useWorkspaceWrite(workspaceId, async (body: CreateNoteInput) =>
     unwrap(await getApiClient().POST('/workspaces/{workspaceId}/notes', { params: { path: ws(workspaceId) }, body })).data,
@@ -276,7 +277,7 @@ export function useShareNote(workspaceId: string) {
 
 // ─── links ───────────────────────────────────────────────────────────────────
 
-export type LinkFilter = { contactId: string } | { accountId: string } | { noteId: string } | { roomId: string }
+export type LinkFilter = { contactId: string } | { accountId: string } | { inventoryId: string } | { noteId: string } | { roomId: string }
 
 export function useRecordLinks(workspaceId: string | undefined, filter: LinkFilter | undefined) {
   return useQuery({

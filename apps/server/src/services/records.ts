@@ -39,6 +39,12 @@ export async function liveAccount(client: Client, workspaceId: string, accountId
   return account
 }
 
+export async function liveInventory(client: Client, workspaceId: string, inventoryId: string) {
+  const item = await client.inventory.findFirst({ where: { id: inventoryId, workspaceId } })
+  if (!item) throw notFound('Item not found')
+  return item
+}
+
 /** Newest-first timeline of activities matching `subjects` (a where on ActivitySubject). */
 export async function timeline(userId: string, workspaceId: string, subjects: Prisma.ActivitySubjectWhereInput, opts: { cursor?: string; limit?: number }) {
   const limit = normalizeLimit(opts.limit)

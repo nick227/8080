@@ -20,6 +20,7 @@ import { RecordForm } from './RecordForm'
 import { StockAdjust } from './StockAdjust'
 import { StockHistory } from './StockHistory'
 import { RecordGallery } from './RecordGallery'
+import { RecordNotes } from './RecordNotes'
 import {
   STAGES,
   contactSubtitle,
@@ -200,6 +201,7 @@ function ContactDetail({
         <div className="record-body">
           <div className="record-main">
             <RecordGallery workspaceId={workspaceId} kind="contacts" recordId={c.id} name={c.displayName} />
+            <RecordNotes workspaceId={workspaceId} subject={{ contactId: c.id }} recordName={c.displayName} />
             <section>
               <h2>Relationship</h2>
               <p>{c.title || 'Add a title and company information as this relationship develops.'}</p>
@@ -365,6 +367,7 @@ function InventoryDetail({
               {item.description || 'Add a description to help your team understand this item.'}
             </p>
           </section>
+          <RecordNotes workspaceId={workspaceId} subject={{ inventoryId: item.id }} recordName={item.name} />
           <ItemInterests workspaceId={workspaceId} inventoryId={item.id} onRelated={onRelated} />
           {tracked && <StockHistory workspaceId={workspaceId} inventoryId={item.id} />}
         </div>

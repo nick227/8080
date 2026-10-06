@@ -451,16 +451,78 @@
 .record-description {
   white-space: pre-wrap;
 }
+.record-notes {
+  margin-bottom: var(--space-xl);
+}
+.record-notes-compose {
+  display: grid;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+.record-notes-compose textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 4.5rem;
+  padding: var(--space-sm) var(--space-md);
+  border: var(--line-width) solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  line-height: var(--leading-relaxed);
+}
+.record-notes-compose button {
+  justify-self: start;
+}
+.record-notes-empty {
+  color: var(--muted);
+  margin: 0;
+}
+.record-notes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-md);
+}
+.record-notes-list li {
+  border-top: var(--line-width) solid var(--line);
+  padding-top: var(--space-md);
+}
+.record-notes-list header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+.record-notes-list header strong {
+  font-weight: var(--weight-medium);
+}
+.record-notes-list header time {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.record-notes-list header button {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.record-notes-list p {
+  margin: 0;
+  white-space: pre-wrap;
+}
 .record-gallery {
   margin-bottom: var(--space-xl);
   display: grid;
   gap: var(--space-sm);
+  justify-items: start;
 }
 .record-gallery-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-sm);
+  width: min(100%, 22rem);
 }
 .record-gallery-head h2 {
   margin: 0;
@@ -475,8 +537,9 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 100%;
-  min-height: 280px;
+  width: min(100%, 22rem);
+  aspect-ratio: 4 / 3;
+  max-height: min(220px, 28vh);
   padding: 0;
   border: var(--line-width) solid var(--line);
   background: var(--surface-subtle);
@@ -486,7 +549,6 @@
 .record-gallery-hero img {
   width: 100%;
   height: 100%;
-  min-height: 280px;
   object-fit: cover;
 }
 .record-gallery-hero em {
@@ -505,10 +567,10 @@
   gap: var(--space-xs);
   color: var(--ink);
   text-align: center;
-  padding: var(--space-lg);
+  padding: var(--space-md);
 }
 .record-gallery-empty span {
-  font-size: clamp(3rem, 12vw, 5rem);
+  font-size: clamp(2rem, 6vw, 3rem);
   letter-spacing: 0.08em;
   color: var(--muted);
   line-height: 1;
@@ -524,12 +586,13 @@
   gap: var(--space-xs);
   overflow-x: auto;
   padding-bottom: var(--space-2xs);
+  max-width: min(100%, 22rem);
 }
 .record-gallery-thumb,
 .record-gallery-add {
-  flex: 0 0 64px;
-  width: 64px;
-  height: 64px;
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
   padding: 0;
   border: var(--line-width) solid var(--line);
   background: var(--surface-subtle);

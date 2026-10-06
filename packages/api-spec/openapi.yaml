@@ -2609,9 +2609,9 @@ paths:
       - $ref: '#/components/parameters/WorkspaceId'
     get:
       operationId: listNotes
-      summary: Notes on a contact or account, newest first
+      summary: Notes on a contact, account, or inventory item, newest first
       description: |
-        Give exactly one of `contactId` or `accountId`.
+        Give exactly one of `contactId`, `accountId`, or `inventoryId`.
       tags: [workspaces]
       parameters:
         - $ref: '#/components/parameters/Cursor'
@@ -2621,6 +2621,9 @@ paths:
           schema: { type: string, minLength: 1, maxLength: 64 }
         - in: query
           name: accountId
+          schema: { type: string, minLength: 1, maxLength: 64 }
+        - in: query
+          name: inventoryId
           schema: { type: string, minLength: 1, maxLength: 64 }
       responses:
         '200':
@@ -2634,7 +2637,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     post:
       operationId: createNote
-      summary: Add a note (text and/or media) to contacts and accounts
+      summary: Add a note (text and/or media) to contacts, accounts, or inventory
       description: |
         Media: the caller's own uploads (POST /media), not yet attached — a voice or video note plays like any capture.
       tags: [workspaces]
@@ -2736,7 +2739,7 @@ paths:
       - $ref: '#/components/parameters/WorkspaceId'
     get:
       operationId: listRecordLinks
-      summary: Links of one contact, account, note or room
+      summary: Links of one contact, account, inventory, note or room
       description: |
         Filter by exactly one. A linked room the caller can't see is returned without its id or title.
       tags: [workspaces]
@@ -2746,6 +2749,9 @@ paths:
           schema: { type: string, minLength: 1, maxLength: 64 }
         - in: query
           name: accountId
+          schema: { type: string, minLength: 1, maxLength: 64 }
+        - in: query
+          name: inventoryId
           schema: { type: string, minLength: 1, maxLength: 64 }
         - in: query
           name: noteId
@@ -2765,9 +2771,9 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     post:
       operationId: createRecordLink
-      summary: Link a contact or account to a note or a conversation
+      summary: Link a contact, account, or inventory item to a note or a conversation
       description: |
-        Exactly one subject (`contactId`/`accountId`) and one object (`noteId`, or `roomId` with an optional `itemId`).
+        Exactly one subject (`contactId`/`accountId`/`inventoryId`) and one object (`noteId`, or `roomId` with an optional `itemId`).
         Linking a room requires being able to see it. Conversations are linked, never owners of the record.
       tags: [workspaces]
       requestBody:
@@ -6038,7 +6044,7 @@ components:
         subjects:
           type: array
           items: { type: string }
-          description: 'Records it is attached to, e.g. contact:<id>, account:<id>'
+          description: 'Records it is attached to, e.g. contact:<id>, account:<id>, inventory:<id>'
 
     NoteResponse:
       type: object
@@ -6058,7 +6064,7 @@ components:
     CreateNoteInput:
       type: object
       additionalProperties: false
-      description: Needs text or media, and at least one contact or account.
+      description: Needs text or media, and at least one contact, account, or inventory item.
       properties:
         text: { type: string, maxLength: 10000 }
         mediaIds:
@@ -6071,6 +6077,10 @@ components:
           maxItems: 20
           items: { type: string, minLength: 1, maxLength: 64 }
         accountIds:
+          type: array
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 64 }
+        inventoryIds:
           type: array
           maxItems: 20
           items: { type: string, minLength: 1, maxLength: 64 }
@@ -6091,7 +6101,7 @@ components:
           type: object
           required: [type, id, name]
           properties:
-            type: { type: string, enum: [contact, account] }
+            type: { type: string, enum: [contact, account, inventory] }
             id: { type: string }
             name: { type: string }
         object:
@@ -6132,10 +6142,11 @@ components:
     CreateRecordLinkInput:
       type: object
       additionalProperties: false
-      description: Exactly one of contactId/accountId, and exactly one of noteId/roomId (itemId only with roomId).
+      description: Exactly one of contactId/accountId/inventoryId, and exactly one of noteId/roomId (itemId only with roomId).
       properties:
         contactId: { type: string, minLength: 1, maxLength: 64 }
         accountId: { type: string, minLength: 1, maxLength: 64 }
+        inventoryId: { type: string, minLength: 1, maxLength: 64 }
         noteId: { type: string, minLength: 1, maxLength: 64 }
         roomId: { type: string, minLength: 1, maxLength: 64 }
         itemId: { type: string, minLength: 1, maxLength: 64 }

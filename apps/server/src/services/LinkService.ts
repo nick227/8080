@@ -8,7 +8,7 @@ import { db, Prisma } from '@project/db'
 import { badRequest, conflict, notFound } from '../lib/errors'
 import { recordLinkInclude, toRecordLink } from '../lib/serialize'
 import { addSubjects, runAction, subjectKey, type ActivityObject, type SubjectRef } from './actions'
-import { liveAccount, liveContact, visibleRoomIds } from './records'
+import { liveAccount, liveContact, liveInventory, visibleRoomIds } from './records'
 import { RoomService } from './RoomService'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
 import { authorize } from './workspacePolicy'
@@ -16,11 +16,14 @@ import { authorize } from './workspacePolicy'
 const rooms = new RoomService()
 
 type Tx = Prisma.TransactionClient
-export type LinkInput = { contactId?: string; accountId?: string; noteId?: string; roomId?: string; itemId?: string }
+export type LinkInput = { contactId?: string; accountId?: string; inventoryId?: string; noteId?: string; roomId?: string; itemId?: string }
 
 function subjectOf(input: LinkInput): SubjectRef {
-  if (!!input.contactId === !!input.accountId) throw badRequest('Give exactly one of contactId or accountId', 'ONE_SUBJECT')
-  return input.contactId ? { contactId: input.contactId } : { accountId: input.accountId! }
+  const subjects = [input.contactId, input.accountId, input.inventoryId].filter(Boolean)
+  if (subjects.length !== 1) throw badRequest('Give exactly one of contactId, accountId, or inventoryId', 'ONE_SUBJECT')
+  if (input.contactId) return { contactId: input.contactId }
+  if (input.accountId) return { accountId: input.accountId }
+  return { inventoryId: input.inventoryId! }
 }
 
 function objectOf(input: LinkInput): ActivityObject {
@@ -50,7 +53,8 @@ export class LinkService {
     const subject = subjectOf(input)
     const object = objectOf(input)
     if ('contactId' in subject) await liveContact(db, workspaceId, subject.contactId)
-    else await liveAccount(db, workspaceId, subject.accountId)
+    else if ('accountId' in subject) await liveAccount(db, workspaceId, subject.accountId)
+    else await liveInventory(db, workspaceId, subject.inventoryId)
     if ('noteId' in object) {
       if (!(await db.note.findFirst({ where: { id: object.noteId, workspaceId, deletedAt: null } }))) throw notFound('Note not found')
     } else {
@@ -84,7 +88,11 @@ export class LinkService {
     const actor = await authorize(ctx.user.id, workspaceId, 'link.write')
     const link = await db.recordLink.findFirst({ where: { id: linkId, workspaceId } })
     if (!link) throw notFound('Link not found')
-    const subject: SubjectRef = link.contactId ? { contactId: link.contactId } : { accountId: link.accountId! }
+    const subject: SubjectRef = link.contactId
+      ? { contactId: link.contactId }
+      : link.accountId
+        ? { accountId: link.accountId }
+        : { inventoryId: link.inventoryId! }
     const object: ActivityObject = link.noteId ? { noteId: link.noteId } : { roomId: link.roomId!, itemId: link.itemId }
 
     await runAction(
@@ -104,14 +112,17 @@ export class LinkService {
 
   async list(userId: string, workspaceId: string, filter: LinkInput) {
     await authorize(userId, workspaceId, 'record.read')
-    const keys = (['contactId', 'accountId', 'noteId', 'roomId'] as const).filter((k) => filter[k])
-    if (keys.length !== 1) throw badRequest('Filter by exactly one of contactId, accountId, noteId or roomId', 'ONE_FILTER')
+    const keys = (['contactId', 'accountId', 'inventoryId', 'noteId', 'roomId'] as const).filter((k) => filter[k])
+    if (keys.length !== 1) throw badRequest('Filter by exactly one of contactId, accountId, inventoryId, noteId or roomId', 'ONE_FILTER')
     // Links whose record was deleted drop out (the row stays for history).
     const links = await db.recordLink.findMany({
       where: {
         workspaceId,
         [keys[0]!]: filter[keys[0]!],
-        OR: [{ contact: { deletedAt: null } }, { account: { deletedAt: null } }],
+        AND: [
+          { OR: [{ contactId: null }, { contact: { deletedAt: null } }] },
+          { OR: [{ accountId: null }, { account: { deletedAt: null } }] },
+        ],
         NOT: { note: { is: { deletedAt: { not: null } } } },
       },
       include: recordLinkInclude,
@@ -129,7 +140,10 @@ export class LinkService {
       where: {
         roomId,
         workspace: { deletedAt: null, members: { some: { userId, status: 'active' } } },
-        OR: [{ contact: { deletedAt: null } }, { account: { deletedAt: null } }],
+        AND: [
+          { OR: [{ contactId: null }, { contact: { deletedAt: null } }] },
+          { OR: [{ accountId: null }, { account: { deletedAt: null } }] },
+        ],
       },
       include: recordLinkInclude,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],

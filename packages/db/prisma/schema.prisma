@@ -757,17 +757,20 @@ model ActivitySubject {
   subjectKey  String   @db.VarChar(80)
   contactId   String?
   accountId   String?
+  inventoryId String?
   occurredAt  DateTime // copied from the activity → timeline index without a join
 
   activity  Activity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact   Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
   account   Account?  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  inventory Inventory? @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
 
   @@unique([activityId, subjectKey])
   @@index([workspaceId])
   @@index([contactId, occurredAt])
   @@index([accountId, occurredAt])
+  @@index([inventoryId, occurredAt])
 }
 
 // ─── Contacts (doc/09 §4.1, slice 1) ─────────────────────────────────────────
@@ -913,6 +916,8 @@ model Inventory {
   interests      Interest[]
   importRows     ImportRow[]
   stockMovements InventoryStockMovement[]
+  links          RecordLink[]
+  subjects       ActivitySubject[]
 
   @@unique([workspaceId, sku])
   @@index([workspaceId, name])
@@ -1147,6 +1152,7 @@ model RecordLink {
   workspaceId String
   contactId   String?
   accountId   String?
+  inventoryId String?
   noteId      String?
   roomId      String?
   itemId      String?
@@ -1158,6 +1164,7 @@ model RecordLink {
   workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact   Contact?         @relation(fields: [contactId], references: [id], onDelete: Cascade)
   account   Account?         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  inventory Inventory?       @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
   note      Note?            @relation(fields: [noteId], references: [id], onDelete: Cascade)
   room      Room?            @relation(fields: [roomId], references: [id], onDelete: Cascade)
   item      Item?            @relation(fields: [itemId], references: [id], onDelete: Cascade)
@@ -1166,6 +1173,7 @@ model RecordLink {
   @@unique([workspaceId, pairKey])
   @@index([contactId])
   @@index([accountId])
+  @@index([inventoryId])
   @@index([noteId])
   @@index([roomId])
   @@index([itemId])

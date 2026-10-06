@@ -9,23 +9,25 @@ import { noteInclude, toNote } from '../lib/serialize'
 import { runAction, subjectKey, type SubjectRef } from './actions'
 import { ItemService } from './ItemService'
 import { purgeCapture } from './purgeCapture'
-import { liveAccount, liveContact } from './records'
+import { liveAccount, liveContact, liveInventory } from './records'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
 import { authorize, permit } from './workspacePolicy'
 
 const itemService = new ItemService()
 
-export type SubjectIds = { contactIds?: string[]; accountIds?: string[] }
+export type SubjectIds = { contactIds?: string[]; accountIds?: string[]; inventoryIds?: string[] }
 
 export const subjectsOf = (ids: SubjectIds): SubjectRef[] => [
   ...[...new Set(ids.contactIds ?? [])].map((contactId) => ({ contactId })),
   ...[...new Set(ids.accountIds ?? [])].map((accountId) => ({ accountId })),
+  ...[...new Set(ids.inventoryIds ?? [])].map((inventoryId) => ({ inventoryId })),
 ]
 
 async function assertSubjects(workspaceId: string, subjects: SubjectRef[]) {
   for (const s of subjects) {
     if ('contactId' in s) await liveContact(db, workspaceId, s.contactId)
-    else await liveAccount(db, workspaceId, s.accountId)
+    else if ('accountId' in s) await liveAccount(db, workspaceId, s.accountId)
+    else await liveInventory(db, workspaceId, s.inventoryId)
   }
 }
 
@@ -35,7 +37,8 @@ async function liveNote(workspaceId: string, noteId: string) {
   return note
 }
 
-const subjectOfLink = (l: { contactId: string | null; accountId: string | null }): SubjectRef => (l.contactId ? { contactId: l.contactId } : { accountId: l.accountId! })
+const subjectOfLink = (l: { contactId: string | null; accountId: string | null; inventoryId: string | null }): SubjectRef =>
+  l.contactId ? { contactId: l.contactId } : l.accountId ? { accountId: l.accountId } : { inventoryId: l.inventoryId! }
 
 export class NoteService {
   async create(ctx: WorkspaceCtx, workspaceId: string, input: SubjectIds & { text?: string; mediaIds?: string[] }) {
@@ -44,7 +47,7 @@ export class NoteService {
     const mediaIds = [...new Set(input.mediaIds ?? [])]
     if (!text && mediaIds.length === 0) throw badRequest('A note needs text or media', 'EMPTY_NOTE')
     const subjects = subjectsOf(input)
-    if (subjects.length === 0) throw badRequest('Attach the note to at least one contact or account', 'NO_SUBJECT')
+    if (subjects.length === 0) throw badRequest('Attach the note to at least one contact, account, or inventory', 'NO_SUBJECT')
     await assertSubjects(workspaceId, subjects)
 
     return runAction(
@@ -71,18 +74,24 @@ export class NoteService {
     )
   }
 
-  async list(userId: string, workspaceId: string, opts: { contactId?: string; accountId?: string; cursor?: string; limit?: number }) {
+  async list(userId: string, workspaceId: string, opts: { contactId?: string; accountId?: string; inventoryId?: string; cursor?: string; limit?: number }) {
     await authorize(userId, workspaceId, 'record.read')
-    if (!opts.contactId === !opts.accountId) throw badRequest('Give exactly one of contactId or accountId', 'ONE_SUBJECT')
+    const subjects = [opts.contactId, opts.accountId, opts.inventoryId].filter(Boolean)
+    if (subjects.length !== 1) throw badRequest('Give exactly one of contactId, accountId, or inventoryId', 'ONE_SUBJECT')
     const limit = normalizeLimit(opts.limit)
     const cursor = decodeKeyCursor<{ at: string; id: string }>(opts.cursor)
     const at = cursor ? new Date(cursor.at) : null
     if (cursor && (!at || Number.isNaN(at.getTime()) || typeof cursor.id !== 'string')) throw badRequest('Invalid cursor')
+    const linkFilter = opts.contactId
+      ? { contactId: opts.contactId }
+      : opts.accountId
+        ? { accountId: opts.accountId }
+        : { inventoryId: opts.inventoryId }
     const rows = await db.note.findMany({
       where: {
         workspaceId,
         deletedAt: null,
-        links: { some: opts.contactId ? { contactId: opts.contactId } : { accountId: opts.accountId } },
+        links: { some: linkFilter },
         ...(at ? { OR: [{ createdAt: { lt: at } }, { createdAt: at, id: { lt: cursor!.id } }] } : {}),
       },
       include: noteInclude,

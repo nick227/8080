@@ -15,7 +15,7 @@ export type ActionActor = { kind: 'member'; userId: string; memberId?: string } 
 export type Changes = Record<string, [unknown, unknown]>
 
 // A CRM record an activity is about (doc/09 §3 "subject"). Exactly one id.
-export type SubjectRef = { contactId: string } | { accountId: string }
+export type SubjectRef = { contactId: string } | { accountId: string } | { inventoryId: string }
 // What the activity refers to (at most one; itemId comes with its roomId).
 export type ActivityObject = { noteId: string } | { roomId: string; itemId?: string | null }
 
@@ -27,7 +27,8 @@ export type ActivityDraft = {
   object?: ActivityObject
 }
 
-export const subjectKey = (s: SubjectRef) => ('contactId' in s ? `contact:${s.contactId}` : `account:${s.accountId}`)
+export const subjectKey = (s: SubjectRef) =>
+  'contactId' in s ? `contact:${s.contactId}` : 'accountId' in s ? `account:${s.accountId}` : `inventory:${s.inventoryId}`
 
 /** Adds subjects to existing activities (linking an object to a record, doc/09 Q-B). */
 export async function addSubjects(tx: Tx, workspaceId: string, activities: { id: string; occurredAt: Date }[], subjects: SubjectRef[]) {
@@ -37,7 +38,7 @@ export async function addSubjects(tx: Tx, workspaceId: string, activities: { id:
   if (newest) await touchSubjects(tx, subjects, newest)
 }
 
-// lastActivityAt only moves forward.
+// lastActivityAt only moves forward (contacts/accounts). Inventory has no lastActivityAt yet.
 async function touchSubjects(tx: Tx, subjects: SubjectRef[], at: Date) {
   const contactIds = subjects.flatMap((s) => ('contactId' in s ? [s.contactId] : []))
   const accountIds = subjects.flatMap((s) => ('accountId' in s ? [s.accountId] : []))

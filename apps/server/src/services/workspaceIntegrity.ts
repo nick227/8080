@@ -47,6 +47,10 @@ const CHECKS: { name: string; sql: string }[] = [
     sql: "SELECT c.id AS id FROM ActivitySubject c JOIN Account p ON p.id = c.accountId WHERE p.workspaceId <> c.workspaceId",
   },
   {
+    name: 'ActivitySubject.inventory',
+    sql: "SELECT c.id AS id FROM ActivitySubject c JOIN Inventory p ON p.id = c.inventoryId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
     name: 'Activity.note',
     sql: "SELECT c.id AS id FROM Activity c JOIN Note p ON p.id = c.noteId WHERE p.workspaceId <> c.workspaceId",
   },
@@ -121,6 +125,10 @@ const CHECKS: { name: string; sql: string }[] = [
   {
     name: 'RecordLink.account',
     sql: "SELECT c.id AS id FROM RecordLink c JOIN Account p ON p.id = c.accountId WHERE p.workspaceId <> c.workspaceId",
+  },
+  {
+    name: 'RecordLink.inventory',
+    sql: "SELECT c.id AS id FROM RecordLink c JOIN Inventory p ON p.id = c.inventoryId WHERE p.workspaceId <> c.workspaceId",
   },
   {
     name: 'RecordLink.note',

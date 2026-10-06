@@ -1912,13 +1912,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Notes on a contact or account, newest first
-         * @description Give exactly one of `contactId` or `accountId`.
+         * Notes on a contact, account, or inventory item, newest first
+         * @description Give exactly one of `contactId`, `accountId`, or `inventoryId`.
          */
         get: operations["listNotes"];
         put?: never;
         /**
-         * Add a note (text and/or media) to contacts and accounts
+         * Add a note (text and/or media) to contacts, accounts, or inventory
          * @description Media: the caller's own uploads (POST /media), not yet attached — a voice or video note plays like any capture.
          */
         post: operations["createNote"];
@@ -1986,14 +1986,14 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Links of one contact, account, note or room
+         * Links of one contact, account, inventory, note or room
          * @description Filter by exactly one. A linked room the caller can't see is returned without its id or title.
          */
         get: operations["listRecordLinks"];
         put?: never;
         /**
-         * Link a contact or account to a note or a conversation
-         * @description Exactly one subject (`contactId`/`accountId`) and one object (`noteId`, or `roomId` with an optional `itemId`).
+         * Link a contact, account, or inventory item to a note or a conversation
+         * @description Exactly one subject (`contactId`/`accountId`/`inventoryId`) and one object (`noteId`, or `roomId` with an optional `itemId`).
          *     Linking a room requires being able to see it. Conversations are linked, never owners of the record.
          */
         post: operations["createRecordLink"];
@@ -3901,7 +3901,7 @@ export interface components {
             pinnedAt: string | null;
             /** Format: date-time */
             createdAt: string;
-            /** @description Records it is attached to, e.g. contact:<id>, account:<id> */
+            /** @description Records it is attached to, e.g. contact:<id>, account:<id>, inventory:<id> */
             subjects: string[];
         };
         NoteResponse: {
@@ -3911,12 +3911,13 @@ export interface components {
             data: components["schemas"]["Note"][];
             meta: components["schemas"]["PaginatedMeta"];
         };
-        /** @description Needs text or media, and at least one contact or account. */
+        /** @description Needs text or media, and at least one contact, account, or inventory item. */
         CreateNoteInput: {
             text?: string;
             mediaIds?: string[];
             contactIds?: string[];
             accountIds?: string[];
+            inventoryIds?: string[];
         };
         UpdateNoteInput: {
             pinned?: boolean;
@@ -3926,7 +3927,7 @@ export interface components {
             workspaceId: string;
             subject: {
                 /** @enum {string} */
-                type: "contact" | "account";
+                type: "contact" | "account" | "inventory";
                 id: string;
                 name: string;
             };
@@ -3953,10 +3954,11 @@ export interface components {
         RecordLinkList: {
             data: components["schemas"]["RecordLink"][];
         };
-        /** @description Exactly one of contactId/accountId, and exactly one of noteId/roomId (itemId only with roomId). */
+        /** @description Exactly one of contactId/accountId/inventoryId, and exactly one of noteId/roomId (itemId only with roomId). */
         CreateRecordLinkInput: {
             contactId?: string;
             accountId?: string;
+            inventoryId?: string;
             noteId?: string;
             roomId?: string;
             itemId?: string;
@@ -8065,6 +8067,7 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 contactId?: string;
                 accountId?: string;
+                inventoryId?: string;
             };
             header?: never;
             path: {
@@ -8240,6 +8243,7 @@ export interface operations {
             query?: {
                 contactId?: string;
                 accountId?: string;
+                inventoryId?: string;
                 noteId?: string;
                 roomId?: string;
             };

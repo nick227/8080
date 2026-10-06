@@ -262,6 +262,23 @@ describe('notes (D10)', () => {
     expect((await call(carolId, 'POST', `${base}/notes`, { text: 'orphan' })).json().code).toBe('NO_SUBJECT')
   })
 
+  it('notes link to inventory the same way as contacts', async () => {
+    const { base, carol } = await setup()
+    const widget = (await call(testUserId, 'POST', `${base}/inventory`, { name: 'Widget', sku: 'W-NOTE' })).json().data
+    const res = await call(carolId, 'POST', `${base}/notes`, { text: 'Restock soon', inventoryIds: [widget.id] })
+    expect(res.statusCode).toBe(201)
+    await validateResponse('createNote', 201, res.json())
+    const note = res.json().data
+    expect(note).toMatchObject({ authorMemberId: carol, text: 'Restock soon', subjects: [`inventory:${widget.id}`] })
+
+    const listed = await call(carolId, 'GET', `${base}/notes?inventoryId=${widget.id}`)
+    await validateResponse('listNotes', 200, listed.json())
+    expect(listed.json().data.map((n: { id: string }) => n.id)).toEqual([note.id])
+
+    expect((await call(carolId, 'GET', `${base}/notes`)).json().code).toBe('ONE_SUBJECT')
+    expect((await call(carolId, 'POST', `${base}/notes`, { text: 'no subject' })).json().code).toBe('NO_SUBJECT')
+  })
+
   it('only the author or an admin deletes; an unshared note is purged and leaves the timeline', async () => {
     const { base } = await setup()
     const dana = (await contact(base, { displayName: 'Dana' })).data

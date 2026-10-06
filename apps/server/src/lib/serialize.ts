@@ -370,9 +370,12 @@ export { toTag }
 export const noteInclude = {
   message: { include: messageInclude },
   authorMember: { select: { id: true } },
-  links: { select: { contactId: true, accountId: true } },
+  links: { select: { contactId: true, accountId: true, inventoryId: true } },
 } satisfies Prisma.NoteInclude
 export type NoteRow = Prisma.NoteGetPayload<{ include: typeof noteInclude }>
+
+const noteSubjectKey = (l: { contactId: string | null; accountId: string | null; inventoryId: string | null }) =>
+  l.contactId ? `contact:${l.contactId}` : l.accountId ? `account:${l.accountId}` : `inventory:${l.inventoryId}`
 
 // A capture deleted in a room is purged everywhere (purgeCapture), so the note can
 // outlive its content: `contentRemoved` tells the UI why it's empty.
@@ -389,13 +392,14 @@ export function toNote(note: NoteRow) {
     contentRemoved: removed,
     pinnedAt: note.pinnedAt,
     createdAt: note.createdAt,
-    subjects: note.links.map((l) => (l.contactId ? `contact:${l.contactId}` : `account:${l.accountId}`)).sort(),
+    subjects: note.links.map(noteSubjectKey).sort(),
   }
 }
 
 export const recordLinkInclude = {
   contact: { select: { id: true, displayName: true, primaryEmail: true, deletedAt: true } },
   account: { select: { id: true, name: true, domain: true, deletedAt: true } },
+  inventory: { select: { id: true, name: true } },
   room: { select: { id: true, number: true, title: true, deletedAt: true } },
 } satisfies Prisma.RecordLinkInclude
 export type RecordLinkRow = Prisma.RecordLinkGetPayload<{ include: typeof recordLinkInclude }>
@@ -408,7 +412,9 @@ export function toRecordLink(link: RecordLinkRow, roomVisible: boolean) {
     workspaceId: link.workspaceId,
     subject: link.contact
       ? { type: 'contact' as const, id: link.contact.id, name: link.contact.displayName }
-      : { type: 'account' as const, id: link.account!.id, name: link.account!.name },
+      : link.account
+        ? { type: 'account' as const, id: link.account.id, name: link.account.name }
+        : { type: 'inventory' as const, id: link.inventory!.id, name: link.inventory!.name },
     object: link.noteId
       ? { type: 'note' as const, noteId: link.noteId, room: null, itemId: null }
       : { type: link.itemId ? ('item' as const) : ('room' as const), noteId: null, room: showRoom ? { id: link.room!.id, number: link.room!.number, title: link.room!.title } : null, itemId: showRoom ? link.itemId : null },
