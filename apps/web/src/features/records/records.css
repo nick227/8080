@@ -47,14 +47,6 @@
   overscroll-behavior: contain;
   padding: var(--page-padding-block) var(--page-gutter-current) var(--space-2xl);
 }
-.record-collection-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-md);
-  margin-bottom: var(--space-section);
-}
-.record-collection-header h1,
 .record-identity h1 {
   margin: var(--space-xs) 0;
   font-size: var(--text-title);
@@ -63,7 +55,6 @@
   letter-spacing: var(--tracking-heading);
   overflow-wrap: anywhere;
 }
-.record-collection-header p,
 .record-identity p {
   color: var(--muted);
   margin: 0;
@@ -88,31 +79,6 @@
   color: var(--bg);
   background: var(--ink);
   opacity: 0.9;
-}
-.record-collection-tools {
-  display: flex;
-  gap: var(--space-md);
-  justify-content: space-between;
-  align-items: center;
-}
-.record-search {
-  flex: 1;
-  max-width: 440px;
-}
-.record-search input {
-  width: 100%;
-}
-.record-view-switch {
-  display: flex;
-  border: var(--line-width) solid var(--line);
-  padding: var(--space-2xs);
-}
-.record-view-switch button[aria-pressed='true'] {
-  background: var(--surface-active);
-  color: var(--ink);
-}
-.record-view-switch button {
-  color: var(--muted);
 }
 .record-collection-views {
   display: flex;
@@ -240,51 +206,6 @@
 }
 .record-avatar {
   border-radius: 50%;
-}
-.record-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--card-grid-min-width)), 1fr));
-  gap: var(--card-grid-gap);
-}
-.record-grid .record-tile {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  border: var(--line-width) solid var(--line);
-  border-radius: var(--radius-card);
-  overflow: hidden;
-  padding-bottom: var(--space-sm);
-  gap: var(--space-sm);
-}
-.record-grid .record-tile > .record-media {
-  grid-column: 1 / -1;
-  width: 100%;
-  height: 190px;
-  border-radius: 0;
-  background: var(--surface-subtle);
-  font-size: var(--text-display);
-}
-.record-grid .record-tile > .record-avatar {
-  width: 64px;
-  height: 64px;
-  margin: var(--space-lg) var(--space-md) var(--space-xs);
-  border-radius: 50%;
-  font-size: var(--text-2xl);
-}
-.record-grid .record-tile-identity {
-  grid-column: 1 / -1;
-  padding: 0 var(--space-md);
-}
-.record-grid .record-tile-state {
-  padding-left: var(--space-md);
-}
-.record-grid .record-tile-meta {
-  grid-row: 4;
-  padding-left: var(--space-md);
-}
-.record-grid .record-preview-button {
-  grid-column: 2;
-  grid-row: 4;
-  margin-right: var(--space-xs);
 }
 .record-preview-button {
   color: var(--muted);
@@ -1006,18 +927,6 @@
     grid-row: 1 / 4;
     padding-inline: var(--space-xs);
   }
-  .record-collection-header {
-    align-items: flex-start;
-  }
-  .record-collection-header p {
-    font-size: var(--text-sm);
-  }
-  .record-collection-header h1 {
-    font-size: var(--text-2xl);
-  }
-  .record-collection-tools {
-    gap: var(--space-sm);
-  }
   .record-collection-views {
     align-items: flex-start;
   }
@@ -1028,19 +937,11 @@
     z-index: 1;
     padding-bottom: var(--space-sm);
   }
-  .record-grid {
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
-  }
 }
 
 .record-form-dialog .work-compose {
   overflow: auto;
   flex: 1;
-}
-.record-collection-actions {
-  display: flex;
-  gap: var(--space-sm);
-  align-items: center;
 }
 .record-import {
   display: flex;
@@ -1122,16 +1023,4 @@
 .record-file input[type='file'] {
   display: block;
   margin-top: var(--space-2xs);
-}
-@container records (max-width: 760px) {
-  .record-collection-tools {
-    flex-wrap: wrap;
-  }
-  .record-search {
-    flex-basis: 100%;
-    max-width: none;
-  }
-  .record-view-switch {
-    margin-left: auto;
-  }
 }

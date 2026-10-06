@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Composer } from '../compose/Composer'
 import { useCurrentWorkspace } from '../documents/workspace'
+import { SectionHeader } from '../work/SectionHeader'
 import { DayView } from './DayView'
 import { dayTitle, monthName, parseDay, todayKey } from './dates'
 import { ImportModal } from './ImportModal'
@@ -22,6 +23,7 @@ export function CalendarExperience() {
   const remove = useCalendar((state) => state.remove)
   const [importing, setImporting] = useState(false)
   const [following, setFollowing] = useState(false)
+  const [composing, setComposing] = useState(false)
   const { workspace } = useCurrentWorkspace()
   const today = todayKey()
   const onToday = view === 'day' ? cursor === today : cursor.slice(0, 7) === today.slice(0, 7)
@@ -37,6 +39,15 @@ export function CalendarExperience() {
     return () => window.removeEventListener('keydown', onKey)
   }, [showMonth, view])
 
+  useEffect(() => {
+    if (view === 'month') setComposing(false)
+  }, [view])
+
+  const startNew = () => {
+    if (view === 'month') showDay(cursor)
+    setComposing(true)
+  }
+
   return (
     <div className="cal">
       <header className="cal-bar">
@@ -48,10 +59,11 @@ export function CalendarExperience() {
             <button type="button" className="cal-btn" onClick={() => shiftMonth(1)}>Next</button>
           </div>
         )}
-        <h1 className="cal-title">{title}</h1>
+        <SectionHeader title={title} level={1} newLabel="task" onNew={startNew}>
+          <button type="button" className="section-add-btn" onClick={() => setImporting(true)}>Import</button>
+        </SectionHeader>
         <div className="cal-tools">
           <button type="button" className="cal-btn" aria-pressed={onToday} onClick={goToday}>Today</button>
-          <button type="button" className="cal-btn" data-primary="" onClick={() => setImporting(true)}>Import</button>
           <button type="button" className="cal-btn" onClick={() => setFollowing(true)}>Follow up</button>
         </div>
       </header>
@@ -60,6 +72,8 @@ export function CalendarExperience() {
           day={cursor}
           today={today}
           tasks={dayTasks}
+          composing={composing}
+          onComposeEnd={() => setComposing(false)}
           onAdd={(taskTitle, time) => add({ title: taskTitle, day: cursor, time })}
           onToggle={toggle}
           onRemove={remove}

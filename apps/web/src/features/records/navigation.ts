@@ -95,7 +95,7 @@ export function useRecordNavigation(kind: RecordKind) {
       const patch: Record<string, string | null> = { record: id, preview: null, previewKind: null }
       if (results?.search) {
         const fromResults = new URLSearchParams(results.search.startsWith('?') ? results.search.slice(1) : results.search)
-        for (const key of ['q', 'stage', 'status', 'view', 'focus', 'sort', 'dir'] as const)
+        for (const key of ['q', 'stage', 'status', 'focus', 'sort', 'dir'] as const)
           patch[key] = fromResults.get(key)
       }
       go(search(patch), { results })

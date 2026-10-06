@@ -19,6 +19,7 @@ import {
 } from '@project/sdk'
 import { useCurrentWorkspace } from '../documents/workspace'
 import { Composer } from '../compose/Composer'
+import { SectionHeader } from '../work/SectionHeader'
 import {
   RecordPreviewPanel,
   RecordStepper,
@@ -81,8 +82,6 @@ function RecordWorkspace({
   const location = useLocation()
   const queryClient = useQueryClient()
   const q = nav.params.get('q') ?? ''
-  const [search, setSearch] = useState(q)
-  useEffect(() => setSearch(q), [q])
   const stage = STAGES.includes(nav.params.get('stage') as LeadStatus)
     ? (nav.params.get('stage') as LeadStatus)
     : undefined
@@ -90,14 +89,6 @@ function RecordWorkspace({
   const focus = nav.params.get('focus') ?? ''
   const sort = nav.params.get('sort') ?? 'name'
   const dir = nav.params.get('dir') === 'desc' ? 'desc' : 'asc'
-  const view =
-    nav.params.get('view') === 'list'
-      ? 'list'
-      : nav.params.get('view') === 'grid'
-        ? 'grid'
-        : kind === 'contacts'
-          ? 'list'
-          : 'grid'
   const contactParams = {
     q: q.trim() || undefined,
     leadStatus: stage,
@@ -218,13 +209,13 @@ function RecordWorkspace({
     params.delete('preview')
     params.delete('previewKind')
     params.set('desk', kind)
-    if (search.trim()) params.set('q', search.trim())
+    if (q.trim()) params.set('q', q.trim())
     else params.delete('q')
     return {
       kind,
       ids: records.map((record) => record.id),
       complete: !list.hasNextPage,
-      label: search.trim() ? `Search “${search.trim()}”` : label,
+      label: q.trim() ? `Search “${q.trim()}”` : label,
       search: `?${params}`,
       scroll: scroller.current?.scrollTop ?? 0,
       focusId: id,
@@ -330,11 +321,6 @@ function RecordWorkspace({
       setBulkError('Could not update the selected records. Try again.')
     }
   }
-  useEffect(() => {
-    if (nav.recordId || search === q) return
-    const timer = window.setTimeout(() => filter('q', search), 200)
-    return () => window.clearTimeout(timer)
-  }, [search, q, nav.recordId])
   const title = kind === 'contacts' ? 'Contacts' : 'Inventory'
   const previewRef = nav.state.trail?.at(-1)
   const previewTitle = previewRef?.name ?? titleCase(nav.previewKind)
@@ -381,42 +367,16 @@ function RecordWorkspace({
           </>
         ) : (
           <>
-            <header className="record-collection-header">
-              <div>
-                <span className="record-eyebrow">Workspace / {title}</span>
-                <h1>{title}</h1>
-                <p>
-                  {kind === 'contacts'
-                    ? 'People, relationships, and the next conversation.'
-                    : 'What you offer, all in one place.'}
-                </p>
-              </div>
-              <div className="record-collection-actions">
-                <button onClick={() => setImporting(true)}>Import</button>
-                <button className="record-primary" onClick={() => setAdding(true)}>
-                  + Add {kind === 'contacts' ? 'contact' : 'item'}
-                </button>
-              </div>
-            </header>
-            <div className="record-collection-tools">
-              <label className="record-search">
-                <span className="record-sr-only">Search {kind}</span>
-                <input
-                  type="search"
-                  placeholder={kind === 'contacts' ? 'Search contacts…' : 'Search name or SKU…'}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </label>
-              <div className="record-view-switch" aria-label="Collection view">
-                <button aria-pressed={view === 'list'} onClick={() => filter('view', 'list')}>
-                  List
-                </button>
-                <button aria-pressed={view === 'grid'} onClick={() => filter('view', 'grid')}>
-                  Grid
-                </button>
-              </div>
-            </div>
+            <SectionHeader
+              title={title}
+              level={1}
+              newLabel={kind === 'contacts' ? 'contact' : 'item'}
+              onNew={() => setAdding(true)}
+            >
+              <button type="button" className="section-add-btn" onClick={() => setImporting(true)}>
+                Import
+              </button>
+            </SectionHeader>
             <CollectionToolbar
               kind={kind}
               archived={archived}
@@ -480,7 +440,7 @@ function RecordWorkspace({
               </div>
             ) : (
               <ul
-                className={`record-collection record-${view}`}
+                className="record-collection record-list"
                 aria-label={`${title} results`}
                 onKeyDown={(event) => {
                   if (

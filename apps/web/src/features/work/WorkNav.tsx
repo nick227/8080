@@ -1,12 +1,38 @@
+import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import type { Desk } from './sections'
 import { DESKS } from './sections'
 import './work.css'
+import { ActiveUsersWidget } from '../documents/ActiveUsersWidget'
+import { SearchIcon } from '../../components/icons'
+
+const SEARCHABLE: Desk[] = ['contacts', 'inventory']
 
 export function WorkNav({ desk, teamActive, onSelect }: {
   desk: Desk
   teamActive: boolean
   onSelect: (desk: Desk) => void
 }) {
+  const searchRef = useRef<HTMLInputElement>(null)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const label = DESKS.find((item) => item.id === desk)?.label.toLowerCase() || 'site'
+  const searchable = SEARCHABLE.includes(desk)
+  const q = searchable ? (new URLSearchParams(location.search).get('q') ?? '') : ''
+  const [value, setValue] = useState(q)
+  useEffect(() => setValue(q), [q, desk])
+  useEffect(() => {
+    if (!searchable || value === q) return
+    const timer = window.setTimeout(() => {
+      const next = new URLSearchParams(location.search)
+      const trimmed = value.trim()
+      if (trimmed) next.set('q', trimmed)
+      else next.delete('q')
+      navigate({ search: next.toString() }, { replace: true })
+    }, 200)
+    return () => window.clearTimeout(timer)
+  }, [value, q, searchable, location.search, navigate])
+
   return (
     <nav className="work-nav" aria-label="Workspace">
       {DESKS.map((item) => {
@@ -23,6 +49,24 @@ export function WorkNav({ desk, teamActive, onSelect }: {
           </button>
         )
       })}
+      
+      <div className="work-nav-search">
+        <ActiveUsersWidget />
+        <div className="work-search">
+          <input
+            ref={searchRef}
+            type="search"
+            placeholder={`Search ${label}...`}
+            aria-label={`Search ${label}`}
+            value={searchable ? value : ''}
+            disabled={!searchable}
+            onChange={(event) => setValue(event.target.value)}
+          />
+          <button type="button" className="work-search-btn" aria-label="Search" onClick={() => searchRef.current?.focus()}>
+            <SearchIcon />
+          </button>
+        </div>
+      </div>
     </nav>
   )
 }

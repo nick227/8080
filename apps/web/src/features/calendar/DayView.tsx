@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { HOURS, hourLabel } from './dates'
 import type { CalTask } from './types'
 
-export function DayView({ day, today, tasks, onAdd, onToggle, onRemove }: {
+export function DayView({ day, today, tasks, composing, onComposeEnd, onAdd, onToggle, onRemove }: {
   day: string
   today: string
   tasks: CalTask[]
-  onAdd: (title: string, time: string) => void
+  composing?: boolean
+  onComposeEnd?: () => void
+  onAdd: (title: string, time: string | null) => void
   onToggle: (id: string) => void
   onRemove: (id: string) => void
 }) {
@@ -75,6 +77,17 @@ export function DayView({ day, today, tasks, onAdd, onToggle, onRemove }: {
           </div>
         </section>
       )}
+      {composing && (
+        <section className="cal-slot" data-has="">
+          <span className="cal-hour">Any</span>
+          <div className="cal-slot-tasks">
+            <UntimedAdd
+              onAdd={(title) => onAdd(title, null)}
+              onClose={() => onComposeEnd?.()}
+            />
+          </div>
+        </section>
+      )}
       {HOURS.map((hour, index) => {
         const rows = byHour.get(hour.value) ?? []
         return (
@@ -106,6 +119,45 @@ export function DayView({ day, today, tasks, onAdd, onToggle, onRemove }: {
         )
       })}
     </div>
+  )
+}
+
+function UntimedAdd({ onAdd, onClose }: { onAdd: (title: string) => void; onClose: () => void }) {
+  const [title, setTitle] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const done = useRef(false)
+
+  useEffect(() => {
+    done.current = false
+    setTitle('')
+    inputRef.current?.focus()
+  }, [])
+
+  const finish = (save: boolean) => {
+    if (done.current) return
+    done.current = true
+    const next = (inputRef.current?.value ?? title).trim()
+    if (save && next) onAdd(next)
+    onClose()
+  }
+
+  return (
+    <form className="cal-slot-add" onSubmit={(event) => { event.preventDefault(); finish(true) }}>
+      <span className="cal-plus" aria-hidden="true">+</span>
+      <input
+        ref={inputRef}
+        value={title}
+        aria-label="New task"
+        placeholder="Task"
+        autoComplete="off"
+        onChange={(event) => setTitle(event.target.value)}
+        onBlur={() => finish(true)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') { event.preventDefault(); finish(true) }
+          if (event.key === 'Escape') { event.preventDefault(); finish(false) }
+        }}
+      />
+    </form>
   )
 }
 
