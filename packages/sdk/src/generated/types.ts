@@ -1467,6 +1467,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/contacts/{contactId}/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        /** Gallery images for a contact */
+        get: operations["listContactImages"];
+        put?: never;
+        /**
+         * Upload a contact gallery image
+         * @description Multipart field `file` (image only). At most 12 images. First image becomes primary.
+         */
+        post: operations["uploadContactImage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/contacts/{contactId}/images/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Reorder contact gallery images */
+        patch: operations["reorderContactImages"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/contacts/{contactId}/images/{imageId}/primary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+                imageId: components["parameters"]["RecordImageId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set the primary contact gallery image */
+        patch: operations["setContactImagePrimary"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/contacts/{contactId}/images/{imageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+                imageId: components["parameters"]["RecordImageId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a contact gallery image */
+        delete: operations["deleteContactImage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/inventory": {
         parameters: {
             query?: never;
@@ -1618,6 +1704,92 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/inventory/{inventoryId}/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        /** Gallery images for an inventory item */
+        get: operations["listInventoryImages"];
+        put?: never;
+        /**
+         * Upload an inventory gallery image
+         * @description Multipart field `file` (image only). At most 12 images. First image becomes primary.
+         */
+        post: operations["uploadInventoryImage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/inventory/{inventoryId}/images/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Reorder inventory gallery images */
+        patch: operations["reorderInventoryImages"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/inventory/{inventoryId}/images/{imageId}/primary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+                imageId: components["parameters"]["RecordImageId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set the primary inventory gallery image */
+        patch: operations["setInventoryImagePrimary"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/inventory/{inventoryId}/images/{imageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+                imageId: components["parameters"]["RecordImageId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an inventory gallery image */
+        delete: operations["deleteInventoryImage"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3372,6 +3544,8 @@ export interface components {
             nextFollowUp: string | null;
             primaryEmail: string | null;
             primaryPhone: string | null;
+            /** @description Denormalized primary gallery projection */
+            imageUrl: string | null;
             /** Format: date-time */
             lastActivityAt: string | null;
             origin: components["schemas"]["RecordOrigin"];
@@ -3447,7 +3621,6 @@ export interface components {
             lowStockThreshold?: number | null;
             location?: string | null;
             availability?: boolean;
-            imageUrl?: string | null;
         };
         UpdateInventoryInput: {
             /** @description The version you read; a newer one gives 409 INVENTORY_VERSION_CONFLICT */
@@ -3462,7 +3635,25 @@ export interface components {
             lowStockThreshold?: number | null;
             location?: string | null;
             availability?: boolean;
-            imageUrl?: string | null;
+        };
+        RecordImage: {
+            id: string;
+            mediaId: string;
+            /** @description Playback URL derived from mediaId */
+            url: string;
+            sortOrder: number;
+            isPrimary: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        RecordImageList: {
+            data: components["schemas"]["RecordImage"][];
+        };
+        RecordImageResponse: {
+            data: components["schemas"]["RecordImage"];
+        };
+        ReorderRecordImagesInput: {
+            imageIds: string[];
         };
         AdjustInventoryStockInput: {
             expectedVersion: number;
@@ -4397,6 +4588,15 @@ export interface components {
                 "application/json": components["schemas"]["ErrorResponse"];
             };
         };
+        /** @description Unsupported file type */
+        UnsupportedMediaType: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
         /** @description Rate limited */
         TooManyRequests: {
             headers: {
@@ -4425,6 +4625,7 @@ export interface components {
         TeamId: string;
         ContactId: string;
         InventoryId: string;
+        RecordImageId: string;
         AccountId: string;
         TagId: string;
         NoteId: string;
@@ -6971,6 +7172,153 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    listContactImages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordImageList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    uploadContactImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordImageResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            415: components["responses"]["UnsupportedMediaType"];
+        };
+    };
+    reorderContactImages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReorderRecordImagesInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordImageList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setContactImagePrimary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+                imageId: components["parameters"]["RecordImageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordImageList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteContactImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+                imageId: components["parameters"]["RecordImageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     listInventory: {
         parameters: {
             query?: {
@@ -7260,6 +7608,153 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ItemInterestList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listInventoryImages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordImageList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    uploadInventoryImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordImageResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            415: components["responses"]["UnsupportedMediaType"];
+        };
+    };
+    reorderInventoryImages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReorderRecordImagesInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordImageList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setInventoryImagePrimary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+                imageId: components["parameters"]["RecordImageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordImageList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteInventoryImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+                imageId: components["parameters"]["RecordImageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

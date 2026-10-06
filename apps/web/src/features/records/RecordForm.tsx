@@ -54,7 +54,6 @@ export function RecordForm({
     quantity: String(item?.quantity ?? ''),
     threshold: item?.lowStockThreshold != null ? String(item.lowStockThreshold) : '',
     location: item?.location ?? '',
-    image: item?.imageUrl ?? '',
   }))
   const draftKey = `records.draft:${workspaceId}:${kind}:${contact?.id ?? item?.id ?? 'new'}`
   const [restoredDraft] = useState(() => readDraft(draftKey, initial))
@@ -207,7 +206,6 @@ export function RecordForm({
       sku: form.sku.trim() || null,
       category: form.category.trim() || null,
       description: form.description.trim() || null,
-      imageUrl: form.image.trim() || null,
     }
     if (item) {
       await updateItem.mutateAsync({ ...data, inventoryId: item.id, expectedVersion: item.version })

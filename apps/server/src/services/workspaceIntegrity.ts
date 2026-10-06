@@ -147,6 +147,14 @@ const CHECKS: { name: string; sql: string }[] = [
   { name: 'ImportRow.inventory', sql: 'SELECT c.id FROM ImportRow c JOIN Inventory p ON p.id = c.inventoryId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'InventoryStockMovement.inventory', sql: 'SELECT c.id FROM InventoryStockMovement c JOIN Inventory p ON p.id = c.inventoryId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'InventoryStockMovement.actor', sql: 'SELECT c.id FROM InventoryStockMovement c JOIN WorkspaceMember p ON p.id = c.actorMemberId WHERE c.workspaceId <> p.workspaceId' },
+  {
+    name: 'RecordImage.contact',
+    sql: "SELECT c.id FROM RecordImage c JOIN Contact p ON p.id = c.subjectId WHERE c.subjectType = 'contact' AND c.workspaceId <> p.workspaceId",
+  },
+  {
+    name: 'RecordImage.inventory',
+    sql: "SELECT c.id FROM RecordImage c JOIN Inventory p ON p.id = c.subjectId WHERE c.subjectType = 'inventory' AND c.workspaceId <> p.workspaceId",
+  },
   { name: 'InboxItem.member', sql: 'SELECT c.id FROM InboxItem c JOIN WorkspaceMember p ON p.id = c.memberId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'Compose.author', sql: 'SELECT c.id FROM Compose c JOIN WorkspaceMember p ON p.id = c.authorMemberId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'Compose.contact', sql: 'SELECT c.id FROM Compose c JOIN Contact p ON p.id = c.contactId WHERE c.workspaceId <> p.workspaceId' },

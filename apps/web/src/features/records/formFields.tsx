@@ -19,7 +19,6 @@ export type FormDraft = {
   quantity: string
   threshold: string
   location: string
-  image: string
 }
 
 type SetDraft = <K extends keyof FormDraft>(key: K, value: FormDraft[K]) => void
@@ -122,15 +121,6 @@ export function InventoryFields({
             onChange={(e) => set('name', e.target.value)}
           />
         </Field>
-        <Field label="Primary image URL">
-          <input
-            type="url"
-            maxLength={255}
-            placeholder="https://…"
-            value={form.image}
-            onChange={(e) => set('image', e.target.value)}
-          />
-        </Field>
       </FieldGroup>
       <FieldGroup title="Business details">
         <div className="record-field-pair">
@@ -213,7 +203,7 @@ export function InventoryFields({
             </Field>
           </>
         ) : (
-          <p className="record-muted">Products and services can both be offered without a stock count.</p>
+          <p className="record-muted"></p>
         )}
       </FieldGroup>
     </>

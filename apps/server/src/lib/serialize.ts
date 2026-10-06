@@ -313,6 +313,7 @@ export function toContact(contact: ContactRow) {
     nextFollowUp: contact.nextFollowUp,
     primaryEmail: contact.primaryEmail,
     primaryPhone: contact.primaryPhone,
+    imageUrl: contact.imageUrl,
     lastActivityAt: contact.lastActivityAt,
     origin: contact.origin,
     externalProvider: contact.externalProvider,

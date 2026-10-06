@@ -66,6 +66,7 @@ export type CreateInventoryInput = S['CreateInventoryInput']
 export type UpdateInventoryInput = S['UpdateInventoryInput']
 export type AdjustInventoryStockInput = S['AdjustInventoryStockInput']
 export type StockMovement = S['StockMovement']
+export type RecordImage = S['RecordImage']
 export type Interest = S['Interest']
 export type LeadStatus = S['LeadStatus']
 

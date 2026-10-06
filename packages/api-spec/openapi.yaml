@@ -1980,6 +1980,108 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/contacts/{contactId}/images:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ContactId'
+    get:
+      operationId: listContactImages
+      summary: Gallery images for a contact
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordImageList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: uploadContactImage
+      summary: Upload a contact gallery image
+      description: Multipart field `file` (image only). At most 12 images. First image becomes primary.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordImageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+  /workspaces/{workspaceId}/contacts/{contactId}/images/order:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ContactId'
+    patch:
+      operationId: reorderContactImages
+      summary: Reorder contact gallery images
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReorderRecordImagesInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordImageList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/contacts/{contactId}/images/{imageId}/primary:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ContactId'
+      - $ref: '#/components/parameters/RecordImageId'
+    patch:
+      operationId: setContactImagePrimary
+      summary: Set the primary contact gallery image
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordImageList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/contacts/{contactId}/images/{imageId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ContactId'
+      - $ref: '#/components/parameters/RecordImageId'
+    delete:
+      operationId: deleteContactImage
+      summary: Remove a contact gallery image
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /workspaces/{workspaceId}/inventory:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -2195,6 +2297,108 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ItemInterestList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/inventory/{inventoryId}/images:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/InventoryId'
+    get:
+      operationId: listInventoryImages
+      summary: Gallery images for an inventory item
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordImageList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: uploadInventoryImage
+      summary: Upload an inventory gallery image
+      description: Multipart field `file` (image only). At most 12 images. First image becomes primary.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordImageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+  /workspaces/{workspaceId}/inventory/{inventoryId}/images/order:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/InventoryId'
+    patch:
+      operationId: reorderInventoryImages
+      summary: Reorder inventory gallery images
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReorderRecordImagesInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordImageList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/inventory/{inventoryId}/images/{imageId}/primary:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/InventoryId'
+      - $ref: '#/components/parameters/RecordImageId'
+    patch:
+      operationId: setInventoryImagePrimary
+      summary: Set the primary inventory gallery image
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordImageList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/inventory/{inventoryId}/images/{imageId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/InventoryId'
+      - $ref: '#/components/parameters/RecordImageId'
+    delete:
+      operationId: deleteInventoryImage
+      summary: Remove an inventory gallery image
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -4103,6 +4307,11 @@ components:
       name: inventoryId
       required: true
       schema: { type: string, minLength: 1, maxLength: 64 }
+    RecordImageId:
+      in: path
+      name: imageId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
     AccountId:
       in: path
       name: accountId
@@ -4162,6 +4371,11 @@ components:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
     Conflict:
       description: Conflicts with current state
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    UnsupportedMediaType:
+      description: Unsupported file type
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -5255,7 +5469,7 @@ components:
 
     Contact:
       type: object
-      required: [version, id, workspaceId, firstName, lastName, displayName, title, status, ownerMemberId, teamId, leadStatus, leadSource, nextFollowUp, primaryEmail, primaryPhone, lastActivityAt, origin, externalProvider, externalId, createdAt, updatedAt, points, accounts, tags]
+      required: [version, id, workspaceId, firstName, lastName, displayName, title, status, ownerMemberId, teamId, leadStatus, leadSource, nextFollowUp, primaryEmail, primaryPhone, imageUrl, lastActivityAt, origin, externalProvider, externalId, createdAt, updatedAt, points, accounts, tags]
       properties:
         version: { type: integer, minimum: 1 }
         id: { type: string }
@@ -5275,6 +5489,7 @@ components:
         nextFollowUp: { type: [string, 'null'], format: date-time }
         primaryEmail: { type: [string, 'null'] }
         primaryPhone: { type: [string, 'null'] }
+        imageUrl: { type: [string, 'null'], description: Denormalized primary gallery projection }
         lastActivityAt: { type: [string, 'null'], format: date-time }
         origin: { $ref: '#/components/schemas/RecordOrigin' }
         externalProvider: { type: [string, 'null'] }
@@ -5383,7 +5598,6 @@ components:
         lowStockThreshold: { type: [integer, 'null'], minimum: 0 }
         location: { type: [string, 'null'], maxLength: 120 }
         availability: { type: boolean }
-        imageUrl: { type: [string, 'null'], maxLength: 255 }
 
     UpdateInventoryInput:
       type: object
@@ -5401,7 +5615,42 @@ components:
         lowStockThreshold: { type: [integer, 'null'], minimum: 0 }
         location: { type: [string, 'null'], maxLength: 120 }
         availability: { type: boolean }
-        imageUrl: { type: [string, 'null'], maxLength: 255 }
+
+    RecordImage:
+      type: object
+      required: [id, mediaId, url, sortOrder, isPrimary, createdAt]
+      properties:
+        id: { type: string }
+        mediaId: { type: string }
+        url: { type: string, description: Playback URL derived from mediaId }
+        sortOrder: { type: integer, minimum: 0 }
+        isPrimary: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    RecordImageList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/RecordImage' }
+
+    RecordImageResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/RecordImage' }
+
+    ReorderRecordImagesInput:
+      type: object
+      additionalProperties: false
+      required: [imageIds]
+      properties:
+        imageIds:
+          type: array
+          minItems: 1
+          maxItems: 12
+          items: { type: string, minLength: 1, maxLength: 64 }
 
     AdjustInventoryStockInput:
       type: object

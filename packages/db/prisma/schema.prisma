@@ -244,6 +244,7 @@ model Media {
   owner   User     @relation(fields: [ownerId], references: [id])
   message Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
   roomsAsThumbnail Room[] @relation("RoomThumbnail")
+  recordImages RecordImage[]
 
   @@index([messageId, position])
   @@index([ownerId, createdAt])
@@ -536,6 +537,7 @@ model Workspace {
   inventories      Inventory[]
   interests        Interest[]
   stockMovements   InventoryStockMovement[]
+  recordImages     RecordImage[]
   channel          WorkspaceChannel?
   workflowRuns     WorkflowRun[]
   companyProfile   CompanyProfile?
@@ -840,6 +842,8 @@ model Contact {
   leadStatus       LeadStatus?  @default(new)
   leadSource       String?      @db.VarChar(80)
   nextFollowUp     DateTime?
+  // Denormalized primary gallery projection — written only by RecordImageService.
+  imageUrl         String?      @db.VarChar(512)
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   deletedAt        DateTime?
@@ -895,7 +899,8 @@ model Inventory {
   lowStock          Boolean      @default(false)
   location          String?      @db.VarChar(120)
   availability      Boolean      @default(true)
-  imageUrl          String?      @db.VarChar(255)
+  // Denormalized primary gallery projection — written only by RecordImageService.
+  imageUrl          String?      @db.VarChar(512)
   // Optimistic concurrency: an update names the version it read and is refused (409)
   // if the item changed since. Also the stale check for agent proposals (doc/13 §5).
   version           Int          @default(1)
@@ -913,6 +918,32 @@ model Inventory {
   @@index([workspaceId, name])
   @@index([importBatchId])
   @@index([workspaceId, lowStock])
+}
+
+// Ordered gallery for a contact or inventory item. Media holds bytes/playback;
+// parent imageUrl is the denormalized primary projection (RecordImageService only).
+enum RecordImageSubject {
+  contact
+  inventory
+}
+
+model RecordImage {
+  id          String             @id @default(cuid())
+  workspaceId String
+  subjectType RecordImageSubject
+  subjectId   String             @db.VarChar(64)
+  mediaId     String
+  sortOrder   Int                @default(0)
+  isPrimary   Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  media     Media     @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, subjectType, subjectId, mediaId])
+  @@index([workspaceId, subjectType, subjectId, sortOrder])
+  @@index([workspaceId, subjectType, subjectId, isPrimary])
+  @@index([mediaId])
 }
 
 // Append-only quantity changes (adjust / edit / import). Not a full warehouse ledger.

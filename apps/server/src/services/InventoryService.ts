@@ -5,6 +5,7 @@ import { badRequest, conflict, notFound } from '../lib/errors'
 import { decodeKeyCursor, encodeKeyCursor, normalizeLimit, page } from '../lib/pagination'
 import { toContactRef } from '../lib/serialize'
 import { authorize } from './workspacePolicy'
+import { RecordImageService } from './RecordImageService'
 
 export type InventoryInput = {
   name?: string
@@ -17,7 +18,6 @@ export type InventoryInput = {
   lowStockThreshold?: number | null
   location?: string | null
   availability?: boolean
-  imageUrl?: string | null
 }
 
 type InventoryRow = {
@@ -286,7 +286,6 @@ export class InventoryService {
           lowStock: isLowStock(quantity, lowStockThreshold),
           location: blank(input.location)?.slice(0, 120) ?? null,
           availability: input.availability ?? true,
-          imageUrl: blank(input.imageUrl),
         },
       })
       return toInventoryItem(created)
@@ -326,7 +325,6 @@ export class InventoryService {
             lowStock: 'quantity' in input || 'lowStockThreshold' in input ? isLowStock(nextQuantity, nextThreshold) : undefined,
             location: 'location' in input ? blank(input.location)?.slice(0, 120) ?? null : undefined,
             availability: input.availability,
-            imageUrl: 'imageUrl' in input ? blank(input.imageUrl) : undefined,
           },
         })
         if (!claimed.count) throw conflict('This item changed since you opened it; reload it before saving', 'INVENTORY_VERSION_CONFLICT')
@@ -440,7 +438,13 @@ export class InventoryService {
   async remove(userId: string, workspaceId: string, inventoryId: string) {
     await authorize(userId, workspaceId, 'record.delete')
     await liveItem(workspaceId, inventoryId)
-    await db.inventory.delete({ where: { id: inventoryId } })
+    const gallery = new RecordImageService()
+    const mediaIds = await db.$transaction(async (tx) => {
+      const ids = await gallery.purgeSubject(tx, workspaceId, 'inventory', inventoryId)
+      await tx.inventory.delete({ where: { id: inventoryId } })
+      return ids
+    })
+    for (const mediaId of mediaIds) await gallery.discardOrphanMedia(mediaId)
   }
 
   async listInterests(userId: string, workspaceId: string, contactId: string) {

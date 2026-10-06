@@ -59,7 +59,7 @@ export function CollectionRow({
           onClick={(e) => e.stopPropagation()}
         />
       </label>
-      <RecordMedia name={name} src={item?.imageUrl} person={!!person} />
+      <RecordMedia name={name} src={person?.imageUrl ?? item?.imageUrl} person={!!person} />
       <div className="record-tile-identity">
         <a
           href={href}

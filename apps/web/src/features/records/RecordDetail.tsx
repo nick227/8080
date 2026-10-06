@@ -19,6 +19,7 @@ import { RecordMedia } from './RecordChrome'
 import { RecordForm } from './RecordForm'
 import { StockAdjust } from './StockAdjust'
 import { StockHistory } from './StockHistory'
+import { RecordGallery } from './RecordGallery'
 import {
   STAGES,
   contactSubtitle,
@@ -124,7 +125,7 @@ function ContactDetail({
   return (
     <article className="record-detail">
       <header className="record-masthead">
-        <RecordMedia name={c.displayName} person />
+        <RecordMedia name={c.displayName} src={c.imageUrl} person />
         <div className="record-identity">
           <span className="record-eyebrow">Contact{c.status === 'archived' && ' · Archived'}</span>
           <h1>{c.displayName}</h1>
@@ -198,6 +199,7 @@ function ContactDetail({
       ) : (
         <div className="record-body">
           <div className="record-main">
+            <RecordGallery workspaceId={workspaceId} kind="contacts" recordId={c.id} name={c.displayName} />
             <section>
               <h2>Relationship</h2>
               <p>{c.title || 'Add a title and company information as this relationship develops.'}</p>
@@ -356,11 +358,7 @@ function InventoryDetail({
       )}
       <div className="record-body">
         <div className="record-main">
-          {item.imageUrl && (
-            <div className="record-gallery">
-              <RecordMedia name={item.name} src={item.imageUrl} />
-            </div>
-          )}
+          <RecordGallery workspaceId={workspaceId} kind="inventory" recordId={item.id} name={item.name} />
           <section>
             <h2>Description</h2>
             <p className="record-description">
