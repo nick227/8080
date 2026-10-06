@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port ${PORT:-5173}",
-    "build": "tsc -b && vite build",
+    "build": "pnpm run typecheck && vite build",
     "start": "vite preview --port ${PORT:-8080} --host 0.0.0.0",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",

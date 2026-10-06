@@ -159,6 +159,7 @@ The in-lobby River (playing posts and replies inline) was retired: the Lobby onl
 
 - MySQL 8 local; databases `voice_chat_dev` / `voice_chat_test`, user `voice_chat` (creds in root `.env`, gitignored). `packages/db/.env` is a **symlink** to it for the Prisma CLI.
 - Push schema to test DB: `set -a; . ./.env; set +a; DATABASE_URL=$TEST_DATABASE_URL pnpm db:push`
+- **Type-check = `pnpm typecheck`** (root; runs each package's `typecheck`, for web `tsc -p tsconfig.app.json --noEmit`; CI runs the same). `vite build` alone never type-checks; `pnpm --filter web build` does it first.
 
 ## Phase Completed
 

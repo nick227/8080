@@ -3,12 +3,13 @@ import { listByName } from '../calendar/lists'
 import { taskSheets } from '../calendar/sheets'
 import { targetDay, useCalendar } from '../calendar/store'
 import { useDocuments } from '../documents/store'
+import type { Desk } from '../work/sections'
 
 const HELP = 'Add a task, or say open Friday, next month, start the day, follow up, close the day, dump a sheet, or done and a few words of the task.'
 
 export type AgentResult = { reply: string; desk: 'calendar' | null }
 
-export function runAgent(desk: 'team' | 'inbox' | 'contacts' | 'sales' | 'documents' | 'calendar', text: string): AgentResult {
+export function runAgent(desk: Desk, text: string): AgentResult {
   const trimmed = text.trim()
   if (!trimmed) return { reply: 'Say what to do.', desk: null }
   if (desk !== 'calendar' && !isCalendarCommand(trimmed)) {
