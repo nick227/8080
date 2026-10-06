@@ -1,0 +1,82 @@
+/* Bubblegum Riot — Hot-pink paper, black ink, lemon actions, oversized block type, and cutout geometry. */
+[data-theme="bubblegum-riot"] {
+  --bg: #ff9fd2;
+  --panel: #ffc5e3;
+  --ink: #24051d;
+  --muted: #67224e;
+  --line: #642044;
+  --signal: #63134c;
+  --danger: #8c102c;
+  --surface-deep: #ef80bb;
+  --surface-active: #f2afd4;
+  --color-scheme: light;
+  --surface-subtle: var(--bg);
+  --surface-tile: var(--panel);
+  --surface-desk: var(--surface-deep);
+  --sans: Arial, Helvetica, sans-serif;
+  --content-font: Impact, "Arial Black", sans-serif;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --form-error-color: var(--danger);
+  --button-font: var(--sans);
+  --button-text-transform: uppercase;
+  --button-tracking: 0;
+  --form-label-transform: none;
+  --form-label-tracking: 0;
+  --input-bg: var(--bg);
+  --input-focus-bg: var(--bg);
+  --select-bg: var(--panel);
+  --button-bg: #eeff63;
+  --button-color: #24051d;
+  --button-border-color: #24051d;
+  --button-hover-bg: #f6ffac;
+  --button-hover-color: #24051d;
+  --button-selected-bg: var(--surface-active);
+  --button-selected-color: var(--ink);
+  --button-selected-border: var(--signal);
+  --button-pill-hover-bg: var(--button-bg);
+  --button-pill-hover-color: var(--button-color);
+  --button-focus-color: var(--signal);
+  --input-focus-color: var(--signal);
+  --input-focus-border: var(--signal);
+  --radius: 2px;
+  --radius-sm: 0px;
+  --radius-md: 4px;
+  --radius-card: 0px 40px 0px 0px;
+  --panel-radius: 32px 0px 0px 0px;
+  --button-radius: 0px 18px 0px 18px;
+  --input-radius: 0px;
+  --button-shadow: 4px 4px 0 #24051d;
+  --button-font-size: 14px;
+  --button-height: 44px;
+  --button-height-sm: 36px;
+  --button-font-weight: 800;
+  --form-label-size: 13px;
+  --input-font-size: 16px;
+  --input-height: 44px;
+  --input-border-color: color-mix(in srgb, var(--ink) 60%, var(--panel));
+  --nav-icon-opacity: 1;
+  --button-secondary-bg: var(--panel);
+  --button-secondary-color: var(--ink);
+  --button-secondary-border: var(--line);
+  --button-secondary-hover-bg: var(--surface-active);
+  --button-secondary-hover-color: var(--ink);
+  --leading-body: 1.6;
+  --leading-content: 1.6;
+  --tracking-caps: 0.025em;
+  --tracking-spaced: 0.06em;
+  --section-gap: 32px;
+  --button-border-width: 2px;
+  --form-label-font: var(--sans);
+  --button-focus-width: 3px;
+  --input-focus-width: 3px;
+  --button-focus-offset: 4px;
+  --line-width: 2px;
+  --text-title: 32px;
+  --weight-medium: 800;
+}
+
+:where([data-theme="bubblegum-riot"]) { --density: 1.08; }
+
+@media (max-width: 720px) {
+  [data-theme="bubblegum-riot"] { --section-gap: 24px; --text-title: 26px; }
+}

@@ -184,6 +184,19 @@ created, updated, skipped, and failed rows. Preserve existing contact import
 semantics where appropriate after inspecting its service/tests; a shared UI does
 not require replacing domain-specific import engines.
 
+### MVP import scope
+
+Contacts create new records or match existing ones without overwriting them.
+Inventory optionally updates mapped, non-empty fields; blanks preserve existing
+values and quantity zero remains meaningful. Items edited since the import was
+opened are skipped and require a fresh import to review their current state.
+Conflicting/shared file emails require a decision, with existing candidates named
+explicitly. Import transitions are checked inside write transactions; counts are
+saved per chunk. The current job is remembered in this browser tab so a refresh
+or interrupted request can resume it. Retrying applies only unfinished rows.
+Dedicated background workers, arbitrary field-clearing policies, and a general
+row-repair workflow are deferred beyond this POC.
+
 ## Component boundaries
 
 ```text

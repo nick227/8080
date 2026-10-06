@@ -1,4 +1,8 @@
-:root {
+/* Default theme inputs. globals.css is the single stylesheet entry point.
+   Low specificity lets application or customer themes override these tokens.
+   Every explicit theme boundary starts from the same complete dark baseline. */
+:where(:root, [data-theme]) {
+  --color-scheme: dark;
   --bg: #0f1115;
   --panel: #15171c;
   --ink: #f0ede1;
@@ -6,12 +10,6 @@
   --line: #2b2e36;
   --signal: #d94236;
   --danger: #ff5242;
-  --space-1: 6px;
-  --space-2: 12px;
-  --space-3: 18px;
-  --space-4: 28px;
-  --space-5: 42px;
-  --space-6: 72px;
   --radius: 0px;
   --line-width: 1px;
   --motion-fast: 140ms;
@@ -20,4 +18,84 @@
   --mono: "Courier New", Courier, monospace;
   --sans: Arial, Helvetica, sans-serif;
   --content-font: "Georgia", "Times New Roman", serif; /* Art Nouveau / Classic feel */
+  --surface-deep: #07080a;
+  --surface-subtle: #101216;
+  --surface-tile: #12141a;
+  --surface-desk: #0c0e12;
+  --surface-active: #1c1e22;
+  --media-bg: #000;
+  --media-ink: #fff;
+  /* Text over dark media remains independent of the page's light/dark palette. */
+  --media-label-ink: #f0ede1;
+  --media-label-bg: #0f1115;
+  --debug-ink: #9f9;
+  --paper: #f4f5f3;
+  --paper-ink: #1c1c1b;
+  --paper-muted: #5e5c56;
+  --paper-tools-muted: #9c9a93;
+  --text-2xs: 9px;
+  --text-xs: 10px;
+  --text-label: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-base: 14px;
+  --text-body: 15px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 20px;
+  --text-3xl: 22px;
+  --text-title: 28px;
+  --text-display: 34px;
+  --weight-light: 300;
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-bold: 700;
+  --weight-heavy: 900;
+  --leading-heading: 1.25;
+  --leading-content: 1.35;
+  --leading-body: 1.4;
+  --leading-relaxed: 1.6;
+  --opacity-disabled: 0.35;
+  --tracking-tight: -0.02em;
+  --tracking-heading: -0.03em;
+  --tracking-compact: 0.04em;
+  --tracking-action: 0.06em;
+  --tracking-label: 0.08em;
+  --tracking-wide: 0.1em;
+  --tracking-caps: 0.12em;
+  --tracking-spaced: 0.14em;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-card: 10px;
+  --radius-notice: 6px;
+  --radius-node: 14px;
+  /* Content widths are independent of density. */
+  --content-width-narrow: 480px;
+  --content-width-standard: 1120px;
+  --content-width-wide: 1280px;
+  --content-width-media: 960px;
+  --panel-width: 320px;
+  --panel-radius: 0px;
+  --nav-icon-opacity: .42;
+  --card-grid-min-width: 260px;
+  --page-padding-bottom: 96px;
+  --chat-panel-min-width: 300px;
+  --chat-panel-width: 380px;
+  --calendar-dialog-width: 440px;
+  --theme-select-width: 128px;
+  --theme-select-width-mobile: 76px;
+  --radius-pill: 999px;
+  --line-width-strong: 2px;
+  --motion-fade: 200ms;
+  --motion-progress: 250ms;
+  --motion-reveal: 260ms;
+  --motion-slow: 450ms;
+  --motion-pulse: 2s;
+  --shadow-color: #000;
+  --focus-offset: 4px;
+  --focus-offset-tight: 2px;
 }
+
+/* Density inherits across theme boundaries; a nested data-density can change it
+   without resetting colors or fonts. Values outside this range are clamped. */
+:where(:root) { --density: 1; }

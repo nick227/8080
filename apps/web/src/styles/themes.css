@@ -1,0 +1,60 @@
+@import "./presets/acid-opera.css";
+@import "./presets/cobalt-cabaret.css";
+@import "./presets/bubblegum-riot.css";
+@import "./presets/obsidian-gilt.css";
+@import "./presets/fjord.css";
+@import "./presets/workshop.css";
+@import "./presets/periwinkle.css";
+@import "./presets/wayfinder.css";
+@import "./presets/material.css";
+@import "./presets/apple.css";
+@import "./presets/openai.css";
+@import "./presets/discord.css";
+@import "./presets/monokai.css";
+@import "./presets/brutalist.css";
+@import "./presets/ultra-large.css";
+@import "./presets/ultra-compact.css";
+@import "./presets/hyper-modernism.css";
+@import "./presets/bauhaus.css";
+@import "./presets/dream-world.css";
+@import "./presets/editorial-magazine.css";
+@import "./presets/retro-terminal.css";
+@import "./presets/zen-minimalism.css";
+@import "./presets/nightmare-horror.css";
+
+/* The default and data-theme="dark" use the baseline in tokens.css.
+   Apply data-theme on <html> for a page or on a container for a local theme.
+   Custom named themes can override any subset of the same inputs. */
+:where([data-theme="light"]) {
+  --color-scheme: light;
+  --bg: #f5f4ef;
+  --panel: #ffffff;
+  --ink: #202127;
+  --muted: #66665f;
+  --line: #d3d4ce;
+  --signal: #b52b24;
+  --danger: #c62d21;
+  --surface-deep: #e9e9e2;
+  --surface-subtle: #f0f0e9;
+  --surface-tile: #ffffff;
+  --surface-desk: #e2e3dc;
+  --surface-active: #dedfd8;
+}
+
+/* Token-based motion also respects the operating system's accessibility setting. */
+@media (prefers-reduced-motion: reduce) {
+  :root, [data-theme] {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-fade: 0ms;
+    --motion-progress: 0ms;
+    --motion-reveal: 0ms;
+    --motion-slow: 0ms;
+    --motion-pulse: 0ms;
+  }
+}
+
+/* Independent from data-theme: combine both attributes on any container. */
+:where([data-density="compact"]) { --density: 0.8; }
+:where([data-density="comfortable"]) { --density: 1; }
+:where([data-density="spacious"]) { --density: 1.2; }

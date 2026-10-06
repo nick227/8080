@@ -1,0 +1,76 @@
+/* Workshop — Warm charcoal, brass actions, sturdy outlines, and practical workshop rhythm. See ../COMMUNITY-THEMES.md for design rationale. */
+[data-theme="workshop"] {
+  --bg: #292620;
+  --panel: #353128;
+  --ink: #f5ecd9;
+  --muted: #c9bda7;
+  --line: #817563;
+  --signal: #f2c36b;
+  --danger: #ffafa0;
+  --surface-deep: #201e19;
+  --surface-active: #4c4232;
+  --color-scheme: dark;
+  --surface-subtle: var(--bg);
+  --surface-tile: var(--panel);
+  --surface-desk: var(--surface-deep);
+  --sans: "Trebuchet MS", "Segoe UI", sans-serif;
+  --content-font: var(--sans);
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --form-error-color: var(--danger);
+  --button-font: var(--sans);
+  --button-text-transform: none;
+  --button-tracking: 0;
+  --form-label-transform: none;
+  --form-label-tracking: 0;
+  --input-bg: var(--bg);
+  --input-focus-bg: var(--bg);
+  --select-bg: var(--panel);
+  --button-bg: #f2c36b;
+  --button-color: #30230d;
+  --button-border-color: #f2c36b;
+  --button-hover-bg: #ffdaa0;
+  --button-hover-color: #30230d;
+  --button-selected-bg: var(--surface-active);
+  --button-selected-color: var(--ink);
+  --button-selected-border: var(--signal);
+  --button-pill-hover-bg: #f2c36b;
+  --button-pill-hover-color: #30230d;
+  --button-focus-color: var(--signal);
+  --input-focus-color: var(--signal);
+  --input-focus-border: var(--signal);
+  --radius: 2px;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-card: 6px;
+  --panel-radius: 4px;
+  --button-radius: 2px;
+  --input-radius: 2px;
+  --button-shadow: 0 2px 0 #17140e;
+  --button-font-size: 14px;
+  --button-height: 40px;
+  --button-height-sm: 36px;
+  --button-font-weight: 600;
+  --form-label-size: 13px;
+  --input-font-size: 16px;
+  --input-height: 40px;
+  --input-border-color: color-mix(in srgb, var(--ink) 55%, var(--panel));
+  --nav-icon-opacity: 0.9;
+  --button-secondary-bg: var(--panel);
+  --button-secondary-color: var(--ink);
+  --button-secondary-border: var(--line);
+  --button-secondary-hover-bg: var(--surface-active);
+  --button-secondary-hover-color: var(--ink);
+  --leading-body: 1.6;
+  --leading-content: 1.6;
+  --tracking-caps: 0.025em;
+  --tracking-spaced: 0.06em;
+  --section-gap: 28px;
+  --button-border-width: 2px;
+  --form-label-font: var(--mono);
+}
+
+:where([data-theme="workshop"]) { --density: 1.02; }
+
+@media (max-width: 720px) {
+  [data-theme="workshop"] { --section-gap: 20px; }
+}

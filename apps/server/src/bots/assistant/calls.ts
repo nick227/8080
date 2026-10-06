@@ -6,7 +6,7 @@
 import { db } from '@project/db'
 import { assistantConfig } from './config'
 import { flagCount, problemsOf, styleFlags } from './style'
-import { assistantProvider, validateDraft, validateFacts, type AssistantProvider, type BriefInput, type DraftInput, type ExtractInput, type NoteInput, type Usage } from './provider'
+import { assistantProvider, sheetFromModel, validateDraft, validateFacts, type AssistantProvider, type BriefInput, type DraftInput, type ExtractInput, type NoteInput, type SheetPlanInput, type Usage } from './provider'
 import { groundBrief } from './briefGrounding'
 import { ground } from './grounding'
 
@@ -58,7 +58,7 @@ export async function assistantAvailable(workspaceId: string) {
 async function call<T extends { usage?: Usage }>(
   ctx: AssistContext,
   kind: 'extract' | 'generate',
-  input: ExtractInput | DraftInput | NoteInput | BriefInput,
+  input: ExtractInput | DraftInput | NoteInput | BriefInput | SheetPlanInput,
   run: (provider: AssistantProvider, signal: AbortSignal) => Promise<T>,
   /** Re-validates whatever the provider returned; null = unusable. */
   check: (out: T) => T | null,
@@ -133,4 +133,14 @@ export async function briefContact(ctx: AssistContext, input: BriefInput) {
     return p.brief(input, s)
   }, (o) => ({ ...o, brief: groundBrief(o.brief, input.evidence) }), (o) => o.brief)
   return res && { brief: res.out.brief as ReturnType<typeof groundBrief>, callId: res.callId, model: res.model }
+}
+
+/** A spreadsheet request → a raw sheet query (doc/13 §12, A1), or null (off, capped,
+ *  failed, invalid). The caller validates the query and shows it before it runs. */
+export async function planSheet(ctx: AssistContext, input: SheetPlanInput) {
+  const res = await call(ctx, 'extract', input, async (p, s) => {
+    if (!p.planSheet) throw new Error('provider cannot plan sheets')
+    return p.planSheet(input, s)
+  }, (o) => { const plan = sheetFromModel(o.plan); return plan ? { ...o, plan } : null }, (o) => o.plan)
+  return res && { plan: res.out.plan, callId: res.callId }
 }

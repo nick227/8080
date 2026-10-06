@@ -1,0 +1,66 @@
+/* Dream World — Cloud-lilac surfaces, berry text, pill controls, and soft lavender shadows. */
+[data-theme="dream-world"] {
+  --color-scheme: light;
+  --bg: #f8f0fb;
+  --panel: #fffaff;
+  --ink: #34203f;
+  --muted: #725775;
+  --line: #d8bfdc;
+  --signal: #80468c;
+  --danger: #ab284d;
+  --surface-deep: #eddef3;
+  --surface-subtle: #f8f0fb;
+  --surface-tile: #fffaff;
+  --surface-desk: #eddef3;
+  --surface-active: #e6d0f0;
+  --sans: "Trebuchet MS", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --content-font: Iowan Old Style, "Palatino Linotype", "Book Antiqua", Palatino, serif;
+  --form-error-color: var(--danger);
+  --button-font: var(--sans);
+  --button-text-transform: none;
+  --button-tracking: 0;
+  --form-label-transform: none;
+  --form-label-tracking: 0.02em;
+  --input-bg: var(--panel);
+  --input-focus-bg: var(--panel);
+  --select-bg: var(--panel);
+  --button-hover-bg: #ddbbea;
+  --button-selected-bg: var(--surface-active);
+  --button-selected-color: var(--signal);
+  --button-selected-border: var(--signal);
+  --button-pill-hover-bg: var(--signal);
+  --button-pill-hover-color: #ffffff;
+  --button-focus-color: var(--signal);
+  --input-focus-color: var(--signal);
+  --input-focus-border: var(--signal);
+  --radius: 20px;
+  --radius-sm: 12px;
+  --radius-md: 20px;
+  --radius-card: 28px;
+  --button-radius: 999px;
+  --button-bg: #ead3f3;
+  --button-color: #492452;
+  --button-hover-color: #492452;
+  --input-radius: 16px;
+  --button-shadow: 0 3px 10px color-mix(in srgb, var(--signal) 12%, transparent);
+  --button-font-weight: 600;
+  --section-gap: 30px;
+  --leading-content: 1.5;
+  --button-font-size: 13px;
+  --button-height: 36px;
+  --button-height-sm: 32px;
+  --form-label-size: 12px;
+  --input-border-color: color-mix(in srgb, var(--ink) 55%, var(--panel));
+  --nav-icon-opacity: 0.75;
+  --panel-radius: 20px;
+  --button-disabled-opacity: 0.55;
+  --button-secondary-bg: #fffaff;
+}
+
+/* Keep density presets overridable by data-density. */
+:where([data-theme="dream-world"]) { --density: 1.08; }
+
+@media (max-width: 720px) {
+  [data-theme="dream-world"] { --section-gap: 24px; }
+}

@@ -7,6 +7,7 @@ import { AccountSheet } from '../features/AccountSheet'
 import { Lobby } from '../features/Lobby'
 import { useShell } from '../state/shell'
 import { useUI } from '../state/ui'
+import { ThemeSwitcher } from './ThemeSwitcher'
 
 export function StageChrome() {
   const surface = useShell((s) => s.surface)
@@ -22,7 +23,7 @@ export function StageChrome() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       const target = e.target
-      if (target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return
+      if (target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return
       const shell = useShell.getState()
       const busy = useUI.getState().state
       if (shell.accountOpen) useShell.setState({ accountOpen: false })
@@ -43,16 +44,19 @@ export function StageChrome() {
           <span className="mast-mark" aria-hidden />
           8080
         </p>
-        <button
-          type="button"
-          className="mast-icon"
-          data-mark="account"
-          aria-label={guest ? 'Guest' : (user?.displayName ?? 'Account')}
-          aria-expanded={accountOpen}
-          onClick={toggleAccount}
-        >
-          {user?.avatarUrl ? <img className="mast-avatar" src={user.avatarUrl} alt="" /> : <PersonIcon guest={guest} />}
-        </button>
+        <div className="mast-actions">
+          <ThemeSwitcher />
+          <button
+            type="button"
+            className="mast-icon"
+            data-mark="account"
+            aria-label={guest ? 'Guest' : (user?.displayName ?? 'Account')}
+            aria-expanded={accountOpen}
+            onClick={toggleAccount}
+          >
+            {user?.avatarUrl ? <img className="mast-avatar" src={user.avatarUrl} alt="" /> : <PersonIcon guest={guest} />}
+          </button>
+        </div>
       </header>
       <AccountSheet />
       <AnimatePresence>

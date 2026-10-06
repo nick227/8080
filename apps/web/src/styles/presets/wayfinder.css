@@ -1,0 +1,81 @@
+/* Wayfinder — Bright white, decisive navy rules, and clear blue actions with generous targets. See ../COMMUNITY-THEMES.md for design rationale. */
+[data-theme="wayfinder"] {
+  --bg: #ffffff;
+  --panel: #f2f6fb;
+  --ink: #10243c;
+  --muted: #425873;
+  --line: #72869c;
+  --signal: #164da5;
+  --danger: #a51f32;
+  --surface-deep: #e5edf6;
+  --surface-active: #d9e8fa;
+  --color-scheme: light;
+  --surface-subtle: var(--bg);
+  --surface-tile: var(--panel);
+  --surface-desk: var(--surface-deep);
+  --sans: Verdana, Geneva, sans-serif;
+  --content-font: var(--sans);
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --form-error-color: var(--danger);
+  --button-font: var(--sans);
+  --button-text-transform: none;
+  --button-tracking: 0;
+  --form-label-transform: none;
+  --form-label-tracking: 0;
+  --input-bg: var(--bg);
+  --input-focus-bg: var(--bg);
+  --select-bg: var(--panel);
+  --button-bg: #164da5;
+  --button-color: #ffffff;
+  --button-border-color: #164da5;
+  --button-hover-bg: #103b81;
+  --button-hover-color: #ffffff;
+  --button-selected-bg: var(--surface-active);
+  --button-selected-color: var(--ink);
+  --button-selected-border: var(--signal);
+  --button-pill-hover-bg: #164da5;
+  --button-pill-hover-color: #ffffff;
+  --button-focus-color: var(--signal);
+  --input-focus-color: var(--signal);
+  --input-focus-border: var(--signal);
+  --radius: 3px;
+  --radius-sm: 2px;
+  --radius-md: 5px;
+  --radius-card: 7px;
+  --panel-radius: 5px;
+  --button-radius: 3px;
+  --input-radius: 3px;
+  --button-shadow: none;
+  --button-font-size: 14px;
+  --button-height: 44px;
+  --button-height-sm: 40px;
+  --button-font-weight: 600;
+  --form-label-size: 13px;
+  --input-font-size: 16px;
+  --input-height: 44px;
+  --input-border-color: color-mix(in srgb, var(--ink) 55%, var(--panel));
+  --nav-icon-opacity: 1;
+  --button-secondary-bg: var(--panel);
+  --button-secondary-color: var(--ink);
+  --button-secondary-border: var(--line);
+  --button-secondary-hover-bg: var(--surface-active);
+  --button-secondary-hover-color: var(--ink);
+  --leading-body: 1.6;
+  --leading-content: 1.6;
+  --tracking-caps: 0.025em;
+  --tracking-spaced: 0.06em;
+  --section-gap: 28px;
+  --button-focus-width: 3px;
+  --input-focus-width: 3px;
+  --button-focus-offset: 3px;
+  --input-focus-offset: 3px;
+  --button-border-width: 2px;
+  --input-border-width: 2px;
+  --text-body: 16px;
+}
+
+:where([data-theme="wayfinder"]) { --density: 1.1; }
+
+@media (max-width: 720px) {
+  [data-theme="wayfinder"] { --section-gap: 20px; }
+}

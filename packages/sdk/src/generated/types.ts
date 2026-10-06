@@ -1365,6 +1365,116 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/sheets/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** The common sheets, one button each (doc/13 §12, A1) */
+        get: operations["listSheetPresets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/sheets/describe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A sheet query in plain words, checked but not run */
+        post: operations["describeSheet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/sheets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make a spreadsheet from Contacts or Inventory
+         * @description A preset or a whitelisted sheet query → a native grid whose rows are stored on
+         *     the server. Rows, counts and totals are computed by code. The document's
+         *     provenance is the recipe (resolved query, as-of time, data hash), so the data
+         *     can be checked for changes and the sheet made again. Private to its maker.
+         *     Retry-safe by idempotencyKey. More than 5000 rows → 400 SHEET_TOO_LARGE.
+         */
+        post: operations["createSheet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/documents/{documentId}/recipe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * What a generated sheet was made from, and whether its data has changed
+         * @description Re-runs the stored query and compares. `periodMoved` = a preset's relative dates (e.g. this week) have moved on. 404 for documents not made from a sheet query.
+         */
+        get: operations["getDocumentRecipe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/documents/{documentId}/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make a generated sheet again from current data
+         * @description A new document from the same recipe (a preset re-resolves its dates), related to the old one, with the same workspace audience. The old document is not changed.
+         */
+        post: operations["regenerateDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/contacts/{contactId}": {
         parameters: {
             query?: never;
@@ -4366,6 +4476,58 @@ export interface components {
             csv: string;
             manifest: components["schemas"]["DatasetManifest"];
         };
+        /**
+         * @description Whitelisted sheet query (packages/shared/src/sheets.ts), validated field by
+         *     field on the server; unknown fields → 400 INVALID_SHEET_QUERY. `source` is
+         *     contacts or inventory; `columns` (unless grouped), `filters`, `groupBy`,
+         *     `sort`, `limit`. Dates are workspace-local YYYY-MM-DD.
+         */
+        SheetQuery: {
+            /** @enum {string} */
+            source: "contacts" | "inventory";
+        } & {
+            [key: string]: unknown;
+        };
+        SheetPreset: {
+            key: string;
+            label: string;
+            description: string;
+        };
+        SheetPresetList: {
+            data: components["schemas"]["SheetPreset"][];
+        };
+        DescribeSheetInput: {
+            query: components["schemas"]["SheetQuery"];
+        };
+        SheetSummaryResponse: {
+            data: {
+                summary: string;
+            };
+        };
+        /** @description Exactly one of preset or query. */
+        CreateSheetInput: {
+            preset?: string;
+            query?: components["schemas"]["SheetQuery"];
+            title?: string;
+            idempotencyKey: string;
+        };
+        RegenerateDocumentInput: {
+            idempotencyKey: string;
+        };
+        SheetRecipeResponse: {
+            data: {
+                /** @description SheetRecipe (packages/shared/src/sheets.ts) */
+                recipe: {
+                    [key: string]: unknown;
+                };
+                stale: boolean;
+                dataChanged: boolean;
+                periodMoved: boolean;
+                currentRowCount: number | null;
+                /** Format: date-time */
+                checkedAt: string;
+            };
+        };
         CreateContactsReviewInput: {
             title: string;
             query: components["schemas"]["ContactsDatasetQuery"];
@@ -7118,6 +7280,149 @@ export interface operations {
                     "application/json": components["schemas"]["ContactBriefResponse"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listSheetPresets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetPresetList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    describeSheet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DescribeSheetInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetSummaryResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createSheet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSheetInput"];
+            };
+        };
+        responses: {
+            /** @description The new document */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getDocumentRecipe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetRecipeResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    regenerateDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegenerateDocumentInput"];
+            };
+        };
+        responses: {
+            /** @description The new document */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];

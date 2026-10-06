@@ -54,6 +54,10 @@ export type Brief = {
 }
 export type BriefInput = { contact: string; today: string; evidence: Evidence[] }
 export type Usage = { promptTokens: number; completionTokens: number }
+/** A spreadsheet request read into the whitelisted sheet query (doc/13 §12, A1).
+ *  `query` is raw: the caller validates it like any other input. */
+export type SheetPlanInput = { request: string; today: string; weekday: string; categories: string[] }
+export type SheetPlan = { supported: boolean; reason: string | null; title: string | null; query: Record<string, unknown> | null }
 
 export interface AssistantProvider {
   readonly name: string
@@ -62,6 +66,7 @@ export interface AssistantProvider {
   draft(input: DraftInput, signal: AbortSignal): Promise<{ patch: Facts; document: Draft; usage?: Usage }>
   readNote?(input: NoteInput, signal: AbortSignal): Promise<{ reading: NoteReading; usage?: Usage }>
   brief?(input: BriefInput, signal: AbortSignal): Promise<{ brief: Brief; usage?: Usage }>
+  planSheet?(input: SheetPlanInput, signal: AbortSignal): Promise<{ plan: SheetPlan; usage?: Usage }>
 }
 
 // ─── validation ───────────────────────────────────────────────────────────────
@@ -167,6 +172,44 @@ const BRIEF_SYSTEM = [
   WRITING_RULES,
 ].join('\n')
 
+const nul = <T>(schema: T) => ({ anyOf: [schema, { type: 'null' }] })
+const CONTACT_COLS = ['name', 'company', 'title', 'email', 'phone', 'leadStatus', 'leadSource', 'nextFollowUp', 'lastActivity', 'owner', 'created']
+const INVENTORY_COLS = ['name', 'sku', 'category', 'price', 'quantity', 'lowStockThreshold', 'stockValue', 'location', 'available', 'status', 'updated']
+const SHEET_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['supported', 'reason', 'title', 'query'],
+  properties: {
+    supported: { type: 'boolean' }, reason: str, title: str,
+    query: nul({
+      type: 'object', additionalProperties: false, required: ['source', 'columns', 'groupBy', 'contactFilters', 'inventoryFilters', 'sort', 'limit'],
+      properties: {
+        source: { type: 'string', enum: ['contacts', 'inventory'] },
+        columns: { type: 'array', items: { type: 'string', enum: [...new Set([...CONTACT_COLS, ...INVENTORY_COLS])] } },
+        groupBy: nul({ type: 'string', enum: ['leadStatus', 'leadSource', 'owner', 'category'] }),
+        contactFilters: nul({
+          type: 'object', additionalProperties: false, required: ['leadStatus', 'followUpFrom', 'followUpTo', 'noFollowUp', 'quietSince', 'q'],
+          properties: { leadStatus: nul({ type: 'array', items: { type: 'string', enum: ['new', 'contacting', 'connected', 'qualified', 'customer', 'lost'] } }), followUpFrom: str, followUpTo: str, noFollowUp: nul({ type: 'boolean' }), quietSince: str, q: str },
+        }),
+        inventoryFilters: nul({
+          type: 'object', additionalProperties: false, required: ['q', 'category', 'stock', 'available', 'priceMin', 'priceMax', 'includeArchived'],
+          properties: { q: str, category: str, stock: nul({ type: 'string', enum: ['low', 'out', 'low-or-out'] }), available: nul({ type: 'boolean' }), priceMin: nul({ type: 'number' }), priceMax: nul({ type: 'number' }), includeArchived: nul({ type: 'boolean' }) },
+        }),
+        sort: nul({ type: 'object', additionalProperties: false, required: ['field', 'direction'], properties: { field: { type: 'string', enum: ['name', 'nextFollowUp', 'lastActivity', 'created', 'price', 'quantity', 'stockValue', 'updated'] }, direction: { type: 'string', enum: ['asc', 'desc'] } } }),
+        limit: nul({ type: 'integer' }),
+      },
+    }),
+  },
+}
+const SHEET_SYSTEM = [
+  'You turn a request for a spreadsheet into a query over the workspace\'s Contacts or Inventory. You never see the data; code runs the query.',
+  `Contacts columns: ${CONTACT_COLS.join(', ')}. Contact filters: leadStatus (new, contacting, connected, qualified, customer, lost; "open leads" = new, contacting, connected, qualified), followUpFrom/followUpTo (next follow-up date, YYYY-MM-DD, inclusive), noFollowUp (true = none set), quietSince (no activity since that day, or never), q (name contains). Contacts may be grouped by leadStatus, leadSource or owner (counts).`,
+  `Inventory columns: ${INVENTORY_COLS.join(', ')} (stockValue = price × quantity). Inventory filters: q (name or SKU contains), category (use one of \`categories\` exactly), stock (low, out, low-or-out), available, priceMin/priceMax, includeArchived. Inventory may be grouped by category (items, units, stock value).`,
+  'Sort fields: contacts name, nextFollowUp, lastActivity, created; inventory name, price, quantity, stockValue, updated. limit = a number of rows only if they ask for one ("top 10").',
+  'Resolve dates against `today` and `weekday`: "this week" ends on Sunday; "next week" is Monday to Sunday after it; "overdue" = followUpTo yesterday.',
+  'A grouped query has no columns and no sort: use columns [] and sort null. A listing needs the columns that answer the request, usually 3 to 7. Fill only the filter object for the chosen source; the other is null.',
+  'If the request needs data that is not listed here (deals, revenue, orders, emails, tasks, invoices, notes), or is not a spreadsheet request, set supported false, query null and reason to one plain sentence naming what is missing.',
+  'title = a short plain name for the sheet, e.g. "Open leads with no follow-up". No marketing words.',
+].join(' ')
+
 const DRAFT_SYSTEM = [
   'You write a company description for the business in `profile` and `answers`, for the audience and voice in `brief`.',
   'Use only those facts. The person\'s own words in `answers` are the best source of concrete detail: use their real examples.',
@@ -221,6 +264,11 @@ export class OpenAIAssistant implements AssistantProvider {
     return { brief: json as Brief, usage }
   }
 
+  async planSheet(input: SheetPlanInput, signal: AbortSignal) {
+    const { json, usage } = await this.complete(SHEET_SYSTEM, input, 'sheet_query', SHEET_SCHEMA, signal, 0)
+    return { plan: json as SheetPlan, usage }
+  }
+
   private async complete(system: string, input: unknown, name: string, schema: object, signal: AbortSignal, temperature: number) {
     const res = await fetch(`${this.cfg.baseUrl}/chat/completions`, {
       method: 'POST',
@@ -240,6 +288,29 @@ export class OpenAIAssistant implements AssistantProvider {
     const usage = body?.usage ? { promptTokens: Number(body.usage.prompt_tokens) || 0, completionTokens: Number(body.usage.completion_tokens) || 0 } : undefined
     return { json: JSON.parse(content), usage }
   }
+}
+
+/** The model's nullable shape → the sheet query's optional one (nulls dropped). */
+export function sheetFromModel(plan: any): SheetPlan | null {
+  if (!plan || typeof plan !== 'object' || typeof plan.supported !== 'boolean') return null
+  const reason = typeof plan.reason === 'string' && plan.reason.trim() ? plan.reason.trim().slice(0, 300) : null
+  const title = typeof plan.title === 'string' && plan.title.trim() ? plan.title.trim().replace(/\s+/g, ' ').slice(0, 120) : null
+  const q = plan.query
+  if (!plan.supported || !q || typeof q !== 'object') return { supported: false, reason, title: null, query: null }
+  const drop = (o: Record<string, unknown> | null | undefined) => (o ? Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined)) : {})
+  const cf = drop(q.contactFilters)
+  const filters = q.source === 'contacts'
+    ? drop({ leadStatus: cf.leadStatus, followUp: cf.followUpFrom || cf.followUpTo ? drop({ from: cf.followUpFrom, to: cf.followUpTo }) : null, noFollowUp: cf.noFollowUp === true ? true : null, quietSince: cf.quietSince, q: cf.q })
+    : drop({ ...drop(q.inventoryFilters), includeArchived: q.inventoryFilters?.includeArchived === true ? true : null })
+  const grouped = q.groupBy !== null && q.groupBy !== undefined
+  const query: Record<string, unknown> = {
+    source: q.source,
+    ...(grouped ? { groupBy: q.groupBy } : { columns: Array.isArray(q.columns) ? q.columns : [] }),
+    ...(Object.keys(filters).length ? { filters } : {}),
+    ...(!grouped && q.sort ? { sort: q.sort } : {}),
+    ...(Number.isInteger(q.limit) ? { limit: q.limit } : {}),
+  }
+  return { supported: true, reason, title, query }
 }
 
 let override: AssistantProvider | null | undefined

@@ -90,3 +90,38 @@ export function ChevronIcon({ open }: { open: boolean }) {
     </svg>
   )
 }
+
+export function SearchIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+      <circle cx="6.75" cy="6.75" r="4.15" fill="none" stroke="currentColor" strokeWidth="1.25" />
+      <path d="M10 10.1 13.3 13.4" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export function ImageIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+      <rect x="2" y="3" width="12" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.25" />
+      <path d="M4.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" fill="none" stroke="currentColor" strokeWidth="1.25" />
+      <path d="M2 10l3.5-3.5L14 11" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function SendIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+      <path d="M2.4 8h9.2M8.2 4.4 11.8 8 8.2 11.6" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function AttachIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+      <path d="M13.2 8.1 7.6 13.7a3.2 3.2 0 0 1-4.5-4.5l6.1-6.1a2.1 2.1 0 0 1 3 3L6.5 11.8a1 1 0 0 1-1.4-1.4l5.2-5.2" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}

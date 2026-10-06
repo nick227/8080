@@ -10,29 +10,29 @@ import { RoomAir } from './RoomAir'
 import type { PresenceActivity } from './PeopleStrip'
 import { tileDensity, VIEW_LABEL, type RoomView, type Seat } from './roomViews'
 
-function FaceTile({ seat }: { seat: Seat }) {
+function FaceTile({ seat, thumbnail = false }: { seat: Seat; thumbnail?: boolean }) {
   return (
     <div className="room-cast-face">
       <span className="room-seat" data-photo={seat.avatarUrl ? '' : undefined}>
         {seat.avatarUrl ? <img src={seat.avatarUrl} alt="" /> : <PersonIcon guest={seat.guest} />}
       </span>
       <PersonName className="room-seat-name" name={seat.name} tag={seat.tag} />
-      <ChannelButton seatId={seat.id} />
+      {!thumbnail && <ChannelButton seatId={seat.id} />}
     </div>
   )
 }
 
 // Another person's tile: their live screen or camera when they broadcast (LiveKit
 // identity = seat id), otherwise their face. Same tile in Grid and Full.
-function SeatTile({ seat }: { seat: Seat }) {
-  return useMaybeRoomContext() ? <LiveSeatTile seat={seat} /> : <FaceTile seat={seat} />
+function SeatTile({ seat, thumbnail = false }: { seat: Seat; thumbnail?: boolean }) {
+  return useMaybeRoomContext() ? <LiveSeatTile seat={seat} thumbnail={thumbnail} /> : <FaceTile seat={seat} thumbnail={thumbnail} />
 }
 
-function LiveSeatTile({ seat }: { seat: Seat }) {
+function LiveSeatTile({ seat, thumbnail = false }: { seat: Seat; thumbnail?: boolean }) {
   const tracks = useTracks([Track.Source.ScreenShare, Track.Source.Camera], { onlySubscribed: true })
   const theirs = tracks.filter((ref) => ref.participant.identity === seat.id && !ref.publication.isMuted)
   const shown = theirs.find((ref) => ref.source === Track.Source.ScreenShare) ?? theirs.find((ref) => ref.source === Track.Source.Camera)
-  if (!shown) return <FaceTile seat={seat} />
+  if (!shown) return <FaceTile seat={seat} thumbnail={thumbnail} />
   const screen = shown.source === Track.Source.ScreenShare
   return (
     <div className="room-cast-face is-live" data-live={screen ? 'screen' : 'camera'}>
@@ -59,8 +59,11 @@ function Floor({ view, seats, item, next, onEnded, onView, self, bar, stack, pau
   const [selected, setSelected] = useState<string | null>(null)
   const count = Math.max(seats.length, 1)
   const columns = Math.min(3, count)
-  const activeId = selected ?? (seats[0] ? `person:${seats[0].id}` : '')
+  const activeId = seats.some((seat) => `person:${seat.id}` === selected)
+    ? selected
+    : (seats[0] ? `person:${seats[0].id}` : '')
   const fullScreen = view === 'screen'
+  const thumbnails = fullScreen ? seats.filter((seat) => `person:${seat.id}` !== activeId) : []
   const tileInteraction = (id: string, name: string) => {
     if (fullScreen) return {}
     const focus = (event: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) => {
@@ -86,7 +89,22 @@ function Floor({ view, seats, item, next, onEnded, onView, self, bar, stack, pau
   const castStyle = { '--columns': columns, '--rows': Math.ceil(count / columns) } as CSSProperties
 
   return (
-    <section className="room-live" data-layout={view} data-density={tileDensity(seats.length)} data-playing={item ? '' : undefined} aria-label={VIEW_LABEL[view]}>
+    <section className="room-live" data-layout={view} data-density={tileDensity(seats.length)} data-thumbnails={thumbnails.length ? '' : undefined} data-playing={item ? '' : undefined} aria-label={VIEW_LABEL[view]}>
+      {thumbnails.length > 0 && (
+        <div className="room-thumbnails" role="group" aria-label="Switch full-screen user">
+          {thumbnails.map((seat) => (
+            <button
+              key={seat.id}
+              type="button"
+              className="room-thumbnail"
+              aria-label={`Full screen: ${seat.self ? 'You' : seat.name}`}
+              onClick={() => setSelected(`person:${seat.id}`)}
+            >
+              <SeatTile seat={seat} thumbnail />
+            </button>
+          ))}
+        </div>
+      )}
       <div className="room-cast" style={castStyle}>
         {seats.map((seat) => (
           <div className="room-tile" key={seat.id} data-seat={seat.id} {...tileInteraction(`person:${seat.id}`, seat.self ? 'You' : seat.name)} hidden={fullScreen && activeId !== `person:${seat.id}`}>

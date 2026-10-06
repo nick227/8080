@@ -6,8 +6,8 @@
   min-height: 1.25rem;
   padding: 0.25rem 0;
   font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
+  font-size: var(--text-label);
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   opacity: 0.75;
 }
@@ -15,7 +15,7 @@
 
 /* Text lost to a same-block conflict, kept for recovery. */
 .work-recovery { margin: 0.25rem 0 0.75rem; display: grid; gap: 0.5rem; }
-.work-recovery-item { border: 1px solid var(--signal); padding: 0.5rem 0.75rem; }
-.work-recovery-label { margin: 0; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--signal); }
+.work-recovery-item { border: var(--line-width) solid var(--signal); padding: 0.5rem 0.75rem; }
+.work-recovery-label { margin: 0; font-family: var(--mono); font-size: var(--text-label); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--signal); }
 .work-recovery-text { margin: 0.4rem 0; white-space: pre-wrap; }
-.work-recovery-actions { display: flex; gap: 0.75rem; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+.work-recovery-actions { display: flex; gap: 0.75rem; font-family: var(--mono); font-size: var(--text-label); text-transform: uppercase; letter-spacing: var(--tracking-label); }

@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { KindMark, MagicIcon, PersonIcon } from '../../components/icons'
+import { KindMark, MagicIcon, PersonIcon, ImageIcon } from '../../components/icons'
 import { PersonName } from '../../components/PersonName'
 import { useBackground } from '../../state/background'
 import { BackgroundStrip } from './BackgroundStrip'
 import { useLocalLive } from './live/localLive'
 import type { Seat } from './roomViews'
 
-function Face({ seat }: { seat: Seat }) {
+function Face({ seat, customImage }: { seat: Seat; customImage?: string | null }) {
+  const imgUrl = customImage || seat.avatarUrl
   return (
     <>
-      <span className="room-seat" data-photo={seat.avatarUrl ? '' : undefined} data-activity={seat.activity ?? undefined}>
-        {seat.avatarUrl ? <img src={seat.avatarUrl} alt="" /> : <PersonIcon guest={seat.guest} />}
+      <span className="room-seat" data-photo={imgUrl ? '' : undefined} data-activity={seat.activity ?? undefined}>
+        {imgUrl ? <img src={imgUrl} alt="" /> : <PersonIcon guest={seat.guest} />}
       </span>
       <PersonName className="room-seat-name" name={seat.name} tag={seat.tag} />
     </>
@@ -47,7 +48,10 @@ export function SelfTile({ seat }: { seat: Seat }) {
   const error = useLocalLive((s) => s.error)
   const { startCamera, startScreen, stop } = useLocalLive.getState()
   const [menu, setMenu] = useState(false)
+  const [customImage, setCustomImage] = useState<string | null>(null)
+
   const rootRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const mode = useBackground((s) => s.mode)
   const live = kind !== 'off'
@@ -76,10 +80,25 @@ export function SelfTile({ seat }: { seat: Seat }) {
     else void startScreen()
   }
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const url = URL.createObjectURL(file)
+      setCustomImage(url)
+      stop() // turn off live if they override with an image
+    }
+    // reset so they can pick the same file again if they want
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
 
   return (
     <div ref={rootRef} className={live ? 'room-cast-face room-self is-live' : 'room-cast-face room-self'} data-recording={live ? 'true' : undefined} data-live={live ? kind : undefined}>
       <div className="room-self-controls">
+        <button type="button" aria-label="Upload Image" onClick={() => fileInputRef.current?.click()}>
+          <ImageIcon />
+        </button>
+        <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleImageChange} />
+
         <button type="button" aria-label="Camera" aria-pressed={kind === 'camera'} disabled={starting} onClick={toggleCamera}>
           {kind === 'camera' ? <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: 'var(--signal)', margin: 'auto' }} /> : <KindMark kind="video" />}
         </button>
@@ -95,7 +114,7 @@ export function SelfTile({ seat }: { seat: Seat }) {
           <BackgroundStrip />
         </div>
       )}
-      {live ? <LivePreview /> : <Face seat={seat} />}
+      {live ? <LivePreview /> : <Face seat={seat} customImage={customImage} />}
       {live && <PersonName className="room-seat-name" name={seat.name} tag={seat.tag} />}
       {error && !live && <span className="room-live-error" role="status">{error}</span>}
     </div>

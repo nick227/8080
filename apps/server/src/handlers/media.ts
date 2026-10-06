@@ -115,5 +115,5 @@ export async function playbackMedia(request: any, reply: any) {
 
   const url = await storage().signUrl(media.storageKey)
   // Reply 307 Temporary Redirect to the signed URL
-  return reply.redirect(307, url)
+  return reply.redirect(url, 307)
 }

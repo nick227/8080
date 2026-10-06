@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { LocalMedia, SendInput } from '../../api/types'
+import { AttachIcon, KindMark, SendIcon } from '../../components/icons'
 import { attachmentError, attachmentKind, takeYouTube, type ChatAttachment } from './chatDraft'
 
 export function ChatBox({ onSend, onRecord }: { onSend: (input: SendInput) => Promise<boolean>, onRecord?: () => void }) {
@@ -12,6 +13,7 @@ export function ChatBox({ onSend, onRecord }: { onSend: (input: SendInput) => Pr
   const field = useRef<HTMLTextAreaElement>(null)
   const depth = useRef(0)
   const youtube = takeYouTube(text).drafts.length
+  const canSend = !busy && (!!text.trim() || files.length > 0)
 
   useEffect(() => {
     const rail = box.current?.closest('.room-rail')
@@ -109,19 +111,10 @@ export function ChatBox({ onSend, onRecord }: { onSend: (input: SendInput) => Pr
         </ul>
       )}
       {youtube > 0 && <p className="room-chatbox-link">{youtube === 1 ? 'YouTube link' : `${youtube} YouTube links`}</p>}
-      <div className="room-chatbox-row">
-        {onRecord && (
-          <button type="button" className="room-chatbox-record" onClick={onRecord} aria-label="Record">
-            Record
-          </button>
-        )}
-        <label className="room-chatbox-attach">
-          Attach
-          <input type="file" multiple accept="image/*,video/*,audio/*,.pdf" onChange={(event) => { add(event.target.files); event.target.value = '' }} />
-        </label>
+      <div className="room-chatbox-field">
         <textarea
           ref={field}
-          rows={1}
+          rows={3}
           value={text}
           placeholder="Message"
           disabled={busy}
@@ -134,7 +127,20 @@ export function ChatBox({ onSend, onRecord }: { onSend: (input: SendInput) => Pr
             }
           }}
         />
-        <button type="submit" disabled={busy || (!text.trim() && files.length === 0)}>Send</button>
+        <div className="room-chatbox-actions">
+          {onRecord && (
+            <button type="button" className="room-chatbox-tool" onClick={onRecord} aria-label="Record">
+              <KindMark kind="audio" />
+            </button>
+          )}
+          <label className="room-chatbox-tool" aria-label="Attach">
+            <AttachIcon />
+            <input type="file" multiple accept="image/*,video/*,audio/*,.pdf" onChange={(event) => { add(event.target.files); event.target.value = '' }} />
+          </label>
+          <button type="submit" className="room-chatbox-send" disabled={!canSend} aria-label="Send">
+            <SendIcon />
+          </button>
+        </div>
       </div>
       {error && <p className="room-chatbox-error" role="alert">{error}</p>}
     </form>

@@ -53,7 +53,9 @@ export function useRoomStream(roomId: string | undefined, opts: { onEvent?: (eve
       source.addEventListener('item.updated', handle as EventListener)
       const roster = () => { void queryClient.invalidateQueries({ queryKey: keys.participants(roomId) }) }
       source.addEventListener('participants.updated', roster)
-      source.onopen = roster
+      // First open: the query already holds a fresh roster. Re-sync only on reconnect.
+      let opened = false
+      source.onopen = () => { if (opened) roster(); opened = true }
     }
     const unsubscribe = queryClient.getQueryCache().subscribe(() => { start(); flush() })
     start()

@@ -12,6 +12,7 @@ import { parseDocumentCsv } from './documentCsv'
 import { isLowStock } from './InventoryService'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
 import { authorize } from './workspacePolicy'
+import { lockImport, lockPreview } from './importState'
 import { retentionDays } from './ContactImportService'
 
 type Tx = Prisma.TransactionClient
@@ -371,6 +372,7 @@ export class InventoryImportService {
         target: { type: 'import', id: importId },
       },
       async (tx) => {
+        await lockPreview(tx, workspaceId, importId, 'inventory', batch.updatedAt)
         await tx.importRow.deleteMany({ where: { batchId: importId } })
         await tx.importRow.createMany({ data: planned.map((r) => ({ ...r, batchId: importId, workspaceId })) })
         await tx.importBatch.update({ where: { id: importId }, data: { mapping: json(mapping), options: json(options) } })
@@ -460,6 +462,8 @@ export class InventoryImportService {
         target: { type: 'import', id: importId },
       },
       async (tx) => {
+        await lockPreview(tx, workspaceId, importId, 'inventory')
+        if (!(await tx.importRow.findFirst({ where: { id: rowId, batchId: importId } }))) throw conflict('This preview changed. Reload its rows.', 'IMPORT_CHANGED')
         await tx.importRow.update({
           where: { id: rowId },
           data: { resolution: input.action, resolvedContactId: input.action === 'use' ? input.inventoryId! : null },
@@ -478,6 +482,7 @@ export class InventoryImportService {
     const cancelled = await runAction(
       { action: 'inventory.import.cancel', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: {}, target: { type: 'import', id: importId } },
       async (tx) => {
+        await lockPreview(tx, workspaceId, importId, 'inventory')
         await tx.importRow.updateMany({ where: { batchId: importId }, data: { raw: Prisma.DbNull, values: Prisma.DbNull } })
         return { value: await tx.importBatch.update({ where: { id: importId }, data: { status: 'cancelled', finishedAt: now, rowsPrunedAt: now } }) }
       },
@@ -487,13 +492,19 @@ export class InventoryImportService {
 
   async commit(ctx: WorkspaceCtx, workspaceId: string, importId: string) {
     const actor = await authorize(ctx.user.id, workspaceId, 'record.import')
-    let batch = await loadBatch(workspaceId, importId)
+    const batch = await db.$transaction(async tx => {
+      const current = await lockImport(tx, workspaceId, importId, 'inventory')
+      if (current.status === 'completed') return current
+      if (current.status === 'cancelled') throw conflict('This import was cancelled', 'IMPORT_CANCELLED')
+      if (current.rowsPrunedAt) throw conflict('This import’s rows were pruned', 'IMPORT_PRUNED')
+      const unresolved = await tx.importRow.count({ where: { batchId: importId, proposal: 'review', resolution: null } })
+      if (unresolved) throw httpError(409, `${unresolved} row(s) need a decision before import`, 'IMPORT_NEEDS_REVIEW')
+      return current.status === 'previewed'
+        ? tx.importBatch.update({ where: { id: importId }, data: { status: 'committing', committedAt: new Date() } })
+        : current
+    })
     if (batch.status === 'completed') return toImport(batch)
-    if (batch.status === 'cancelled') throw conflict('This import was cancelled', 'IMPORT_CANCELLED')
-    if (batch.rowsPrunedAt) throw conflict('This import’s rows were pruned', 'IMPORT_PRUNED')
-    const unresolved = await db.importRow.count({ where: { batchId: importId, proposal: 'review', resolution: null } })
-    if (unresolved) throw httpError(409, `${unresolved} row(s) need a decision before import`, 'IMPORT_NEEDS_REVIEW')
-    if (batch.status === 'previewed') batch = await db.importBatch.update({ where: { id: importId }, data: { status: 'committing', committedAt: new Date() } })
+
     const options = batch.options as Options
     for (;;) {
       const done = await db.$transaction(
@@ -501,6 +512,7 @@ export class InventoryImportService {
           await tx.$queryRaw`SELECT id FROM Workspace WHERE id = ${workspaceId} FOR UPDATE`
           const rows = await tx.importRow.findMany({ where: { batchId: importId, outcome: null }, orderBy: { rowNumber: 'asc' }, take: CHUNK })
           for (const row of rows) await this.apply(tx, workspaceId, batch, options, row)
+          await recount(tx, importId)
           return rows.length < CHUNK
         },
         { timeout: 60_000 },
@@ -510,6 +522,8 @@ export class InventoryImportService {
     const finished = await runAction(
       { action: 'inventory.import.commit', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: {}, target: { type: 'import', id: importId } },
       async (tx) => {
+        const current = await lockImport(tx, workspaceId, importId, 'inventory')
+        if (current.status === 'completed') return { value: current }
         const counted = await recount(tx, importId)
         const counts = counted.counts as Counts
         const completed = await tx.importBatch.update({ where: { id: importId }, data: { status: 'completed', finishedAt: new Date() } })
@@ -543,11 +557,13 @@ export class InventoryImportService {
       const target = targetId ? await tx.inventory.findFirst({ where: { id: targetId, workspaceId } }) : null
       if (!target) return set('skipped', null, 'ITEM_GONE')
       if (options.onMatch === 'update') {
+        // MVP: a fresh import is required to overwrite an item edited since preview.
+        if (target.updatedAt > batch.createdAt) return set('skipped', target.id, 'ITEM_CHANGED')
         const price = parsePrice(values.price)
         const quantity = parseQuantity(values.quantity)
         const availability = parseAvailability(values.availability)
-        await tx.inventory.update({
-          where: { id: target.id },
+        const changed = await tx.inventory.updateMany({
+          where: { id: target.id, workspaceId, version: target.version },
           data: {
             ...(values.name?.trim() ? { name: values.name.trim().slice(0, 160) } : {}),
             ...(values.description !== undefined ? { description: values.description.trim() || null } : {}),
@@ -560,6 +576,7 @@ export class InventoryImportService {
             version: { increment: 1 },
           },
         })
+        if (!changed.count) return set('skipped', target.id, 'ITEM_CHANGED')
         if (quantity !== undefined && quantity !== target.quantity) {
           const delta = target.quantity != null && quantity != null ? quantity - target.quantity : null
           await tx.inventoryStockMovement.create({

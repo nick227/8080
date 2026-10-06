@@ -1,19 +1,19 @@
-.response-layer { width: 100%; margin-top: 22px; }
-.response-label { margin: 0 0 6px; font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-.response-row { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
-.response-card { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; width: calc((100% - 16px) / 3); }
-.response-thumb { position: relative; width: 100%; aspect-ratio: 16 / 9; padding: 0; background: #000; border: 1px solid var(--line); overflow: hidden; }
+.response-layer { width: 100%; margin-top: var(--space-fields); }
+.response-label { margin: 0 0 var(--space-1); font-family: var(--mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--muted); }
+.response-row { display: flex; flex-wrap: wrap; gap: var(--space-sm); width: 100%; }
+.response-card { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-xs); width: calc((100% - 2 * var(--space-sm)) / 3); }
+.response-thumb { position: relative; width: 100%; aspect-ratio: 16 / 9; padding: 0; background: var(--media-bg); border: var(--line-width) solid var(--line); overflow: hidden; }
 .response-thumb img, .response-fallback { width: 100%; height: 100%; object-fit: cover; display: block; }
-.response-fallback { display: grid; place-items: center; padding: 8px; overflow: hidden; text-align: center; font-family: var(--mono); font-size: 10px; line-height: 1.3; letter-spacing: .04em; color: var(--ink); }
+.response-fallback { display: grid; place-items: center; padding: var(--space-sm); overflow: hidden; text-align: center; font-family: var(--mono); font-size: var(--text-xs); line-height: 1.3; letter-spacing: var(--tracking-compact); color: var(--media-label-ink); }
 .response-thumb[data-open] { border-color: var(--signal); }
-.response-reply { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.response-reply { display: inline-flex; align-items: center; gap: var(--space-xs); padding: 0; border: 0; background: none; font-family: var(--mono); font-size: var(--text-xs); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--muted); }
 .response-reply:hover, .response-reply:focus-visible { color: var(--ink); }
-.response-more { position: absolute; right: 4px; top: 4px; padding: 1px 3px; font-family: var(--mono); font-size: 9px; letter-spacing: .06em; color: var(--ink); background: rgba(15, 17, 21, .72); }
-.response-stage { display: flex; flex-direction: column; align-items: stretch; width: 100%; margin: 8px 0; overflow-anchor: none; }
-.response-open { display: grid; grid-template-rows: 1fr; position: relative; animation: response-open 260ms cubic-bezier(.22, 1, .36, 1); }
+.response-more { position: absolute; right: 4px; top: 4px; padding: 1px 3px; font-family: var(--mono); font-size: var(--text-2xs); letter-spacing: var(--tracking-action); color: var(--media-label-ink); background: var(--media-label-overlay); }
+.response-stage { display: flex; flex-direction: column; align-items: stretch; width: 100%; margin: var(--space-sm) 0; overflow-anchor: none; }
+.response-open { display: grid; grid-template-rows: 1fr; position: relative; animation: response-open var(--motion-reveal) var(--ease-out); }
 .response-open > .response-player { min-height: 0; overflow: hidden; }
 .response-player { position: relative; width: 100%; }
 .response-player .item { border: none; padding: 0; background: transparent; content-visibility: visible; }
-.response-min { position: absolute; z-index: 3; top: 6px; right: 6px; width: 18px; height: 18px; display: grid; place-items: center; padding: 0; color: var(--ink); background: rgba(15, 17, 21, .55); }
-.response-meta { margin: 4px 0 0; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.response-min { position: absolute; z-index: 3; top: 6px; right: 6px; width: 18px; height: 18px; display: grid; place-items: center; padding: 0; color: var(--media-label-ink); background: var(--media-control-overlay); }
+.response-meta { margin: var(--space-xs) 0 0; font-family: var(--mono); font-size: var(--text-label); letter-spacing: var(--tracking-action); text-transform: uppercase; color: var(--muted); }
 @keyframes response-open { from { grid-template-rows: 0fr; } to { grid-template-rows: 1fr; } }

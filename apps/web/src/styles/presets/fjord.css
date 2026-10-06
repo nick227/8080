@@ -1,0 +1,74 @@
+/* Fjord — Cool slate layers, glacier-blue actions, and precise humanist typography. See ../COMMUNITY-THEMES.md for design rationale. */
+[data-theme="fjord"] {
+  --bg: #242d3a;
+  --panel: #303c4c;
+  --ink: #edf3fa;
+  --muted: #bdcbdc;
+  --line: #61738b;
+  --signal: #9bd6e5;
+  --danger: #ffb4af;
+  --surface-deep: #1c2430;
+  --surface-active: #3a4b60;
+  --color-scheme: dark;
+  --surface-subtle: var(--bg);
+  --surface-tile: var(--panel);
+  --surface-desk: var(--surface-deep);
+  --sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --content-font: var(--sans);
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --form-error-color: var(--danger);
+  --button-font: var(--sans);
+  --button-text-transform: none;
+  --button-tracking: 0;
+  --form-label-transform: none;
+  --form-label-tracking: 0;
+  --input-bg: var(--bg);
+  --input-focus-bg: var(--bg);
+  --select-bg: var(--panel);
+  --button-bg: #9bd6e5;
+  --button-color: #172d38;
+  --button-border-color: #9bd6e5;
+  --button-hover-bg: #c3edf5;
+  --button-hover-color: #172d38;
+  --button-selected-bg: var(--surface-active);
+  --button-selected-color: var(--ink);
+  --button-selected-border: var(--signal);
+  --button-pill-hover-bg: #9bd6e5;
+  --button-pill-hover-color: #172d38;
+  --button-focus-color: var(--signal);
+  --input-focus-color: var(--signal);
+  --input-focus-border: var(--signal);
+  --radius: 4px;
+  --radius-sm: 2px;
+  --radius-md: 6px;
+  --radius-card: 8px;
+  --panel-radius: 6px;
+  --button-radius: 4px;
+  --input-radius: 4px;
+  --button-shadow: none;
+  --button-font-size: 14px;
+  --button-height: 38px;
+  --button-height-sm: 34px;
+  --button-font-weight: 600;
+  --form-label-size: 13px;
+  --input-font-size: 16px;
+  --input-height: 38px;
+  --input-border-color: color-mix(in srgb, var(--ink) 55%, var(--panel));
+  --nav-icon-opacity: 0.9;
+  --button-secondary-bg: var(--panel);
+  --button-secondary-color: var(--ink);
+  --button-secondary-border: var(--line);
+  --button-secondary-hover-bg: var(--surface-active);
+  --button-secondary-hover-color: var(--ink);
+  --leading-body: 1.6;
+  --leading-content: 1.6;
+  --tracking-caps: 0.025em;
+  --tracking-spaced: 0.06em;
+  --section-gap: 28px;
+}
+
+:where([data-theme="fjord"]) { --density: 1; }
+
+@media (max-width: 720px) {
+  [data-theme="fjord"] { --section-gap: 20px; }
+}

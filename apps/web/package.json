@@ -11,7 +11,13 @@
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "test": "playwright test",
-    "test:ui": "playwright test --ui"
+    "test:ui": "playwright test --ui",
+    "test:records": "node tests/records.mjs",
+    "test:import-safety": "node tests/import-safety.mjs",
+    "test:theme": "node tests/theme-tokens.mjs",
+    "test:theme-switcher": "node tests/theme-switcher.mjs",
+    "test:theme-gallery": "node tests/theme-gallery.mjs",
+    "test:maps": "tsx tests/map-viewport.check.ts && node tests/map-editor.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^6.1.1",

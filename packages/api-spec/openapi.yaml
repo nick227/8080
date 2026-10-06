@@ -1858,6 +1858,120 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /workspaces/{workspaceId}/sheets/presets:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listSheetPresets
+      summary: The common sheets, one button each (doc/13 §12, A1)
+      tags: [documents]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SheetPresetList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/sheets/describe:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: describeSheet
+      summary: A sheet query in plain words, checked but not run
+      tags: [documents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DescribeSheetInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SheetSummaryResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/sheets:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: createSheet
+      summary: Make a spreadsheet from Contacts or Inventory
+      description: |
+        A preset or a whitelisted sheet query → a native grid whose rows are stored on
+        the server. Rows, counts and totals are computed by code. The document's
+        provenance is the recipe (resolved query, as-of time, data hash), so the data
+        can be checked for changes and the sheet made again. Private to its maker.
+        Retry-safe by idempotencyKey. More than 5000 rows → 400 SHEET_TOO_LARGE.
+      tags: [documents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateSheetInput' }
+      responses:
+        '201':
+          description: The new document
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /workspaces/{workspaceId}/documents/{documentId}/recipe:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      operationId: getDocumentRecipe
+      summary: What a generated sheet was made from, and whether its data has changed
+      description: Re-runs the stored query and compares. `periodMoved` = a preset's relative dates (e.g. this week) have moved on. 404 for documents not made from a sheet query.
+      tags: [documents]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SheetRecipeResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/documents/{documentId}/regenerate:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/DocumentId'
+    post:
+      operationId: regenerateDocument
+      summary: Make a generated sheet again from current data
+      description: A new document from the same recipe (a preset re-resolves its dates), related to the old one, with the same workspace audience. The old document is not changed.
+      tags: [documents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegenerateDocumentInput' }
+      responses:
+        '201':
+          description: The new document
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /workspaces/{workspaceId}/contacts/{contactId}:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -7137,6 +7251,85 @@ components:
           type: string
         manifest:
           $ref: '#/components/schemas/DatasetManifest'
+    SheetQuery:
+      type: object
+      additionalProperties: true
+      required: [source]
+      description: |
+        Whitelisted sheet query (packages/shared/src/sheets.ts), validated field by
+        field on the server; unknown fields → 400 INVALID_SHEET_QUERY. `source` is
+        contacts or inventory; `columns` (unless grouped), `filters`, `groupBy`,
+        `sort`, `limit`. Dates are workspace-local YYYY-MM-DD.
+      properties:
+        source: { type: string, enum: [contacts, inventory] }
+    SheetPreset:
+      type: object
+      additionalProperties: false
+      required: [key, label, description]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        description: { type: string }
+    SheetPresetList:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/SheetPreset' }
+    DescribeSheetInput:
+      type: object
+      additionalProperties: false
+      required: [query]
+      properties:
+        query: { $ref: '#/components/schemas/SheetQuery' }
+    SheetSummaryResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [summary]
+          properties:
+            summary: { type: string }
+    CreateSheetInput:
+      type: object
+      additionalProperties: false
+      required: [idempotencyKey]
+      description: Exactly one of preset or query.
+      properties:
+        preset: { type: string, minLength: 1, maxLength: 64 }
+        query: { $ref: '#/components/schemas/SheetQuery' }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        idempotencyKey: { type: string, minLength: 1, maxLength: 120 }
+    RegenerateDocumentInput:
+      type: object
+      additionalProperties: false
+      required: [idempotencyKey]
+      properties:
+        idempotencyKey: { type: string, minLength: 1, maxLength: 120 }
+    SheetRecipeResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [recipe, stale, dataChanged, periodMoved, currentRowCount, checkedAt]
+          properties:
+            recipe:
+              type: object
+              additionalProperties: true
+              description: SheetRecipe (packages/shared/src/sheets.ts)
+            stale: { type: boolean }
+            dataChanged: { type: boolean }
+            periodMoved: { type: boolean }
+            currentRowCount: { type: [integer, 'null'] }
+            checkedAt: { type: string, format: date-time }
     CreateContactsReviewInput:
       type: object
       additionalProperties: false

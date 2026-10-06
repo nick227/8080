@@ -1,0 +1,89 @@
+/* Shared layout patterns. Existing feature selectors use these recipes too;
+   new UI can use layout-page/toolbar/panel classes without duplicating structure. */
+:where(:root, [data-theme], [data-density]) {
+  --page-gutter: var(--space-lg);
+  --page-gutter-mobile: var(--space-md);
+  --page-gutter-current: var(--page-gutter);
+  --shell-w: min(var(--content-width-narrow), calc(100vw - 2 * var(--page-gutter-current)));
+  --edge: calc((100vw - var(--shell-w)) / 2);
+  --page-padding-block: var(--space-lg);
+  --section-gap: var(--space-lg);
+  --toolbar-padding-x: var(--page-gutter-current);
+  --toolbar-padding-y: var(--space-sm);
+  --toolbar-gap: var(--space-2);
+  --panel-header-height: var(--mast);
+  --panel-header-padding-x: var(--panel-padding);
+  --panel-body-gap: var(--space-md);
+  --panel-footer-padding-x: var(--panel-padding);
+  --panel-footer-padding-y: var(--space-md);
+  --panel-footer-gap: var(--space-3);
+  --reply-panel-width: var(--panel-width);
+  --edit-panel-width: var(--panel-width);
+  --explorer-max-width: var(--content-width-wide);
+  --card-grid-gap: var(--section-gap);
+}
+@media (max-width: 720px) {
+  :where(:root, [data-theme], [data-density]) {
+    --page-gutter-current: var(--page-gutter-mobile);
+  }
+}
+
+/* Width includes padding. A container never exceeds its parent. */
+.layout-page, .lobby-body, .explorer {
+  width: 100%;
+  max-width: var(--layout-page-width, var(--content-width-standard));
+  margin-inline: auto;
+  padding-inline: var(--page-gutter-current);
+  min-width: 0;
+}
+.layout-page { padding-block: var(--page-padding-block); }
+.layout-page[data-width="narrow"] { --layout-page-width: var(--content-width-narrow); }
+.layout-page[data-width="wide"] { --layout-page-width: var(--content-width-wide); }
+.explorer { --layout-page-width: var(--explorer-max-width); padding-block: var(--page-padding-block); }
+.layout-stack { display: flex; flex-direction: column; gap: var(--section-gap); min-width: 0; }
+
+.layout-toolbar, .work-nav, .work-bar, .cal-bar {
+  display: flex;
+  align-items: center;
+  flex: none;
+  min-width: 0;
+  gap: var(--toolbar-gap);
+  padding-inline: var(--toolbar-padding-x);
+  border-bottom: var(--line-width) solid var(--line);
+}
+.layout-toolbar, .work-bar { flex-wrap: wrap; }
+.layout-toolbar { min-height: var(--toolbar-height); padding-block: var(--toolbar-padding-y); }
+.layout-toolbar[data-size="large"] { min-height: var(--toolbar-height-lg); }
+.layout-toolbar-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--toolbar-gap); margin-inline-start: auto; }
+
+.layout-panel, .reply-instrument, .edit-sheet {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+}
+.layout-panel { border-radius: var(--panel-radius); width: min(var(--panel-width), 100%); border: var(--line-width) solid var(--line); }
+.layout-panel-header, .reply-instrument-header, .edit-sheet-bar {
+  flex: none;
+  min-height: var(--panel-header-height);
+  align-items: center;
+  padding-inline: var(--panel-header-padding-x);
+  border-bottom: var(--line-width) solid var(--line);
+}
+.layout-panel-header, .reply-instrument-header { display: flex; }
+.layout-panel-body, .reply-instrument-body, .edit-sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--panel-padding);
+}
+.layout-panel-body, .reply-instrument-body { display: flex; flex-direction: column; gap: var(--panel-body-gap); }
+.layout-panel-footer, .reply-instrument-footer, .edit-sheet-foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--panel-footer-gap);
+  padding: var(--panel-footer-padding-y) var(--panel-footer-padding-x) calc(var(--panel-footer-padding-y) + env(safe-area-inset-bottom));
+  border-top: var(--line-width) solid var(--line);
+}

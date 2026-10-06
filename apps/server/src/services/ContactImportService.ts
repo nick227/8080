@@ -23,6 +23,7 @@ import { parseDocumentCsv } from './documentCsv'
 import { assertAssignees, assertTags, replaceTags } from './records'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
 import { authorize } from './workspacePolicy'
+import { lockImport, lockPreview } from './importState'
 
 type Tx = Prisma.TransactionClient
 const documents = new DocumentService()
@@ -123,15 +124,25 @@ async function plan(workspaceId: string, table: GridTable, mapping: Mapping, opt
     ).map((c) => [c.externalId!, c.id]),
   )
 
-  const seen = new Map<string, number>()
+  const seen = new Map<string, { rowNumber: number; identity: string }>()
+  const identityOf = (values: Values) => [
+    values.displayName || [values.firstName, values.lastName].filter(Boolean).join(' '),
+    values.phone, values.accountName,
+  ].map(value => value?.trim().toLowerCase() ?? '').join('|')
   return rows.map((r) => {
     const base = { rowNumber: r.rowNumber, sourceRowId: r.sourceRowId, raw: json(r.raw), values: json(r.values) }
     const email = validEmail(r.values)
     if (email === undefined) return { ...base, proposal: 'invalid' as const, errorCode: 'INVALID_EMAIL' }
     if (!(r.values.displayName || r.values.firstName || r.values.lastName || email || r.values.phone)) return { ...base, proposal: 'invalid' as const, errorCode: 'EMPTY_CONTACT' }
     const key = r.values.externalId && provider ? `ext:${r.values.externalId}` : email ? `email:${email}` : null
-    if (key && seen.has(key)) return { ...base, proposal: 'duplicate' as const, duplicateOfRow: seen.get(key)! }
-    if (key) seen.set(key, r.rowNumber)
+    const previous = key ? seen.get(key) : undefined
+    if (previous) {
+      if (key!.startsWith('ext:') || (!isRoleAddress(email!) && previous.identity === identityOf(r.values))) {
+        return { ...base, proposal: 'duplicate' as const, duplicateOfRow: previous.rowNumber }
+      }
+      return { ...base, proposal: 'review' as const, errorCode: 'SHARED_FILE_EMAIL', candidateIds: json([...(holders.get(email!)?.all ?? [])]) }
+    }
+    if (key) seen.set(key, { rowNumber: r.rowNumber, identity: identityOf(r.values) })
     const external = r.values.externalId && provider ? byExternal.get(r.values.externalId) : undefined
     if (external) return { ...base, proposal: 'match' as const, proposedContactId: external, candidateIds: json([external]) }
     const h = email ? holders.get(email) : undefined
@@ -175,7 +186,7 @@ export async function pruneImports(now = new Date(), workspaceId?: string) {
 
 async function previousImportId(batch: ImportBatch) {
   const prior = await db.importBatch.findFirst({
-    where: { workspaceId: batch.workspaceId, sourceHash: batch.sourceHash, status: 'completed', id: { not: batch.id }, createdAt: { lt: batch.createdAt } },
+    where: { workspaceId: batch.workspaceId, kind: batch.kind, sourceHash: batch.sourceHash, status: 'completed', id: { not: batch.id }, createdAt: { lt: batch.createdAt } },
     orderBy: { createdAt: 'desc' },
     select: { id: true },
   })
@@ -301,6 +312,7 @@ export class ContactImportService {
     const updated = await runAction(
       { action: 'contact.import.remap', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { mapping, options }, target: { type: 'import', id: importId } },
       async (tx) => {
+        await lockPreview(tx, workspaceId, importId, 'contacts', batch.updatedAt)
         await tx.importRow.deleteMany({ where: { batchId: importId } })
         await tx.importRow.createMany({ data: planned.map((r) => ({ ...r, batchId: importId, workspaceId })) })
         await tx.importBatch.update({ where: { id: importId }, data: { mapping: json(mapping), options: json(options) } })
@@ -361,6 +373,8 @@ export class ContactImportService {
     const updated = await runAction(
       { action: 'contact.import.resolve', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { rowNumber: row.rowNumber, ...input }, target: { type: 'import', id: importId } },
       async (tx) => {
+        await lockPreview(tx, workspaceId, importId, 'contacts')
+        if (!(await tx.importRow.findFirst({ where: { id: rowId, batchId: importId } }))) throw conflict('This preview changed. Reload its rows.', 'IMPORT_CHANGED')
         await tx.importRow.update({ where: { id: rowId }, data: { resolution: input.action, resolvedContactId: input.action === 'use' ? input.contactId! : null } })
         return { value: await recount(tx, importId) }
       },
@@ -376,6 +390,7 @@ export class ContactImportService {
     const cancelled = await runAction(
       { action: 'contact.import.cancel', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: {}, target: { type: 'import', id: importId } },
       async (tx) => {
+        await lockPreview(tx, workspaceId, importId, 'contacts')
         await tx.importRow.updateMany({ where: { batchId: importId }, data: { raw: Prisma.DbNull, values: Prisma.DbNull } })
         return { value: await tx.importBatch.update({ where: { id: importId }, data: { status: 'cancelled', finishedAt: now, rowsPrunedAt: now } }) }
       },
@@ -389,13 +404,18 @@ export class ContactImportService {
    */
   async commit(ctx: WorkspaceCtx, workspaceId: string, importId: string, input: { createView?: boolean; viewTitle?: string } = {}) {
     const actor = await authorize(ctx.user.id, workspaceId, 'record.import')
-    let batch = await loadBatch(workspaceId, importId)
+    const batch = await db.$transaction(async tx => {
+      const current = await lockImport(tx, workspaceId, importId, 'contacts')
+      if (current.status === 'completed') return current
+      if (current.status === 'cancelled') throw conflict('This import was cancelled', 'IMPORT_CANCELLED')
+      if (current.rowsPrunedAt) throw conflict('This import’s rows were pruned', 'IMPORT_PRUNED')
+      const unresolved = await tx.importRow.count({ where: { batchId: importId, proposal: 'review', resolution: null } })
+      if (unresolved) throw httpError(409, `${unresolved} row(s) need a decision before import`, 'IMPORT_NEEDS_REVIEW')
+      return current.status === 'previewed'
+        ? tx.importBatch.update({ where: { id: importId }, data: { status: 'committing', committedAt: new Date() } })
+        : current
+    })
     if (batch.status === 'completed') return toImport(batch)
-    if (batch.status === 'cancelled') throw conflict('This import was cancelled', 'IMPORT_CANCELLED')
-    if (batch.rowsPrunedAt) throw conflict('This import’s rows were pruned', 'IMPORT_PRUNED')
-    const unresolved = await db.importRow.count({ where: { batchId: importId, proposal: 'review', resolution: null } })
-    if (unresolved) throw httpError(409, `${unresolved} row(s) need a decision before import`, 'IMPORT_NEEDS_REVIEW')
-    if (batch.status === 'previewed') batch = await db.importBatch.update({ where: { id: importId }, data: { status: 'committing', committedAt: new Date() } })
 
     const options = batch.options as Options
     for (;;) {
@@ -405,6 +425,7 @@ export class ContactImportService {
           await tx.$queryRaw`SELECT id FROM Workspace WHERE id = ${workspaceId} FOR UPDATE`
           const rows = await tx.importRow.findMany({ where: { batchId: importId, outcome: null }, orderBy: { rowNumber: 'asc' }, take: CHUNK })
           for (const row of rows) await this.apply(tx, workspaceId, batch, options, actor.member.id, row)
+          await recount(tx, importId)
           return rows.length < CHUNK
         },
         { timeout: 60_000 },
@@ -425,6 +446,8 @@ export class ContactImportService {
     const finished = await runAction(
       { action: 'contact.import.commit', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { createView: input.createView === true }, target: { type: 'import', id: importId } },
       async (tx) => {
+        const current = await lockImport(tx, workspaceId, importId, 'contacts')
+        if (current.status === 'completed') return { value: current }
         const counted = await recount(tx, importId)
         const counts = counted.counts as Counts
         const completed = await tx.importBatch.update({ where: { id: importId }, data: { status: 'completed', finishedAt: new Date(), resultDocumentId } })

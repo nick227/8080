@@ -5,8 +5,8 @@
   z-index: 6;
   height: 36px;
   font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.14em;
+  font-size: var(--text-label);
+  letter-spacing: var(--tracking-spaced);
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -17,41 +17,48 @@
   flex: none;
   max-height: 168px;
   overflow: auto;
-  border-bottom: 1px solid var(--line);
-  background: #07080a;
-  padding: 10px 16px 12px;
+  border-bottom: var(--line-width) solid var(--line);
+  background: var(--surface-deep);
+  padding: var(--space-control) var(--space-md) var(--space-2);
 }
 .desk-agent ol { list-style: none; margin: 0; padding: 0; }
 .desk-agent li {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);
-  gap: 8px;
-  padding: 2px 0;
+  gap: var(--space-sm);
+  padding: var(--space-2xs) 0;
   font-family: var(--sans);
-  font-size: 14px;
-  line-height: 1.35;
+  font-size: var(--text-base);
+  line-height: var(--leading-content);
 }
 .desk-agent .who {
   font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.12em;
+  font-size: var(--text-label);
+  letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   color: var(--muted);
 }
-.desk-agent form { display: flex; gap: 12px; align-items: baseline; margin-top: 8px; }
+.desk-agent form { display: flex; gap: var(--form-gap); align-items: baseline; margin-top: var(--space-sm); }
 .desk-agent input {
   flex: 1;
   min-width: 0;
   border: 0;
-  background: transparent;
-  color: var(--ink);
-  font-family: var(--sans);
-  font-size: 15px;
+  background: var(--input-bg);
+  color: var(--input-color);
+  font-family: var(--input-font);
+  font-size: var(--input-font-size);
+  border-radius: var(--input-radius);
+  font-weight: var(--input-font-weight);
+  box-shadow: var(--input-shadow);
 }
 .desk-agent form button {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink);
+  font-family: var(--button-font);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--tracking-spaced);
+  text-transform: var(--button-text-transform);
+  color: var(--button-color);
+  background: var(--button-bg);
+  border-radius: var(--button-radius);
+  font-weight: var(--button-font-weight);
+  box-shadow: var(--button-shadow);
 }

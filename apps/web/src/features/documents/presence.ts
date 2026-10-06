@@ -11,7 +11,7 @@ export type Peer = {
   name: string
   activity: Activity
   focus: Focus
-  cursor: { x: number; y: number } | null
+  cursor: { x: number; y: number; space?: 'map' } | null
   drag: Drag | null
   seen: number
 }

@@ -29,6 +29,7 @@ export function useRoomParticipants(roomId: string | undefined) {
   return useQuery({
     queryKey: keys.participants(roomId ?? ''),
     enabled: !!roomId,
+    staleTime: Infinity, // kept fresh by useRoomStream (participants.updated)
     queryFn: async () =>
       unwrap(await getApiClient().GET('/rooms/{roomId}/participants', { params: { path: { roomId: roomId! } } })).data,
   })

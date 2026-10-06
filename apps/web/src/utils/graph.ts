@@ -59,7 +59,7 @@ export function branchOf(itemsById: ItemsById, childrenById: Record<string, stri
       let children = childrenById[currentId] || [];
       // To process siblings chronologically, we push them onto the stack in reverse chronological order
       if (children.length > 0) {
-        children = [...children].sort((a, b) => itemsById[a].createdAt < itemsById[b].createdAt ? 1 : -1);
+        children = children.filter(id => !!itemsById[id]).sort((a, b) => itemsById[a].createdAt < itemsById[b].createdAt ? 1 : -1);
         for (const child of children) {
           stack.push(child);
         }
@@ -72,8 +72,20 @@ export function branchOf(itemsById: ItemsById, childrenById: Record<string, stri
 
 // Counts all nested replies (descendants) of a given item.
 export function replyCount(itemsById: ItemsById, childrenById: Record<string, string[]>, itemId: string): number {
-  const branch = branchOf(itemsById, childrenById, itemId);
-  return Math.max(0, branch.length - 1); // Subtract the root itself
+  if (!itemsById[itemId]) return 0;
+  const seen = new Set<string>([itemId]);
+  const stack = [itemId];
+  let count = 0;
+  while (stack.length) {
+    const parentId = stack.pop()!;
+    for (const childId of childrenById[parentId] ?? []) {
+      if (seen.has(childId) || !itemsById[childId]) continue;
+      seen.add(childId);
+      count++;
+      stack.push(childId);
+    }
+  }
+  return count;
 }
 
 // Fast calculation of depth without array allocations

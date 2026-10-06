@@ -5,20 +5,21 @@
 import { db } from '@project/db'
 import { badRequest, notFound } from '../lib/errors'
 import { toAuthor } from '../lib/serialize'
+import { AsyncTtlCache } from '../lib/AsyncTtlCache'
 
 const TTL_MS = 5_000
-const cache = new Map<string, { set: Set<string>; at: number }>()
+const cache = new AsyncTtlCache<string, Set<string>>(1_000, TTL_MS)
 
 export class MuteService {
   /** The viewer's muted user ids. Cached briefly; invalidated on change. */
   async mutedBy(viewerId: string | null): Promise<Set<string>> {
     if (!viewerId) return new Set()
-    const hit = cache.get(viewerId)
-    if (hit && Date.now() - hit.at < TTL_MS) return hit.set
-    const rows = await db.userMute.findMany({ where: { userId: viewerId }, select: { mutedUserId: true } })
-    const set = new Set(rows.map((r) => r.mutedUserId))
-    cache.set(viewerId, { set, at: Date.now() })
-    return set
+    return cache.get(viewerId, async () => {
+      const rows = await db.userMute.findMany({ where: { userId: viewerId }, select: { mutedUserId: true } })
+      const muted = new Set<string>()
+      for (const row of rows) muted.add(row.mutedUserId)
+      return muted
+    })
   }
 
   async list(viewerId: string) {

@@ -1,0 +1,80 @@
+/* Acid Opera — Aubergine velvet, chartreuse spotlights, theatrical serif type, and sweeping curves. */
+[data-theme="acid-opera"] {
+  --bg: #290d39;
+  --panel: #3b184c;
+  --ink: #fff1fc;
+  --muted: #d9b9d9;
+  --line: #aa78b1;
+  --signal: #dfff66;
+  --danger: #ffb4c8;
+  --surface-deep: #1d082a;
+  --surface-active: #542760;
+  --color-scheme: dark;
+  --surface-subtle: var(--bg);
+  --surface-tile: var(--panel);
+  --surface-desk: var(--surface-deep);
+  --sans: "Trebuchet MS", Arial, sans-serif;
+  --content-font: Georgia, "Times New Roman", serif;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --form-error-color: var(--danger);
+  --button-font: var(--sans);
+  --button-text-transform: none;
+  --button-tracking: 0;
+  --form-label-transform: none;
+  --form-label-tracking: 0;
+  --input-bg: var(--bg);
+  --input-focus-bg: var(--bg);
+  --select-bg: var(--panel);
+  --button-bg: #dfff66;
+  --button-color: #263000;
+  --button-border-color: var(--button-bg);
+  --button-hover-bg: #f2ffad;
+  --button-hover-color: #263000;
+  --button-selected-bg: var(--surface-active);
+  --button-selected-color: var(--ink);
+  --button-selected-border: var(--signal);
+  --button-pill-hover-bg: var(--button-bg);
+  --button-pill-hover-color: var(--button-color);
+  --button-focus-color: var(--signal);
+  --input-focus-color: var(--signal);
+  --input-focus-border: var(--signal);
+  --radius: 2px;
+  --radius-sm: 999px;
+  --radius-md: 4px;
+  --radius-card: 36px 4px 36px 4px;
+  --panel-radius: 4px 36px 4px 36px;
+  --button-radius: 999px;
+  --input-radius: 16px;
+  --button-shadow: 0 4px 0 #9062a6;
+  --button-font-size: 14px;
+  --button-height: 46px;
+  --button-height-sm: 36px;
+  --button-font-weight: 600;
+  --form-label-size: 13px;
+  --input-font-size: 16px;
+  --input-height: 44px;
+  --input-border-color: color-mix(in srgb, var(--ink) 60%, var(--panel));
+  --nav-icon-opacity: 1;
+  --button-secondary-bg: var(--panel);
+  --button-secondary-color: var(--ink);
+  --button-secondary-border: var(--line);
+  --button-secondary-hover-bg: var(--surface-active);
+  --button-secondary-hover-color: var(--ink);
+  --leading-body: 1.6;
+  --leading-content: 1.6;
+  --tracking-caps: 0.025em;
+  --tracking-spaced: 0.06em;
+  --section-gap: 36px;
+  --button-border-width: 2px;
+  --form-label-font: var(--mono);
+  --button-focus-width: 3px;
+  --input-focus-width: 3px;
+  --button-focus-offset: 4px;
+  --text-title: 30px;
+}
+
+:where([data-theme="acid-opera"]) { --density: 1.12; }
+
+@media (max-width: 720px) {
+  [data-theme="acid-opera"] { --section-gap: 24px; --text-title: 26px; }
+}

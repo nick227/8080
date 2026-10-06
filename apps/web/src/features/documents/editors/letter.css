@@ -5,7 +5,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #07080a;
+  background: var(--surface-deep);
 }
 .letter-scroll {
   flex: 1;
@@ -14,7 +14,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 28px 16px 64px;
+  padding: var(--space-4) var(--space-md) 64px;
 }
 .letter-scroll .work-sync {
   width: min(210mm, 100%);
@@ -24,9 +24,9 @@
   width: min(210mm, 100%);
   min-height: 297mm;
   padding: clamp(64px, 9vw, 26mm) clamp(22px, 7vw, 20mm) clamp(40px, 10vw, 28mm);
-  background: #f4f5f3;
-  color: #1c1c1b;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  background: var(--paper);
+  color: var(--paper-ink);
+  box-shadow: var(--shadow-paper);
 }
 .letter-section {
   position: relative;
@@ -34,9 +34,9 @@
   font-family: var(--content-font);
   color: inherit;
 }
-.letter-section[data-level="body"] { font-size: 17px; line-height: 1.6; }
-.letter-section[data-level="h2"] { font-size: 24px; line-height: 1.25; margin-top: 0.45em; }
-.letter-section[data-level="h1"] { font-size: 34px; line-height: 1.15; letter-spacing: -0.02em; margin-top: 0.15em; }
+.letter-section[data-level="body"] { font-size: 17px; line-height: var(--leading-relaxed); }
+.letter-section[data-level="h2"] { font-size: 24px; line-height: var(--leading-heading); margin-top: 0.45em; }
+.letter-section[data-level="h1"] { font-size: var(--text-display); line-height: 1.15; letter-spacing: var(--tracking-tight); margin-top: 0.15em; }
 .letter-section:first-child { margin-top: 0; }
 .letter-section[data-remote]::before {
   content: "";
@@ -57,11 +57,11 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 8px 12px;
-  background: #1c1c1b;
-  color: #f4f5f3;
-  box-shadow: 0 10px 24px rgba(28, 28, 27, 0.28);
-  font-size: 13px;
+  padding: var(--space-sm) var(--space-2);
+  background: var(--paper-ink);
+  color: var(--paper);
+  box-shadow: var(--shadow-paper-tools);
+  font-size: var(--text-md);
   line-height: 1;
   letter-spacing: 0;
   opacity: 0;
@@ -73,26 +73,26 @@
 }
 .letter-sizes,
 .letter-moves { display: flex; align-items: center; }
-.letter-sizes { align-items: baseline; gap: 6px; }
+.letter-sizes { align-items: baseline; gap: var(--space-1); }
 .letter-moves {
-  gap: 2px;
+  gap: var(--space-2xs);
   padding-left: 14px;
-  border-left: 1px solid rgba(244, 245, 243, 0.22);
+  border-left: var(--line-width) solid var(--paper-tools-line);
 }
 .letter-tools button {
-  padding: 4px 6px;
+  padding: var(--space-xs) var(--space-1);
   font-family: var(--content-font);
-  color: #9c9a93;
+  color: var(--paper-tools-muted);
   line-height: 1;
 }
-.letter-sizes button[data-mark="x1"] { font-size: 12px; }
-.letter-sizes button[data-mark="x2"] { font-size: 16px; }
-.letter-sizes button[data-mark="x3"] { font-size: 22px; }
-.letter-moves button { font-family: var(--sans); font-size: 16px; padding: 4px 8px; }
-.letter-tools button[aria-checked="true"] { color: #f4f5f3; }
+.letter-sizes button[data-mark="x1"] { font-size: var(--text-sm); }
+.letter-sizes button[data-mark="x2"] { font-size: var(--text-lg); }
+.letter-sizes button[data-mark="x3"] { font-size: var(--text-3xl); }
+.letter-moves button { font-family: var(--sans); font-size: var(--text-lg); padding: var(--space-xs) var(--space-sm); }
+.letter-tools button[aria-checked="true"] { color: var(--paper); }
 .letter-tools button:hover,
-.letter-tools button:focus-visible { color: #f4f5f3; }
-.letter-tools button:focus-visible { outline: 1px solid #f4f5f3; outline-offset: 2px; }
+.letter-tools button:focus-visible { color: var(--paper); }
+.letter-tools button:focus-visible { outline: var(--line-width) solid var(--paper); outline-offset: 2px; }
 .letter-section textarea:focus-visible { outline: none; }
 .letter-section textarea {
   display: block;
@@ -117,10 +117,10 @@
 .letter-missing {
   margin: 0 0 0.65em;
   font-family: var(--content-font);
-  font-size: 15px;
+  font-size: var(--text-body);
   font-style: italic;
-  line-height: 1.4;
-  color: #5e5c56;
+  line-height: var(--leading-body);
+  color: var(--paper-muted);
 }
 .letter-add {
   position: absolute;
@@ -132,11 +132,11 @@
   width: 36px;
   height: 36px;
   padding: 0;
-  border: 1px solid var(--line);
-  background: #07080a;
+  border: var(--line-width) solid var(--line);
+  background: var(--surface-deep);
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 22px;
+  font-size: var(--text-3xl);
   line-height: 1;
 }
 .letter-add:hover,

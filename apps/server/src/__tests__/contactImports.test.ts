@@ -46,7 +46,7 @@ const CSV = [
   'Grace,Hopper,grace@navy.mil,Navy,Admiral', // already a contact → match
   'Lee,Twin,lee@acme.com,Acme,', // two contacts hold it → review
   'Front,Desk,info@acme.com,Acme,', // only a shared address → review
-  'Ada,L.,ADA@engines.io,Engines,', // repeats row 1 → duplicate
+  'Ada,Lovelace,ADA@engines.io,Engines,', // repeats the same identity → duplicate
   'Bad,Mail,not-an-email,,', // invalid
   ',,,,', // nothing to identify a person → invalid
   'Charles,Babbage,,Engines,', // no email → create

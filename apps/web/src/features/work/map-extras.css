@@ -1,0 +1,43 @@
+.work-nub {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--ink);
+  border-radius: 50%;
+  cursor: crosshair;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity var(--motion-fade);
+}
+
+.work-node:hover .work-nub, .work-nub.is-connecting, .work-map.is-connecting-mode .work-node:hover .work-nub {
+  opacity: 1;
+}
+
+.work-nub[data-pos="top"] { top: -6px; left: calc(50% - 6px); }
+.work-nub[data-pos="right"] { top: calc(50% - 6px); right: -6px; }
+.work-nub[data-pos="bottom"] { bottom: -6px; left: calc(50% - 6px); }
+.work-nub[data-pos="left"] { top: calc(50% - 6px); left: -6px; }
+
+.map-world { pointer-events: none; }
+.map-world .work-node { pointer-events: auto; }
+.map-world .work-node::before { content: ''; position: absolute; inset: 0; min-width: var(--node-min-hit); min-height: var(--node-min-hit); }
+.map-world .work-node input { position: relative; }
+.map-world .work-nub { transform: scale(var(--map-handle-scale)); }
+.map-world .work-resize { transform: scale(var(--map-handle-scale)); transform-origin: bottom right; opacity: 0; }
+.map-world .work-node[data-selected] .work-resize,
+.map-world .work-node:hover .work-resize { opacity: 1; }
+.map-world .work-node[data-selected] .work-nub { opacity: 1; }
+.map-world .work-edges line { vector-effect: non-scaling-stroke; }
+.map-viewport-controls { display: flex; flex-direction: column; gap: 6px; margin-top: 20px; }
+.map-viewport-controls button { background: transparent; border: 1px solid var(--line); color: var(--ink); padding: 6px; cursor: pointer; font: 10px var(--mono); }
+.map-viewport-controls button:disabled { opacity: .4; cursor: default; }
+.map-viewport-controls span { color: var(--muted); font: 9px/1.6 var(--mono); }
+.map-world[data-tiny] .work-node input,
+.map-world[data-tiny] .work-edges text { visibility: hidden; }
+/* At overview scale reveal controls only on the node being approached. */
+.map-world[data-tiny] .work-node[data-selected]:not(:hover) .work-nub,
+.map-world[data-tiny] .work-node[data-selected]:not(:hover) .work-resize { opacity: 0; pointer-events: none; }
+.map-world .work-node { border-width: var(--map-stroke); }
+.map-world { --map-handle-scale: 1; --map-outline: 2px; --map-stroke: 1px; --node-min-hit: 12px; }
+.map-world .work-node { box-sizing: border-box; }

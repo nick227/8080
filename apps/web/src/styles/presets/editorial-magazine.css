@@ -1,0 +1,65 @@
+/* Editorial Magazine — Porcelain paper, oxblood rules, book typography, and deliberate editorial spacing. */
+[data-theme="editorial-magazine"] {
+  --color-scheme: light;
+  --bg: #fbf8f1;
+  --panel: #fffef9;
+  --ink: #25201b;
+  --muted: #6d6257;
+  --line: #c9bbaa;
+  --signal: #8e2337;
+  --danger: #a02121;
+  --surface-deep: #eee8dc;
+  --surface-subtle: #fbf8f1;
+  --surface-tile: #fffef9;
+  --surface-desk: #eee8dc;
+  --surface-active: #e9ded0;
+  --sans: "Helvetica Neue", Arial, sans-serif;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --content-font: Baskerville, Iowan Old Style, "Palatino Linotype", "Book Antiqua", Palatino, serif;
+  --form-error-color: var(--danger);
+  --button-font: var(--sans);
+  --button-text-transform: uppercase;
+  --button-tracking: 0.05em;
+  --form-label-transform: none;
+  --form-label-tracking: 0.02em;
+  --input-bg: var(--panel);
+  --input-focus-bg: var(--panel);
+  --select-bg: var(--panel);
+  --button-hover-bg: #514033;
+  --button-selected-bg: var(--surface-active);
+  --button-selected-color: var(--signal);
+  --button-selected-border: var(--signal);
+  --button-pill-hover-bg: var(--signal);
+  --button-pill-hover-color: #fffef9;
+  --button-focus-color: var(--signal);
+  --input-focus-color: var(--signal);
+  --input-focus-border: var(--signal);
+  --radius: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-card: 0px;
+  --radius-pill: 0px;
+  --button-radius: 0px;
+  --button-bg: #25201b;
+  --button-color: #fffef9;
+  --button-hover-color: #fffef9;
+  --content-width-standard: 1040px;
+  --section-gap: 40px;
+  --text-title: 32px;
+  --text-display: 40px;
+  --leading-content: 1.55;
+  --paper: #fffef9;
+  --paper-ink: #25201b;
+  --button-font-size: 13px;
+  --button-height: 36px;
+  --button-height-sm: 32px;
+  --form-label-size: 12px;
+  --input-border-color: color-mix(in srgb, var(--ink) 55%, var(--panel));
+  --nav-icon-opacity: 0.75;
+  --form-label-font: var(--sans);
+  --panel-radius: 0px;
+}
+
+@media (max-width: 720px) {
+  [data-theme="editorial-magazine"] { --section-gap: 24px; }
+}

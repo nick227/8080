@@ -1,0 +1,76 @@
+/* Ultra Compact — A precise graphite workspace with tight rhythm and stable, readable labels. */
+[data-theme="ultra-compact"] {
+  --color-scheme: light;
+  --bg: #f1f3f4;
+  --panel: #ffffff;
+  --ink: #20282d;
+  --muted: #58636b;
+  --line: #b9c2c8;
+  --signal: #075e69;
+  --danger: #b22237;
+  --surface-deep: #e2e7ea;
+  --surface-subtle: #f1f3f4;
+  --surface-tile: #ffffff;
+  --surface-desk: #e2e7ea;
+  --surface-active: #d4e5e8;
+  --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --content-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --form-error-color: var(--danger);
+  --button-font: var(--mono);
+  --button-text-transform: none;
+  --button-tracking: 0;
+  --form-label-transform: none;
+  --form-label-tracking: 0.02em;
+  --input-bg: var(--panel);
+  --input-focus-bg: var(--panel);
+  --select-bg: var(--panel);
+  --button-hover-bg: #d4e5e8;
+  --button-selected-bg: var(--surface-active);
+  --button-selected-color: var(--signal);
+  --button-selected-border: var(--signal);
+  --button-pill-hover-bg: var(--signal);
+  --button-pill-hover-color: #ffffff;
+  --button-focus-color: var(--signal);
+  --input-focus-color: var(--signal);
+  --input-focus-border: var(--signal);
+  --text-label: 11px;
+  --text-body: 13px;
+  --text-base: 12px;
+  --text-lg: 14px;
+  --text-title: 24px;
+  --radius: 2px;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-card: 4px;
+  --button-radius: 2px;
+  --button-bg: #e2e7ea;
+  --section-gap: 16px;
+  --content-width-standard: 1280px;
+  --content-width-wide: 1440px;
+  --chat-panel-width: 320px;
+  --panel-width: 288px;
+  --tracking-caps: 0.02em;
+  --leading-body: 1.35;
+  --button-font-size: 12px;
+  --button-height: 28px;
+  --button-height-sm: 24px;
+  --form-label-size: 11px;
+  --input-border-color: color-mix(in srgb, var(--ink) 55%, var(--panel));
+  --nav-icon-opacity: 0.75;
+  --textarea-min-height: 96px;
+  --form-gap: 10px;
+}
+
+/* Keep density presets overridable by data-density. */
+:where([data-theme="ultra-compact"]) { --density: 0.75; }
+
+@media (max-width: 720px) {
+  [data-theme="ultra-compact"] {
+    --button-height: 44px;
+    --button-height-sm: 44px;
+    --button-font-size: 13px;
+    --input-font-size: 16px;
+    --input-height: 44px;
+  }
+}

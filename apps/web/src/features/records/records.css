@@ -954,15 +954,15 @@
   overflow: auto;
   flex: 1;
 }
-.record-import {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  min-height: min(70vh, 640px);
+/* Same slideout shell as Add entity: record-form + record-form-fields + footer. */
+.record-import.record-form {
+  min-height: 0;
 }
 .record-import-steps {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg) 0;
   font-family: var(--mono);
   font-size: var(--text-label);
   letter-spacing: var(--tracking-label);
@@ -976,19 +976,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  flex: 1;
-  min-height: 0;
 }
-.record-import-panel textarea {
-  width: 100%;
-  min-height: 12rem;
-  resize: vertical;
-}
-.record-import-panel footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-sm);
-  margin-top: auto;
+.record-import-panel > p {
+  margin: 0;
 }
 .record-import-map {
   width: 100%;
@@ -998,9 +988,13 @@
 .record-import-map th,
 .record-import-map td {
   text-align: left;
-  padding: var(--space-xs) var(--space-sm);
+  padding: var(--space-xs) 0;
   border-bottom: var(--line-width) solid var(--line);
   vertical-align: middle;
+}
+.record-import-map th:not(:last-child),
+.record-import-map td:not(:last-child) {
+  padding-right: var(--space-sm);
 }
 .record-import-counts,
 .record-import-filters {
@@ -1013,9 +1007,6 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  overflow: auto;
-  flex: 1;
-  min-height: 0;
   border: var(--line-width) solid var(--line);
 }
 .record-import-rows li {
@@ -1024,6 +1015,9 @@
   gap: var(--space-2xs);
   padding: var(--space-sm);
   border-bottom: var(--line-width) solid var(--line);
+}
+.record-import-rows li:last-child {
+  border-bottom: 0;
 }
 .record-import-resolve {
   display: flex;
@@ -1034,4 +1028,5 @@
 .record-file input[type='file'] {
   display: block;
   margin-top: var(--space-2xs);
+  width: 100%;
 }

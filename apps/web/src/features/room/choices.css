@@ -1,20 +1,24 @@
 /* Bot message choices (doc/12 §4) — one mono set, hairline frames, signal for the answer. */
-.room-choice { margin-top: var(--space-control, 10px); }
-.room-choice-options { display: flex; flex-wrap: wrap; gap: var(--space-sm, 8px); }
+.room-choice { margin-top: var(--space-control); }
+.room-choice-options { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
 .room-choice-options button {
-  min-height: var(--control-size, 32px);
-  padding: var(--space-1) var(--space-2);
-  border: var(--line-width) solid var(--line);
-  font-family: var(--mono);
-  font-size: var(--text-label, 11px);
-  letter-spacing: var(--tracking-caps, 0.12em);
-  text-transform: uppercase;
-  color: var(--ink);
+  min-height: var(--button-height);
+  padding: var(--button-padding-y) var(--button-padding-x);
+  border: var(--button-border-width) var(--button-border-style) var(--button-border-color);
+  font-family: var(--button-font);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-tracking);
+  text-transform: var(--button-text-transform);
+  color: var(--button-color);
   transition: border-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out);
+  background: var(--button-bg);
+  border-radius: var(--button-radius);
+  font-weight: var(--button-font-weight);
+  box-shadow: var(--button-shadow);
 }
 .room-choice[data-state="open"] .room-choice-options button:not(:disabled):hover,
-.room-choice-options button:focus-visible { border-color: var(--ink); }
-.room-choice-options button[aria-pressed="true"] { border-color: var(--signal); color: var(--signal); }
+.room-choice-options button:focus-visible { border-color: var(--button-hover-border); }
+.room-choice-options button[aria-pressed="true"] { border-color: var(--button-selected-border); color: var(--button-selected-color); }
 .room-choice-options button:disabled { cursor: default; opacity: 1; } /* the global .35 would hide the answer */
 .room-choice:not([data-state="open"]) .room-choice-options button[aria-pressed="false"],
 .room-choice[aria-busy] .room-choice-options button[aria-pressed="false"] { opacity: 0.4; }
@@ -22,8 +26,8 @@
 .room-choice-note {
   margin: var(--space-1) 0 0;
   font-family: var(--mono);
-  font-size: var(--text-label, 11px);
-  letter-spacing: var(--tracking-label, 0.08em);
+  font-size: var(--text-label);
+  letter-spacing: var(--tracking-label);
   color: var(--muted);
 }
 .room-choice-note[data-error] { color: var(--danger); }

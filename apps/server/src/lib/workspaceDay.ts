@@ -45,7 +45,7 @@ function offsetMs(date: Date, timeZone: string) {
   return asUtc - date.getTime()
 }
 
-function wallTimeToUtc(localIso: string, timeZone: string) {
+export function wallTimeToUtc(localIso: string, timeZone: string) {
   const [date = '', time = ''] = localIso.split('T')
   const [year = 0, month = 1, day = 1] = date.split('-').map(Number)
   const [hour = 0, minute = 0, second = 0] = time.split(':').map(Number)

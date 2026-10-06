@@ -11,6 +11,7 @@ import { registerActivityFlow } from './activityEvent'
 import { COMPANY_PROFILE, companyProfileFlow, extract, generate, startOffer, startRun, textAnswer } from '../bots/flows/companyProfile'
 import { PROFILE_FIX, profileFixFlow, profileFixText } from '../bots/flows/profileFix'
 import { NOTE_FLOW, noteFlow, noteText } from '../bots/flows/noteToCrm'
+import { SHEET_FLOW, sheetFlow, sheetText } from '../bots/flows/sheets'
 import './ProposalService' // proposal kinds + card flow
 
 export const HOST_HANDLE = 'chatbot'
@@ -23,7 +24,7 @@ const memberWelcome = (name: string, userId: string): FlowSay => ({
 
 const welcomeFlow: ChoiceFlow = {
   advance: () => [{
-    text: 'I welcome everyone who joins, and I write documents from the company profile once the workspace owner has set it up. What I do here, everyone can see.',
+    text: 'I welcome everyone who joins, and I write documents from the company profile once the workspace owner has set it up. Type “sheet” for a spreadsheet from your contacts or inventory, or “note:” followed by a note about a contact. What I do here, everyone can see.',
   }],
 }
 
@@ -109,7 +110,10 @@ export class WorkspaceHost {
     const bot = await hostBot()
     if (!bot) return
     if (!advanced) {
-      // Notes first ("note: …" or a waiting draft's name), then "fix a fact".
+      // Sheets ("sheet", "sheet: …"), then notes ("note: …" or a waiting draft's
+      // name), then "fix a fact".
+      const sheet = await sheetText({ roomId: e.roomId, actorId: e.actorId, text: e.text })
+      if (sheet) { if (sheet.length) await postSays(bot.userId, e.roomId, e.chat, SHEET_FLOW, sheet); return }
       const note = await noteText({ roomId: e.roomId, actorId: e.actorId, text: e.text })
       if (note) { if (note.length) await postSays(bot.userId, e.roomId, e.chat, NOTE_FLOW, note); return }
       const fix = await profileFixText({ roomId: e.roomId, itemId: e.itemId, actorId: e.actorId, text: e.text })
@@ -138,6 +142,7 @@ export function startWorkspaceHost() {
     registerChoiceFlow(WELCOME, welcomeFlow),
     registerChoiceFlow(PROFILE_FIX, profileFixFlow),
     registerChoiceFlow(NOTE_FLOW, noteFlow),
+    registerChoiceFlow(SHEET_FLOW, sheetFlow),
     registerActivityFlow(),
     events.on('workspace.member.activated', (e) => { void track(workspaceHost.join(e.workspaceId, e.userId, e.memberId)) }),
     events.on('item.created', (e) => { void track(workspaceHost.onItem(e)) }),

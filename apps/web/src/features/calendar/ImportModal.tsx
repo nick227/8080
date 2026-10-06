@@ -83,8 +83,8 @@ export function ImportModal({ mode, day, onClose, onImport }: {
           </label>
           <p className="cal-noon">
             {list
-              ? `Commas or new lines. Each task is added at 12:00 PM on ${dayTitle(day)}.`
-              : 'Needs title and date columns. time and status are optional. Every row must be valid.'}
+              ? `Commas or new lines.`
+              : 'Needs title, date and time columns.'}
           </p>
           {error && <p className="cal-error" role="alert">{error}</p>}
           <div className="cal-actions">

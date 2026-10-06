@@ -21,11 +21,34 @@ export type ImportAdapter = {
   noun: string
   fields: ImportFieldOption[]
   optionsLabel?: string
-  preview: (workspaceId: string, csv: string, filename: string, mapping?: Record<string, string>, options?: Record<string, string>) => Promise<ImportBatch>
-  remap: (workspaceId: string, importId: string, mapping: Record<string, string>, options?: Record<string, string>) => Promise<ImportBatch>
-  rows: (workspaceId: string, importId: string, proposal?: ImportProposal) => Promise<{ data: ImportRow[]; complete: boolean }>
-  resolve: (workspaceId: string, importId: string, rowId: string, action: 'create' | 'use' | 'skip', matchId?: string) => Promise<ImportBatch>
+  preview: (
+    workspaceId: string,
+    csv: string,
+    filename: string,
+    mapping?: Record<string, string>,
+    options?: Record<string, string>,
+  ) => Promise<ImportBatch>
+  remap: (
+    workspaceId: string,
+    importId: string,
+    mapping: Record<string, string>,
+    options?: Record<string, string>,
+  ) => Promise<ImportBatch>
+  rows: (
+    workspaceId: string,
+    importId: string,
+    proposal?: ImportProposal,
+  ) => Promise<{ data: ImportRow[]; complete: boolean }>
+  resolve: (
+    workspaceId: string,
+    importId: string,
+    rowId: string,
+    action: 'create' | 'use' | 'skip',
+    matchId?: string,
+  ) => Promise<ImportBatch>
   commit: (workspaceId: string, importId: string) => Promise<ImportBatch>
+  get: (workspaceId: string, importId: string) => Promise<ImportBatch>
+  candidates: (row: ImportRow) => { id: string; label: string }[]
   cancel: (workspaceId: string, importId: string) => Promise<ImportBatch>
   matchLabel: (row: ImportRow) => string
   matchId: (row: ImportRow) => string | null
@@ -52,7 +75,9 @@ const INVENTORY_FIELDS: ImportFieldOption[] = [
   { id: 'availability', label: 'Availability' },
 ]
 
-async function allRows(load: (cursor?: string) => Promise<{ data: ImportRow[]; meta: { nextCursor?: string | null } }>) {
+async function allRows(
+  load: (cursor?: string) => Promise<{ data: ImportRow[]; meta: { nextCursor?: string | null } }>,
+) {
   const data: ImportRow[] = []
   let cursor: string | undefined
   for (;;) {
@@ -66,6 +91,12 @@ async function allRows(load: (cursor?: string) => Promise<{ data: ImportRow[]; m
 
 const contactImportAdapter: ImportAdapter = {
   kind: 'contacts',
+  get: contactImportsApi.get,
+  candidates: (row) =>
+    (row as ContactImportRow).candidates.map((c) => ({
+      id: c.id,
+      label: `${c.displayName}${c.primaryEmail ? ` · ${c.primaryEmail}` : ''}`,
+    })),
   title: 'Import contacts',
   noun: 'contact',
   fields: CONTACT_FIELDS,
@@ -88,13 +119,19 @@ const contactImportAdapter: ImportAdapter = {
   cancel: (workspaceId, importId) => contactImportsApi.cancel(workspaceId, importId),
   matchLabel: (row) => {
     const contact = (row as ContactImportRow).contact ?? (row as ContactImportRow).candidates[0]
-    return contact ? `${contact.displayName}${contact.primaryEmail ? ` · ${contact.primaryEmail}` : ''}` : 'Existing contact'
+    return contact
+      ? `${contact.displayName}${contact.primaryEmail ? ` · ${contact.primaryEmail}` : ''}`
+      : 'Existing contact'
   },
-  matchId: (row) => (row as ContactImportRow).proposedContactId ?? (row as ContactImportRow).candidates[0]?.id ?? null,
+  matchId: (row) =>
+    (row as ContactImportRow).proposedContactId ?? (row as ContactImportRow).candidates[0]?.id ?? null,
 }
 
 const inventoryImportAdapter: ImportAdapter = {
   kind: 'inventory',
+  get: inventoryImportsApi.get,
+  candidates: (row) =>
+    (row as InventoryImportRow).candidates.map((item) => ({ id: item.id, label: item.name })),
   title: 'Import inventory',
   noun: 'item',
   fields: INVENTORY_FIELDS,
@@ -139,4 +176,17 @@ export const PROPOSAL_LABEL: Record<ImportProposal, string> = {
   review: 'Needs review',
   duplicate: 'Duplicate',
   invalid: 'Invalid',
+}
+
+export function importReason(code: string) {
+  const reasons: Record<string, string> = {
+    SHARED_FILE_EMAIL:
+      'This email is shared or belongs to different people in this file. Choose whether to create a separate contact.',
+    ITEM_CHANGED: 'This item changed since preview. Start a new import to review its latest values.',
+    UPDATED: 'Mapped non-empty fields were updated.',
+    MATCHED_AT_COMMIT: 'An existing record was found during import and left unchanged.',
+    DUPLICATE_ROW: 'This row follows an earlier row in the file.',
+    SKIPPED: 'Skipped by your choice.',
+  }
+  return reasons[code] ?? code.toLowerCase().replaceAll('_', ' ')
 }

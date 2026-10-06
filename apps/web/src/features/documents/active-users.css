@@ -1,0 +1,57 @@
+.active-users-widget {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.active-users-bank {
+  display: flex;
+  align-items: center;
+}
+
+.active-user-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--surface-deep);
+  display: grid;
+  place-items: center;
+  font-family: var(--sans);
+  font-size: var(--text-label);
+  font-weight: 600;
+  border: var(--line-width) solid var(--line);
+  margin-left: -4px;
+  position: relative;
+}
+
+.active-user-avatar:first-child {
+  margin-left: 0;
+}
+
+.active-user-more {
+  background: transparent;
+  color: var(--muted);
+  border: var(--line-width) dashed var(--muted);
+  cursor: pointer;
+}
+
+.active-user-more:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.active-user-collapse {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0;
+}
+
+.active-user-collapse:hover {
+  color: var(--ink);
+}

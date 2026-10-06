@@ -1,0 +1,203 @@
+/* Control theme API. Defaults are aliases, so palette/density overrides flow
+   through. Set overrides on the same theme/density boundary as their inputs. */
+:where(:root, [data-theme], [data-density]) {
+  /* Buttons: shape, spacing, typography, and visual states. */
+  --button-bg: transparent;
+  --button-color: var(--ink);
+  --button-border-color: var(--line);
+  --button-border-width: var(--line-width);
+  --button-border-style: solid;
+  --button-radius: var(--radius);
+  --button-height: var(--control-size);
+  --button-height-sm: var(--control-size-sm);
+  --button-padding-x: var(--space-2);
+  --button-padding-y: var(--space-1);
+  --button-font: var(--mono);
+  --button-font-size: var(--text-label);
+  --button-font-weight: var(--weight-normal);
+  --button-tracking: var(--tracking-caps);
+  --button-text-transform: uppercase;
+  --button-shadow: none;
+  --button-line-height: normal;
+  --button-gap: var(--space-sm);
+  --button-motion: var(--motion-fast);
+  --button-easing: var(--ease-out);
+  --button-hover-bg: var(--button-bg);
+  --button-hover-color: var(--button-color);
+  --button-hover-border: var(--ink);
+  --button-active-bg: var(--button-hover-bg);
+  --button-active-color: var(--button-hover-color);
+  --button-secondary-bg: var(--panel);
+  --button-secondary-color: var(--ink);
+  --button-secondary-border: var(--line);
+  --button-secondary-hover-bg: var(--surface-active);
+  --button-secondary-hover-color: var(--ink);
+  --button-quiet-bg: transparent;
+  --button-quiet-color: var(--ink);
+  --button-selected-bg: var(--button-bg);
+  --button-selected-color: var(--signal);
+  --button-selected-border: var(--signal);
+  --button-disabled-bg: var(--button-bg);
+  --button-disabled-color: var(--button-color);
+  --button-disabled-border: var(--button-border-color);
+  --button-disabled-opacity: var(--opacity-disabled);
+  --button-focus-color: var(--focus-color);
+  --button-focus-width: var(--line-width-strong);
+  --button-focus-offset: var(--focus-offset);
+  --button-pill-font-size: var(--text-md);
+  --button-pill-font-weight: var(--weight-bold);
+  --button-pill-tracking: var(--tracking-label);
+  --button-pill-radius: var(--radius-pill);
+  --button-pill-padding-x: var(--space-lg);
+  --button-pill-padding-y: var(--space-2);
+  --button-pill-hover-bg: var(--ink);
+  --button-pill-hover-color: var(--bg);
+
+  /* Text fields, textareas, and selects. */
+  --input-bg: transparent;
+  --input-color: var(--ink);
+  --input-placeholder-color: var(--muted);
+  --input-border-color: var(--line);
+  --input-border-width: var(--line-width);
+  --input-border-style: solid;
+  --input-radius: var(--radius);
+  --input-height: var(--control-size);
+  --input-padding-x: var(--space-control);
+  --input-padding-y: var(--space-sm);
+  --input-font: var(--sans);
+  --input-font-size: var(--text-body);
+  --input-font-weight: var(--weight-normal);
+  --input-line-height: var(--leading-body);
+  --input-shadow: none;
+  --input-hover-border: var(--ink-medium);
+  --input-focus-border: var(--ink);
+  --input-focus-bg: var(--input-bg);
+  --input-focus-color: var(--focus-color);
+  --input-focus-width: var(--line-width-strong);
+  --input-focus-offset: var(--focus-offset-tight);
+  --input-disabled-bg: var(--input-bg);
+  --input-disabled-color: var(--muted);
+  --input-disabled-opacity: var(--opacity-disabled);
+  --input-readonly-bg: var(--surface-placeholder);
+  --input-invalid-border: var(--danger);
+  --input-invalid-focus-color: var(--danger);
+  --input-underline-padding-y: var(--space-control);
+  --input-underline-font-size: var(--text-lg);
+  --input-chat-font: var(--content-font);
+  --input-chat-font-size: var(--text-lg);
+  --select-bg: var(--panel);
+  --select-font: var(--mono);
+  --select-font-size: var(--text-label);
+  --select-radius: var(--radius-sm);
+  --textarea-min-height: 140px;
+  --textarea-resize: vertical;
+
+  /* Form layout, labels, supporting text, and actions. */
+  --form-gap: var(--space-2);
+  --form-field-gap: var(--space-1);
+  --form-actions-gap: var(--space-sm);
+  --form-label-color: var(--muted);
+  --form-label-font: var(--mono);
+  --form-label-size: var(--text-label);
+  --form-label-weight: var(--weight-normal);
+  --form-label-tracking: var(--tracking-caps);
+  --form-label-transform: uppercase;
+  --form-help-color: var(--muted);
+  --form-help-size: var(--text-sm);
+  --form-error-color: var(--signal);
+}
+
+/* Opt-in recipes also give future controls the same API. No blanket styling of
+   hidden file inputs, checkboxes, media instruments, or document editors. */
+
+.ui-button {
+  gap: var(--button-gap); line-height: var(--button-line-height);
+  background: var(--button-bg); color: var(--button-color); border-radius: var(--button-radius);
+  font-family: var(--button-font); font-size: var(--button-font-size); font-weight: var(--button-font-weight);
+  letter-spacing: var(--button-tracking); text-transform: var(--button-text-transform); box-shadow: var(--button-shadow);
+  min-height: var(--button-height);
+  padding: var(--button-padding-y) var(--button-padding-x);
+  border: var(--button-border-width) var(--button-border-style) var(--button-border-color);
+}
+:is(.ui-button, .cal-btn, .work-bar .work-add, .room-choice-options button, .account-submit, .desk-agent form button, .room-chatbox-row > button):not(:disabled):hover {
+  background: var(--button-hover-bg); color: var(--button-hover-color); border-color: var(--button-hover-border);
+}
+:is(.ui-button, .cal-btn, .work-bar .work-add, .room-choice-options button, .lobby-pill, .account-submit, .desk-agent form button, .room-chatbox-row > button):not(:disabled):active {
+  background: var(--button-active-bg); color: var(--button-active-color);
+}
+:is(.ui-button, .cal-btn, .work-bar .work-add, .room-choice-options button)[aria-pressed="true"] {
+  background: var(--button-selected-bg); color: var(--button-selected-color); border-color: var(--button-selected-border);
+}
+:is(.ui-button, .cal-btn, .work-bar .work-add, .room-choice-options button, .lobby-pill, .account-submit, .desk-agent form button, .room-chatbox-row > button):focus-visible {
+  outline: var(--button-focus-width) solid var(--button-focus-color); outline-offset: var(--button-focus-offset);
+}
+:is(.ui-button, .cal-btn, .work-bar .work-add, .lobby-pill, .account-submit, .desk-agent form button, .room-chatbox-row > button):disabled {
+  background: var(--button-disabled-bg); color: var(--button-disabled-color); border-color: var(--button-disabled-border); opacity: var(--button-disabled-opacity);
+}
+/* Answer choices keep their explicit completed-answer opacity. */
+
+.ui-input {
+  background: var(--input-bg); color: var(--input-color); border-radius: var(--input-radius);
+  font-family: var(--input-font); font-size: var(--input-font-size); font-weight: var(--input-font-weight); box-shadow: var(--input-shadow);
+  min-height: var(--input-height); padding: var(--input-padding-y) var(--input-padding-x);
+  border: var(--input-border-width) var(--input-border-style) var(--input-border-color);
+  line-height: var(--input-line-height);
+}
+textarea.ui-input { min-height: var(--textarea-min-height); resize: var(--textarea-resize); }
+:is(.ui-input, .field, .cal-field input, .cal-field select, .cal-field textarea, .work-compose input, .work-compose textarea, .work-search input, .work-bar input, .desk-agent input, .room-chatbox textarea, .theme-switcher select)::placeholder { color: var(--input-placeholder-color); opacity: 1; }
+:is(.ui-input, .field, .cal-field input, .cal-field select, .cal-field textarea, .work-compose input, .work-compose textarea, .work-search input, .work-bar input, .desk-agent input, .room-chatbox textarea, .theme-switcher select):not(:disabled):hover { border-color: var(--input-hover-border); }
+:is(.ui-input, .field, .cal-field input, .cal-field select, .cal-field textarea, .work-compose input, .work-compose textarea, .work-search input, .work-bar input, .desk-agent input, .room-chatbox textarea, .theme-switcher select):focus-visible {
+  background: var(--input-focus-bg); border-color: var(--input-focus-border);
+  outline: var(--input-focus-width) solid var(--input-focus-color); outline-offset: var(--input-focus-offset);
+}
+:is(.ui-input, .field, .cal-field input, .cal-field select, .cal-field textarea, .work-compose input, .work-compose textarea, .work-search input, .work-bar input, .desk-agent input, .room-chatbox textarea, .theme-switcher select)[readonly] { background: var(--input-readonly-bg); }
+:is(.ui-input, .field, .cal-field input, .cal-field select, .cal-field textarea, .work-compose input, .work-compose textarea, .work-search input, .work-bar input, .desk-agent input, .room-chatbox textarea, .theme-switcher select):disabled { background: var(--input-disabled-bg); color: var(--input-disabled-color); opacity: var(--input-disabled-opacity); cursor: not-allowed; }
+:is(.ui-input, .field, .cal-field input, .cal-field select, .cal-field textarea, .work-compose input, .work-compose textarea, .work-search input, .work-bar input, .desk-agent input, .room-chatbox textarea, .theme-switcher select):is([aria-invalid="true"], :user-invalid) {
+  border-color: var(--input-invalid-border); outline-color: var(--input-invalid-focus-color);
+}
+.ui-form { display: flex; flex-direction: column; gap: var(--form-gap); }
+.ui-field { display: flex; flex-direction: column; gap: var(--form-field-gap); }
+:is(.ui-label, .cal-field span, .account-field, .work-field span) {
+  color: var(--form-label-color); font-family: var(--form-label-font); font-size: var(--form-label-size);
+  font-weight: var(--form-label-weight); letter-spacing: var(--form-label-tracking); text-transform: var(--form-label-transform);
+}
+.ui-form-actions { display: flex; flex-wrap: wrap; gap: var(--form-actions-gap); }
+.ui-form-help { color: var(--form-help-color); font-size: var(--form-help-size); }
+.ui-form-error { color: var(--form-error-color); }
+
+:is(.ui-button, .cal-btn, .work-bar .work-add, .room-choice-options button, .lobby-pill, .account-submit) {
+  transition: background-color var(--button-motion) var(--button-easing), color var(--button-motion) var(--button-easing), border-color var(--button-motion) var(--button-easing), box-shadow var(--button-motion) var(--button-easing);
+}
+
+/* Secondary actions never inherit a primary fill/shadow. Explicit attributes let
+   future controls choose a role without needing theme-specific selectors. */
+:is([data-button="secondary"], .cal-btn:not([data-primary]):not([data-button="primary"]):not([data-button="quiet"]), .work-bar .work-add:not([data-button="primary"]):not([data-button="quiet"])) {
+  --button-bg: var(--button-secondary-bg);
+  --button-color: var(--button-secondary-color);
+  --button-border-color: var(--button-secondary-border);
+  --button-hover-bg: var(--button-secondary-hover-bg);
+  --button-hover-color: var(--button-secondary-hover-color);
+  --button-active-bg: var(--button-secondary-hover-bg);
+  --button-active-color: var(--button-secondary-hover-color);
+  --button-disabled-bg: var(--button-secondary-bg);
+  --button-disabled-color: var(--button-secondary-color);
+  --button-shadow: none;
+}
+[data-button="quiet"] {
+  --button-bg: var(--button-quiet-bg);
+  --button-color: var(--button-quiet-color);
+  --button-border-color: transparent;
+  --button-hover-bg: var(--button-secondary-hover-bg);
+  --button-hover-color: var(--button-secondary-hover-color);
+  --button-active-bg: var(--button-secondary-hover-bg);
+  --button-active-color: var(--button-secondary-hover-color);
+  --button-disabled-bg: var(--button-quiet-bg);
+  --button-disabled-color: var(--button-quiet-color);
+  --button-shadow: none;
+}
+/* Touch targets grow independently of compact desktop typography. */
+@media (pointer: coarse) {
+  :is(.ui-button, .cal-btn, .work-bar .work-add, .room-choice-options button, .account-submit) {
+    min-height: max(44px, var(--button-height));
+  }
+}

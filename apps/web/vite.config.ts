@@ -88,7 +88,7 @@ const MODNET_PATH = `models/modnet-${MODNET.sha256.slice(0, 12)}.onnx`
 const requireModel = () => !!(process.env.CI || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_ENVIRONMENT_NAME || process.env.VBG_REQUIRE_MODEL === '1')
 
 function modnetModel(): Plugin {
-  const cacheFile = join(__dirname, 'node_modules', '.cache', 'models', `modnet-${MODNET.sha256.slice(0, 12)}.onnx`)
+  const cacheFile = join(import.meta.dirname, 'node_modules', '.cache', 'models', `modnet-${MODNET.sha256.slice(0, 12)}.onnx`)
   let pending: Promise<string | null> | null = null
   const verified = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex') === MODNET.sha256
   const ensure = () => (pending ??= (async () => {
@@ -136,7 +136,7 @@ function devModels(): Plugin {
     configureServer(server) {
       server.middlewares.use('/__dev-models/', (req, res, next) => {
         const name = (req.url ?? '').split('?')[0]!.replace(/^\//, '')
-        const file = join(__dirname, '.dev-models', name)
+        const file = join(import.meta.dirname, '.dev-models', name)
         if (!/^[\w.-]+\.onnx$/.test(name) || !existsSync(file)) return next()
         res.setHeader('Content-Type', 'application/octet-stream')
         createReadStream(file).pipe(res)
