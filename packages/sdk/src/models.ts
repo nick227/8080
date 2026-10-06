@@ -58,6 +58,13 @@ export type CreateWorkspaceInviteInput = S['CreateWorkspaceInviteInput']
 export type CreateTeamInput = S['CreateTeamInput']
 export type UpdateTeamInput = S['UpdateTeamInput']
 
+// Inventory (what we sell) and interests (which contact wants which item)
+export type InventoryItem = S['InventoryItem']
+export type CreateInventoryInput = S['CreateInventoryInput']
+export type UpdateInventoryInput = S['UpdateInventoryInput']
+export type Interest = S['Interest']
+export type LeadStatus = S['LeadStatus']
+
 // Contacts, accounts, tags, notes, links (doc/09 slice 1)
 export type Contact = S['Contact']
 export type ContactRef = S['ContactRef']

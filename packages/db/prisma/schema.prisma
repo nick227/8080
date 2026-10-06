@@ -532,6 +532,8 @@ model Workspace {
   inboxItems       InboxItem[]
   activityEvents   ActivityEvent[]
   composes         Compose[]
+  inventories      Inventory[]
+  interests        Interest[]
   channel          WorkspaceChannel?
   workflowRuns     WorkflowRun[]
   companyProfile   CompanyProfile?
@@ -828,6 +830,10 @@ model Contact {
   createdById      String?
   // Set on the losing contact of a merge; its URL resolves to the winner
   mergedIntoId     String?
+  // Sales pipeline (optional); distinct from RecordStatus (active/archived).
+  leadStatus       LeadStatus?  @default(new)
+  leadSource       String?      @db.VarChar(80)
+  nextFollowUp     DateTime?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   deletedAt        DateTime?
@@ -846,6 +852,7 @@ model Contact {
   links       RecordLink[]
   subjects    ActivitySubject[]
   composes    Compose[]
+  interests   Interest[]
 
   @@unique([workspaceId, externalProvider, externalId])
   @@index([workspaceId, displayName, id])
@@ -853,6 +860,56 @@ model Contact {
   @@index([workspaceId, lastActivityAt])
   @@index([mergedIntoId])
   @@index([importBatchId])
+}
+
+// Sales pipeline stage for a contact (not RecordStatus).
+enum LeadStatus {
+  new
+  contacting
+  connected
+  qualified
+  customer
+  lost
+}
+
+// What the workspace sells. Soft-archive via status; hard-delete is admin-only.
+model Inventory {
+  id           String       @id @default(cuid())
+  workspaceId  String
+  name         String       @db.VarChar(160)
+  sku          String?      @db.VarChar(80)
+  description  String?      @db.Text
+  price        Float        @default(0)
+  category     String?      @db.VarChar(80)
+  status       RecordStatus @default(active)
+  quantity     Int? // null = service / catalog entry with no stock count
+  availability Boolean      @default(true)
+  imageUrl     String?      @db.VarChar(255)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  interests Interest[]
+
+  @@unique([workspaceId, sku])
+  @@index([workspaceId, name])
+}
+
+// A contact's interest in one inventory item (idempotent per contact+item).
+model Interest {
+  id          String   @id @default(cuid())
+  workspaceId String
+  contactId   String
+  inventoryId String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, contactId, inventoryId])
+  @@index([workspaceId, contactId])
+  @@index([workspaceId, inventoryId])
 }
 
 model ContactPoint {

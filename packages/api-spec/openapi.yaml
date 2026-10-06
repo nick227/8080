@@ -1718,6 +1718,165 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/contacts/{contactId}/interests:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ContactId'
+    get:
+      operationId: listContactInterests
+      summary: What a contact is interested in
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InterestList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: addContactInterest
+      summary: Note an item a contact is interested in (idempotent)
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddInterestInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InterestResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/contacts/{contactId}/interests/{inventoryId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ContactId'
+      - $ref: '#/components/parameters/InventoryId'
+    delete:
+      operationId: removeContactInterest
+      summary: Drop an interest
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/inventory:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listInventory
+      summary: What the workspace sells, by name
+      description: |
+        `q` matches the name (contains) or the code (prefix). Defaults to active items.
+      tags: [workspaces]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: q
+          schema: { type: string, minLength: 1, maxLength: 200 }
+        - in: query
+          name: category
+          schema: { type: string, minLength: 1, maxLength: 80 }
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/RecordStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedInventory' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createInventoryItem
+      summary: Add a product or service
+      description: |
+        Leave `quantity` out for a service or anything without a stock count. A repeated `sku` is 409 SKU_TAKEN.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateInventoryInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/inventory/{inventoryId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/InventoryId'
+    get:
+      operationId: getInventoryItem
+      summary: Get an item
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateInventoryItem
+      summary: Update an item
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateInventoryInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: deleteInventoryItem
+      summary: Delete an item (admins; archive it instead to keep history)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /workspaces/{workspaceId}/accounts:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -3444,6 +3603,11 @@ components:
       name: contactId
       required: true
       schema: { type: string, minLength: 1, maxLength: 64 }
+    InventoryId:
+      in: path
+      name: inventoryId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
     AccountId:
       in: path
       name: accountId
@@ -4336,6 +4500,10 @@ components:
       type: string
       enum: [active, archived]
 
+    LeadStatus:
+      type: string
+      enum: [new, contacting, connected, qualified, customer, lost]
+
     RecordOrigin:
       type: string
       enum: [manual, import, inbox, calendar, conversation, api, sync]
@@ -4538,7 +4706,7 @@ components:
 
     Contact:
       type: object
-      required: [version, id, workspaceId, firstName, lastName, displayName, title, status, ownerMemberId, teamId, primaryEmail, primaryPhone, lastActivityAt, origin, externalProvider, externalId, createdAt, updatedAt, points, accounts, tags]
+      required: [version, id, workspaceId, firstName, lastName, displayName, title, status, ownerMemberId, teamId, leadStatus, leadSource, nextFollowUp, primaryEmail, primaryPhone, lastActivityAt, origin, externalProvider, externalId, createdAt, updatedAt, points, accounts, tags]
       properties:
         version: { type: integer, minimum: 1 }
         id: { type: string }
@@ -4550,6 +4718,12 @@ components:
         status: { $ref: '#/components/schemas/RecordStatus' }
         ownerMemberId: { type: [string, 'null'] }
         teamId: { type: [string, 'null'] }
+        leadStatus:
+          oneOf:
+            - $ref: '#/components/schemas/LeadStatus'
+            - type: 'null'
+        leadSource: { type: [string, 'null'] }
+        nextFollowUp: { type: [string, 'null'], format: date-time }
         primaryEmail: { type: [string, 'null'] }
         primaryPhone: { type: [string, 'null'] }
         lastActivityAt: { type: [string, 'null'], format: date-time }
@@ -4608,6 +4782,98 @@ components:
           items: { $ref: '#/components/schemas/Contact' }
         meta: { $ref: '#/components/schemas/PaginatedMeta' }
 
+    InventoryItem:
+      type: object
+      required: [id, workspaceId, name, sku, description, price, category, status, quantity, availability, imageUrl, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        name: { type: string }
+        sku: { type: [string, 'null'] }
+        description: { type: [string, 'null'] }
+        price: { type: number }
+        category: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/RecordStatus' }
+        quantity: { type: [integer, 'null'], description: 'null = no stock count (services, catalog entries)' }
+        availability: { type: boolean }
+        imageUrl: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    InventoryResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/InventoryItem' }
+
+    PaginatedInventory:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/InventoryItem' }
+        meta: { $ref: '#/components/schemas/PaginatedMeta' }
+
+    CreateInventoryInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        sku: { type: [string, 'null'], maxLength: 80 }
+        description: { type: [string, 'null'] }
+        price: { type: number, minimum: 0 }
+        category: { type: [string, 'null'], maxLength: 80 }
+        status: { $ref: '#/components/schemas/RecordStatus' }
+        quantity: { type: [integer, 'null'], minimum: 0 }
+        availability: { type: boolean }
+        imageUrl: { type: [string, 'null'], maxLength: 255 }
+
+    UpdateInventoryInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        sku: { type: [string, 'null'], maxLength: 80 }
+        description: { type: [string, 'null'] }
+        price: { type: number, minimum: 0 }
+        category: { type: [string, 'null'], maxLength: 80 }
+        status: { $ref: '#/components/schemas/RecordStatus' }
+        quantity: { type: [integer, 'null'], minimum: 0 }
+        availability: { type: boolean }
+        imageUrl: { type: [string, 'null'], maxLength: 255 }
+
+    Interest:
+      type: object
+      required: [id, contactId, createdAt, item]
+      properties:
+        id: { type: string }
+        contactId: { type: string }
+        createdAt: { type: string, format: date-time }
+        item: { $ref: '#/components/schemas/InventoryItem' }
+
+    InterestResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Interest' }
+
+    InterestList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Interest' }
+
+    AddInterestInput:
+      type: object
+      additionalProperties: false
+      required: [inventoryId]
+      properties:
+        inventoryId: { type: string, minLength: 1, maxLength: 64 }
+
     CreateContactInput:
       type: object
       additionalProperties: false
@@ -4620,6 +4886,12 @@ components:
         status: { $ref: '#/components/schemas/RecordStatus' }
         ownerMemberId: { type: [string, 'null'], maxLength: 64 }
         teamId: { type: [string, 'null'], maxLength: 64 }
+        leadStatus:
+          oneOf:
+            - $ref: '#/components/schemas/LeadStatus'
+            - type: 'null'
+        leadSource: { type: [string, 'null'], maxLength: 80 }
+        nextFollowUp: { type: [string, 'null'], format: date-time }
         points:
           type: array
           maxItems: 20
@@ -4655,6 +4927,12 @@ components:
         status: { $ref: '#/components/schemas/RecordStatus' }
         ownerMemberId: { type: [string, 'null'], maxLength: 64 }
         teamId: { type: [string, 'null'], maxLength: 64 }
+        leadStatus:
+          oneOf:
+            - $ref: '#/components/schemas/LeadStatus'
+            - type: 'null'
+        leadSource: { type: [string, 'null'], maxLength: 80 }
+        nextFollowUp: { type: [string, 'null'], format: date-time }
         points:
           type: array
           maxItems: 20

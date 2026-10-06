@@ -1,0 +1,42 @@
+/* Inventory and Contacts desks — extends the work-* vocabulary, no new tokens. */
+.desk { overflow-y: auto; }
+.desk-bar { display: flex; align-items: center; gap: var(--space-md); padding: 0 var(--toolbar-padding-x); }
+.desk-spacer { flex: 1; }
+.desk-form { flex-wrap: wrap; }
+.desk-form .work-compose-error { flex-basis: 100%; }
+.desk-line { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 7rem 8rem auto; padding-inline: var(--toolbar-padding-x); }
+.desk-item[data-off] .work-line-title { color: var(--muted); text-decoration: line-through; }
+.desk-price { font-family: var(--mono); font-size: var(--text-label); text-align: right; color: var(--ink); }
+.desk-code { font-family: var(--mono); font-size: var(--text-label); color: var(--muted); }
+.desk-actions { display: flex; gap: var(--space-sm); justify-content: flex-end; }
+.desk-actions button, .desk-more, .desk-chip button {
+  font-family: var(--mono);
+  font-size: var(--text-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.desk-actions button:hover, .desk-actions button:focus-visible,
+.desk-more:hover, .desk-more:focus-visible,
+.desk-chip button:hover, .desk-chip button:focus-visible { color: var(--ink); }
+.desk-more { align-self: center; padding: var(--space-md); }
+
+/* Contacts as leads */
+.desk-lead { grid-template-columns: minmax(0, 1.4fr) 9rem 9rem minmax(0, 1fr) auto; }
+.desk-lead select, .desk-lead input[type="date"], .desk-panel select {
+  background: var(--input-bg);
+  border: 0;
+  border-bottom: 1px var(--input-border-style) var(--input-border-color);
+  color: var(--input-color);
+  font-family: var(--mono);
+  font-size: var(--text-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  border-radius: var(--input-radius);
+  padding: var(--space-2xs) 0;
+}
+.desk-lead[data-late] input[type="date"] { color: var(--signal); }
+.desk-lead-name { text-align: left; }
+.desk-panel { padding: var(--space-sm) var(--toolbar-padding-x) var(--space-md); border-bottom: var(--line-width) solid var(--line); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
+.desk-panel-label { font-family: var(--form-label-font); font-size: var(--form-label-size); letter-spacing: var(--form-label-tracking); text-transform: var(--form-label-transform); color: var(--form-label-color); }
+.desk-chip { display: inline-flex; gap: var(--space-xs); align-items: baseline; padding: var(--space-2xs) var(--space-sm); border: var(--line-width) solid var(--line); font-family: var(--sans); font-size: var(--text-body); color: var(--ink); }

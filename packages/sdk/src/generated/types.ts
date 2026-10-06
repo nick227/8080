@@ -1239,6 +1239,96 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/contacts/{contactId}/interests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        /** What a contact is interested in */
+        get: operations["listContactInterests"];
+        put?: never;
+        /** Note an item a contact is interested in (idempotent) */
+        post: operations["addContactInterest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/contacts/{contactId}/interests/{inventoryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Drop an interest */
+        delete: operations["removeContactInterest"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * What the workspace sells, by name
+         * @description `q` matches the name (contains) or the code (prefix). Defaults to active items.
+         */
+        get: operations["listInventory"];
+        put?: never;
+        /**
+         * Add a product or service
+         * @description Leave `quantity` out for a service or anything without a stock count. A repeated `sku` is 409 SKU_TAKEN.
+         */
+        post: operations["createInventoryItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/inventory/{inventoryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        /** Get an item */
+        get: operations["getInventoryItem"];
+        put?: never;
+        post?: never;
+        /** Delete an item (admins; archive it instead to keep history) */
+        delete: operations["deleteInventoryItem"];
+        options?: never;
+        head?: never;
+        /** Update an item */
+        patch: operations["updateInventoryItem"];
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/accounts": {
         parameters: {
             query?: never;
@@ -2336,7 +2426,7 @@ export interface components {
         };
         MessageLink: {
             /** @enum {string} */
-            type: "document";
+            type: "document" | "contact" | "compose";
             id: string;
             workspaceId: string;
             /** @description The title when the link was posted */
@@ -2673,6 +2763,8 @@ export interface components {
         };
         /** @enum {string} */
         RecordStatus: "active" | "archived";
+        /** @enum {string} */
+        LeadStatus: "new" | "contacting" | "connected" | "qualified" | "customer" | "lost";
         /**
          * @description How the record was created (not why the person showed up)
          * @enum {string}
@@ -2819,6 +2911,10 @@ export interface components {
             status: components["schemas"]["RecordStatus"];
             ownerMemberId: string | null;
             teamId: string | null;
+            leadStatus: components["schemas"]["LeadStatus"] | null;
+            leadSource: string | null;
+            /** Format: date-time */
+            nextFollowUp: string | null;
             primaryEmail: string | null;
             primaryPhone: string | null;
             /** Format: date-time */
@@ -2853,6 +2949,69 @@ export interface components {
             data: components["schemas"]["Contact"][];
             meta: components["schemas"]["PaginatedMeta"];
         };
+        InventoryItem: {
+            id: string;
+            workspaceId: string;
+            name: string;
+            sku: string | null;
+            description: string | null;
+            price: number;
+            category: string | null;
+            status: components["schemas"]["RecordStatus"];
+            /** @description null = no stock count (services, catalog entries) */
+            quantity: number | null;
+            availability: boolean;
+            imageUrl: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        InventoryResponse: {
+            data: components["schemas"]["InventoryItem"];
+        };
+        PaginatedInventory: {
+            data: components["schemas"]["InventoryItem"][];
+            meta: components["schemas"]["PaginatedMeta"];
+        };
+        CreateInventoryInput: {
+            name: string;
+            sku?: string | null;
+            description?: string | null;
+            price?: number;
+            category?: string | null;
+            status?: components["schemas"]["RecordStatus"];
+            quantity?: number | null;
+            availability?: boolean;
+            imageUrl?: string | null;
+        };
+        UpdateInventoryInput: {
+            name?: string;
+            sku?: string | null;
+            description?: string | null;
+            price?: number;
+            category?: string | null;
+            status?: components["schemas"]["RecordStatus"];
+            quantity?: number | null;
+            availability?: boolean;
+            imageUrl?: string | null;
+        };
+        Interest: {
+            id: string;
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            item: components["schemas"]["InventoryItem"];
+        };
+        InterestResponse: {
+            data: components["schemas"]["Interest"];
+        };
+        InterestList: {
+            data: components["schemas"]["Interest"][];
+        };
+        AddInterestInput: {
+            inventoryId: string;
+        };
         /** @description Needs a name, an email or a phone (400 EMPTY_CONTACT). displayName defaults to first + last name. */
         CreateContactInput: {
             firstName?: string | null;
@@ -2862,6 +3021,10 @@ export interface components {
             status?: components["schemas"]["RecordStatus"];
             ownerMemberId?: string | null;
             teamId?: string | null;
+            leadStatus?: components["schemas"]["LeadStatus"] | null;
+            leadSource?: string | null;
+            /** Format: date-time */
+            nextFollowUp?: string | null;
             points?: components["schemas"]["ContactPointInput"][];
             tagIds?: string[];
             accounts?: {
@@ -2883,6 +3046,10 @@ export interface components {
             status?: components["schemas"]["RecordStatus"];
             ownerMemberId?: string | null;
             teamId?: string | null;
+            leadStatus?: components["schemas"]["LeadStatus"] | null;
+            leadSource?: string | null;
+            /** Format: date-time */
+            nextFollowUp?: string | null;
             points?: components["schemas"]["ContactPointInput"][];
             tagIds?: string[];
             externalProvider?: string | null;
@@ -3611,6 +3778,7 @@ export interface components {
         MemberId: string;
         TeamId: string;
         ContactId: string;
+        InventoryId: string;
         AccountId: string;
         TagId: string;
         NoteId: string;
@@ -5792,6 +5960,240 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listContactInterests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterestList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addContactInterest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddInterestInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterestResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    removeContactInterest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                contactId: components["parameters"]["ContactId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listInventory: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor returned by the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                q?: string;
+                category?: string;
+                status?: components["schemas"]["RecordStatus"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedInventory"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createInventoryItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInventoryInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getInventoryItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteInventoryItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateInventoryItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateInventoryInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     listAccounts: {

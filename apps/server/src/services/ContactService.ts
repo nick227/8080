@@ -3,7 +3,7 @@ import { contactsWhere, queryHash } from './contactDataset'
 // Contacts (doc/09 §4.1). Email is a match signal, never a unique key (D2):
 // create never refuses a duplicate — it reports possible ones — and duplicates
 // are resolved by merge. Every mutation is a runAction (audit + timeline).
-import { db, Prisma, type ContactPointKind, type RecordStatus } from '@project/db'
+import { db, Prisma, type ContactPointKind, type LeadStatus, type RecordStatus } from '@project/db'
 import { badRequest, conflict, notFound } from '../lib/errors'
 import { decodeKeyCursor, encodeKeyCursor, normalizeLimit, page } from '../lib/pagination'
 import { contactInclude, toAccountRef, toContact, toContactRef, type ContactRow } from '../lib/serialize'
@@ -25,6 +25,9 @@ export type ContactInput = {
   status?: RecordStatus
   ownerMemberId?: string | null
   teamId?: string | null
+  leadStatus?: LeadStatus | null
+  leadSource?: string | null
+  nextFollowUp?: string | null
   points?: PointInput[]
   tagIds?: string[]
   externalProvider?: string | null
@@ -179,6 +182,9 @@ export class ContactService {
             status: input.status,
             ownerMemberId: input.ownerMemberId ?? null,
             teamId: input.teamId ?? null,
+            leadStatus: input.leadStatus === undefined ? 'new' : input.leadStatus,
+            leadSource: blank(input.leadSource),
+            nextFollowUp: input.nextFollowUp === undefined ? null : (input.nextFollowUp ? new Date(input.nextFollowUp) : null),
             origin: ctx.origin === 'ui' ? 'manual' : 'api',
             externalProvider: blank(input.externalProvider),
             externalId: blank(input.externalId),
@@ -258,6 +264,9 @@ export class ContactService {
             status: input.status,
             ownerMemberId: input.ownerMemberId,
             teamId: input.teamId,
+            leadStatus: 'leadStatus' in input ? input.leadStatus : undefined,
+            leadSource: 'leadSource' in input ? blank(input.leadSource) : undefined,
+            nextFollowUp: 'nextFollowUp' in input ? (input.nextFollowUp ? new Date(input.nextFollowUp) : null) : undefined,
             externalProvider: 'externalProvider' in input ? blank(input.externalProvider) : undefined,
             externalId: 'externalId' in input ? blank(input.externalId) : undefined,
           },
@@ -265,7 +274,7 @@ export class ContactService {
         if (points) await writePoints(tx, workspaceId, contactId, points)
         if (input.tagIds) await replaceTags(tx, 'contact', workspaceId, contactId, input.tagIds)
         const after = await loadContact(tx, contactId)
-        const changes = diff(before, after, ['firstName', 'lastName', 'displayName', 'title', 'status', 'ownerMemberId', 'teamId', 'externalProvider', 'externalId'])
+        const changes = diff(before, after, ['firstName', 'lastName', 'displayName', 'title', 'status', 'ownerMemberId', 'teamId', 'leadStatus', 'leadSource', 'nextFollowUp', 'externalProvider', 'externalId'])
         if (points) {
           const [a, b] = [pointsSnapshot(before.points), pointsSnapshot(after.points)]
           if (a.join('\n') !== b.join('\n')) changes.points = [a, b]
