@@ -354,3 +354,31 @@ Parked: D4 follow-up / email, D5 qualification, D6 matching as a stand-alone fea
   - A listing always leads with Name, decided by code.
   - On the real model, 8/8 sample requests are still valid.
 
+### 12.6 A1 browser check and A2 as built (2026-10-06)
+
+**A1 browser check.** It found that a sheet opened from its channel link showed an empty grid: the rows were fetched only when the document was already in the list. Fixed in 026ebd7.
+
+**A2: native sheets are real, shared, editable spreadsheets.**
+- **Model** (`packages/shared/src/sheetContent.ts`):
+  - Columns are typed text / number / money / date / boolean.
+  - Raw values are stored apart from their display: money is integer minor units in the column's currency, dates are YYYY-MM-DD.
+  - `total: sum` on number/money columns. Totals are computed (`sheetTotals`), never stored and never written by a model.
+  - No formulas, charts, pivots or arbitrary formatting.
+- **Server:**
+  - `DocumentContent` holds sheets as well as blocks: whole-document versions, save with `expectedVersion` (409 on conflict), checked field by field (`INVALID_CONTENT`).
+  - Generated sheets get typed content v1. Their snapshot (`payload`) stays the recipe's baseline, so human edits never read as "data changed", and Regenerate makes a new sheet and never wipes them.
+  - CSV imports start as text columns read from their snapshot (version 0).
+- **Web:**
+  - `liveBlocks.ts` is one live session for blocks and sheets, with a cell-by-cell three-way merge (`sheetModel.rebaseSheet`): different cells both survive; the same cell keeps theirs and says so.
+  - Cells are edited as text and stored typed. A value that doesn't fit is refused with the reason, and a retype that doesn't fit is refused.
+  - Numbers are right-aligned and formatted. Totals sit in a summary row, and each column header has a type picker and Σ.
+  - A generated sheet shows its recipe (what it is made from, as of when) and, when its records changed, **Make it again**.
+- **Tests:**
+  - server 578/578 (15 sheet cases), on a clean checkout too
+  - browser `sheets2.cjs` 20/20 (typed display, totals, refused input, server save, concurrent edits by two people, refused retype, Make it again keeping edits, mobile)
+  - block documents `doclive.cjs` 6/6, after pointing it at the Documents list
+- **Not in A2:**
+  - a "Create spreadsheet" entry in the Documents New menu (the user-facing action instead of the chat shortcut `sheet`; the UI owner is editing that header now)
+  - a Sales model (A4)
+  - workspace currency on new money columns (uses an existing money column's currency, else USD)
+
