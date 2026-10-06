@@ -1,5 +1,6 @@
+import { useEffect } from 'react'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getApiClient, unwrap } from '../client'
+import { getApiBaseUrl, getApiClient, unwrap } from '../client'
 import type { SendComposeInput } from '../models'
 import { keys } from './keys'
 
@@ -22,6 +23,17 @@ export function useInboxItems(workspaceId: string | undefined, params: InboxList
       unwrap(await getApiClient().GET('/workspaces/{workspaceId}/inbox', { params: { path: { workspaceId: workspaceId! }, query: { ...params, cursor: pageParam } } })),
     getNextPageParam: (last) => last.meta.nextCursor ?? undefined,
   })
+}
+
+export function useInboxStream(workspaceId: string | undefined) {
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    if (!workspaceId || typeof EventSource === 'undefined') return
+    const source = new EventSource(`${getApiBaseUrl()}/workspaces/${workspaceId}/inbox/stream`, { withCredentials: true })
+    const refresh = () => { void queryClient.invalidateQueries({ queryKey: ['workspaces', workspaceId, 'inbox'] }) }
+    source.addEventListener('inbox.created', refresh)
+    return () => source.close()
+  }, [workspaceId, queryClient])
 }
 
 export function useReadInboxItem(workspaceId: string) {

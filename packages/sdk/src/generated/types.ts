@@ -983,6 +983,30 @@ export interface paths {
         patch: operations["archiveInboxItem"];
         trace?: never;
     };
+    "/workspaces/{workspaceId}/inbox/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Server-Sent Events for the caller's inbox
+         * @description `text/event-stream`. `inbox.created` carries the item that just became visible
+         *     to this member, including a timed item whose `deliverAt` has arrived.
+         *     A `ping` comment keeps proxies from closing the connection.
+         */
+        get: operations["streamInbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/compose": {
         parameters: {
             query?: never;
@@ -2544,7 +2568,15 @@ export interface components {
             action: components["schemas"]["InboxAction"];
             dedupeKey: string;
             /** Format: date-time */
+            deliverAt: string;
+            /** Format: date-time */
             createdAt: string;
+        };
+        /** @description Payload of each inbox SSE message */
+        InboxStreamEvent: {
+            /** @enum {string} */
+            type: "inbox.created";
+            item: components["schemas"]["InboxItem"];
         };
         InboxItemResponse: {
             data: components["schemas"]["InboxItem"];
@@ -5082,6 +5114,30 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    streamInbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Event stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
         };
     };

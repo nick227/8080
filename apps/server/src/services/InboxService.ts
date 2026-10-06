@@ -1,9 +1,11 @@
 // Attention queue (doc/11). raiseInboxItem is server-only. A member sees and
 // updates only their own rows; workspace membership is not enough.
-import { db, Prisma, type InboxItem } from '@project/db'
+import { db, Prisma } from '@project/db'
 import { badRequest, notFound } from '../lib/errors'
 import { decodeCursor, encodeCursor, normalizeLimit, page } from '../lib/pagination'
 import { runAction } from './actions'
+import { toInboxItem } from './inboxFanOut'
+import { releaseInbox } from './inboxHub'
 import { assertSource, parseAction, type InboxAction } from './inboxSource'
 import { authorize } from './workspacePolicy'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
@@ -17,6 +19,7 @@ export type RaiseInboxItemInput = {
   sourceId: string
   dedupeKey: string
   action: InboxAction
+  deliverAt?: Date | string
 }
 
 const text = (value: string, max: number, code: string) => {
@@ -25,26 +28,7 @@ const text = (value: string, max: number, code: string) => {
   return trimmed
 }
 
-function serialize(row: InboxItem) {
-  return {
-    id: row.id,
-    workspaceId: row.workspaceId,
-    memberId: row.memberId,
-    type: row.type,
-    title: row.title,
-    summary: row.summary,
-    sourceType: row.sourceType,
-    sourceId: row.sourceId,
-    unread: row.unread,
-    starred: row.starred,
-    archivedAt: row.archivedAt?.toISOString() ?? null,
-    action: row.action,
-    dedupeKey: row.dedupeKey,
-    createdAt: row.createdAt.toISOString(),
-  }
-}
-
-export type InboxItemView = ReturnType<typeof serialize>
+export type InboxItemView = ReturnType<typeof toInboxItem>
 
 const flag = (value: unknown) => (value === true || value === 'true' ? true : value === false || value === 'false' ? false : undefined)
 
@@ -59,6 +43,8 @@ export class InboxService {
       dedupeKey: text(raw.dedupeKey, 160, 'INVALID_ITEM'),
       action: parseAction(raw.action),
     }
+    const deliverAt = input.deliverAt ? new Date(input.deliverAt) : new Date()
+    if (Number.isNaN(deliverAt.getTime())) throw badRequest('Delivery time is invalid', 'INVALID_ITEM')
     const member = await db.workspaceMember.findFirst({ where: { id: input.memberId, workspaceId, status: 'active' } })
     if (!member) throw badRequest('Unknown member', 'INVALID_MEMBER')
     await assertSource(db, workspaceId, input.sourceType, input.sourceId)
@@ -67,23 +53,25 @@ export class InboxService {
       if (!contact) throw badRequest('Unknown contact', 'INVALID_CONTACT')
     }
     const key = `inbox:${input.memberId}:${input.dedupeKey}`
-    return runAction(
+    const view = await runAction(
       { action: 'inbox.raise', workspaceId, actor: { kind: 'system' }, origin: 'system', input: { memberId: input.memberId, dedupeKey: input.dedupeKey }, idempotencyKey: key, target: { type: 'inbox' } },
       async (tx) => {
         const existing = await tx.inboxItem.findUnique({ where: { memberId_dedupeKey: { memberId: input.memberId, dedupeKey: input.dedupeKey } } })
-        if (existing) return { value: serialize(existing), targetId: existing.id, result: { id: existing.id } }
+        if (existing) return { value: toInboxItem(existing), targetId: existing.id, result: { id: existing.id } }
         const created = await tx.inboxItem.create({
-          data: { workspaceId, memberId: input.memberId, type: input.type, title: input.title, summary: input.summary, sourceType: input.sourceType, sourceId: input.sourceId, action: input.action as Prisma.InputJsonValue, dedupeKey: input.dedupeKey },
+          data: { workspaceId, memberId: input.memberId, type: input.type, title: input.title, summary: input.summary, sourceType: input.sourceType, sourceId: input.sourceId, action: input.action as Prisma.InputJsonValue, dedupeKey: input.dedupeKey, deliverAt },
         })
-        return { value: serialize(created), targetId: created.id, result: { id: created.id } }
+        return { value: toInboxItem(created), targetId: created.id, result: { id: created.id } }
       },
       async (previous) => {
         const id = previous.result && typeof previous.result === 'object' && 'id' in previous.result ? String(previous.result.id) : ''
         const row = id ? await db.inboxItem.findFirst({ where: { id, workspaceId } }) : null
         if (!row) throw notFound('Inbox item not found')
-        return serialize(row)
+        return toInboxItem(row)
       },
     )
+    releaseInbox(view)
+    return view
   }
 
   async list(userId: string, workspaceId: string, query: { cursor?: string; limit?: number; archived?: unknown; unread?: unknown; starred?: unknown }) {
@@ -98,6 +86,7 @@ export class InboxService {
         workspaceId,
         memberId: actor.member.id,
         archivedAt: archived ? { not: null } : null,
+        deliverAt: { lte: new Date() },
         ...(unread === undefined ? {} : { unread }),
         ...(starred === undefined ? {} : { starred }),
         ...(cursor ? { OR: [{ createdAt: { lt: new Date(cursor.createdAt) } }, { createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } }] } : {}),
@@ -106,7 +95,24 @@ export class InboxService {
       take: limit + 1,
     })
     const listed = page(rows, limit, (row) => encodeCursor({ createdAt: row.createdAt.toISOString(), id: row.id }))
-    return { data: listed.data.map(serialize), meta: listed.meta }
+    return { data: listed.data.map(toInboxItem), meta: listed.meta }
+  }
+
+  /** Items that became visible after `since` (created, or a timer came due). */
+  async due(userId: string, workspaceId: string, since: Date) {
+    const actor = await authorize(userId, workspaceId, 'inbox.read')
+    const now = new Date()
+    const rows = await db.inboxItem.findMany({
+      where: {
+        workspaceId,
+        memberId: actor.member.id,
+        deliverAt: { lte: now },
+        OR: [{ createdAt: { gt: since } }, { deliverAt: { gt: since } }],
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+    })
+    return { memberId: actor.member.id, items: rows.map(toInboxItem) }
   }
 
   async read(ctx: WorkspaceCtx, workspaceId: string, inboxItemId: string, unread: boolean) {
@@ -129,7 +135,7 @@ export class InboxService {
       { action, workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { inboxItemId, ...input }, target: { type: 'inbox', id: inboxItemId } },
       async (tx) => {
         const updated = await tx.inboxItem.update({ where: { id: current.id }, data })
-        return { value: serialize(updated), targetId: updated.id }
+        return { value: toInboxItem(updated), targetId: updated.id }
       },
     )
   }

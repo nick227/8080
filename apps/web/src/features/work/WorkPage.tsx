@@ -5,7 +5,7 @@ import { ContactsDesk } from '../inbox/ContactsDesk'
 import { InboxExperience } from '../inbox/InboxExperience'
 import { DESKS, deskEmpty, type Desk } from './sections'
 
-export function WorkPage({ place, roomId }: { place: Exclude<Desk, 'team' | 'calendar'>; roomId?: string }) {
+export function WorkPage({ place, roomId, onPlace }: { place: Exclude<Desk, 'team' | 'calendar'>; roomId?: string; onPlace?: (desk: Desk) => void }) {
   const session = useSession()
   const owner = session.data?.data.displayName ?? 'You'
   const label = DESKS.find((item) => item.id === place)?.label ?? 'Work'
@@ -15,7 +15,7 @@ export function WorkPage({ place, roomId }: { place: Exclude<Desk, 'team' | 'cal
       {place === 'documents' ? (
         <DocumentsExperience roomId={roomId} owner={owner} />
       ) : place === 'inbox' ? (
-        <InboxExperience />
+        <InboxExperience onPlace={onPlace} />
       ) : place === 'contacts' ? (
         <ContactsDesk />
       ) : empty ? (

@@ -3,11 +3,15 @@
 **Status:** Design, recorded 2026-10-05. This is the inbox to build. It supersedes doc/09 D3 and §4.5.
 **Date:** 2026-10-05
 
-Inbox tells the member what needs attention and opens the fastest follow-up. It points at other domains. It stays useful if Sales becomes Inventory.
+Inbox tells the member what needs attention and opens the fastest follow-up. It points at other domains. It stays useful if Sales becomes Inventory. It is also the live surface: what a teammate, an assistant, or the system just did shows up here, including work scheduled for a later time.
 
 ## 1. Product
 
 - An inbox item is a notification. It is a message only when a real message exists.
+- The surface is chatty. A succeeded workspace action notifies every active member. A conversation placement (a person or a bot) notifies the room members who belong to a workspace. A private room does not notify people outside it. Guests have no workspace, so they get no item.
+- A timed item waits until `deliverAt`, then appears on the same list and the same stream.
+- A row is clickable. Its `action` opens the source (the room, the document, the calendar, the contact) or the composer.
+- The open desk follows the member's queue over SSE. A missed push is picked up within a couple of seconds. One process only, same as document presence.
 - Sources that raise an item: contact activity, replies, reminders, calendar events, form submissions, system notices, and later an external email. Inventory, documents, and conversations use the same pointer.
 - The composer starts from a contact and a channel. Email is the first channel. Later providers attach behind the same composer.
 - The composer is shared. Contact opens Message. Inbox opens Reply. Calendar opens Follow up.
@@ -19,12 +23,13 @@ One row is one member's attention on one source. A workspace event that several 
 
 ```
 InboxItem   id, workspaceId, memberId,
-            type(32),            reminder | contact | calendar | conversation | system | email …
+            type(32),            reminder | contact | calendar | conversation | agent | system | email …
             title(200), summary(500),
             sourceType(32), sourceId,
             unread Boolean, starred Boolean, archivedAt?,
             action Json,         { verb: 'open' } | { verb: 'compose', contactId, channel: 'email' }
             dedupeKey(160),
+            deliverAt,           hidden until this time; default now
             createdAt
             @@unique([memberId, dedupeKey])
             @@index([workspaceId, memberId, archivedAt, createdAt])
@@ -59,7 +64,7 @@ Compose     id, workspaceId, authorMemberId, contactId,
 
 - `destination` uses `normalizeEmail` (trim + lower-case) from `contactMatch.ts`. The CRM matcher does not choose the address.
 - `contextType` + `contextId` is the business object the follow-up is about: the inbox source, the calendar event, or the contact.
-- Send validates the payload, writes the row, and writes an activity on the contact. It does not create an inbox item and it does not create a thread.
+- Send validates the payload, writes the row, and writes an activity on the contact. It does not create a thread. The action itself still announces, like any other workspace action.
 - Provider delivery is a later worker on this same row. Until that worker exists, the row is the record of the follow-up. It is not a claim that mail left the building.
 - Reply from an inbox item opens the composer with `contactId` and the item's source already filled.
 
@@ -75,9 +80,13 @@ The Inbox place in `apps/web/src/features/work/WorkPage.tsx` replaces the empty 
 
 ## 5. Producers
 
-This design invents no product events. Domains call `raiseInboxItem` when they already have a real event.
+`runAction` announces every succeeded workspace action except the queue's own bookkeeping (`inbox.read`, `inbox.star`, `inbox.archive`, `inbox.raise`, `inbox.announce`). One event, one item per active member, written in that same transaction. The actor's copy is already read. Everyone else's is unread. The pointer is the action's target when that row is still there, otherwise the action execution itself (`sourceType: system`).
 
-The first producer, when tasks exist, is the in-app reminder (doc/09 D7). One fired reminder raises one item for the reminded member. That item is the in-app surface, in place of a separate "due now" list.
+A conversation placement announces after it is saved. The item's source is the room and its type is `conversation`, or `agent` when a bot spoke. Recipients are the room's members who hold an active workspace membership, each in their own workspace. The dedupe key is the placement id.
+
+`raiseInboxItem` remains the targeted producer: one member, one event, optional `deliverAt`. A fired reminder uses it. Until tasks exist, timed items are raised by whatever producer already knows the time.
+
+The desk subscribes to `GET /workspaces/{id}/inbox/stream` (`inbox.created`). Items whose `deliverAt` is still ahead are not listed and are not pushed until they are due.
 
 ## 6. Postponed
 
@@ -89,5 +98,6 @@ Campaigns wait until that mail model exists. A saved audience and the list of pe
 
 1. `InboxItem`, `raiseInboxItem`, list, and the three state changes. Tests: another member's item is invisible; archive hides it from the default list and leaves a fanned-out copy untouched; the same `dedupeKey` returns the original row; a member route cannot create an item.
 2. `compose.send` and the shared compose surface, wired from Contact, Inbox, and Calendar. Tests: email without subject or destination is refused; send writes the compose row and a contact activity; send creates no inbox item.
-3. Reminder producer, when tasks exist.
-4. External mail model, later, as a source that raises items.
+3. Live announce from workspace actions and conversation placements, `deliverAt`, and the inbox stream.
+4. Reminder producer, when tasks exist. It raises one timed item for the reminded member.
+5. External mail model, later, as a source that raises items.

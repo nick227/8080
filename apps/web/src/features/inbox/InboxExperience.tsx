@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useArchiveInboxItem, useInboxItems, useReadInboxItem, useStarInboxItem, type InboxItem } from '@project/sdk'
+import { useArchiveInboxItem, useInboxItems, useInboxStream, useReadInboxItem, useStarInboxItem, type InboxItem } from '@project/sdk'
 import { Composer } from '../compose/Composer'
+import { useDocuments } from '../documents/store'
 import { useCurrentWorkspace } from '../documents/workspace'
+import type { Desk } from '../work/sections'
 
 type Filter = 'all' | 'unread' | 'starred' | 'archived'
 
@@ -13,15 +15,17 @@ const params: Record<Filter, { archived?: boolean; unread?: boolean; starred?: b
   archived: { archived: true },
 }
 
-export function InboxExperience() {
+export function InboxExperience({ onPlace }: { onPlace?: (desk: Desk) => void }) {
   const { workspace, loading } = useCurrentWorkspace()
   const [filter, setFilter] = useState<Filter>('all')
   const [reply, setReply] = useState<InboxItem | null>(null)
   const list = useInboxItems(workspace?.id, params[filter])
+  useInboxStream(workspace?.id)
   const read = useReadInboxItem(workspace?.id ?? '')
   const star = useStarInboxItem(workspace?.id ?? '')
   const archive = useArchiveInboxItem(workspace?.id ?? '')
   const navigate = useNavigate()
+  const openDocument = useDocuments((state) => state.open)
   const items = list.data?.pages.flatMap((page) => page.data) ?? []
 
   if (loading) return null
@@ -31,6 +35,15 @@ export function InboxExperience() {
     if (item.unread) read.mutate({ inboxItemId: item.id, unread: false })
     if (item.sourceType === 'conversation') {
       navigate(`/room/${item.sourceId}`)
+      return
+    }
+    if (item.sourceType === 'document') {
+      openDocument(item.sourceId)
+      onPlace?.('documents')
+      return
+    }
+    if (item.sourceType === 'calendar') {
+      onPlace?.('calendar')
       return
     }
     const contactId = item.action.verb === 'compose' ? item.action.contactId : item.sourceType === 'contact' ? item.sourceId : undefined

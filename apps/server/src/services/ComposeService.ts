@@ -1,5 +1,5 @@
 // A follow-up addressed to a contact (doc/11). The row records what was composed.
-// It does not deliver mail and it does not create an inbox item.
+// It does not deliver mail and it does not start a thread. The action announces.
 import { db } from '@project/db'
 import { badRequest, notFound } from '../lib/errors'
 import { normalizePoint } from './contactMatch'
@@ -48,6 +48,7 @@ export class ComposeService {
           targetId: created.id,
           result: { id: created.id },
           activities: [{ type: 'compose.recorded', summary: { channel: 'email', destination, subject, composeId: created.id }, subjects: [{ contactId: input.contactId }] }],
+          notice: { title: `Follow-up: ${subject}`, summary: destination },
         }
       },
       async (previous) => {

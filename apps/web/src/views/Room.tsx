@@ -260,7 +260,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
             ) : place === 'calendar' ? (
               <CalendarPage />
             ) : (
-              <WorkPage place={place} roomId={roomId} />
+              <WorkPage place={place} roomId={roomId} onPlace={openPlace} />
             )}
           </div>
         )}

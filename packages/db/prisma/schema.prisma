@@ -1232,6 +1232,7 @@ model InboxItem {
   archivedAt  DateTime?
   action      Json
   dedupeKey   String    @db.VarChar(160)
+  deliverAt   DateTime  @default(now())
   createdAt   DateTime  @default(now())
 
   workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

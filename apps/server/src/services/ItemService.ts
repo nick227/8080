@@ -6,6 +6,7 @@ import { humanAuthoredWhere } from '../lib/authorship'
 import { BOT_LIMITS, ordinaryItemWhere } from '../bots/limits'
 import { isRegisteredFlow } from '../bots/flows/registry'
 import { RoomService, type Actor } from './RoomService'
+import { notifyConversation } from './inboxAnnounce'
 import { recordChange } from './roomChanges'
 import { events } from './events'
 import { purgeCapture } from './purgeCapture'
@@ -311,6 +312,15 @@ export class ItemService {
       text: item.deletedAt ? null : item.message.text,
       roomOwnerId,
       firstHumanItem: placed.firstHumanItem,
+    })
+    void notifyConversation({
+      roomId: item.roomId,
+      itemId: item.id,
+      text: item.deletedAt ? null : item.message.text,
+      actorKind: actor.kind,
+      actorUserId: actor.id,
+    }).catch((err: unknown) => {
+      console.error('inbox notify failed', err)
     })
     return toItem(item, actor.id)
   }

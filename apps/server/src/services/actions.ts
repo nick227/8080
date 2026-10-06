@@ -5,6 +5,8 @@
 // rolled-back transaction. There is no `agent` actor (doc/08 §4.9).
 import { db, Prisma, type ActionExecution, type ActionOrigin } from '@project/db'
 import { conflict } from '../lib/errors'
+import { announceAction } from './inboxFanOut'
+import { releaseInbox } from './inboxHub'
 
 type Tx = Prisma.TransactionClient
 
@@ -65,6 +67,7 @@ export type ActionOutcome<T> = {
   changes?: Changes
   result?: Record<string, unknown>
   activities?: ActivityDraft[]
+  notice?: { title: string; summary: string }
 }
 
 const json = (value: unknown) => JSON.parse(JSON.stringify(value ?? null)) as Prisma.InputJsonValue
@@ -96,7 +99,7 @@ export async function runAction<T>(
   }
 
   try {
-    return await db.$transaction(async (tx) => {
+    const { value, announced } = await db.$transaction(async (tx) => {
       const outcome = await perform(tx)
       const workspaceId = outcome.workspaceId ?? req.workspaceId
       if (!workspaceId) throw new Error(`${req.action}: no workspace to record against`)
@@ -132,8 +135,22 @@ export async function runAction<T>(
         })
         if (activity.subjects?.length) await addSubjects(tx, workspaceId, [created], activity.subjects)
       }
-      return outcome.value
+      const announced = await announceAction(tx, {
+        workspaceId,
+        action: req.action,
+        executionId: execution.id,
+        actorMemberId,
+        targetType: req.target?.type ?? null,
+        // The request id wins when the action names an existing row (a follow-up
+        // points at the contact, not the compose row). A create supplies the id
+        // only on the outcome.
+        targetId: req.target?.id ?? outcome.targetId ?? null,
+        notice: outcome.notice,
+      })
+      return { value: outcome.value, announced }
     })
+    for (const item of announced) releaseInbox(item)
+    return value
   } catch (err) {
     // A concurrent duplicate lost the race for the key: answer like a repeat.
     if (req.idempotencyKey && req.workspaceId && isKeyConflict(err)) {

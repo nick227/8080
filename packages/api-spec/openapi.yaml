@@ -1391,6 +1391,28 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /workspaces/{workspaceId}/inbox/stream:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: streamInbox
+      summary: Server-Sent Events for the caller's inbox
+      description: |
+        `text/event-stream`. `inbox.created` carries the item that just became visible
+        to this member, including a timed item whose `deliverAt` has arrived.
+        A `ping` comment keeps proxies from closing the connection.
+      tags: [workspaces]
+      responses:
+        '200':
+          description: Event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE frames; each data payload is a JSON InboxStreamEvent
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /workspaces/{workspaceId}/compose:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -4195,7 +4217,7 @@ components:
 
     InboxItem:
       type: object
-      required: [id, workspaceId, memberId, type, title, summary, sourceType, sourceId, unread, starred, archivedAt, action, dedupeKey, createdAt]
+      required: [id, workspaceId, memberId, type, title, summary, sourceType, sourceId, unread, starred, archivedAt, action, dedupeKey, deliverAt, createdAt]
       properties:
         id: { type: string }
         workspaceId: { type: string }
@@ -4210,7 +4232,16 @@ components:
         archivedAt: { type: [string, 'null'], format: date-time }
         action: { $ref: '#/components/schemas/InboxAction' }
         dedupeKey: { type: string }
+        deliverAt: { type: string, format: date-time }
         createdAt: { type: string, format: date-time }
+
+    InboxStreamEvent:
+      description: Payload of each inbox SSE message
+      type: object
+      required: [type, item]
+      properties:
+        type: { type: string, enum: [inbox.created] }
+        item: { $ref: '#/components/schemas/InboxItem' }
 
     InboxItemResponse:
       type: object
