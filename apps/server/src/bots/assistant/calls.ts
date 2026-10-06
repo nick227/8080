@@ -5,6 +5,7 @@
 // workflow takes its deterministic path.
 import { db } from '@project/db'
 import { assistantConfig } from './config'
+import { flagCount, problemsOf, styleFlags } from './style'
 import { assistantProvider, validateDraft, validateFacts, type AssistantProvider, type DraftInput, type ExtractInput, type Usage } from './provider'
 
 export type AssistContext = { workspaceId: string; runId: string }
@@ -96,11 +97,20 @@ export async function extractFacts(ctx: AssistContext, input: ExtractInput) {
   return res && { facts: res.out.facts, callId: res.callId }
 }
 
-/** A drafted document + a tidy-up of the facts, or null. */
+/** A drafted document + a tidy-up of the facts, or null. A draft that breaks the
+ *  writing rules (style.ts) gets one targeted revision — kept only if it is valid and
+ *  has fewer problems. The revision is a call of its own: logged and capped. */
 export async function draftDocument(ctx: AssistContext, input: DraftInput) {
-  const res = await call(ctx, 'generate', input, (p, s) => p.draft(input, s), (o) => {
-    const document = validateDraft(o.document)
-    return document ? { ...o, patch: validateFacts(o.patch), document } : null
-  }, (o) => ({ patch: o.patch, document: o.document }))
-  return res && { patch: res.out.patch, document: res.out.document, callId: res.callId, model: res.model }
+  const once = async (i: DraftInput) => {
+    const source = JSON.stringify([i.profile, i.answers])
+    const res = await call(ctx, 'generate', i, (p, s) => p.draft(i, s), (o) => {
+      const document = validateDraft(o.document)
+      return document ? { ...o, patch: validateFacts(o.patch), document } : null
+    }, (o) => ({ patch: o.patch, document: o.document, style: styleFlags(o.document.paragraphs, i.brief.voice, source), revision: !!i.revise }))
+    return res && { patch: res.out.patch, document: res.out.document, callId: res.callId, model: res.model, flags: styleFlags(res.out.document.paragraphs, i.brief.voice, source) }
+  }
+  const first = await once(input)
+  if (!first || flagCount(first.flags) === 0) return first
+  const second = await once({ ...input, revise: { previous: first.document, problems: problemsOf(first.flags) } })
+  return second && flagCount(second.flags) < flagCount(first.flags) ? { ...second, patch: first.patch } : first
 }

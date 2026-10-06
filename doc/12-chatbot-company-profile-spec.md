@@ -291,6 +291,33 @@ Output: `{ profilePatch: <same shape as extract>, document: { title, paragraphs:
   - one real call each against gpt-4.1-mini (extract ~5.8 s cold, draft ~2.6 s, ~1k tokens in total).
 - **Not yet:** [Fix a fact] / correcting the profile from chat (§6.3); a confidence threshold (the prompt asks for null instead of guesses).
 
+### 7.5 The writing voice (2026-10-06)
+
+Anything the assistant writes follows one guide, `WRITING_RULES` in `bots/assistant/style.ts`, which every drafting prompt includes:
+- Plain, readable English, in consistent short sentences (subject, verb, object; one idea each).
+- Concrete value from the facts (what, for whom, how, what difference it makes). The person's own examples beat adjectives.
+- Every sentence useful: no filler, no restating, no closing summary or praise line.
+- No marketing language or clichés (a named list), and no jargon.
+- No over-promising: no guarantees, superlatives or claimed results, nothing that isn't in the facts, and an example is not presented as past work.
+- No jokes, puns, exclamation marks, emojis or cuteness unless the brief asks.
+- Correct grammar. The company by name or "it", third person, consistently.
+- The voice (professional / friendly / bold / technical) changes tone, never the rules, and is never named in the text.
+- Length is a ceiling: write less if the facts don't support more.
+
+Mechanics:
+- Temperature is 0 for extraction and 0.3 for drafting.
+- `styleFlags` checks every draft deterministically: clichés, promises, exclamation marks, first person, sentences over 30 words, and the tone named (unless the person used that word themselves, e.g. "technical founders").
+- A flagged draft gets **one targeted revision** with the flags written as instructions (`problemsOf`). It is kept only if it is valid and has fewer flags. The revision is its own logged, capped call.
+- The flags are stored on each `AssistantCall.result.style`, so the voice can be reviewed from the log.
+
+**Measured on 4 drafts** (gpt-4.1-mini; one per voice, same facts):
+- old prompt: 1/4 clean, with "solutions", "tailored", "leverages", "empower", "guarantees…", a "bold studio", a closing praise line.
+- guide alone: 2/4 clean.
+- guide + temperature + revision: 7/8 clean over two runs.
+- after tightening rules 3, 5 and 8 (closing lines, examples as past work, consistent "it"): 4/4 clean.
+
+Trade-off: the four voices now read similarly (mostly word choice). Distinct voices would need rule 9's descriptions widened.
+
 ## 8. Enforcement
 
 - Static architecture test: `bots/assistant/*` (the AI calls) imports no service that posts, publishes, creates documents, or writes profile rows. It writes only `AssistantCall`. Only `bots/workflows/*` calls it.

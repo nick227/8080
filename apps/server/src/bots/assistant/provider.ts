@@ -2,6 +2,7 @@
 // validated and clipped on return — never trust the model's shape. Providers are
 // swappable; tests use a fake (setAssistantProvider).
 import { assistantConfig, type AssistantConfig } from './config'
+import { WRITING_RULES } from './style'
 
 export const AREAS = ['local', 'regional', 'national', 'global'] as const
 export const VOICES = ['professional', 'friendly', 'bold', 'technical'] as const
@@ -24,6 +25,8 @@ export type DraftInput = {
   /** The person's own words, question by question. */
   answers: { question: string; answer: string }[]
   brief: { audience: string; length: 'short' | 'medium' | 'detailed'; voice: string | null }
+  /** A second pass: rewrite `previous`, fixing exactly these problems. */
+  revise?: { previous: Draft; problems: string[] }
 }
 export type Draft = { title: string; paragraphs: string[] }
 export type Usage = { promptTokens: number; completionTokens: number }
@@ -93,16 +96,22 @@ const EXTRACT_SYSTEM = [
   'serviceArea = local | regional | national | global, only if implied. purpose = one plain sentence of what the company does.',
   'offerings = products or services, short items. customers = who they sell to, short items. differentiators = what makes them different.',
   'brandVoice only if they say how they want to sound. `known` holds facts already on file; do not repeat them unless the text changes them.',
+  'Tidy values into plain words; never add marketing language or claims they did not make.',
 ].join(' ')
 
 const DRAFT_SYSTEM = [
-  'You write a company description for the business described in `profile` and `answers`.',
-  'Use only those facts; do not invent clients, numbers, awards or claims. Write for the given audience, in the given voice',
-  '(professional, friendly, bold or technical; default professional). Length: short = 1 paragraph, medium = 2, detailed = 3–4.',
-  'No headings or bullet points inside paragraphs. Title: "<company name> — Company Description".',
-  'Also return profilePatch: the same facts, tidied into clean short values (e.g. a long answer about services → a list of services).',
-  'Use null / [] in profilePatch for anything you would not change.',
-].join(' ')
+  'You write a company description for the business in `profile` and `answers`, for the audience and voice in `brief`.',
+  'Use only those facts. The person\'s own words in `answers` are the best source of concrete detail: use their real examples.',
+  'Before writing, decide what a reader in this audience most needs to know about this company, and lead with that.',
+  'Output: a title "<company name> — Company Description" and plain paragraphs (no headings, lists or bullet points).',
+  '',
+  WRITING_RULES,
+  '',
+  'Also return profilePatch: the same facts, tidied into clean short values (e.g. a long answer about services → a list of',
+  'services), in the same plain words. Use null / [] for anything you would not change.',
+  '',
+  'If `revise` is present: rewrite `revise.previous`, fixing exactly the listed problems and changing nothing else.',
+].join('\n')
 
 export class OpenAIAssistant implements AssistantProvider {
   readonly name = 'openai'
@@ -110,7 +119,7 @@ export class OpenAIAssistant implements AssistantProvider {
   get model() { return this.cfg.model }
 
   async extract(input: ExtractInput, signal: AbortSignal) {
-    const { json, usage } = await this.complete(EXTRACT_SYSTEM, input, 'company_facts', FACTS_SCHEMA, signal)
+    const { json, usage } = await this.complete(EXTRACT_SYSTEM, input, 'company_facts', FACTS_SCHEMA, signal, 0)
     return { facts: validateFacts(json), usage }
   }
 
@@ -127,19 +136,21 @@ export class OpenAIAssistant implements AssistantProvider {
         },
       },
     }
-    const { json, usage } = await this.complete(DRAFT_SYSTEM, input, 'company_document', schema, signal)
+    const { json, usage } = await this.complete(DRAFT_SYSTEM, input, 'company_document', schema, signal, 0.3)
     const document = validateDraft(json?.document)
     if (!document) throw new Error('invalid draft')
     return { patch: validateFacts(json?.profilePatch), document, usage }
   }
 
-  private async complete(system: string, input: unknown, name: string, schema: object, signal: AbortSignal) {
+  // Low temperature: the same facts should read the same way (extraction: none at all).
+  private async complete(system: string, input: unknown, name: string, schema: object, signal: AbortSignal, temperature: number) {
     const res = await fetch(`${this.cfg.baseUrl}/chat/completions`, {
       method: 'POST',
       signal,
       headers: { 'content-type': 'application/json', authorization: `Bearer ${this.cfg.apiKey}` },
       body: JSON.stringify({
         model: this.cfg.model,
+        temperature,
         messages: [{ role: 'system', content: system }, { role: 'user', content: JSON.stringify(input) }],
         response_format: { type: 'json_schema', json_schema: { name, strict: true, schema } },
       }),

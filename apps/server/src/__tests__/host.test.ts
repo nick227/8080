@@ -12,6 +12,8 @@ import { GUARDS } from '../bots/guards'
 import { crossWorkspaceViolations } from '../services/workspaceIntegrity'
 import { subscribe } from '../services/documentHub'
 
+// The shared channel also carries curated workspace activity (activityEvent.ts);
+// these tests follow the workflows' own lines.
 const app = buildTestApp()
 const call = caller(app)
 let host: ReturnType<typeof startWorkspaceHost>
@@ -31,7 +33,7 @@ async function workspace() {
   return { ws, roomId: channel.roomId }
 }
 const botItems = (roomId: string) =>
-  db.item.findMany({ where: { roomId, message: { authorId: bot.userId } }, include: { message: true }, orderBy: { number: 'asc' } })
+  db.item.findMany({ where: { roomId, message: { authorId: bot.userId, OR: [{ workflow: null }, { workflow: { not: 'workspace-activity' } }] } }, include: { message: true }, orderBy: { number: 'asc' } })
 const lastBot = async (roomId: string) => (await botItems(roomId)).at(-1)!
 async function click(userId: string, itemId: string, optionIds: string[]) {
   const res = await call(userId, 'POST', `/items/${itemId}/choice`, { optionIds })

@@ -10,9 +10,12 @@ import { caller, createWorkspace, seedPeople } from './helpers/workspace'
 import { startWorkspaceHost } from '../services/WorkspaceHost'
 import { CompanyProfileService } from '../services/CompanyProfileService'
 import { OpenAIAssistant, assistantProvider, setAssistantProvider, type AssistantProvider, type DraftInput, type ExtractInput, type Facts } from '../bots/assistant/provider'
-import { resetAssistantCaps } from '../bots/assistant/calls'
+import { draftDocument, resetAssistantCaps } from '../bots/assistant/calls'
+import { WRITING_RULES, flagCount, isClean, problemsOf, styleFlags } from '../bots/assistant/style'
 import { assistantConfig } from '../bots/assistant/config'
 
+// The shared channel also carries curated workspace activity (activityEvent.ts);
+// these tests follow the workflows' own lines.
 const app = buildTestApp()
 const call = caller(app)
 let host: ReturnType<typeof startWorkspaceHost>
@@ -57,9 +60,9 @@ async function channel() {
   return { ws, roomId }
 }
 const lastBot = async (roomId: string) =>
-  (await db.item.findMany({ where: { roomId, message: { authorId: bot.userId } }, include: { message: true }, orderBy: { number: 'asc' } })).at(-1)!
+  (await db.item.findMany({ where: { roomId, message: { authorId: bot.userId, OR: [{ workflow: null }, { workflow: { not: 'workspace-activity' } }] } }, include: { message: true }, orderBy: { number: 'asc' } })).at(-1)!
 const botTexts = async (roomId: string) =>
-  (await db.item.findMany({ where: { roomId, message: { authorId: bot.userId } }, include: { message: true }, orderBy: { number: 'asc' } })).map((i) => i.message.text)
+  (await db.item.findMany({ where: { roomId, message: { authorId: bot.userId, OR: [{ workflow: null }, { workflow: { not: 'workspace-activity' } }] } }, include: { message: true }, orderBy: { number: 'asc' } })).map((i) => i.message.text)
 async function click(roomId: string, optionIds: string[]) {
   const res = await call(testUserId, 'POST', `/items/${(await lastBot(roomId)).id}/choice`, { optionIds })
   expect(res.statusCode).toBe(200)
@@ -243,6 +246,67 @@ describe('rails', () => {
   })
 })
 
+describe('the writing voice (style.ts)', () => {
+  it('flags marketing words, promises, exclamations, first person, long sentences and a named tone', () => {
+    const f = styleFlags([
+      'We are a passionate team delivering innovative solutions! Midnight Creative guarantees results.',
+      `Midnight Creative is a bold studio ${'that does things '.repeat(8)}today.`,
+    ], 'bold')
+    expect(f).toEqual({
+      cliches: ['passionate', 'innovative', 'solutions'], promises: ['guarantees'], exclamations: 1, firstPerson: 1, longSentences: 1, toneNamed: ['bold'],
+    })
+    expect(isClean(f)).toBe(false)
+    expect(flagCount(f)).toBe(8)
+    expect(problemsOf(f)).toEqual([
+      'Remove these marketing words and say plainly what is actually done instead: passionate, innovative, solutions.',
+      'Remove these promises or claims: guarantees. State the fact without promising a result.',
+      'Remove the exclamation marks.',
+      'Write in the third person, using the company name — not we, our or us.',
+      'Split the 1 sentence(s) longer than 30 words into short sentences.',
+      'Do not call the company bold; show the tone instead of naming it.',
+    ])
+  })
+
+  it('a voice word the person used is a fact, not the tone being named; plain copy is clean', () => {
+    const plain = ['Midnight Creative builds websites for small businesses in Austin. Two technical founders do the work.']
+    expect(styleFlags(plain, 'technical', 'Two technical founders do the work themselves')).toMatchObject({ toneNamed: [] })
+    expect(styleFlags(plain, 'technical')).toMatchObject({ toneNamed: ['technical'] })
+    expect(isClean(styleFlags(plain, 'friendly'))).toBe(true)
+    // Word boundaries: "solutionist" or "trusted" alone are not the listed phrases.
+    expect(styleFlags(['It is trusted by its customers.'])).toMatchObject({ cliches: [] })
+  })
+
+  it('a draft that breaks the rules gets one targeted revision, kept only if it is better', async () => {
+    const { ws } = await channel()
+    const brief = { audience: 'customers', length: 'short' as const, voice: 'friendly' }
+    const input: DraftInput = { documentType: 'company-description', profile: { ...NONE, name: 'Acme' }, answers: [], brief }
+    const doc = (p: string) => ({ patch: NONE, document: { title: 'Acme — Company Description', paragraphs: [p] } })
+
+    const better = new Fake(undefined, (i) => (i.revise ? doc('Acme builds websites.') : doc('Acme delivers innovative solutions!')))
+    setAssistantProvider(better)
+    const fixed = await draftDocument({ workspaceId: ws.id, runId: 'r1' }, input)
+    expect(fixed!.document.paragraphs).toEqual(['Acme builds websites.'])
+    expect(better.drafts[1]!.revise).toEqual({ previous: { title: 'Acme — Company Description', paragraphs: ['Acme delivers innovative solutions!'] }, problems: expect.arrayContaining([expect.stringMatching(/innovative, solutions/), 'Remove the exclamation marks.']) })
+    const logged = await db.assistantCall.findMany({ where: { workspaceId: ws.id }, orderBy: { at: 'asc' } })
+    expect(logged.map((c) => [(c.result as any).revision, flagCount((c.result as any).style)])).toEqual([[false, 3], [true, 0]])
+
+    const worse = new Fake(undefined, (i) => (i.revise ? doc('We offer innovative solutions!!') : doc('Acme offers solutions.')))
+    setAssistantProvider(worse)
+    expect((await draftDocument({ workspaceId: ws.id, runId: 'r2' }, input))!.document.paragraphs).toEqual(['Acme offers solutions.'])
+
+    const clean = new Fake(undefined, () => doc('Acme builds websites.'))
+    setAssistantProvider(clean)
+    await draftDocument({ workspaceId: ws.id, runId: 'r3' }, input)
+    expect(clean.drafts).toHaveLength(1) // nothing to fix, no second call
+  })
+
+  it('the drafting prompt carries the writing rules', () => {
+    expect(WRITING_RULES).toMatch(/No marketing language/)
+    expect(WRITING_RULES).toMatch(/Do not over-promise/)
+    expect(WRITING_RULES).toMatch(/No jokes, puns/)
+  })
+})
+
 describe('OpenAIAssistant (no network)', () => {
   it('sends strict JSON-schema requests and validates/clips the answers', async () => {
     const sent: any[] = []
@@ -262,7 +326,8 @@ describe('OpenAIAssistant (no network)', () => {
       expect(facts.usage).toEqual({ promptTokens: 10, completionTokens: 5 })
       const draft = await ai.draft({ documentType: 'company-description', profile: NONE, answers: [], brief: { audience: 'general', length: 'short', voice: null } }, new AbortController().signal)
       expect(draft.document.paragraphs).toEqual(['One.', 'Two.'])
-      expect(sent.map((b) => [b.model, b.response_format.type, b.response_format.json_schema.strict])).toEqual([['m', 'json_schema', true], ['m', 'json_schema', true]])
+      expect(sent.map((b) => [b.model, b.response_format.type, b.response_format.json_schema.strict, b.temperature])).toEqual([['m', 'json_schema', true, 0], ['m', 'json_schema', true, 0.3]])
+      expect(sent[1].messages[0].content).toContain(WRITING_RULES)
     } finally {
       globalThis.fetch = real
     }
