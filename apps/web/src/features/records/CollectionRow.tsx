@@ -80,7 +80,7 @@ export function CollectionRow({
       ) : (
         <InlineAvailability item={item!} workspaceId={workspaceId} />
       )}
-      <span className="record-tile-meta" data-attention={!!late || item?.quantity === 0 || undefined}>
+      <span className="record-tile-meta" data-attention={!!late || item?.quantity === 0 || item?.lowStock || undefined}>
         {person ? (
           person.nextFollowUp ? (
             `${late ? 'Overdue · ' : 'Follow-up · '}${dateLabel(person.nextFollowUp)}`
@@ -90,7 +90,10 @@ export function CollectionRow({
         ) : (
           <>
             {priceLabel(item!.price, currency)}
-            <small>{stockLabel(item!)}</small>
+            <small>
+              {stockLabel(item!)}
+              {item!.location ? ` · ${item!.location}` : ''}
+            </small>
           </>
         )}
       </span>

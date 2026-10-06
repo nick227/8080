@@ -2003,8 +2003,8 @@ paths:
           schema: { $ref: '#/components/schemas/RecordStatus' }
         - in: query
           name: focus
-          description: Working view over active items (out = tracked quantity zero)
-          schema: { type: string, enum: [offered, paused, out] }
+          description: Working view over active items (out = tracked quantity zero; low = at or below threshold)
+          schema: { type: string, enum: [offered, paused, out, low] }
         - in: query
           name: sort
           schema: { type: string, enum: [name, price, updated, quantity], default: name }
@@ -2130,6 +2130,54 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/inventory/{inventoryId}/stock:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/InventoryId'
+    post:
+      operationId: adjustInventoryStock
+      summary: Set tracked quantity with an optional reason
+      description: |
+        Records an append-only stock movement. Items without stock tracking return 400 STOCK_NOT_TRACKED.
+        Concurrent edits return 409 INVENTORY_VERSION_CONFLICT.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdjustInventoryStockInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/inventory/{inventoryId}/stock-movements:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/InventoryId'
+    get:
+      operationId: listInventoryStockMovements
+      summary: Quantity change history for an item
+      description: Newest first. Not a warehouse ledger — only recorded adjustments, edits, and imports.
+      tags: [workspaces]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedStockMovements' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -5285,7 +5333,7 @@ components:
 
     InventoryItem:
       type: object
-      required: [id, workspaceId, name, sku, description, price, category, status, quantity, availability, imageUrl, version, createdAt, updatedAt]
+      required: [id, workspaceId, name, sku, description, price, category, status, quantity, lowStockThreshold, lowStock, location, availability, imageUrl, version, createdAt, updatedAt]
       properties:
         id: { type: string }
         version: { type: integer, minimum: 1, description: Bumped by every update; send it back as expectedVersion }
@@ -5297,6 +5345,9 @@ components:
         category: { type: [string, 'null'] }
         status: { $ref: '#/components/schemas/RecordStatus' }
         quantity: { type: [integer, 'null'], description: 'null = no stock count (services, catalog entries)' }
+        lowStockThreshold: { type: [integer, 'null'], minimum: 0, description: Alert when tracked quantity is above zero and at or below this level }
+        lowStock: { type: boolean, description: Maintained on write for the low working view }
+        location: { type: [string, 'null'], maxLength: 120 }
         availability: { type: boolean }
         imageUrl: { type: [string, 'null'] }
         createdAt: { type: string, format: date-time }
@@ -5329,6 +5380,8 @@ components:
         category: { type: [string, 'null'], maxLength: 80 }
         status: { $ref: '#/components/schemas/RecordStatus' }
         quantity: { type: [integer, 'null'], minimum: 0 }
+        lowStockThreshold: { type: [integer, 'null'], minimum: 0 }
+        location: { type: [string, 'null'], maxLength: 120 }
         availability: { type: boolean }
         imageUrl: { type: [string, 'null'], maxLength: 255 }
 
@@ -5345,8 +5398,47 @@ components:
         category: { type: [string, 'null'], maxLength: 80 }
         status: { $ref: '#/components/schemas/RecordStatus' }
         quantity: { type: [integer, 'null'], minimum: 0 }
+        lowStockThreshold: { type: [integer, 'null'], minimum: 0 }
+        location: { type: [string, 'null'], maxLength: 120 }
         availability: { type: boolean }
         imageUrl: { type: [string, 'null'], maxLength: 255 }
+
+    AdjustInventoryStockInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, quantity]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        quantity: { type: integer, minimum: 0 }
+        reason: { type: [string, 'null'], maxLength: 240 }
+
+    StockMovement:
+      type: object
+      required: [id, inventoryId, fromQuantity, toQuantity, delta, reason, source, actor, createdAt]
+      properties:
+        id: { type: string }
+        inventoryId: { type: string }
+        fromQuantity: { type: [integer, 'null'] }
+        toQuantity: { type: [integer, 'null'] }
+        delta: { type: [integer, 'null'] }
+        reason: { type: [string, 'null'] }
+        source: { type: string, enum: [adjust, edit, import] }
+        actor:
+          type: [object, 'null']
+          required: [id, name]
+          properties:
+            id: { type: string }
+            name: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    PaginatedStockMovements:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/StockMovement' }
+        meta: { $ref: '#/components/schemas/PaginatedMeta' }
 
     Interest:
       type: object
@@ -5406,12 +5498,13 @@ components:
 
     InventoryCounts:
       type: object
-      required: [all, offered, paused, outOfStock, archived]
+      required: [all, offered, paused, outOfStock, low, archived]
       properties:
         all: { type: integer, minimum: 0 }
         offered: { type: integer, minimum: 0 }
         paused: { type: integer, minimum: 0 }
         outOfStock: { type: integer, minimum: 0 }
+        low: { type: integer, minimum: 0 }
         archived: { type: integer, minimum: 0 }
 
     InventoryCountsResponse:

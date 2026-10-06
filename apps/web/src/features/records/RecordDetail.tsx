@@ -18,6 +18,7 @@ import {
 import { RecordMedia } from './RecordChrome'
 import { RecordForm } from './RecordForm'
 import { StockAdjust } from './StockAdjust'
+import { StockHistory } from './StockHistory'
 import {
   STAGES,
   contactSubtitle,
@@ -343,7 +344,9 @@ function InventoryDetail({
       <div className="record-attention">
         <strong>{stockLabel(item)}</strong>
         <span role="status" data-failed={feedback.failed || undefined}>
-          {feedback.label || (item.availability ? 'Offered in your catalog' : 'Offering paused')}
+          {feedback.label ||
+            (item.location ? `${item.location} · ` : '') +
+              (item.availability ? 'Offered in your catalog' : 'Offering paused')}
         </span>
       </div>
       {feedback.failed && (
@@ -365,6 +368,7 @@ function InventoryDetail({
             </p>
           </section>
           <ItemInterests workspaceId={workspaceId} inventoryId={item.id} onRelated={onRelated} />
+          {tracked && <StockHistory workspaceId={workspaceId} inventoryId={item.id} />}
         </div>
         <aside className="record-properties">
           <h2>Properties</h2>
@@ -377,6 +381,14 @@ function InventoryDetail({
             <dd>{item.sku || 'Not set'}</dd>
             <dt>Stock</dt>
             <dd>{stockLabel(item)}</dd>
+            {tracked && (
+              <>
+                <dt>Low-stock at</dt>
+                <dd>{item.lowStockThreshold ?? 'Not set'}</dd>
+                <dt>Location</dt>
+                <dd>{item.location || 'Not set'}</dd>
+              </>
+            )}
             <dt>Lifecycle</dt>
             <dd>{titleCase(item.status)}</dd>
           </dl>

@@ -1,5 +1,5 @@
 // Inventory = what the workspace sells; Interest = a contact's link to an item.
-// Reuses the broad CRM record verbs (record.read / record.write / record.delete).
+// Stock movements are append-only quantity history (adjust / edit / import) — not a ledger.
 import { db, Prisma, type RecordStatus } from '@project/db'
 import { badRequest, conflict, notFound } from '../lib/errors'
 import { decodeKeyCursor, encodeKeyCursor, normalizeLimit, page } from '../lib/pagination'
@@ -14,13 +14,13 @@ export type InventoryInput = {
   category?: string | null
   status?: RecordStatus
   quantity?: number | null
+  lowStockThreshold?: number | null
+  location?: string | null
   availability?: boolean
   imageUrl?: string | null
 }
 
-const blank = (s: string | null | undefined) => (s?.trim() ? s.trim() : null)
-
-export const toInventoryItem = (i: {
+type InventoryRow = {
   id: string
   workspaceId: string
   name: string
@@ -30,12 +30,22 @@ export const toInventoryItem = (i: {
   category: string | null
   status: RecordStatus
   quantity: number | null
+  lowStockThreshold: number | null
+  lowStock: boolean
+  location: string | null
   availability: boolean
   imageUrl: string | null
   version: number
   createdAt: Date
   updatedAt: Date
-}) => ({
+}
+
+const blank = (s: string | null | undefined) => (s?.trim() ? s.trim() : null)
+
+export const isLowStock = (quantity: number | null, threshold: number | null) =>
+  quantity != null && threshold != null && quantity > 0 && quantity <= threshold
+
+export const toInventoryItem = (i: InventoryRow) => ({
   id: i.id,
   workspaceId: i.workspaceId,
   name: i.name,
@@ -45,6 +55,9 @@ export const toInventoryItem = (i: {
   category: i.category,
   status: i.status,
   quantity: i.quantity,
+  lowStockThreshold: i.lowStockThreshold,
+  lowStock: i.lowStock,
+  location: i.location,
   availability: i.availability,
   imageUrl: i.imageUrl,
   version: i.version,
@@ -56,6 +69,13 @@ function assertValid(input: InventoryInput) {
   if (input.price !== undefined && (!Number.isFinite(input.price) || input.price < 0)) throw badRequest('Price must be zero or more', 'INVALID_PRICE')
   if (input.quantity !== undefined && input.quantity !== null && (!Number.isInteger(input.quantity) || input.quantity < 0)) {
     throw badRequest('Quantity must be a whole number, zero or more', 'INVALID_QUANTITY')
+  }
+  if (
+    input.lowStockThreshold !== undefined &&
+    input.lowStockThreshold !== null &&
+    (!Number.isInteger(input.lowStockThreshold) || input.lowStockThreshold < 0)
+  ) {
+    throw badRequest('Low-stock threshold must be a whole number, zero or more', 'INVALID_THRESHOLD')
   }
 }
 
@@ -70,10 +90,42 @@ async function liveContact(workspaceId: string, contactId: string) {
   if (!contact) throw notFound('Contact not found')
 }
 
-// A SKU repeats only by mistake; surface it as a conflict instead of a raw DB error.
 function skuConflict(err: unknown): never {
   if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') throw conflict('Another item already uses that code', 'SKU_TAKEN')
   throw err
+}
+
+async function memberIdFor(userId: string, workspaceId: string) {
+  return (await db.workspaceMember.findUnique({ where: { workspaceId_userId: { workspaceId, userId } } }))?.id ?? null
+}
+
+async function recordMovement(
+  tx: Prisma.TransactionClient,
+  input: {
+    workspaceId: string
+    inventoryId: string
+    fromQuantity: number | null
+    toQuantity: number | null
+    reason?: string | null
+    source: 'adjust' | 'edit' | 'import'
+    actorMemberId: string | null
+  },
+) {
+  if (input.fromQuantity === input.toQuantity) return
+  const delta =
+    input.fromQuantity != null && input.toQuantity != null ? input.toQuantity - input.fromQuantity : null
+  await tx.inventoryStockMovement.create({
+    data: {
+      workspaceId: input.workspaceId,
+      inventoryId: input.inventoryId,
+      fromQuantity: input.fromQuantity,
+      toQuantity: input.toQuantity,
+      delta,
+      reason: blank(input.reason)?.slice(0, 240) ?? null,
+      source: input.source,
+      actorMemberId: input.actorMemberId,
+    },
+  })
 }
 
 export class InventoryService {
@@ -84,7 +136,7 @@ export class InventoryService {
       q?: string
       category?: string
       status?: RecordStatus
-      focus?: 'offered' | 'paused' | 'out'
+      focus?: 'offered' | 'paused' | 'out' | 'low'
       sort?: 'name' | 'price' | 'updated' | 'quantity'
       dir?: 'asc' | 'desc'
       cursor?: string
@@ -95,7 +147,7 @@ export class InventoryService {
     const limit = normalizeLimit(opts.limit)
     const sort = opts.sort ?? 'name'
     const dir = opts.dir === 'desc' ? 'desc' : 'asc'
-    if (opts.focus && !['offered', 'paused', 'out'].includes(opts.focus)) throw badRequest('Unknown inventory focus', 'INVALID_FOCUS')
+    if (opts.focus && !['offered', 'paused', 'out', 'low'].includes(opts.focus)) throw badRequest('Unknown inventory focus', 'INVALID_FOCUS')
     if (opts.sort && !['name', 'price', 'updated', 'quantity'].includes(opts.sort)) throw badRequest('Unknown sort', 'INVALID_SORT')
     const where = this.listWhere(workspaceId, opts)
     const cursor = decodeKeyCursor<{ v: string | number | null; id: string; sort: string; dir: string }>(opts.cursor)
@@ -131,14 +183,15 @@ export class InventoryService {
     await authorize(userId, workspaceId, 'record.read')
     const base = { workspaceId }
     const active = { ...base, status: 'active' as const }
-    const [all, offered, paused, outOfStock, archived] = await Promise.all([
+    const [all, offered, paused, outOfStock, low, archived] = await Promise.all([
       db.inventory.count({ where: active }),
       db.inventory.count({ where: { ...active, availability: true } }),
       db.inventory.count({ where: { ...active, availability: false } }),
       db.inventory.count({ where: { ...active, quantity: 0 } }),
+      db.inventory.count({ where: { ...active, lowStock: true } }),
       db.inventory.count({ where: { ...base, status: 'archived' } }),
     ])
-    return { data: { all, offered, paused, outOfStock, archived } }
+    return { data: { all, offered, paused, outOfStock, low, archived } }
   }
 
   async bulk(
@@ -167,7 +220,7 @@ export class InventoryService {
 
   private listWhere(
     workspaceId: string,
-    opts: { q?: string; category?: string; status?: RecordStatus; focus?: 'offered' | 'paused' | 'out' },
+    opts: { q?: string; category?: string; status?: RecordStatus; focus?: 'offered' | 'paused' | 'out' | 'low' },
   ): Prisma.InventoryWhereInput {
     const q = opts.q?.trim()
     return {
@@ -177,7 +230,8 @@ export class InventoryService {
       ...(opts.focus === 'offered' ? { availability: true } : {}),
       ...(opts.focus === 'paused' ? { availability: false } : {}),
       ...(opts.focus === 'out' ? { quantity: 0 } : {}),
-      ...(q ? { OR: [{ name: { contains: q } }, { sku: { startsWith: q } }] } : {}),
+      ...(opts.focus === 'low' ? { lowStock: true } : {}),
+      ...(q ? { OR: [{ name: { contains: q } }, { sku: { startsWith: q } }, { location: { contains: q } }] } : {}),
     }
   }
 
@@ -215,6 +269,8 @@ export class InventoryService {
     const name = blank(input.name)
     if (!name) throw badRequest('An item needs a name', 'EMPTY_ITEM')
     assertValid(input)
+    const quantity = input.quantity ?? null
+    const lowStockThreshold = quantity == null ? null : (input.lowStockThreshold ?? null)
     try {
       const created = await db.inventory.create({
         data: {
@@ -225,8 +281,10 @@ export class InventoryService {
           price: input.price ?? 0,
           category: blank(input.category),
           status: input.status ?? 'active',
-          // null quantity = a service / catalog entry with no stock count
-          quantity: input.quantity ?? null,
+          quantity,
+          lowStockThreshold,
+          lowStock: isLowStock(quantity, lowStockThreshold),
+          location: blank(input.location)?.slice(0, 120) ?? null,
           availability: input.availability ?? true,
           imageUrl: blank(input.imageUrl),
         },
@@ -237,35 +295,145 @@ export class InventoryService {
     }
   }
 
-  // Optimistic concurrency: one atomic statement updates the item only if it is still
-  // at the version the caller read, and bumps the version. Anything else is a 409 —
-  // never a silent overwrite of someone's newer change.
   async update(userId: string, workspaceId: string, inventoryId: string, input: InventoryInput & { expectedVersion: number }) {
     await authorize(userId, workspaceId, 'record.write')
-    await liveItem(workspaceId, inventoryId)
+    const before = await liveItem(workspaceId, inventoryId)
     if ('name' in input && !blank(input.name)) throw badRequest('An item needs a name', 'EMPTY_ITEM')
     if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 1) throw badRequest('expectedVersion is required', 'INVALID_VERSION')
     assertValid(input)
+    const nextQuantity = 'quantity' in input ? (input.quantity ?? null) : before.quantity
+    const nextThreshold =
+      nextQuantity == null
+        ? null
+        : 'lowStockThreshold' in input
+          ? (input.lowStockThreshold ?? null)
+          : before.lowStockThreshold
+    const actorMemberId = await memberIdFor(userId, workspaceId)
     try {
-      const claimed = await db.inventory.updateMany({
-        where: { id: inventoryId, workspaceId, version: input.expectedVersion },
-        data: {
-          version: { increment: 1 },
-          name: 'name' in input ? blank(input.name)!.slice(0, 160) : undefined,
-          sku: 'sku' in input ? blank(input.sku) : undefined,
-          description: 'description' in input ? blank(input.description) : undefined,
-          price: input.price,
-          category: 'category' in input ? blank(input.category) : undefined,
-          status: input.status,
-          quantity: 'quantity' in input ? (input.quantity ?? null) : undefined,
-          availability: input.availability,
-          imageUrl: 'imageUrl' in input ? blank(input.imageUrl) : undefined,
-        },
+      const updated = await db.$transaction(async (tx) => {
+        const claimed = await tx.inventory.updateMany({
+          where: { id: inventoryId, workspaceId, version: input.expectedVersion },
+          data: {
+            version: { increment: 1 },
+            name: 'name' in input ? blank(input.name)!.slice(0, 160) : undefined,
+            sku: 'sku' in input ? blank(input.sku) : undefined,
+            description: 'description' in input ? blank(input.description) : undefined,
+            price: input.price,
+            category: 'category' in input ? blank(input.category) : undefined,
+            status: input.status,
+            quantity: 'quantity' in input ? nextQuantity : undefined,
+            lowStockThreshold: 'quantity' in input || 'lowStockThreshold' in input ? nextThreshold : undefined,
+            lowStock: 'quantity' in input || 'lowStockThreshold' in input ? isLowStock(nextQuantity, nextThreshold) : undefined,
+            location: 'location' in input ? blank(input.location)?.slice(0, 120) ?? null : undefined,
+            availability: input.availability,
+            imageUrl: 'imageUrl' in input ? blank(input.imageUrl) : undefined,
+          },
+        })
+        if (!claimed.count) throw conflict('This item changed since you opened it; reload it before saving', 'INVENTORY_VERSION_CONFLICT')
+        if ('quantity' in input) {
+          await recordMovement(tx, {
+            workspaceId,
+            inventoryId,
+            fromQuantity: before.quantity,
+            toQuantity: nextQuantity,
+            source: 'edit',
+            actorMemberId,
+          })
+        }
+        return tx.inventory.findFirstOrThrow({ where: { id: inventoryId, workspaceId } })
       })
-      if (!claimed.count) throw conflict('This item changed since you opened it; reload it before saving', 'INVENTORY_VERSION_CONFLICT')
-      return toInventoryItem(await liveItem(workspaceId, inventoryId))
+      return toInventoryItem(updated)
     } catch (err) {
+      if (err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code === 'INVENTORY_VERSION_CONFLICT') throw err
       skuConflict(err)
+    }
+  }
+
+  /** Focused stock set: records a movement with optional reason. */
+  async adjustStock(
+    userId: string,
+    workspaceId: string,
+    inventoryId: string,
+    input: { expectedVersion: number; quantity: number; reason?: string | null },
+  ) {
+    await authorize(userId, workspaceId, 'record.write')
+    const before = await liveItem(workspaceId, inventoryId)
+    if (before.quantity == null) throw badRequest('This item does not track stock', 'STOCK_NOT_TRACKED')
+    if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 1) throw badRequest('expectedVersion is required', 'INVALID_VERSION')
+    if (!Number.isInteger(input.quantity) || input.quantity < 0) throw badRequest('Quantity must be a whole number, zero or more', 'INVALID_QUANTITY')
+    const actorMemberId = await memberIdFor(userId, workspaceId)
+    try {
+      const updated = await db.$transaction(async (tx) => {
+        const claimed = await tx.inventory.updateMany({
+          where: { id: inventoryId, workspaceId, version: input.expectedVersion },
+          data: {
+            version: { increment: 1 },
+            quantity: input.quantity,
+            lowStock: isLowStock(input.quantity, before.lowStockThreshold),
+          },
+        })
+        if (!claimed.count) throw conflict('This item changed since you opened it; reload it before saving', 'INVENTORY_VERSION_CONFLICT')
+        await recordMovement(tx, {
+          workspaceId,
+          inventoryId,
+          fromQuantity: before.quantity,
+          toQuantity: input.quantity,
+          reason: input.reason,
+          source: 'adjust',
+          actorMemberId,
+        })
+        return tx.inventory.findFirstOrThrow({ where: { id: inventoryId, workspaceId } })
+      })
+      return toInventoryItem(updated)
+    } catch (err) {
+      if (err && typeof err === 'object' && 'statusCode' in err) throw err
+      throw err
+    }
+  }
+
+  async listStockMovements(
+    userId: string,
+    workspaceId: string,
+    inventoryId: string,
+    opts: { cursor?: string; limit?: number },
+  ) {
+    await authorize(userId, workspaceId, 'record.read')
+    await liveItem(workspaceId, inventoryId)
+    const limit = normalizeLimit(opts.limit)
+    const cursor = decodeKeyCursor<{ at: string; id: string }>(opts.cursor)
+    const rows = await db.inventoryStockMovement.findMany({
+      where: {
+        workspaceId,
+        inventoryId,
+        ...(cursor
+          ? {
+              OR: [
+                { createdAt: { lt: new Date(cursor.at) } },
+                { createdAt: new Date(cursor.at), id: { lt: cursor.id } },
+              ],
+            }
+          : {}),
+      },
+      include: { actor: { include: { user: { include: { profile: true } } } } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+    })
+    const result = page(rows, limit, (last) => encodeKeyCursor({ at: last.createdAt.toISOString(), id: last.id }))
+    return {
+      data: result.data.map((row) => ({
+        id: row.id,
+        inventoryId: row.inventoryId,
+        fromQuantity: row.fromQuantity,
+        toQuantity: row.toQuantity,
+        delta: row.delta,
+        reason: row.reason,
+        source: row.source as 'adjust' | 'edit' | 'import',
+        actor: row.actor
+          ? { id: row.actor.id, name: row.actor.user.profile?.displayName ?? row.actor.user.email ?? 'Member' }
+          : null,
+        createdAt: row.createdAt,
+      })),
+      meta: result.meta,
     }
   }
 
@@ -274,8 +442,6 @@ export class InventoryService {
     await liveItem(workspaceId, inventoryId)
     await db.inventory.delete({ where: { id: inventoryId } })
   }
-
-  // ─── interests: Contact ↔ Interest ↔ Item ──────────────────────────────────
 
   async listInterests(userId: string, workspaceId: string, contactId: string) {
     await authorize(userId, workspaceId, 'record.read')
@@ -306,7 +472,6 @@ export class InventoryService {
     await authorize(userId, workspaceId, 'record.write')
     await liveContact(workspaceId, contactId)
     await liveItem(workspaceId, inventoryId)
-    // Idempotent: adding the same interest twice returns the existing one.
     const row = await db.interest.upsert({
       where: { workspaceId_contactId_inventoryId: { workspaceId, contactId, inventoryId } },
       create: { workspaceId, contactId, inventoryId },

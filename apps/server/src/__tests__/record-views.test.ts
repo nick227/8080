@@ -82,7 +82,7 @@ describe('record collection views', () => {
     expect(priced.json().meta.total).toBe(2)
 
     const counts = await call(testUserId, 'GET', `${base}/inventory/counts`)
-    expect(counts.json().data).toMatchObject({ all: 2, offered: 1, paused: 1, outOfStock: 1, archived: 0 })
+    expect(counts.json().data).toMatchObject({ all: 2, offered: 1, paused: 1, outOfStock: 1, low: 0, archived: 0 })
 
     const bulk = await call(testUserId, 'POST', `${base}/inventory/bulk`, {
       ids: [cheap.id, dear.id],

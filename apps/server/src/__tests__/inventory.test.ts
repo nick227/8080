@@ -84,6 +84,74 @@ describe('inventory', () => {
     expect((await call(testUserId, 'DELETE', `${base}/contacts/${lead.id}/interests/${widget.id}`)).statusCode).toBe(200)
     expect((await call(testUserId, 'GET', `${base}/contacts/${lead.id}/interests`)).json().data).toEqual([])
   })
+
+  it('tracks low-stock threshold, location, adjustments and movement history', async () => {
+    const { base } = await setup()
+    const created = await call(testUserId, 'POST', `${base}/inventory`, {
+      name: 'Filter',
+      sku: 'F-1',
+      quantity: 8,
+      lowStockThreshold: 5,
+      location: 'Bin A',
+    })
+    expect(created.statusCode).toBe(201)
+    await validateResponse('createInventoryItem', 201, created.json())
+    const filter = created.json().data
+    expect(filter).toMatchObject({
+      quantity: 8,
+      lowStockThreshold: 5,
+      lowStock: false,
+      location: 'Bin A',
+    })
+
+    const low = await call(testUserId, 'POST', `${base}/inventory/${filter.id}/stock`, {
+      expectedVersion: 1,
+      quantity: 4,
+      reason: 'Sold two cases',
+    })
+    expect(low.statusCode).toBe(200)
+    await validateResponse('adjustInventoryStock', 200, low.json())
+    expect(low.json().data).toMatchObject({ quantity: 4, lowStock: true, version: 2 })
+
+    const counts = await call(testUserId, 'GET', `${base}/inventory/counts`)
+    await validateResponse('countInventory', 200, counts.json())
+    expect(counts.json().data).toMatchObject({ low: 1, outOfStock: 0 })
+    expect((await call(testUserId, 'GET', `${base}/inventory?focus=low`)).json().data.map((i: { id: string }) => i.id)).toEqual([
+      filter.id,
+    ])
+
+    const edited = await call(testUserId, 'PATCH', `${base}/inventory/${filter.id}`, {
+      expectedVersion: 2,
+      quantity: 0,
+      location: 'Bin B',
+    })
+    expect(edited.json().data).toMatchObject({ quantity: 0, lowStock: false, location: 'Bin B', version: 3 })
+    expect((await call(testUserId, 'GET', `${base}/inventory?focus=out`)).json().data).toHaveLength(1)
+    expect((await call(testUserId, 'GET', `${base}/inventory?focus=low`)).json().data).toHaveLength(0)
+
+    const history = await call(testUserId, 'GET', `${base}/inventory/${filter.id}/stock-movements`)
+    expect(history.statusCode).toBe(200)
+    await validateResponse('listInventoryStockMovements', 200, history.json())
+    expect(history.json().data).toHaveLength(2)
+    expect(history.json().data[0]).toMatchObject({ fromQuantity: 4, toQuantity: 0, source: 'edit' })
+    expect(history.json().data[1]).toMatchObject({
+      fromQuantity: 8,
+      toQuantity: 4,
+      delta: -4,
+      reason: 'Sold two cases',
+      source: 'adjust',
+    })
+
+    const untracked = await item(base, { name: 'Consult' })
+    expect(
+      (
+        await call(testUserId, 'POST', `${base}/inventory/${untracked.id}/stock`, {
+          expectedVersion: 1,
+          quantity: 1,
+        })
+      ).statusCode,
+    ).toBe(400)
+  })
 })
 
 describe('lead tracking on contacts', () => {

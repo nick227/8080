@@ -1556,6 +1556,53 @@ export interface paths {
         patch: operations["updateInventoryItem"];
         trace?: never;
     };
+    "/workspaces/{workspaceId}/inventory/{inventoryId}/stock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set tracked quantity with an optional reason
+         * @description Records an append-only stock movement. Items without stock tracking return 400 STOCK_NOT_TRACKED.
+         *     Concurrent edits return 409 INVENTORY_VERSION_CONFLICT.
+         */
+        post: operations["adjustInventoryStock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/inventory/{inventoryId}/stock-movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Quantity change history for an item
+         * @description Newest first. Not a warehouse ledger — only recorded adjustments, edits, and imports.
+         */
+        get: operations["listInventoryStockMovements"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/inventory/{inventoryId}/interests": {
         parameters: {
             query?: never;
@@ -3370,6 +3417,11 @@ export interface components {
             status: components["schemas"]["RecordStatus"];
             /** @description null = no stock count (services, catalog entries) */
             quantity: number | null;
+            /** @description Alert when tracked quantity is above zero and at or below this level */
+            lowStockThreshold: number | null;
+            /** @description Maintained on write for the low working view */
+            lowStock: boolean;
+            location: string | null;
             availability: boolean;
             imageUrl: string | null;
             /** Format: date-time */
@@ -3392,6 +3444,8 @@ export interface components {
             category?: string | null;
             status?: components["schemas"]["RecordStatus"];
             quantity?: number | null;
+            lowStockThreshold?: number | null;
+            location?: string | null;
             availability?: boolean;
             imageUrl?: string | null;
         };
@@ -3405,8 +3459,35 @@ export interface components {
             category?: string | null;
             status?: components["schemas"]["RecordStatus"];
             quantity?: number | null;
+            lowStockThreshold?: number | null;
+            location?: string | null;
             availability?: boolean;
             imageUrl?: string | null;
+        };
+        AdjustInventoryStockInput: {
+            expectedVersion: number;
+            quantity: number;
+            reason?: string | null;
+        };
+        StockMovement: {
+            id: string;
+            inventoryId: string;
+            fromQuantity: number | null;
+            toQuantity: number | null;
+            delta: number | null;
+            reason: string | null;
+            /** @enum {string} */
+            source: "adjust" | "edit" | "import";
+            actor: {
+                id: string;
+                name: string;
+            } | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PaginatedStockMovements: {
+            data: components["schemas"]["StockMovement"][];
+            meta: components["schemas"]["PaginatedMeta"];
         };
         Interest: {
             id: string;
@@ -3446,6 +3527,7 @@ export interface components {
             offered: number;
             paused: number;
             outOfStock: number;
+            low: number;
             archived: number;
         };
         InventoryCountsResponse: {
@@ -6898,8 +6980,8 @@ export interface operations {
                 q?: string;
                 category?: string;
                 status?: components["schemas"]["RecordStatus"];
-                /** @description Working view over active items (out = tracked quantity zero) */
-                focus?: "offered" | "paused" | "out";
+                /** @description Working view over active items (out = tracked quantity zero; low = at or below threshold) */
+                focus?: "offered" | "paused" | "out" | "low";
                 sort?: "name" | "price" | "updated" | "quantity";
                 dir?: "asc" | "desc";
             };
@@ -7095,6 +7177,68 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    adjustInventoryStock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdjustInventoryStockInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listInventoryStockMovements: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor returned by the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                inventoryId: components["parameters"]["InventoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedStockMovements"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     listInventoryInterests: {

@@ -111,7 +111,7 @@ function RecordWorkspace({
   const inventoryParams = {
     q: q.trim() || undefined,
     status: (archived ? 'archived' : 'active') as 'active' | 'archived',
-    focus: !archived && ['offered', 'paused', 'out'].includes(focus) ? (focus as 'offered' | 'paused' | 'out') : undefined,
+    focus: !archived && ['offered', 'paused', 'out', 'low'].includes(focus) ? (focus as 'offered' | 'paused' | 'out' | 'low') : undefined,
     sort: ['name', 'price', 'updated', 'quantity'].includes(sort)
       ? (sort as 'name' | 'price' | 'updated' | 'quantity')
       : undefined,

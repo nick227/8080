@@ -64,6 +64,8 @@ export type UpdateTeamInput = S['UpdateTeamInput']
 export type InventoryItem = S['InventoryItem']
 export type CreateInventoryInput = S['CreateInventoryInput']
 export type UpdateInventoryInput = S['UpdateInventoryInput']
+export type AdjustInventoryStockInput = S['AdjustInventoryStockInput']
+export type StockMovement = S['StockMovement']
 export type Interest = S['Interest']
 export type LeadStatus = S['LeadStatus']
 

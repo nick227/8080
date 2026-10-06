@@ -52,6 +52,8 @@ export function RecordForm({
     offered: item?.availability ?? true,
     tracking: item?.quantity != null,
     quantity: String(item?.quantity ?? ''),
+    threshold: item?.lowStockThreshold != null ? String(item.lowStockThreshold) : '',
+    location: item?.location ?? '',
     image: item?.imageUrl ?? '',
   }))
   const draftKey = `records.draft:${workspaceId}:${kind}:${contact?.id ?? item?.id ?? 'new'}`
@@ -126,6 +128,11 @@ export function RecordForm({
         const quantity = Number(form.quantity)
         if (!form.quantity.trim() || !Number.isInteger(quantity) || quantity < 0)
           nextErrors.quantity = 'Enter a whole stock quantity of zero or more.'
+        if (form.threshold.trim()) {
+          const threshold = Number(form.threshold)
+          if (!Number.isInteger(threshold) || threshold < 0)
+            nextErrors.threshold = 'Enter a whole number of zero or more, or leave blank.'
+        }
       }
     }
     setFieldError(nextErrors)
@@ -194,6 +201,8 @@ export function RecordForm({
       name: form.name.trim(),
       price,
       quantity,
+      lowStockThreshold: form.tracking && form.threshold.trim() ? Number(form.threshold) : null,
+      location: form.location.trim() || null,
       availability: form.offered,
       sku: form.sku.trim() || null,
       category: form.category.trim() || null,

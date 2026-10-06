@@ -17,6 +17,8 @@ export type FormDraft = {
   offered: boolean
   tracking: boolean
   quantity: string
+  threshold: string
+  location: string
   image: string
 }
 
@@ -181,15 +183,35 @@ export function InventoryFields({
           <span>Track stock for this item</span>
         </label>
         {form.tracking ? (
-          <Field label="In stock" error={fieldError.quantity}>
-            <input
-              required
-              inputMode="numeric"
-              placeholder="0"
-              value={form.quantity}
-              onChange={(e) => set('quantity', e.target.value)}
-            />
-          </Field>
+          <>
+            <div className="record-field-pair">
+              <Field label="In stock" error={fieldError.quantity}>
+                <input
+                  required
+                  inputMode="numeric"
+                  placeholder="0"
+                  value={form.quantity}
+                  onChange={(e) => set('quantity', e.target.value)}
+                />
+              </Field>
+              <Field label="Low-stock at" error={fieldError.threshold}>
+                <input
+                  inputMode="numeric"
+                  placeholder="Optional"
+                  value={form.threshold}
+                  onChange={(e) => set('threshold', e.target.value)}
+                />
+              </Field>
+            </div>
+            <Field label="Location">
+              <input
+                maxLength={120}
+                placeholder="Shelf, bin, warehouse…"
+                value={form.location}
+                onChange={(e) => set('location', e.target.value)}
+              />
+            </Field>
+          </>
         ) : (
           <p className="record-muted">Products and services can both be offered without a stock count.</p>
         )}

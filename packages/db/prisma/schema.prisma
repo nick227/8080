@@ -535,6 +535,7 @@ model Workspace {
   composes         Compose[]
   inventories      Inventory[]
   interests        Interest[]
+  stockMovements   InventoryStockMovement[]
   channel          WorkspaceChannel?
   workflowRuns     WorkflowRun[]
   companyProfile   CompanyProfile?
@@ -585,6 +586,7 @@ model WorkspaceMember {
   composes        Compose[]
   workflowRuns    WorkflowRun[]
   companyFacts    CompanyFact[]
+  stockMovements  InventoryStockMovement[]
   companySources  CompanyScalarSource[]
   proposalsMade    AgentProposal[] @relation("ProposalCreator")
   proposalsDecided AgentProposal[] @relation("ProposalDecider")
@@ -878,32 +880,60 @@ enum LeadStatus {
 
 // What the workspace sells. Soft-archive via status; hard-delete is admin-only.
 model Inventory {
-  id           String       @id @default(cuid())
-  workspaceId  String
-  name         String       @db.VarChar(160)
-  sku          String?      @db.VarChar(80)
-  description  String?      @db.Text
-  price        Float        @default(0)
-  category     String?      @db.VarChar(80)
-  status       RecordStatus @default(active)
-  quantity     Int? // null = service / catalog entry with no stock count
-  availability Boolean      @default(true)
-  imageUrl     String?      @db.VarChar(255)
+  id                String       @id @default(cuid())
+  workspaceId       String
+  name              String       @db.VarChar(160)
+  sku               String?      @db.VarChar(80)
+  description       String?      @db.Text
+  price             Float        @default(0)
+  category          String?      @db.VarChar(80)
+  status            RecordStatus @default(active)
+  quantity          Int? // null = service / catalog entry with no stock count
+  // Alert when tracked quantity is above zero and at or below this level (null = no low-stock view).
+  lowStockThreshold Int?
+  // Maintained on write: tracked, threshold set, 0 < quantity <= threshold.
+  lowStock          Boolean      @default(false)
+  location          String?      @db.VarChar(120)
+  availability      Boolean      @default(true)
+  imageUrl          String?      @db.VarChar(255)
   // Optimistic concurrency: an update names the version it read and is refused (409)
   // if the item changed since. Also the stale check for agent proposals (doc/13 §5).
-  version      Int          @default(1)
-  importBatchId String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  version           Int          @default(1)
+  importBatchId     String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
-  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  importBatch ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
-  interests   Interest[]
-  importRows  ImportRow[]
+  workspace      Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  importBatch    ImportBatch?             @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  interests      Interest[]
+  importRows     ImportRow[]
+  stockMovements InventoryStockMovement[]
 
   @@unique([workspaceId, sku])
   @@index([workspaceId, name])
   @@index([importBatchId])
+  @@index([workspaceId, lowStock])
+}
+
+// Append-only quantity changes (adjust / edit / import). Not a full warehouse ledger.
+model InventoryStockMovement {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  inventoryId   String
+  fromQuantity  Int?
+  toQuantity    Int?
+  delta         Int?
+  reason        String?  @db.VarChar(240)
+  source        String   @db.VarChar(16) // adjust | edit | import
+  actorMemberId String?
+  createdAt     DateTime @default(now())
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  inventory Inventory        @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  actor     WorkspaceMember? @relation(fields: [actorMemberId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, inventoryId, createdAt])
+  @@index([actorMemberId])
 }
 
 // A contact's interest in one inventory item (idempotent per contact+item).

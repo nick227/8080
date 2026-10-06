@@ -706,6 +706,29 @@
   margin: 0;
   font-variant-numeric: tabular-nums;
 }
+.record-stock-history {
+  margin-top: var(--space-lg);
+}
+.record-stock-history ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: var(--line-width) solid var(--line);
+}
+.record-stock-history li {
+  display: grid;
+  gap: var(--space-2xs);
+  padding: var(--space-sm);
+  border-bottom: var(--line-width) solid var(--line);
+}
+.record-stock-history li:last-child {
+  border-bottom: 0;
+}
+.record-stock-history span,
+.record-stock-history time {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
 .record-tile-state {
   display: flex;
   flex-direction: column;

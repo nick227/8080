@@ -23,7 +23,9 @@ export const stockLabel = (item: InventoryItem) =>
     ? 'Stock not tracked'
     : item.quantity === 0
       ? 'Out of stock'
-      : `${item.quantity} in stock`
+      : item.lowStock
+        ? `${item.quantity} in stock · Low`
+        : `${item.quantity} in stock`
 
 export const contactSubtitle = (contact: Contact) =>
   contact.accounts.find((account) => account.isPrimary)?.name ??

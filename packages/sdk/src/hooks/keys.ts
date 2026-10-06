@@ -25,6 +25,8 @@ export const keys = {
   inventory: (workspaceId: string, params?: object) => ['workspaces', workspaceId, 'inventory', 'list', params ?? {}] as const,
   inventoryCounts: (workspaceId: string) => ['workspaces', workspaceId, 'inventory', 'counts'] as const,
   inventoryItem: (workspaceId: string, inventoryId: string) => ['workspaces', workspaceId, 'inventory', inventoryId] as const,
+  inventoryStockMovements: (workspaceId: string, inventoryId: string) =>
+    ['workspaces', workspaceId, 'inventory', inventoryId, 'stock-movements'] as const,
   interests: (workspaceId: string, contactId: string) => ['workspaces', workspaceId, 'contacts', contactId, 'interests'] as const,
   itemInterests: (workspaceId: string, inventoryId: string) => ['workspaces', workspaceId, 'inventory', inventoryId, 'interests'] as const,
   accounts: (workspaceId: string, params?: object) => ['workspaces', workspaceId, 'accounts', 'list', params ?? {}] as const,

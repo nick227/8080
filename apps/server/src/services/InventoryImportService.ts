@@ -1,6 +1,6 @@
 // Inventory import (doc/13 slice 4): same ImportBatch engine as contacts, SKU match.
 // Matched rows skip by default or update mapped non-empty fields when onMatch=update.
-// Blank cells leave existing values unchanged (never clear). No stock ledger.
+// Blank cells leave existing values unchanged (never clear). Quantity changes append a stock movement.
 import { createHash } from 'crypto'
 import { db, Prisma, type ImportBatch, type ImportProposal, type ImportResolution, type ImportRow } from '@project/db'
 import type { GridTable } from '@project/shared'
@@ -9,6 +9,7 @@ import { decodeKeyCursor, encodeKeyCursor, normalizeLimit, page } from '../lib/p
 import { runAction } from './actions'
 import { DocumentService } from './DocumentService'
 import { parseDocumentCsv } from './documentCsv'
+import { isLowStock } from './InventoryService'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
 import { authorize } from './workspacePolicy'
 import { retentionDays } from './ContactImportService'
@@ -552,11 +553,27 @@ export class InventoryImportService {
             ...(values.description !== undefined ? { description: values.description.trim() || null } : {}),
             ...(price !== undefined && price !== null ? { price } : {}),
             ...(values.category !== undefined ? { category: values.category.trim() || null } : {}),
-            ...(quantity !== undefined ? { quantity } : {}),
+            ...(quantity !== undefined
+              ? { quantity, lowStock: isLowStock(quantity, target.lowStockThreshold) }
+              : {}),
             ...(availability !== undefined ? { availability } : {}),
             version: { increment: 1 },
           },
         })
+        if (quantity !== undefined && quantity !== target.quantity) {
+          const delta = target.quantity != null && quantity != null ? quantity - target.quantity : null
+          await tx.inventoryStockMovement.create({
+            data: {
+              workspaceId,
+              inventoryId: target.id,
+              fromQuantity: target.quantity,
+              toQuantity: quantity,
+              delta,
+              source: 'import',
+              actorMemberId: batch.createdById,
+            },
+          })
+        }
         return set('matched', target.id, 'UPDATED')
       }
       return set('matched', target.id)
@@ -569,6 +586,7 @@ export class InventoryImportService {
     const price = parsePrice(values.price) ?? 0
     const quantity = parseQuantity(values.quantity)
     const availability = parseAvailability(values.availability) ?? true
+    const qty = quantity === undefined ? null : quantity
     try {
       const created = await tx.inventory.create({
         data: {
@@ -578,11 +596,25 @@ export class InventoryImportService {
           description: values.description?.trim() || null,
           price: price === null ? 0 : price,
           category: values.category?.trim() || null,
-          quantity: quantity === undefined ? null : quantity,
+          quantity: qty,
+          lowStock: isLowStock(qty, null),
           availability,
           importBatchId: batch.id,
         },
       })
+      if (qty != null) {
+        await tx.inventoryStockMovement.create({
+          data: {
+            workspaceId,
+            inventoryId: created.id,
+            fromQuantity: null,
+            toQuantity: qty,
+            delta: null,
+            source: 'import',
+            actorMemberId: batch.createdById,
+          },
+        })
+      }
       return set('created', created.id)
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002' && sku) {

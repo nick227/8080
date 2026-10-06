@@ -29,6 +29,16 @@ export async function updateInventoryItem(request: any, reply: any) {
   return reply.send({ data: await inventory.update(request.user.id, workspaceId, inventoryId, request.body) })
 }
 
+export async function adjustInventoryStock(request: any, reply: any) {
+  const { workspaceId, inventoryId } = request.params
+  return reply.send({ data: await inventory.adjustStock(request.user.id, workspaceId, inventoryId, request.body) })
+}
+
+export async function listInventoryStockMovements(request: any, reply: any) {
+  const { workspaceId, inventoryId } = request.params
+  return reply.send(await inventory.listStockMovements(request.user.id, workspaceId, inventoryId, request.query))
+}
+
 export async function deleteInventoryItem(request: any, reply: any) {
   const { workspaceId, inventoryId } = request.params
   await inventory.remove(request.user.id, workspaceId, inventoryId)

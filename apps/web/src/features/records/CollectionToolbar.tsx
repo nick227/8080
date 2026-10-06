@@ -2,7 +2,7 @@ import type { LeadStatus } from '@project/sdk'
 import { STAGES, titleCase } from './labels'
 
 type ContactFocus = 'due' | 'overdue' | 'unassigned'
-type InventoryFocus = 'offered' | 'paused' | 'out'
+type InventoryFocus = 'offered' | 'paused' | 'out' | 'low'
 
 export function CollectionToolbar({
   kind,
@@ -32,6 +32,7 @@ export function CollectionToolbar({
     offered?: number
     paused?: number
     outOfStock?: number
+    low?: number
     archived: number
   }
   selectedCount: number
@@ -51,6 +52,7 @@ export function CollectionToolbar({
     { id: 'offered', label: 'Offered', count: counts?.offered },
     { id: 'paused', label: 'Paused', count: counts?.paused },
     { id: 'out', label: 'Out of stock', count: counts?.outOfStock },
+    { id: 'low', label: 'Low stock', count: counts?.low },
   ] as const
   const focuses = kind === 'contacts' ? contactFocus : inventoryFocus
   const sorts =

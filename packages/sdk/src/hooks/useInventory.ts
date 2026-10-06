@@ -18,7 +18,7 @@ export type InventoryListParams = {
   q?: string
   category?: string
   status?: RecordStatus
-  focus?: 'offered' | 'paused' | 'out'
+  focus?: 'offered' | 'paused' | 'out' | 'low'
   sort?: 'name' | 'price' | 'updated' | 'quantity'
   dir?: 'asc' | 'desc'
   limit?: number
@@ -65,6 +65,27 @@ export function useUpdateInventoryItem(workspaceId: string) {
 export function useDeleteInventoryItem(workspaceId: string) {
   return useWorkspaceWrite(workspaceId, async (inventoryId: string) => {
     unwrap(await getApiClient().DELETE('/workspaces/{workspaceId}/inventory/{inventoryId}', { params: { path: { workspaceId, inventoryId } } }))
+  })
+}
+
+export function useAdjustInventoryStock(workspaceId: string) {
+  return useWorkspaceWrite(workspaceId, async ({ inventoryId, ...body }: { inventoryId: string; expectedVersion: number; quantity: number; reason?: string | null }) =>
+    unwrap(await getApiClient().POST('/workspaces/{workspaceId}/inventory/{inventoryId}/stock', { params: { path: { workspaceId, inventoryId } }, body })).data,
+  )
+}
+
+export function useInventoryStockMovements(workspaceId: string | undefined, inventoryId: string | undefined) {
+  return useInfiniteQuery({
+    queryKey: keys.inventoryStockMovements(workspaceId ?? '', inventoryId ?? ''),
+    enabled: !!workspaceId && !!inventoryId,
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) =>
+      unwrap(
+        await getApiClient().GET('/workspaces/{workspaceId}/inventory/{inventoryId}/stock-movements', {
+          params: { path: { workspaceId: workspaceId!, inventoryId: inventoryId! }, query: { cursor: pageParam } },
+        }),
+      ),
+    getNextPageParam: (last) => last.meta.nextCursor ?? undefined,
   })
 }
 
