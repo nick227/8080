@@ -10,6 +10,7 @@ import { STEPS, nextStep, splitList, startRun } from '../bots/flows/companyProfi
 import { companyDescription } from '../bots/flows/companyDescription'
 import { GUARDS } from '../bots/guards'
 import { crossWorkspaceViolations } from '../services/workspaceIntegrity'
+import { subscribe } from '../services/documentHub'
 
 const app = buildTestApp()
 const call = caller(app)
@@ -97,7 +98,7 @@ describe('the whole path (AI off)', () => {
 
     // A native block document with the template content, linked to the channel.
     const doc = await db.document.findUniqueOrThrow({ where: { id: docLink.id }, include: { content: true, rooms: true } })
-    expect(doc).toMatchObject({ workspaceId: ws.id, surface: 'blocks', sourceKind: 'native' })
+    expect(doc).toMatchObject({ workspaceId: ws.id, surface: 'blocks', sourceKind: 'native', workspaceAccess: 'viewer' })
     expect(doc.provenance).toMatchObject({ kind: 'chatbot_workflow', workflow: 'company-profile', generator: 'template', profileRevision: 1, brief: { audience: 'customers', length: 'medium' } })
     expect(doc.rooms.map((r) => r.roomId)).toEqual([roomId])
     const blocks = doc.content!.content as { level: string; text: string }[]
@@ -106,6 +107,11 @@ describe('the whole path (AI off)', () => {
     expect(blocks[2]!.text).toBe('What it offers: Web design, AI automation and hosting. Fast custom work with real technical depth. Get in touch to see how Midnight Creative can help.')
     const opened = await call(testUserId, 'GET', `/workspaces/${ws.id}/documents/${doc.id}/content`)
     expect(opened.statusCode).toBe(200)
+    // The workflow wrote it; that doesn't show Alice as editing it (within the 4 s window).
+    const seen: any[] = []
+    const off = subscribe(doc.id, { memberId: await memberId(ws.id, testUserId), name: 'Alice', send: (e) => seen.push(e) })
+    off()
+    expect(seen[0]).toMatchObject({ type: 'document.presence', people: [{ name: 'Alice', editing: false }] })
 
     // The stored profile: stated facts, one revision, every value traced to its answer.
     const profile = await call(testUserId, 'GET', `/workspaces/${ws.id}/company-profile`)
@@ -131,6 +137,9 @@ describe('the whole path (AI off)', () => {
     const exec = await db.actionExecution.findMany({ where: { workspaceId: ws.id, origin: 'assistant' }, orderBy: { requestedAt: 'asc' } })
     expect(exec.map((e) => e.action)).toEqual(['companyProfile.update', 'document.create', 'document.content.save', 'document.room.link'])
     expect(exec.every((e) => e.actorKind === 'member' && e.actorUserId === testUserId)).toBe(true)
+    // Shared in the same action that created it — before the link was posted.
+    expect(exec.find((e) => e.action === 'document.create')!.input).toMatchObject({ workspaceAccess: 'viewer' })
+    expect(exec.find((e) => e.action === 'document.create')!.finishedAt!.getTime()).toBeLessThanOrEqual(link.createdAt.getTime())
 
     const run = await db.workflowRun.findFirstOrThrow({ where: { workspaceId: ws.id } })
     expect(run).toMatchObject({ status: 'done', stepId: 'done' })
@@ -196,6 +205,64 @@ describe('the channel is public to members, the setup is the creator’s', () =>
     const res = await call(testUserId, 'POST', `/workspaces/${ws.id}/channel`)
     await host.idle()
     expect((await lastBot(res.json().data.roomId)).message.text).toMatch(/^Welcome, Alice\./)
+  })
+})
+
+describe('a workspace workflow\u2019s document belongs to the workspace audience', () => {
+  async function described() {
+    const { ws, roomId } = await workspace()
+    await click(testUserId, (await lastBot(roomId)).id, ['setup'])
+    for (const [, value] of INTERVIEW) await answer(roomId, value)
+    const link = (await call(testUserId, 'GET', `/items/${(await lastBot(roomId)).id}`)).json().data.message.links[0]
+    return { ws, roomId, docId: link.id as string }
+  }
+  const docUrl = (wsId: string, docId: string) => `/workspaces/${wsId}/documents/${docId}`
+
+  it('every member — including people who join later — can open it; plain members only read', async () => {
+    const { ws, docId } = await described()
+    await join(app, ws.id, carolId, 'carol@test.local') // joined after it was written
+    await host.idle()
+    const list = await call(carolId, 'GET', `/workspaces/${ws.id}/documents`)
+    expect(list.json().data.map((d: any) => d.id)).toContain(docId)
+    const got = await call(carolId, 'GET', docUrl(ws.id, docId))
+    expect(got.statusCode).toBe(200)
+    await validateResponse('getDocument', 200, got.json())
+    expect(got.json().data).toMatchObject({ workspaceAccess: 'viewer', capabilities: { manageAccess: false, editMetadata: false } })
+    const content = await call(carolId, 'GET', `${docUrl(ws.id, docId)}/content`)
+    expect(content.statusCode).toBe(200)
+    expect(JSON.stringify(content.json().data.content)).toContain('Midnight Creative is a team based in Austin')
+    expect((await call(carolId, 'PUT', `${docUrl(ws.id, docId)}/content`, { expectedVersion: content.json().data.version, content: [] })).statusCode).toBe(403)
+  })
+
+  it('owners/admins can broaden it to editors or narrow it to private; members cannot change it', async () => {
+    const { ws, docId } = await described()
+    await join(app, ws.id, carolId, 'carol@test.local')
+    const access = (who: string, role: string | null) => call(who, 'PUT', `${docUrl(ws.id, docId)}/workspace-access`, { role })
+    expect((await access(carolId, 'editor')).statusCode).toBe(403)
+
+    const broadened = await access(testUserId, 'editor')
+    expect(broadened.statusCode).toBe(200)
+    await validateResponse('setDocumentWorkspaceAccess', 200, broadened.json())
+    const version = (await call(carolId, 'GET', `${docUrl(ws.id, docId)}/content`)).json().data.version
+    expect((await call(carolId, 'PUT', `${docUrl(ws.id, docId)}/content`, { expectedVersion: version, content: [{ id: 'x', type: 'section', level: 'body', text: 'Carol was here' }] })).statusCode).toBe(200)
+
+    expect((await access(testUserId, null)).statusCode).toBe(200)
+    expect((await call(carolId, 'GET', docUrl(ws.id, docId))).statusCode).toBe(404)
+    expect((await call(carolId, 'GET', `/workspaces/${ws.id}/documents`)).json().data.map((d: any) => d.id)).not.toContain(docId)
+    // A per-member grant still works under a private audience.
+    expect((await call(testUserId, 'PUT', `${docUrl(ws.id, docId)}/grants/${await memberId(ws.id, carolId)}`, { role: 'viewer' })).statusCode).toBe(200)
+    expect((await call(carolId, 'GET', docUrl(ws.id, docId))).statusCode).toBe(200)
+    const audit = await db.actionExecution.findMany({ where: { workspaceId: ws.id, action: 'document.workspaceAccess' }, orderBy: { requestedAt: 'asc' } })
+    expect(audit.map((a) => (a.input as any).role)).toEqual(['editor', null])
+  })
+
+  it('a document a person creates stays private unless shared', async () => {
+    const { ws } = await workspace()
+    await join(app, ws.id, carolId, 'carol@test.local')
+    const mine = await call(testUserId, 'POST', `/workspaces/${ws.id}/documents`, { title: 'My notes', descriptor: { surface: 'blocks', source: { kind: 'native', schemaVersion: 1 } }, idempotencyKey: 'mine-1' })
+    expect(mine.statusCode).toBe(201)
+    expect(mine.json().data.workspaceAccess).toBeNull()
+    expect((await call(carolId, 'GET', docUrl(ws.id, mine.json().data.id))).statusCode).toBe(404)
   })
 })
 

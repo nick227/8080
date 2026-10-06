@@ -113,6 +113,7 @@ function sampleBody(op: any) {
     CreateContactImportInput: { source: { kind: 'csv', csv: 'Name\nx', filename: 'x.csv' } },
     ResolveContactImportRowInput: { action: 'skip' },
     SaveDocumentContentInput: { expectedVersion: 0, content: [] },
+    SetDocumentWorkspaceAccessInput: { role: 'viewer' },
     ReadInboxItemInput: { unread: false },
     StarInboxItemInput: { starred: true },
     ArchiveInboxItemInput: { archived: true },

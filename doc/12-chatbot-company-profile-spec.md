@@ -150,6 +150,7 @@ CompanyProfileRevision   id, workspaceId, revision, snapshot Json, actionExecuti
 
 - A native block `Document`, owned by the member and saved through `DocumentService.create` + `DocumentContentService.save`, so all registry/grant/live behaviour applies.
 - `provenance` (existing column): `{ generator: 'company-description', profileRevision, brief: { audience, style, length }, assistantCallId }`.
+- It is shared with the workspace from creation (`workspaceAccess: viewer`, §6.5), because it comes from the workspace's profile and a workspace workflow, not from one person.
 - It is linked to the bot channel (`DocumentRoomLink`), so it shows up in the room and the room shows up in the document.
 - Blocks: one `title` and `paragraph` blocks, using the existing types. No new block types.
 
@@ -227,7 +228,14 @@ When the channel is opened with no active run:
   - Web: `ChatStream` renders a "Document · title" line. `Room.openDocument` refreshes the list, opens the document and switches to Documents.
   - chatbot's tile shows **Channel** (`features/room/hostChannel.tsx`, context from Room). It opens the channel of the person's first workspace.
 - **Depends on the shared-content POC** (doc/10 §15, committed cb3fd61 on its own: `DocumentContentService`, `documentHub`, `GET …/content`).
-- **Known gap:** the generated document is owned by the creator, and plain members only see documents they own or were granted (doc/10 policy). So other members see the link in the channel but can't open the document until it's shared. Decide whether workflow documents are shared with the workspace.
+- **Audience follows ownership (2026-10-06):** `Document.workspaceAccess` (`viewer | editor | null`) is the workspace-wide audience, separate from per-member grants.
+  - A person's own document → `null` (private to the owner + grants).
+  - A workspace workflow's document → shared from creation: the company description is created with `viewer` in the same `document.create` action, so the link is posted only once members can open it.
+  - The audience covers people who join later.
+  - Owners/admins (`document.manage`) can broaden or narrow it with `PUT …/documents/{id}/workspace-access` (`setDocumentWorkspaceAccess`, audited as `document.workspaceAccess`). Grants keep working under a private audience.
+  - Policy: `can()` + `documentVisibility()` in `workspacePolicy.ts`.
+  - SDK `documentsApi.setWorkspaceAccess`; store `shareWithWorkspace` (UI control left to the UI owner).
+  - A save the workflow makes for someone (origin `assistant`) doesn't mark that person as editing in document presence.
 - **Proof:**
   - server `host.test.ts` 14/14; full suite 422/422.
   - browser (scratchpad `e2e/host.cjs`, isolated pair :3002/:5174, TEST DB; creator + invited member + guest; desktop + mobile) 28/28 ×2. `choices.cjs` 26/26 (incl. the choices.css fallbacks) and `doclive.cjs` 6/6. All ×2, from a clean checkout of the committed tree.

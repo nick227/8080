@@ -2527,6 +2527,33 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /workspaces/{workspaceId}/documents/{documentId}/workspace-access:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/DocumentId'
+    put:
+      operationId: setDocumentWorkspaceAccess
+      summary: Share a document with every workspace member (viewer/editor), or make it private (null)
+      description: |
+        Separate from per-member grants. A person's own document starts private; a
+        workspace workflow's document (e.g. the chatbot's company description) starts
+        shared with the workspace as viewer (doc/12 §5.4). Needs document.manage.
+      tags: [documents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetDocumentWorkspaceAccessInput' }
+      responses:
+        '200':
+          description: The document with its new audience
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /workspaces/{workspaceId}/documents/{documentId}/rooms:
     parameters:
     - in: path
@@ -5140,11 +5167,16 @@ components:
       - descriptor
       - capabilities
       - externalFileId
+      - workspaceAccess
       - provenance
       - createdAt
       - updatedAt
       - deletedAt
       properties:
+        workspaceAccess:
+          type: [string, 'null']
+          enum: [viewer, editor, null]
+          description: What every active workspace member gets; null = private to the owner and grants
         id:
           type: string
           minLength: 1
@@ -5266,6 +5298,12 @@ components:
         createdAt:
           type: string
           format: date-time
+    SetDocumentWorkspaceAccessInput:
+      type: object
+      additionalProperties: false
+      required: [role]
+      properties:
+        role: { type: [string, 'null'], enum: [viewer, editor, null], description: null = private (owner and grants only) }
     SetDocumentGrantInput:
       type: object
       additionalProperties: false

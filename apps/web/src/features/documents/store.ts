@@ -49,6 +49,8 @@ type State = {
   refresh: () => Promise<void>
   grants: (id: string) => Promise<Grant[]>
   share: (id: string, memberId: string, role: Grant['role'] | null) => Promise<void>
+  // The whole workspace's access (null = private to the owner and grants)
+  shareWithWorkspace: (id: string, role: Grant['role'] | null) => Promise<void>
   listDeleted: () => Promise<DocumentRecord[]>
   restore: (id: string) => Promise<void>
   related: (id: string) => Promise<DocumentRecord[]>
@@ -446,6 +448,11 @@ export const useDocuments = create<State>((set, get) => {
     async share(id, memberId, role) {
       if (role) await documentsApi.setGrant(ws(), id, memberId, role)
       else await documentsApi.removeGrant(ws(), id, memberId)
+    },
+
+    async shareWithWorkspace(id, role) {
+      await documentsApi.setWorkspaceAccess(ws(), id, role)
+      await get().refresh() // capabilities follow the new audience
     },
 
     async listDeleted() {

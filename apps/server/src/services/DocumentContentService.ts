@@ -114,7 +114,8 @@ export class DocumentContentService {
         return { value: next, result: { version: next } }
       },
     )
-    setEditing(documentId, actor.member.id, true)
+    // A workflow saving for someone (origin assistant) isn't that person editing.
+    if (ctx.origin !== 'assistant') setEditing(documentId, actor.member.id, true)
     publish(documentId, { type: 'document.updated', version, memberId: actor.member.id, name: ctx.user.profile?.displayName ?? null })
     return current(documentId)
   }

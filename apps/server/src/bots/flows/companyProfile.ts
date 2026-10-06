@@ -208,7 +208,10 @@ export async function generate(roomId: string, userId: string): Promise<FlowSay[
       ctx, run.workspaceId,
       { title, descriptor: { surface: 'blocks', source: { kind: 'native', schemaVersion: 1 } }, idempotencyKey: `wf:${run.id}:doc` },
       undefined,
-      { kind: 'chatbot_workflow', workflow: COMPANY_PROFILE, version: VERSION, runId: run.id, profileRevision: revision, generator: 'template', brief },
+      // Generated from the workspace's profile by a workspace workflow, so it belongs to
+      // the workspace's audience from the start — the link below is only posted once
+      // that is in place (doc/12 §5.4). Owners and admins can narrow or broaden it.
+      { provenance: { kind: 'chatbot_workflow', workflow: COMPANY_PROFILE, version: VERSION, runId: run.id, profileRevision: revision, generator: 'template', brief }, workspaceAccess: 'viewer' },
     )
     await contents.save(ctx, run.workspaceId, doc.id, { expectedVersion: 0, content: blocks }).catch((error) => {
       if ((error as { code?: string }).code !== 'DOCUMENT_CONTENT_CONFLICT') throw error // already written by an earlier try

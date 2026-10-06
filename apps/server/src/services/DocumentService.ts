@@ -14,7 +14,7 @@ import { parseDocumentCsv } from './documentCsv'
 const include = { grants: true } satisfies Prisma.DocumentInclude
 type Row = Prisma.DocumentGetPayload<{ include: typeof include }>
 const json = (x: unknown) => JSON.parse(JSON.stringify(x)) as Prisma.InputJsonValue
-const target = (row: Row) => ({ kind: 'document' as const, ownerMemberId: row.ownerMemberId, grants: row.grants })
+const target = (row: Row) => ({ kind: 'document' as const, ownerMemberId: row.ownerMemberId, grants: row.grants, workspaceAccess: row.workspaceAccess })
 const rooms = new RoomService()
 
 export function normalizeDescriptor(d: DocumentDescriptor): DocumentDescriptor {
@@ -50,7 +50,7 @@ function serialize(row: Row, actor: Actor) {
       editRecords: edit && row.sourceKind === 'dataset' && can(actor.member, 'record.write'),
       openExternal: !row.deletedAt && row.sourceKind === 'external', readMaterialization: !row.deletedAt && row.payload !== null,
       exportData: !row.deletedAt && row.sourceKind === 'dataset' && can(actor.member, 'dataset.export') },
-    externalFileId: row.externalFileId, provenance: row.provenance, createdAt: row.createdAt, updatedAt: row.updatedAt, deletedAt: row.deletedAt }
+    externalFileId: row.externalFileId, workspaceAccess: row.workspaceAccess, provenance: row.provenance, createdAt: row.createdAt, updatedAt: row.updatedAt, deletedAt: row.deletedAt }
 }
 export class DocumentService {
   async access(userId: string, workspaceId: string, documentId: string, verb: 'document.read' | 'document.edit' | 'document.manage' = 'document.read', deleted = false) {
@@ -87,9 +87,12 @@ export class DocumentService {
     const last = rows[rows.length - 1]
     return { data: rows.map(r => serialize(r, actor)), meta: { nextCursor: hasMore && last ? encodeKeyCursor({ u: last.updatedAt.toISOString(), id: last.id }) : null } }
   }
-  // `provenance` (server-internal): where a native document came from, e.g. the chatbot
-  // workflow run and profile revision it was generated from (doc/12 §5.4).
-  async create(ctx: WorkspaceCtx, workspaceId: string, input: DocumentCreate, materialization?: { table: GridTable; provenance: object; protectedDataset?: 'contacts' }, provenance?: object) {
+  // `extra` (server-internal): where a native document came from (e.g. the chatbot
+  // workflow run and profile revision) and its workspace audience. A person's own
+  // document starts private; a workspace workflow's starts shared (doc/12 §5.4), set
+  // in the same action that creates it.
+  async create(ctx: WorkspaceCtx, workspaceId: string, input: DocumentCreate, materialization?: { table: GridTable; provenance: object; protectedDataset?: 'contacts' }, extra: { provenance?: object; workspaceAccess?: 'viewer' | 'editor' } = {}) {
+    const { provenance, workspaceAccess } = extra
     const actor = await authorize(ctx.user.id, workspaceId, 'document.create')
     const descriptor = normalizeDescriptor(input.descriptor)
     if (descriptor.source.kind === 'dataset' || materialization?.protectedDataset) { permit(actor, 'dataset.read'); permit(actor, 'record.read') }
@@ -98,8 +101,8 @@ export class DocumentService {
     // Store a digest rather than raw contact values or pasted CSV in the audit input.
     const contentHash = materialization ? createHash('sha256').update(JSON.stringify(materialization)).digest('hex') : null
     return runAction({ action: 'document.create', workspaceId, actor: memberActor(actor), origin: ctx.origin, target: { type: 'document' }, idempotencyKey: input.idempotencyKey,
-      input: { title: normalizedTitle, descriptor, contentHash } }, async tx => {
-      const row = await tx.document.create({ data: { workspaceId, ownerMemberId: actor.member.id, title: normalizedTitle, surface: descriptor.surface, sourceKind: descriptor.source.kind, descriptor: json(descriptor), externalFileId: externalFileId(descriptor), ...(materialization ? { payload: json(materialization.table), provenance: json(materialization.provenance), protectedDataset: materialization.protectedDataset } : provenance ? { provenance: json(provenance) } : {}) }, include })
+      input: { title: normalizedTitle, descriptor, contentHash, workspaceAccess: workspaceAccess ?? null } }, async tx => {
+      const row = await tx.document.create({ data: { workspaceId, ownerMemberId: actor.member.id, title: normalizedTitle, surface: descriptor.surface, sourceKind: descriptor.source.kind, descriptor: json(descriptor), externalFileId: externalFileId(descriptor), ...(materialization ? { payload: json(materialization.table), provenance: json(materialization.provenance), protectedDataset: materialization.protectedDataset } : provenance ? { provenance: json(provenance) } : {}), ...(workspaceAccess ? { workspaceAccess } : {}) }, include })
       return { value: serialize(row, actor), targetId: row.id }
     }, async previous => this.get(ctx.user.id, workspaceId, previous.targetId!))
   }
@@ -134,6 +137,14 @@ export class DocumentService {
       if (role) await tx.documentGrant.upsert({ where: { documentId_memberId: { documentId: id, memberId } }, create: { workspaceId, documentId: id, memberId, role }, update: { role } })
       else await tx.documentGrant.deleteMany({ where: { documentId: id, memberId, workspaceId } })
       return { value: null }
+    })
+  }
+  /** Who in the workspace sees it besides the owner and grants: null = private. */
+  async setWorkspaceAccess(ctx: WorkspaceCtx, workspaceId: string, id: string, role: 'viewer' | 'editor' | null) {
+    const { actor } = await this.access(ctx.user.id, workspaceId, id, 'document.manage')
+    return runAction({ action: 'document.workspaceAccess', workspaceId, actor: memberActor(actor), origin: ctx.origin, target: { type: 'document', id }, input: { role } }, async tx => {
+      const row = await tx.document.update({ where: { id }, data: { workspaceAccess: role }, include })
+      return { value: serialize(row, actor) }
     })
   }
   async roomLinks(userId: string, workspaceId: string, id: string) {

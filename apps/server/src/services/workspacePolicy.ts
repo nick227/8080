@@ -89,7 +89,8 @@ export type PolicyTarget =
   | { kind: 'team'; leadMemberIds: readonly string[] }
   | { kind: 'record'; ownerMemberId: string | null }
   | { kind: 'note'; authorMemberId: string }
-  | { kind: 'document'; ownerMemberId: string; grants: { memberId: string; role: 'viewer' | 'editor' }[] }
+  // `workspaceAccess`: what every active member gets (null = private to owner + grants).
+  | { kind: 'document'; ownerMemberId: string; grants: { memberId: string; role: 'viewer' | 'editor' }[]; workspaceAccess: 'viewer' | 'editor' | null }
 
 export type Actor = { member: WorkspaceMember; workspace: Workspace }
 
@@ -99,7 +100,9 @@ export function can(member: Pick<WorkspaceMember, 'id' | 'role' | 'status'>, ver
     if (target?.kind !== 'document') return false
     if (member.role === 'owner' || member.role === 'admin' || target.ownerMemberId === member.id) return true
     const grant = target.grants.find(g => g.memberId === member.id)
-    return verb === 'document.read' ? !!grant : verb === 'document.edit' ? grant?.role === 'editor' : false
+    if (verb === 'document.read') return !!grant || target.workspaceAccess !== null
+    if (verb === 'document.edit') return grant?.role === 'editor' || target.workspaceAccess === 'editor'
+    return false
   }
   if (verb === 'team.members.manage' && target?.kind === 'team' && target.leadMemberIds.includes(member.id)) return true
   if (verb === 'record.delete' && target?.kind === 'record' && target.ownerMemberId === member.id) return true
@@ -136,6 +139,6 @@ export function permit(actor: Actor, verb: WorkspaceVerb, target?: PolicyTarget)
 // SQL visibility and per-object checks live together to prevent list/detail drift.
 export function documentVisibility(actor: Actor) {
   return actor.member.role === 'owner' || actor.member.role === 'admin' ? {} : {
-    OR: [{ ownerMemberId: actor.member.id }, { grants: { some: { memberId: actor.member.id } } }],
+    OR: [{ ownerMemberId: actor.member.id }, { grants: { some: { memberId: actor.member.id } } }, { workspaceAccess: { not: null } }],
   }
 }

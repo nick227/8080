@@ -13,6 +13,7 @@ export async function deleteDocument(r: any) { return { data: await documents.de
 export async function restoreDocument(r: any) { return { data: await documents.deletion(workspaceCtx(r), r.params.workspaceId, r.params.documentId, r.body.expectedVersion, true) } }
 export async function listDocumentGrants(r: any) { return { data: await documents.grants(r.user.id, r.params.workspaceId, r.params.documentId) } }
 export async function setDocumentGrant(r: any) { return { data: await documents.grant(workspaceCtx(r), r.params.workspaceId, r.params.documentId, r.params.memberId, r.body.role) } }
+export async function setDocumentWorkspaceAccess(r: any) { return { data: await documents.setWorkspaceAccess(workspaceCtx(r), r.params.workspaceId, r.params.documentId, r.body.role) } }
 export async function removeDocumentGrant(r: any) { return { data: await documents.grant(workspaceCtx(r), r.params.workspaceId, r.params.documentId, r.params.memberId, null) } }
 export async function listDocumentRooms(r: any) { return { data: await documents.roomLinks(r.user.id, r.params.workspaceId, r.params.documentId) } }
 export async function linkDocumentRoom(r: any) { return { data: await documents.roomLink(workspaceCtx(r), r.params.workspaceId, r.params.documentId, r.params.roomId, false) } }

@@ -1615,6 +1615,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/documents/{documentId}/workspace-access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Share a document with every workspace member (viewer/editor), or make it private (null)
+         * @description Separate from per-member grants. A person's own document starts private; a
+         *     workspace workflow's document (e.g. the chatbot's company description) starts
+         *     shared with the workspace as viewer (doc/12 §5.4). Needs document.manage.
+         */
+        put: operations["setDocumentWorkspaceAccess"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/documents/{documentId}/rooms": {
         parameters: {
             query?: never;
@@ -3113,6 +3138,11 @@ export interface components {
             exportData: boolean;
         };
         Document: {
+            /**
+             * @description What every active workspace member gets; null = private to the owner and grants
+             * @enum {string|null}
+             */
+            workspaceAccess: "viewer" | "editor" | null;
             id: string;
             workspaceId: string;
             ownerMemberId: string;
@@ -3154,6 +3184,13 @@ export interface components {
             role: "viewer" | "editor";
             /** Format: date-time */
             createdAt: string;
+        };
+        SetDocumentWorkspaceAccessInput: {
+            /**
+             * @description null = private (owner and grants only)
+             * @enum {string|null}
+             */
+            role: "viewer" | "editor" | null;
         };
         SetDocumentGrantInput: {
             /** @enum {string} */
@@ -6651,6 +6688,37 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    setDocumentWorkspaceAccess: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetDocumentWorkspaceAccessInput"];
+            };
+        };
+        responses: {
+            /** @description The document with its new audience */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     listDocumentRooms: {

@@ -1073,6 +1073,10 @@ model Document {
   // Google file id extracted from an external link: warns about duplicate links
   // in the workspace without merging entries or their access (doc/10 §3).
   externalFileId String? @db.VarChar(128)
+  // Audience beyond the owner and per-member grants: null = private (a person's own
+  // document); viewer/editor = every active member of the workspace (a workspace
+  // workflow's document, e.g. the company description — doc/12 §5.4).
+  workspaceAccess DocumentGrantRole?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
