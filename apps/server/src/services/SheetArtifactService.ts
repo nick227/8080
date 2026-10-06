@@ -102,6 +102,8 @@ export class SheetArtifactService {
   async recipe(userId: string, workspaceId: string, documentId: string) {
     const { row } = await documents.access(userId, workspaceId, documentId)
     const recipe = row.provenance
+    // A budget is made from the person's inputs, not records: nothing to re-run.
+    if ((recipe as { generator?: string } | null)?.generator === 'budget.monthly') return { recipe, stale: false, dataChanged: false, periodMoved: false, currentRowCount: null, checkedAt: new Date().toISOString() }
     if (!isSheetRecipe(recipe)) throw notFound('This document was not made from a sheet query')
     const { ctx } = await readerOf(userId, workspaceId)
     const now = new Date()

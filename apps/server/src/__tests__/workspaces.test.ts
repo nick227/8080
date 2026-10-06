@@ -105,6 +105,7 @@ function sampleBody(op: any) {
     DescribeSheetInput: { query: { source: 'contacts' } },
     CreateSheetInput: { preset: 'x', idempotencyKey: 'x' },
     RegenerateDocumentInput: { idempotencyKey: 'x' },
+    CreateMarketingBudgetInput: { monthlyBudgetMinor: 100, goal: 'leads', idempotencyKey: 'x' },
     UpdateWorkspaceInput: { name: 'x' },
     UpdateWorkspaceMemberInput: { title: 'x' },
     CreateWorkspaceInviteInput: { email: 'x@test.local' },

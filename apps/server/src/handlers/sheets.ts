@@ -1,6 +1,7 @@
 // Sheets made from records (doc/13 §12, A1).
 import { sheetArtifacts } from '../services/SheetArtifactService'
 import { workspaceCtx as ctx } from '../lib/session'
+import { budgetFromApi } from '../bots/flows/budget'
 
 export async function listSheetPresets(r: any) {
   return { data: await sheetArtifacts.presets(r.user.id, r.params.workspaceId) }
@@ -17,4 +18,7 @@ export async function getDocumentRecipe(r: any) {
 }
 export async function regenerateDocument(r: any, reply: any) {
   return reply.code(201).send({ data: await sheetArtifacts.regenerate(ctx(r), r.params.workspaceId, r.params.documentId, r.body.idempotencyKey) })
+}
+export async function createMarketingBudget(r: any, reply: any) {
+  return reply.code(201).send({ data: await budgetFromApi(ctx(r), r.params.workspaceId, r.body) })
 }

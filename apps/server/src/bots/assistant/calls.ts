@@ -7,7 +7,7 @@ import { db } from '@project/db'
 import { assistantConfig } from './config'
 import { flagCount, problemsOf, styleFlags } from './style'
 import { JOBS, contractViolation, type Job } from './budget'
-import { PROMPT_CHARS, assistantProvider, sheetFromModel, validateDraft, validateFacts, type AssistantProvider, type BriefInput, type DraftInput, type ExtractInput, type NoteInput, type SheetPlanInput, type Usage } from './provider'
+import { PROMPT_CHARS, assistantProvider, sheetFromModel, validateDraft, validateFacts, type AssistantProvider, type BriefInput, type DraftInput, type ExtractInput, type NoteInput, type SheetPlanInput, type BudgetNotesInput, type BudgetNotes, cleanBudgetNotes, type Usage } from './provider'
 import { groundBrief } from './briefGrounding'
 import { ground } from './grounding'
 
@@ -63,7 +63,7 @@ export function setStrictContracts(on: boolean) { strictContracts = on }
 async function call<T extends { usage?: Usage }>(
   ctx: AssistContext,
   job: Job,
-  input: ExtractInput | DraftInput | NoteInput | BriefInput | SheetPlanInput,
+  input: ExtractInput | DraftInput | NoteInput | BriefInput | SheetPlanInput | BudgetNotesInput,
   run: (provider: AssistantProvider, signal: AbortSignal) => Promise<T>,
   /** Re-validates whatever the provider returned; null = unusable. */
   check: (out: T) => T | null,
@@ -168,3 +168,15 @@ export async function planSheet(ctx: AssistContext, input: SheetPlanInput) {
   }, (o) => { const plan = sheetFromModel(o.plan); return plan ? { ...o, plan } : null }, (o) => o.plan)
   return res && { plan: res.out.plan, callId: res.callId }
 }
+
+/** A3: one short note per budget channel, or null (off, capped, failed, invalid). Notes
+ *  with numbers or for unknown channels are dropped; the caller fills gaps from templates. */
+export async function budgetNotes(ctx: AssistContext, input: BudgetNotesInput) {
+  const keys = input.channels.map((c) => c.key)
+  const res = await call(ctx, 'budget.notes', input, async (p, s) => {
+    if (!p.budgetNotes) throw new Error('provider cannot write budget notes')
+    return p.budgetNotes(input, s)
+  }, (o) => ({ ...o, clean: cleanBudgetNotes(o.notes, keys) }) as { notes: BudgetNotes; clean: Record<string, string>; usage?: Usage }, (o) => (o as unknown as { clean: Record<string, string> }).clean)
+  return res && { notes: (res.out as unknown as { clean: Record<string, string> }).clean, callId: res.callId }
+}
+

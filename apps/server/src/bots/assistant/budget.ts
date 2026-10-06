@@ -9,7 +9,7 @@
 // and hard input/output token ceilings. An input that breaks its contract — extra
 // fields, too many records, too large, or anything that looks like one of our database
 // ids — is refused before any call is made and logged like a failed call.
-export type Job = 'company.extract' | 'company.draft' | 'note.read' | 'contact.brief' | 'sheet.plan'
+export type Job = 'company.extract' | 'company.draft' | 'note.read' | 'contact.brief' | 'sheet.plan' | 'budget.notes'
 export type JobClass = 'extract' | 'plan' | 'compose'
 
 type Contract = {
@@ -28,6 +28,8 @@ export const JOBS: Record<Job, Contract> = {
   'note.read': { class: 'extract', fields: ['note', 'today', 'weekday'], inputTokens: 2000, outputTokens: 500 },
   'sheet.plan': { class: 'plan', fields: ['request', 'today', 'weekday', 'categories'], records: { count: (i) => i.categories?.length ?? 0, max: 30 }, inputTokens: 1100, outputTokens: 300 },
   'contact.brief': { class: 'compose', fields: ['contact', 'today', 'evidence'], records: { count: (i) => i.evidence?.length ?? 0, max: 20 }, inputTokens: 6000, outputTokens: 1500 },
+  // A3: notes only — the model never sees the amount, the split or any number.
+  'budget.notes': { class: 'compose', fields: ['businessType', 'goal', 'priorities', 'channels'], records: { count: (i) => i.channels?.length ?? 0, max: 7 }, inputTokens: 600, outputTokens: 400 },
   'company.draft': { class: 'compose', fields: ['documentType', 'profile', 'answers', 'brief', 'revise'], records: { count: (i) => i.answers?.length ?? 0, max: 12 }, inputTokens: 5000, outputTokens: 2000 },
 }
 

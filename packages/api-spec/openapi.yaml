@@ -1928,6 +1928,37 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  /workspaces/{workspaceId}/budgets:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: createMarketingBudget
+      summary: Make a monthly marketing budget sheet (doc/13 §12, A3)
+      description: |
+        Four inputs, each with its own owner: the monthly amount (minor units, in the
+        workspace currency), a goal and up to three channel priorities from fixed
+        lists, and the business type (given, else the company profile). Code makes the
+        split (whole percents summing to 100), the amounts (summing exactly to the
+        budget) and the typed sheet; the model writes at most one short note per
+        channel, without numbers. Private to its maker. Retry-safe by idempotencyKey.
+      tags: [documents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateMarketingBudgetInput' }
+      responses:
+        '201':
+          description: The new budget sheet
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /workspaces/{workspaceId}/documents/{documentId}/recipe:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -7303,6 +7334,21 @@ components:
       properties:
         preset: { type: string, minLength: 1, maxLength: 64 }
         query: { $ref: '#/components/schemas/SheetQuery' }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        idempotencyKey: { type: string, minLength: 1, maxLength: 120 }
+    CreateMarketingBudgetInput:
+      type: object
+      additionalProperties: false
+      required: [monthlyBudgetMinor, goal, idempotencyKey]
+      properties:
+        monthlyBudgetMinor: { type: integer, minimum: 1, description: 'Minor units (cents) in the workspace currency' }
+        goal: { type: string, enum: [awareness, leads, sales, retention, launch] }
+        priorities:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          items: { type: string, enum: [search, social, email, content, local, events, referral] }
+        businessType: { type: string, minLength: 1, maxLength: 120 }
         title: { type: string, minLength: 1, maxLength: 200 }
         idempotencyKey: { type: string, minLength: 1, maxLength: 120 }
     RegenerateDocumentInput:

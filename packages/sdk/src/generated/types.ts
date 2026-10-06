@@ -1429,6 +1429,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/budgets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make a monthly marketing budget sheet (doc/13 §12, A3)
+         * @description Four inputs, each with its own owner: the monthly amount (minor units, in the
+         *     workspace currency), a goal and up to three channel priorities from fixed
+         *     lists, and the business type (given, else the company profile). Code makes the
+         *     split (whole percents summing to 100), the amounts (summing exactly to the
+         *     budget) and the typed sheet; the model writes at most one short note per
+         *     channel, without numbers. Private to its maker. Retry-safe by idempotencyKey.
+         */
+        post: operations["createMarketingBudget"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/documents/{documentId}/recipe": {
         parameters: {
             query?: never;
@@ -4511,6 +4538,16 @@ export interface components {
             title?: string;
             idempotencyKey: string;
         };
+        CreateMarketingBudgetInput: {
+            /** @description Minor units (cents) in the workspace currency */
+            monthlyBudgetMinor: number;
+            /** @enum {string} */
+            goal: "awareness" | "leads" | "sales" | "retention" | "launch";
+            priorities?: ("search" | "social" | "email" | "content" | "local" | "events" | "referral")[];
+            businessType?: string;
+            title?: string;
+            idempotencyKey: string;
+        };
         RegenerateDocumentInput: {
             idempotencyKey: string;
         };
@@ -7382,6 +7419,37 @@ export interface operations {
         };
         responses: {
             /** @description The new document */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    createMarketingBudget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMarketingBudgetInput"];
+            };
+        };
+        responses: {
+            /** @description The new budget sheet */
             201: {
                 headers: {
                     [name: string]: unknown;

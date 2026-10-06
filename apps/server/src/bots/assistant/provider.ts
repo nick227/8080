@@ -58,6 +58,9 @@ export type Usage = { promptTokens: number; completionTokens: number }
 /** A spreadsheet request read into the whitelisted sheet query (doc/13 §12, A1).
  *  `query` is raw: the caller validates it like any other input. */
 export type SheetPlanInput = { request: string; today: string; weekday: string; categories: string[] }
+/** A3: one plain note per channel of a marketing budget. No amounts are given or wanted. */
+export type BudgetNotesInput = { businessType: string | null; goal: string; priorities: string[]; channels: { key: string; label: string }[] }
+export type BudgetNotes = { notes: { channel: string; text: string }[] }
 export type SheetPlan = { supported: boolean; reason: string | null; title: string | null; query: Record<string, unknown> | null }
 
 export interface AssistantProvider {
@@ -68,6 +71,7 @@ export interface AssistantProvider {
   readNote?(input: NoteInput, signal: AbortSignal): Promise<{ reading: NoteReading; usage?: Usage }>
   brief?(input: BriefInput, signal: AbortSignal): Promise<{ brief: Brief; usage?: Usage }>
   planSheet?(input: SheetPlanInput, signal: AbortSignal): Promise<{ plan: SheetPlan; usage?: Usage }>
+  budgetNotes?(input: BudgetNotesInput, signal: AbortSignal): Promise<{ notes: BudgetNotes; usage?: Usage }>
 }
 
 // ─── validation ───────────────────────────────────────────────────────────────
@@ -208,6 +212,16 @@ const SHEET_SYSTEM = [
   'Needs other data (deals, revenue, orders, emails, tasks) or not a sheet request: supported false, query null, reason = one plain sentence. title = a short plain name.',
 ].join(' ')
 
+const BUDGET_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['notes'],
+  properties: { notes: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['channel', 'text'], properties: { channel: { type: 'string' }, text: { type: 'string' } } } } },
+}
+const BUDGET_SYSTEM = [
+  'Write one short note per marketing channel saying what that money would pay for, for this business and goal.',
+  'One plain sentence each, under 15 words, specific to the business. Use each channel `key` exactly once.',
+  'No numbers, amounts, percentages or dates. No promises of results. No marketing language.',
+].join(' ')
+
 const DRAFT_SYSTEM = [
   'You write a company description for the business in `profile` and `answers`, for the audience and voice in `brief`.',
   'Use only those facts. The person\'s own words in `answers` are the best source of concrete detail: use their real examples.',
@@ -242,6 +256,7 @@ const PROMPTS: Record<Job, { system: string; name: string; schema: object }> = {
   'note.read': { system: NOTE_SYSTEM, name: 'note_reading', schema: NOTE_SCHEMA },
   'contact.brief': { system: BRIEF_SYSTEM, name: 'contact_brief', schema: BRIEF_SCHEMA },
   'sheet.plan': { system: SHEET_SYSTEM, name: 'sheet_query', schema: SHEET_SCHEMA },
+  'budget.notes': { system: BUDGET_SYSTEM, name: 'budget_notes', schema: BUDGET_SCHEMA },
 }
 /** The fixed part of each job's input (system prompt + schema), counted in its budget. */
 export const PROMPT_CHARS = Object.fromEntries(Object.entries(PROMPTS).map(([job, p]) => [job, p.system.length + JSON.stringify(p.schema).length])) as Record<Job, number>
@@ -277,6 +292,11 @@ export class OpenAIAssistant implements AssistantProvider {
   async planSheet(input: SheetPlanInput, signal: AbortSignal) {
     const { json, usage } = await this.complete('sheet.plan', input, signal, 0)
     return { plan: json as SheetPlan, usage }
+  }
+
+  async budgetNotes(input: BudgetNotesInput, signal: AbortSignal) {
+    const { json, usage } = await this.complete('budget.notes', input, signal, 0.2)
+    return { notes: json as BudgetNotes, usage }
   }
 
   private async complete(job: Job, input: unknown, signal: AbortSignal, temperature: number) {
@@ -324,6 +344,17 @@ export function sheetFromModel(plan: any): SheetPlan | null {
     ...(Number.isInteger(q.limit) ? { limit: q.limit } : {}),
   }
   return { supported: true, reason, title, query }
+}
+
+/** Notes the code will use: known channels, once each, one short sentence, no digits. */
+export function cleanBudgetNotes(raw: any, channels: string[]): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const n of Array.isArray(raw?.notes) ? raw.notes : []) {
+    const text = typeof n?.text === 'string' ? n.text.trim().replace(/\s+/g, ' ') : ''
+    if (!channels.includes(n?.channel) || n.channel in out || !text || text.length > 140 || /\d/.test(text)) continue
+    out[n.channel] = /[.!?]$/.test(text) ? text : `${text}.`
+  }
+  return out
 }
 
 let override: AssistantProvider | null | undefined
