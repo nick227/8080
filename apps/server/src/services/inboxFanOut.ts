@@ -60,11 +60,10 @@ export type FanOutNotice = {
 }
 
 export async function fanOut(tx: Tx, workspaceId: string, notice: FanOutNotice): Promise<InboxItemView[]> {
-  const members = [...new Set(notice.memberIds)]
-  if (!members.length) return []
+  if (!notice.memberIds.length) return []
   const deliverAt = notice.deliverAt ?? new Date()
   await tx.inboxItem.createMany({
-    data: members.map((memberId) => ({
+    data: notice.memberIds.map((memberId) => ({
       workspaceId,
       memberId,
       type: notice.type,
@@ -79,13 +78,12 @@ export async function fanOut(tx: Tx, workspaceId: string, notice: FanOutNotice):
     })),
     skipDuplicates: true,
   })
-  const rows = await tx.inboxItem.findMany({ where: { workspaceId, dedupeKey: notice.dedupeKey, memberId: { in: members } } })
+  const rows = await tx.inboxItem.findMany({ where: { workspaceId, dedupeKey: notice.dedupeKey, memberId: { in: notice.memberIds } } })
   return rows.map(toInboxItem)
 }
 
 function sentence(action: string) {
-  const domain = action.split('.')[0]
-  const verb = action.split('.')[1]
+  const [domain, verb] = action.split('.')
   if (!domain || !verb) return action
   const did = verb === 'create' ? 'added' : verb === 'delete' ? 'removed' : verb.replace(/([A-Z])/g, ' $1').toLowerCase()
   return `${domain.charAt(0).toUpperCase()}${domain.slice(1)} ${did}`

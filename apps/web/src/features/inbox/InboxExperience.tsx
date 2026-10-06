@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useArchiveInboxItem, useInboxItems, useInboxStream, useReadInboxItem, useStarInboxItem, type InboxItem } from '@project/sdk'
 import { Composer } from '../compose/Composer'
@@ -7,6 +7,14 @@ import { useCurrentWorkspace } from '../documents/workspace'
 import type { Desk } from '../work/sections'
 
 type Filter = 'all' | 'unread' | 'starred' | 'archived'
+
+function contactIdOf(item: InboxItem) {
+  if (item.action.verb === 'compose') return item.action.contactId
+  if (item.sourceType === 'contact') return item.sourceId
+  return null
+}
+
+const whenShown: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }
 
 const params: Record<Filter, { archived?: boolean; unread?: boolean; starred?: boolean }> = {
   all: {},
@@ -26,7 +34,16 @@ export function InboxExperience({ onPlace }: { onPlace?: (desk: Desk) => void })
   const archive = useArchiveInboxItem(workspace?.id ?? '')
   const navigate = useNavigate()
   const openDocument = useDocuments((state) => state.open)
-  const items = list.data?.pages.flatMap((page) => page.data) ?? []
+  const rows = useMemo(() => {
+    const pages = list.data?.pages
+    if (!pages) return []
+    const out: { item: InboxItem; when: string }[] = []
+    for (const page of pages) {
+      for (const item of page.data) out.push({ item, when: new Date(item.createdAt).toLocaleString(undefined, whenShown) })
+    }
+    return out
+  }, [list.data])
+  const contactId = reply && contactIdOf(reply)
 
   if (loading) return null
   if (!workspace) return <p className="work-empty">Nothing waiting.</p>
@@ -46,8 +63,7 @@ export function InboxExperience({ onPlace }: { onPlace?: (desk: Desk) => void })
       onPlace?.('calendar')
       return
     }
-    const contactId = item.action.verb === 'compose' ? item.action.contactId : item.sourceType === 'contact' ? item.sourceId : undefined
-    if (contactId) setReply(item)
+    if (contactIdOf(item)) setReply(item)
   }
 
   return (
@@ -57,20 +73,23 @@ export function InboxExperience({ onPlace }: { onPlace?: (desk: Desk) => void })
           <button key={id} type="button" aria-pressed={filter === id} onClick={() => setFilter(id)}>{id}</button>
         ))}
       </div>
-      {reply && reply.action.verb === 'compose' && reply.action.contactId && (
-        <Composer workspaceId={workspace.id} contactId={reply.action.contactId} contextType={reply.sourceType} contextId={reply.sourceId} onClose={() => setReply(null)} />
+      {reply && contactId && (
+        <Composer
+          workspaceId={workspace.id}
+          contactId={contactId}
+          contextType={reply.action.verb === 'compose' ? reply.sourceType : 'contact'}
+          contextId={reply.action.verb === 'compose' ? reply.sourceId : contactId}
+          onClose={() => setReply(null)}
+        />
       )}
-      {reply && reply.action.verb !== 'compose' && reply.sourceType === 'contact' && (
-        <Composer workspaceId={workspace.id} contactId={reply.sourceId} contextType="contact" contextId={reply.sourceId} onClose={() => setReply(null)} />
-      )}
-      {items.length === 0 ? <p className="work-quiet">Nothing waiting.</p> : (
+      {rows.length === 0 ? <p className="work-quiet">Nothing waiting.</p> : (
         <ul className="work-lines">
-          {items.map((item) => (
+          {rows.map(({ item, when }) => (
             <li key={item.id}>
               <div className="work-inbox-line" data-needs={item.unread || undefined}>
                 <button type="button" className="work-line-title" onClick={() => open(item)}>{item.title}</button>
                 <span>{item.summary}</span>
-                <time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time>
+                <time dateTime={item.createdAt}>{when}</time>
                 <span className="work-mark">{item.unread ? 'Unread' : 'Read'}</span>
                 <button type="button" aria-pressed={item.starred} onClick={() => star.mutate({ inboxItemId: item.id, starred: !item.starred })}>{item.starred ? 'Starred' : 'Star'}</button>
                 <button type="button" onClick={() => archive.mutate({ inboxItemId: item.id, archived: filter !== 'archived' })}>{filter === 'archived' ? 'Restore' : 'Archive'}</button>

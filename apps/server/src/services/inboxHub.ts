@@ -9,13 +9,15 @@ type Send = (event: InboxEvent) => void
 const subscribers = new Map<string, Set<Send>>()
 
 export function publishInbox(memberId: string, event: InboxEvent) {
-  for (const send of subscribers.get(memberId) ?? []) send(event)
+  const set = subscribers.get(memberId)
+  if (!set) return
+  for (const send of set) send(event)
 }
 
 export function subscribeInbox(memberId: string, send: Send) {
-  const set = subscribers.get(memberId) ?? new Set()
+  let set = subscribers.get(memberId)
+  if (!set) subscribers.set(memberId, set = new Set())
   set.add(send)
-  subscribers.set(memberId, set)
   return () => {
     set.delete(send)
     if (!set.size) subscribers.delete(memberId)
@@ -24,7 +26,7 @@ export function subscribeInbox(memberId: string, send: Send) {
 
 /** Push now, or when deliverAt arrives. A far timer does not keep the process alive. */
 export function releaseInbox(item: InboxItemView) {
-  const wait = new Date(item.deliverAt).getTime() - Date.now()
+  const wait = Date.parse(item.deliverAt) - Date.now()
   if (wait <= 0) {
     publishInbox(item.memberId, { type: 'inbox.created', item })
     return

@@ -23,16 +23,19 @@ export async function notifyConversation(input: {
     where: { userId: { in: userIds }, status: 'active', workspace: { deletedAt: null } },
     select: { id: true, workspaceId: true, userId: true },
   })
-  const byWorkspace = new Map<string, { id: string; userId: string }[]>()
+  const byWorkspace = new Map<string, { memberIds: string[]; actorMemberId: string | null }>()
   for (const membership of memberships) {
-    const list = byWorkspace.get(membership.workspaceId) ?? []
-    list.push(membership)
-    byWorkspace.set(membership.workspaceId, list)
+    let group = byWorkspace.get(membership.workspaceId)
+    if (!group) {
+      group = { memberIds: [], actorMemberId: null }
+      byWorkspace.set(membership.workspaceId, group)
+    }
+    group.memberIds.push(membership.id)
+    if (membership.userId === input.actorUserId) group.actorMemberId = membership.id
   }
   const title = input.actorKind === 'bot' ? 'The assistant spoke' : 'A teammate spoke'
   const summary = (input.text ?? '').trim().slice(0, 500) || 'New activity'
-  for (const [workspaceId, members] of byWorkspace) {
-    const actor = members.find((member) => member.userId === input.actorUserId)
+  for (const [workspaceId, group] of byWorkspace) {
     const rows = await runAction(
       {
         action: 'inbox.announce',
@@ -52,8 +55,8 @@ export async function notifyConversation(input: {
           sourceId: input.roomId,
           dedupeKey: input.itemId,
           action: { verb: 'open' },
-          actorMemberId: actor?.id ?? null,
-          memberIds: members.map((member) => member.id),
+          actorMemberId: group.actorMemberId,
+          memberIds: group.memberIds,
         })
         return { value: created, result: { count: created.length } }
       },

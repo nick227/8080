@@ -4,7 +4,7 @@ import { db, Prisma } from '@project/db'
 import { badRequest, notFound } from '../lib/errors'
 import { decodeCursor, encodeCursor, normalizeLimit, page } from '../lib/pagination'
 import { runAction } from './actions'
-import { toInboxItem } from './inboxFanOut'
+import { toInboxItem, type InboxItemView } from './inboxFanOut'
 import { releaseInbox } from './inboxHub'
 import { assertSource, parseAction, type InboxAction } from './inboxSource'
 import { authorize } from './workspacePolicy'
@@ -27,8 +27,6 @@ const text = (value: string, max: number, code: string) => {
   if (!trimmed || trimmed.length > max) throw badRequest('A required field is missing or too long', code)
   return trimmed
 }
-
-export type InboxItemView = ReturnType<typeof toInboxItem>
 
 const flag = (value: unknown) => (value === true || value === 'true' ? true : value === false || value === 'false' ? false : undefined)
 
@@ -81,16 +79,20 @@ export class InboxService {
     const archived = flag(query.archived) ?? false
     const unread = flag(query.unread)
     const starred = flag(query.starred)
+    const where: Prisma.InboxItemWhereInput = {
+      workspaceId,
+      memberId: actor.member.id,
+      archivedAt: archived ? { not: null } : null,
+      deliverAt: { lte: new Date() },
+    }
+    if (unread !== undefined) where.unread = unread
+    if (starred !== undefined) where.starred = starred
+    if (cursor) {
+      const at = new Date(cursor.createdAt)
+      where.OR = [{ createdAt: { lt: at } }, { createdAt: at, id: { lt: cursor.id } }]
+    }
     const rows = await db.inboxItem.findMany({
-      where: {
-        workspaceId,
-        memberId: actor.member.id,
-        archivedAt: archived ? { not: null } : null,
-        deliverAt: { lte: new Date() },
-        ...(unread === undefined ? {} : { unread }),
-        ...(starred === undefined ? {} : { starred }),
-        ...(cursor ? { OR: [{ createdAt: { lt: new Date(cursor.createdAt) } }, { createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } }] } : {}),
-      },
+      where,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
     })
