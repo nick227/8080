@@ -288,3 +288,35 @@ Also from CRM context: **a customer document**, a proposal or quote for one cont
 7. **A7 Maps (F6):** plan outline and account map.
 
 Parked: D4 follow-up / email, D5 qualification, D6 matching as a stand-alone feature (it returns inside A5), D8 change detection.
+
+### 12.5 A1 as built (2026-10-06)
+
+- **Query:** `SheetQuery` (`packages/shared/src/sheets.ts`), contacts or inventory.
+  - It has whitelisted columns, filters, groupBy, sort and limit.
+  - Dates are workspace-local days (`to` inclusive).
+  - `validateSheetQuery` (`services/sheetQuery.ts`) refuses unknown fields; it doesn't ignore them.
+- **Running:** `runSheetQuery` reads under the caller's record access and returns a `GridTable` of display strings.
+  - Counts, totals rows, money (2 dp, currency in the header) and stock value (price × quantity) are all computed by code.
+  - More than 5000 rows → `SHEET_TOO_LARGE`.
+  - `describeSheetQuery` puts the query in plain words; that is what the person confirms.
+- **Presets:** Follow-ups this week (open leads due by Sunday, overdue first), Leads by stage, Gone quiet (30 days), Low or out of stock, Stock by category, Price list. Relative dates resolve when the sheet is made.
+- **Document:** a native grid with server-stored rows (`payload`), which the web already shows for everyone with access.
+  - `provenance` is the `SheetRecipe`: preset, resolved query, summary, asOf, timezone, currency, rowCount, dataHash, previousId.
+  - `protectedDataset` = the source, so reading it needs record access.
+  - It's private by default. A sheet made in the channel is workspace-visible (the document audience rule).
+- **Stale and Regenerate:**
+  - `GET …/documents/{id}/recipe` re-runs the query. `dataChanged` means the hash differs; `periodMoved` means a preset's dates have moved on.
+  - `POST …/regenerate` makes a **new** related document with the same audience. The old one is never changed.
+- **Channel:**
+  - `sheet` → the presets as buttons.
+  - `sheet: <request>` → one model call (`planSheet`, strict schema, temperature 0) → validated → "I'd make this sheet: …" with [Make the sheet] [Cancel]. The draft is kept in WorkflowRun `sheet-query`.
+  - Unsupported, invalid or empty requests are said plainly, and nothing is made. With AI off, `sheet: …` offers the presets.
+- **API:** `listSheetPresets`, `describeSheet`, `createSheet`, `getDocumentRecipe`, `regenerateDocument`.
+- **Tests:**
+  - server `sheets.test.ts` 10/10; full suite 568/568
+  - real model (gpt-4.1-mini): 8/8 sample requests gave valid queries, and "deals closing this month" was refused as unsupported
+- **Not yet:**
+  - no web control for [Regenerate] or "data changed" on a sheet (for the UI owner: `getDocumentRecipe` / `regenerateDocument`)
+  - no "Save as sheet" from the Contacts and Inventory lists (UI owner: `createSheet` with a query)
+  - typed cells and editing generated sheets come with A2
+
