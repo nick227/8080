@@ -35,6 +35,10 @@ const unit = (q: SheetQuery, n: number) => {
   return `${n} ${n === 1 ? word[0] : word[1]}`
 }
 
+/** A listing always leads with the name: code decides usability, not the model. */
+const withName = (q: SheetQuery): SheetQuery =>
+  q.groupBy || !q.columns || (q.columns as string[]).includes('name') ? q : ({ ...q, columns: ['name', ...q.columns] } as SheetQuery)
+
 /** Makes the sheet and says so with a link; a refusal (too large, no match) is said plainly. */
 async function make(userId: string, workspaceId: string, input: { preset?: string; query?: SheetQuery; title?: string | null }, key: string): Promise<FlowSay[]> {
   try {
@@ -77,18 +81,19 @@ export async function sheetText(item: { roomId: string; actorId: string; text: s
   if (!workspaceId) return null
   const actor = await authorize(item.actorId, workspaceId, 'record.read')
   const request = match[1]?.trim() ?? ''
+  if (request.length > 300) return [presetOffer('That request is too long for me to read. Say it in a sentence, or pick one of these:', item.actorId)]
   if (!request) return [presetOffer('Which sheet? Each one reads your current records.', item.actorId)]
   if (!(await assistantAvailable(workspaceId))) return [presetOffer('I can make these sheets now. Pick one:', item.actorId)]
 
   const today = todayIn(actor.workspace.timezone)
-  const categories = (await db.inventory.findMany({ where: { workspaceId, status: 'active', category: { not: null } }, distinct: ['category'], select: { category: true }, take: 50 })).map((c) => c.category!)
+  const categories = (await db.inventory.findMany({ where: { workspaceId, status: 'active', category: { not: null } }, distinct: ['category'], select: { category: true }, orderBy: { category: 'asc' }, take: 30 })).map((c) => c.category!)
   const planned = await planSheet({ workspaceId, runId: null }, { request, today, weekday: WEEKDAY(today), categories })
   if (!planned) return [presetOffer('I couldn’t read that request just now. These sheets work without it:', item.actorId)]
   if (!planned.plan.supported || !planned.plan.query) {
     return [presetOffer(`I can’t make that sheet${planned.plan.reason ? `: ${planned.plan.reason.replace(/\.$/, '')}` : ''}. I can read Contacts and Inventory. These are ready:`, item.actorId)]
   }
   let query: SheetQuery
-  try { query = validateSheetQuery(planned.plan.query) } catch {
+  try { query = withName(validateSheetQuery(planned.plan.query)) } catch {
     return [presetOffer('I couldn’t turn that into a sheet I can build from Contacts or Inventory. These are ready:', item.actorId)]
   }
   const summary = await describeSheetQuery({ workspaceId, timezone: actor.workspace.timezone, currency: actor.workspace.defaultCurrency }, query)

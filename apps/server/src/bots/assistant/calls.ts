@@ -6,7 +6,8 @@
 import { db } from '@project/db'
 import { assistantConfig } from './config'
 import { flagCount, problemsOf, styleFlags } from './style'
-import { assistantProvider, sheetFromModel, validateDraft, validateFacts, type AssistantProvider, type BriefInput, type DraftInput, type ExtractInput, type NoteInput, type SheetPlanInput, type Usage } from './provider'
+import { JOBS, contractViolation, type Job } from './budget'
+import { PROMPT_CHARS, assistantProvider, sheetFromModel, validateDraft, validateFacts, type AssistantProvider, type BriefInput, type DraftInput, type ExtractInput, type NoteInput, type SheetPlanInput, type Usage } from './provider'
 import { groundBrief } from './briefGrounding'
 import { ground } from './grounding'
 
@@ -55,15 +56,30 @@ export async function assistantAvailable(workspaceId: string) {
   return used.mine < cfg.perWorkspacePerDay && used.all < cfg.perDay && used.spent < cfg.dailyUsd
 }
 
+let strictContracts = true
+/** Tests of the refusal path itself: refuse and log instead of throwing. */
+export function setStrictContracts(on: boolean) { strictContracts = on }
+
 async function call<T extends { usage?: Usage }>(
   ctx: AssistContext,
-  kind: 'extract' | 'generate',
+  job: Job,
   input: ExtractInput | DraftInput | NoteInput | BriefInput | SheetPlanInput,
   run: (provider: AssistantProvider, signal: AbortSignal) => Promise<T>,
   /** Re-validates whatever the provider returned; null = unusable. */
   check: (out: T) => T | null,
   summarize: (out: T) => object,
 ): Promise<{ out: T; callId: string; model: string | null } | null> {
+  const kind = JOBS[job].class === 'compose' ? 'generate' : 'extract'
+  // Overfed (extra fields, too many records, too large, our ids): refused and logged.
+  const violation = contractViolation(job, input, PROMPT_CHARS[job])
+  if (violation) {
+    // In tests an overfed workflow fails loudly, so every workflow test checks its contract.
+    if (strictContracts && process.env.NODE_ENV === 'test') throw new Error(`AI contract: ${violation}`)
+    console.error(`[assistant] refused: ${violation}`)
+    const provider = assistantProvider()
+    if (provider) await db.assistantCall.create({ data: { workspaceId: ctx.workspaceId, runId: ctx.runId, kind, provider: provider.name, model: provider.model, inputChars: JSON.stringify(input).length, latencyMs: 0, error: `contract: ${violation}`.slice(0, 190) } })
+    return null
+  }
   const slot = await reserve(ctx.workspaceId)
   if (!slot) return null
   const { provider, cfg } = slot
@@ -95,7 +111,7 @@ async function call<T extends { usage?: Usage }>(
 
 /** Facts from a person's own description, or null (off, capped, failed, invalid). */
 export async function extractFacts(ctx: AssistContext, input: ExtractInput) {
-  const res = await call(ctx, 'extract', input, (p, s) => p.extract(input, s), (o) => ({ ...o, facts: validateFacts(o.facts) }), (o) => o.facts)
+  const res = await call(ctx, 'company.extract', input, (p, s) => p.extract(input, s), (o) => ({ ...o, facts: validateFacts(o.facts) }), (o) => o.facts)
   return res && { facts: res.out.facts, callId: res.callId }
 }
 
@@ -105,7 +121,7 @@ export async function extractFacts(ctx: AssistContext, input: ExtractInput) {
 export async function draftDocument(ctx: AssistContext, input: DraftInput) {
   const once = async (i: DraftInput) => {
     const source = JSON.stringify([i.profile, i.answers])
-    const res = await call(ctx, 'generate', i, (p, s) => p.draft(i, s), (o) => {
+    const res = await call(ctx, 'company.draft', i, (p, s) => p.draft(i, s), (o) => {
       const document = validateDraft(o.document)
       return document ? { ...o, patch: validateFacts(o.patch), document } : null
     }, (o) => ({ patch: o.patch, document: o.document, style: styleFlags(o.document.paragraphs, i.brief.voice, source), revision: !!i.revise }))
@@ -119,26 +135,34 @@ export async function draftDocument(ctx: AssistContext, input: DraftInput) {
 
 /** A note read and grounded (doc/13 §10), or null (off, capped, failed, invalid). */
 export async function readNote(ctx: AssistContext, input: NoteInput) {
-  const res = await call(ctx, 'extract', input, async (p, s) => {
+  const res = await call(ctx, 'note.read', input, async (p, s) => {
     if (!p.readNote) throw new Error('provider cannot read notes')
     return p.readNote(input, s)
   }, (o) => ({ ...o, reading: ground(input.note, o.reading, input.today) }), (o) => o.reading)
   return res && { reading: (res.out.reading as ReturnType<typeof ground>), callId: res.callId }
 }
 
-/** A contact brief, grounded in the pack (doc/13 D3), or null. */
+/** A contact brief, grounded in the pack (doc/13 D3), or null. The model sees evidence
+ *  as E1, E2, … — never our ids — and its citations are mapped back here. */
 export async function briefContact(ctx: AssistContext, input: BriefInput) {
-  const res = await call(ctx, 'generate', input, async (p, s) => {
+  const alias = new Map(input.evidence.map((e, i) => [`E${i + 1}`, e.id]))
+  const sent: BriefInput = { ...input, evidence: input.evidence.map((e, i) => ({ ...e, id: `E${i + 1}` })) }
+  const res = await call(ctx, 'contact.brief', sent, async (p, s) => {
     if (!p.brief) throw new Error('provider cannot brief')
-    return p.brief(input, s)
-  }, (o) => ({ ...o, brief: groundBrief(o.brief, input.evidence) }), (o) => o.brief)
-  return res && { brief: res.out.brief as ReturnType<typeof groundBrief>, callId: res.callId, model: res.model }
+    return p.brief(sent, s)
+  }, (o) => ({ ...o, brief: groundBrief(o.brief, sent.evidence) }), (o) => o.brief)
+  if (!res) return null
+  const back = (ids: string[]) => ids.map((id) => alias.get(id)!)
+  const g = res.out.brief as ReturnType<typeof groundBrief>
+  const claims = (list: typeof g.summary) => list.map((c) => ({ ...c, evidence: back(c.evidence) }))
+  const brief = { ...g, summary: claims(g.summary), need: claims(g.need), recent: claims(g.recent), commitments: claims(g.commitments), openQuestions: claims(g.openQuestions), nextStep: g.nextStep && { ...g.nextStep, basis: back(g.nextStep.basis) } }
+  return { brief, callId: res.callId, model: res.model }
 }
 
 /** A spreadsheet request → a raw sheet query (doc/13 §12, A1), or null (off, capped,
  *  failed, invalid). The caller validates the query and shows it before it runs. */
 export async function planSheet(ctx: AssistContext, input: SheetPlanInput) {
-  const res = await call(ctx, 'extract', input, async (p, s) => {
+  const res = await call(ctx, 'sheet.plan', input, async (p, s) => {
     if (!p.planSheet) throw new Error('provider cannot plan sheets')
     return p.planSheet(input, s)
   }, (o) => { const plan = sheetFromModel(o.plan); return plan ? { ...o, plan } : null }, (o) => o.plan)

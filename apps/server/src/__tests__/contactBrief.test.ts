@@ -135,15 +135,17 @@ describe('the evidence pack', () => {
 describe('Brief me (AI)', () => {
   it('facts must cite the pack; specifics must be in what they cite; the next step is labelled inference', async () => {
     const { ws, base, contact, note } = await seed()
+    // The model sees evidence as E1, E2, … and cites those; a real id is no citation.
     const fake = new Briefer((i) => {
       const c = i.evidence.find((e) => e.kind === 'contact')!.id
+      const n = i.evidence.find((e) => e.kind === 'note')!.id
       return {
         summary: [{ text: 'Sarah Lee is the office manager at Brightside Dental.', evidence: [c, i.evidence.find((e) => e.kind === 'account')!.id] }],
-        need: [{ text: 'A new website early in Q1, budget about $8,000.', evidence: [note.id && `note:${note.id}`] }, { text: 'Wants a $50,000 rebuild.', evidence: [`note:${note.id}`] }],
-        recent: [{ text: 'Invented meeting.', evidence: ['note:does-not-exist'] }],
-        commitments: [{ text: 'We promised pricing by Friday.', evidence: [`note:${note.id}`] }],
+        need: [{ text: 'A new website early in Q1, budget about $8,000.', evidence: [n] }, { text: 'Wants a $50,000 rebuild.', evidence: [n] }],
+        recent: [{ text: 'Invented meeting.', evidence: ['E99'] }, { text: 'Met on Friday.', evidence: [`note:${note.id}`] }],
+        commitments: [{ text: 'We promised pricing by Friday.', evidence: [n] }],
         openQuestions: [{ text: 'No email on file.', evidence: [c] }],
-        nextStep: { text: 'Send pricing before Friday.', basis: [`note:${note.id}`] },
+        nextStep: { text: 'Send pricing before Friday.', basis: [n] },
       }
     })
     setAssistantProvider(fake)
@@ -154,7 +156,9 @@ describe('Brief me (AI)', () => {
     expect(b.commitments.map((c: any) => c.text)).toEqual(['We promised pricing by Friday.'])
     expect(b.nextStep).toEqual({ text: 'Send pricing before Friday.', basis: [`note:${note.id}`] })
     // The model saw the pack without app links; the call is logged.
-    expect(fake.inputs[0]!.evidence.every((e: any) => !('link' in e))).toBe(true)
+    expect(fake.inputs[0]!.evidence.every((e: any) => !('link' in e) && /^E\d+$/.test(e.id))).toBe(true)
+    expect(JSON.stringify(fake.inputs[0])).not.toContain(contact.id)
+    expect(b.summary[0].evidence).toEqual([`contact:${contact.id}`, expect.stringMatching(/^account:/)]) // mapped back
     expect(await db.assistantCall.count({ where: { workspaceId: ws.id } })).toBe(1)
   })
 

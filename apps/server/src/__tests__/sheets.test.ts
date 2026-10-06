@@ -263,8 +263,9 @@ describe('the channel', () => {
     await say(roomId, 'sheet: everyone’s salary')
     expect((await said(roomId)).message.text).toBe('I couldn’t turn that into a sheet I can build from Contacts or Inventory. These are ready:')
 
-    next = modelQuery()
+    next = modelQuery({ columns: ['email', 'leadStatus'] }) // no name: code adds it
     await say(roomId, 'sheet: open leads with no follow-up')
+    expect((await said(roomId)).message.text).toBe('I’d make this sheet: Contacts · lead status New or Contacting · no follow-up set · columns: Name, Email, Lead status · sorted by name.')
     await choose((await said(roomId)).id, 'make')
     expect((await said(roomId)).message.text).toBe('No contacts match that right now, so I made no sheet.')
     expect(await db.document.count({ where: { workspaceId: ws.id } })).toBe(0)

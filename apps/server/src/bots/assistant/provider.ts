@@ -3,6 +3,7 @@
 // swappable; tests use a fake (setAssistantProvider).
 import { assistantConfig, type AssistantConfig } from './config'
 import { WRITING_RULES } from './style'
+import { JOBS, type Job } from './budget'
 
 export const AREAS = ['local', 'regional', 'national', 'global'] as const
 export const VOICES = ['professional', 'friendly', 'bold', 'technical'] as const
@@ -200,14 +201,11 @@ const SHEET_SCHEMA = {
   },
 }
 const SHEET_SYSTEM = [
-  'You turn a request for a spreadsheet into a query over the workspace\'s Contacts or Inventory. You never see the data; code runs the query.',
-  `Contacts columns: ${CONTACT_COLS.join(', ')}. Contact filters: leadStatus (new, contacting, connected, qualified, customer, lost; "open leads" = new, contacting, connected, qualified), followUpFrom/followUpTo (next follow-up date, YYYY-MM-DD, inclusive), noFollowUp (true = none set), quietSince (no activity since that day, or never), q (name contains). Contacts may be grouped by leadStatus, leadSource or owner (counts).`,
-  `Inventory columns: ${INVENTORY_COLS.join(', ')} (stockValue = price × quantity). Inventory filters: q (name or SKU contains), category (use one of \`categories\` exactly), stock (low, out, low-or-out), available, priceMin/priceMax, includeArchived. Inventory may be grouped by category (items, units, stock value).`,
-  'Sort fields: contacts name, nextFollowUp, lastActivity, created; inventory name, price, quantity, stockValue, updated. limit = a number of rows only if they ask for one ("top 10").',
-  'Resolve dates against `today` and `weekday`: "this week" ends on Sunday; "next week" is Monday to Sunday after it; "overdue" = followUpTo yesterday.',
-  'A grouped query has no columns and no sort: use columns [] and sort null. A listing needs the columns that answer the request, usually 3 to 7. Fill only the filter object for the chosen source; the other is null.',
-  'If the request needs data that is not listed here (deals, revenue, orders, emails, tasks, invoices, notes), or is not a spreadsheet request, set supported false, query null and reason to one plain sentence naming what is missing.',
-  'title = a short plain name for the sheet, e.g. "Open leads with no follow-up". No marketing words.',
+  'Turn a spreadsheet request into a query over Contacts or Inventory (the schema lists the fields). You never see the data; code runs the query.',
+  'Contacts: "open leads" = new, contacting, connected, qualified; followUpFrom/To = next follow-up, inclusive days; noFollowUp = none set; quietSince = no activity since that day; q = name contains; group by leadStatus, leadSource or owner for counts.',
+  'Inventory: stockValue = price × quantity; category must be one of `categories`; stock low | out | low-or-out; group by category for totals.',
+  'Dates are YYYY-MM-DD from `today` and `weekday`; "this week" ends Sunday. limit only for "top N". Grouped: columns [] and sort null. Listing: the 3–7 columns that answer it. Fill only the chosen source\'s filters.',
+  'Needs other data (deals, revenue, orders, emails, tasks) or not a sheet request: supported false, query null, reason = one plain sentence. title = a short plain name.',
 ].join(' ')
 
 const DRAFT_SYSTEM = [
@@ -224,30 +222,42 @@ const DRAFT_SYSTEM = [
   'If `revise` is present: rewrite `revise.previous`, fixing exactly the listed problems and changing nothing else.',
 ].join('\n')
 
+const DRAFT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['profilePatch', 'document'],
+  properties: {
+    profilePatch: FACTS_SCHEMA,
+    document: {
+      type: 'object', additionalProperties: false, required: ['title', 'paragraphs'],
+      properties: { title: { type: 'string' }, paragraphs: strs },
+    },
+  },
+}
+
+/** Each job's fixed prompt: system text, schema name and output schema. */
+const PROMPTS: Record<Job, { system: string; name: string; schema: object }> = {
+  'company.extract': { system: EXTRACT_SYSTEM, name: 'company_facts', schema: FACTS_SCHEMA },
+  'company.draft': { system: DRAFT_SYSTEM, name: 'company_document', schema: DRAFT_SCHEMA },
+  'note.read': { system: NOTE_SYSTEM, name: 'note_reading', schema: NOTE_SCHEMA },
+  'contact.brief': { system: BRIEF_SYSTEM, name: 'contact_brief', schema: BRIEF_SCHEMA },
+  'sheet.plan': { system: SHEET_SYSTEM, name: 'sheet_query', schema: SHEET_SCHEMA },
+}
+/** The fixed part of each job's input (system prompt + schema), counted in its budget. */
+export const PROMPT_CHARS = Object.fromEntries(Object.entries(PROMPTS).map(([job, p]) => [job, p.system.length + JSON.stringify(p.schema).length])) as Record<Job, number>
+
 export class OpenAIAssistant implements AssistantProvider {
   readonly name = 'openai'
   constructor(private readonly cfg: AssistantConfig = assistantConfig()) {}
   get model() { return this.cfg.model }
 
   async extract(input: ExtractInput, signal: AbortSignal) {
-    const { json, usage } = await this.complete(EXTRACT_SYSTEM, input, 'company_facts', FACTS_SCHEMA, signal, 0)
+    const { json, usage } = await this.complete('company.extract', input, signal, 0)
     return { facts: validateFacts(json), usage }
   }
 
   async draft(input: DraftInput, signal: AbortSignal) {
-    const schema = {
-      type: 'object',
-      additionalProperties: false,
-      required: ['profilePatch', 'document'],
-      properties: {
-        profilePatch: FACTS_SCHEMA,
-        document: {
-          type: 'object', additionalProperties: false, required: ['title', 'paragraphs'],
-          properties: { title: { type: 'string' }, paragraphs: strs },
-        },
-      },
-    }
-    const { json, usage } = await this.complete(DRAFT_SYSTEM, input, 'company_document', schema, signal, 0.3)
+    const { json, usage } = await this.complete('company.draft', input, signal, 0.3)
     const document = validateDraft(json?.document)
     if (!document) throw new Error('invalid draft')
     return { patch: validateFacts(json?.profilePatch), document, usage }
@@ -255,21 +265,22 @@ export class OpenAIAssistant implements AssistantProvider {
 
   // Low temperature: the same facts should read the same way (extraction: none at all).
   async readNote(input: NoteInput, signal: AbortSignal) {
-    const { json, usage } = await this.complete(NOTE_SYSTEM, input, 'note_reading', NOTE_SCHEMA, signal, 0)
+    const { json, usage } = await this.complete('note.read', input, signal, 0)
     return { reading: json as NoteReading, usage }
   }
 
   async brief(input: BriefInput, signal: AbortSignal) {
-    const { json, usage } = await this.complete(BRIEF_SYSTEM, input, 'contact_brief', BRIEF_SCHEMA, signal, 0.2)
+    const { json, usage } = await this.complete('contact.brief', input, signal, 0.2)
     return { brief: json as Brief, usage }
   }
 
   async planSheet(input: SheetPlanInput, signal: AbortSignal) {
-    const { json, usage } = await this.complete(SHEET_SYSTEM, input, 'sheet_query', SHEET_SCHEMA, signal, 0)
+    const { json, usage } = await this.complete('sheet.plan', input, signal, 0)
     return { plan: json as SheetPlan, usage }
   }
 
-  private async complete(system: string, input: unknown, name: string, schema: object, signal: AbortSignal, temperature: number) {
+  private async complete(job: Job, input: unknown, signal: AbortSignal, temperature: number) {
+    const { system, name, schema } = PROMPTS[job]
     const res = await fetch(`${this.cfg.baseUrl}/chat/completions`, {
       method: 'POST',
       signal,
@@ -277,12 +288,14 @@ export class OpenAIAssistant implements AssistantProvider {
       body: JSON.stringify({
         model: this.cfg.model,
         temperature,
+        max_tokens: JOBS[job].outputTokens,
         messages: [{ role: 'system', content: system }, { role: 'user', content: JSON.stringify(input) }],
         response_format: { type: 'json_schema', json_schema: { name, strict: true, schema } },
       }),
     })
     if (!res.ok) throw new Error(`openai ${res.status}`)
     const body: any = await res.json()
+    if (body?.choices?.[0]?.finish_reason === 'length') throw new Error(`output over budget (${JOBS[job].outputTokens} tokens)`)
     const content = body?.choices?.[0]?.message?.content
     if (typeof content !== 'string') throw new Error('openai: no content')
     const usage = body?.usage ? { promptTokens: Number(body.usage.prompt_tokens) || 0, completionTokens: Number(body.usage.completion_tokens) || 0 } : undefined

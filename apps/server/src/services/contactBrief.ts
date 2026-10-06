@@ -117,6 +117,24 @@ export async function buildPack(userId: string, workspaceId: string, contactId: 
   return { contactName: contact.displayName, pack }
 }
 
+// What the model gets (doc/13 §13): code picks the evidence, newest first per kind.
+// Who they are always goes; then notes, messages, timeline and documents up to small
+// per-kind caps, at most 20 items and about 3k tokens of text. The full pack stays
+// the stale check and the AI-off template's source.
+const MODEL = { note: 6, message: 5, activity: 6, document: 2, items: 20, chars: 12_000 } as const
+export function selectForModel(pack: PackItem[]): PackItem[] {
+  const out = pack.filter((e) => e.kind === 'contact' || e.kind === 'account')
+  let chars = out.reduce((n, e) => n + e.text.length + e.title.length, 0)
+  for (const kind of ['note', 'message', 'activity', 'document'] as const) {
+    for (const e of pack.filter((x) => x.kind === kind).slice(0, MODEL[kind])) {
+      const size = e.text.length + e.title.length
+      if (out.length >= MODEL.items || chars + size > MODEL.chars) break
+      out.push(e); chars += size
+    }
+  }
+  return out
+}
+
 /** Changes whenever anything in the pack changes — the stale check. */
 export const packHash = (pack: PackItem[]) => createHash('sha256').update(JSON.stringify(pack.map((e) => [e.id, e.when, e.title, e.text]))).digest('hex')
 

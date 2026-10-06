@@ -320,3 +320,37 @@ Parked: D4 follow-up / email, D5 qualification, D6 matching as a stand-alone fea
   - no "Save as sheet" from the Contacts and Inventory lists (UI owner: `createSheet` with a query)
   - typed cells and editing generated sheets come with A2
 
+## 13. Minimum necessary context (architecture rule, 2026-10-06)
+
+**AI gets language and ambiguity. Code gets identity, state, math and execution.**
+
+- The model never gets raw workspace dumps. It never generates or reasons about our IDs, and never produces SQL, permissions, totals, timestamps, versions or mutation state.
+- Each call does one job. Code narrows the candidates before the model sees them, and the model returns small structured output.
+- Composition calls get curated evidence packs, never whole records or history.
+- Future smart querying works like this: the model plans a bounded query, the server runs it, code reduces the results, and the model sees only the reduced evidence it needs to explain. It is never a large context by default.
+
+**Three call classes and their contracts** (`bots/assistant/budget.ts`). A contract lists the only input fields allowed, a record cap, and input/output token ceilings. The input count includes the system prompt and output schema; the output ceiling is sent as `max_tokens`, and a truncated output is a failure.
+
+| Job | Class | Input fields | Records | In / out tokens |
+|---|---|---|---|---|
+| `sheet.plan` (A1) | plan | request (≤300 chars), today, weekday, categories | ≤30 categories | 1100 / 300 |
+| `note.read` (D2) | extract | note, today, weekday | — | 2000 / 500 |
+| `company.extract` | extract | text, known | — | 2000 / 600 |
+| `contact.brief` (D3) | compose | contact, today, evidence | ≤20 items | 6000 / 1500 |
+| `company.draft` | compose | documentType, profile, answers, brief, revise | ≤12 answers | 5000 / 2000 |
+
+**Enforcement:**
+- `contractViolation` checks every call in `calls.ts` before it is made: extra fields, too many records, too large, or anything that looks like one of our IDs (cuid or UUID).
+- In production a violation is refused and logged as an AssistantCall with error `contract: …`. Under test it throws, so every workflow test also tests its workflow's contract.
+- `aiContract.test.ts` checks the contracts themselves, the worst-case inputs, and the refusal path.
+
+**What changed to meet it:**
+- **D3 brief.** The model sees evidence as `E1, E2, …`; citations are mapped back to records in code.
+  - Code selects the pack it gets (`selectForModel`): who the person is, then the newest items per kind (notes 6, messages 5, timeline 6, documents 2), at most 20 items and about 3k tokens of text.
+  - The full pack remains the stale check and the source for the AI-off brief.
+- **A1 planner.**
+  - The prompt is about 760 real input tokens (it was about 1,070 estimated before the field lists were de-duplicated).
+  - The request is capped at 300 characters and categories at 30.
+  - A listing always leads with Name, decided by code.
+  - On the real model, 8/8 sample requests are still valid.
+
