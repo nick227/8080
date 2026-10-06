@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest'
 import { db } from '@project/db'
 import { load } from 'js-yaml'
 import { readFileSync } from 'fs'
-import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId } from './helpers'
+import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, multipart } from './helpers'
 import { specPath } from '../app'
 import { can, type WorkspaceVerb } from '../services/workspacePolicy'
 import { crossWorkspaceViolations } from '../services/workspaceIntegrity'
@@ -70,9 +70,11 @@ describe('workspace access', () => {
       // Required query parameters get a valid sample so the 404 comes from policy.
       const query = (op.parameters ?? []).filter((p: any) => p.in === 'query' && p.required).map((p: any) => `${p.name}=x%40test.local`).join('&')
       const url = path.replace('{workspaceId}', ws.id).replace(/\{[^}]+\}/g, 'x') + (query ? `?${query}` : '')
-      const body = method === 'get' ? undefined : op.requestBody ? sampleBody(op) : undefined
+      // Multipart uploads get a tiny form, so the 404 comes from policy, not the parser.
+      const form = op.requestBody?.content?.['multipart/form-data'] ? multipart([{ name: 'file', value: Buffer.from('x'), filename: 'x.png', type: 'image/png' }]) : null
+      const body = method === 'get' ? undefined : form ? form.payload : op.requestBody ? sampleBody(op) : undefined
       expect((await app.inject({ method: method.toUpperCase() as any, url })).statusCode).toBe(401)
-      const res = await call(daveId, method.toUpperCase(), url, body)
+      const res = await call(daveId, method.toUpperCase(), url, body, form?.headers)
       expect(res.statusCode).toBe(404)
     })
   }
@@ -115,6 +117,7 @@ function sampleBody(op: any) {
     BulkInventoryInput: { ids: ['x'], action: 'archive' },
     AdjustInventoryStockInput: { expectedVersion: 1, quantity: 0 },
     ResolveInventoryImportRowInput: { action: 'skip' },
+    ReorderRecordImagesInput: { imageIds: ['x'] },
     CreateInventoryImportInput: { source: { kind: 'csv', csv: 'Name\nA', filename: 'x.csv' } },
     AddInterestInput: { inventoryId: 'x' },
     CreateTagInput: { name: 'x' },

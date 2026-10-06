@@ -2,6 +2,7 @@
 import { MediaService, type StoredFile } from '../services/MediaService'
 import { RecordImageService, type GallerySubject } from '../services/RecordImageService'
 import { badRequest } from '../lib/errors'
+import { authorize } from '../services/workspacePolicy'
 
 const gallery = new RecordImageService()
 const mediaService = new MediaService()
@@ -38,6 +39,9 @@ export async function listContactImages(request: any, reply: any) {
 
 export async function uploadContactImage(request: any, reply: any) {
   const s = subjectFromContact(request)
+  // Who may add images is decided before the upload is read or stored: outsiders get
+  // 404 (not a parser error), and nothing of theirs touches storage.
+  await authorize(request.user.id, s.workspaceId, 'record.write')
   const stored = await uploadParts(request)
   try {
     return reply.status(201).send({ data: await gallery.attach(request.user.id, s.workspaceId, s.subjectType, s.subjectId, stored) })
@@ -70,6 +74,9 @@ export async function listInventoryImages(request: any, reply: any) {
 
 export async function uploadInventoryImage(request: any, reply: any) {
   const s = subjectFromInventory(request)
+  // Who may add images is decided before the upload is read or stored: outsiders get
+  // 404 (not a parser error), and nothing of theirs touches storage.
+  await authorize(request.user.id, s.workspaceId, 'record.write')
   const stored = await uploadParts(request)
   try {
     return reply.status(201).send({ data: await gallery.attach(request.user.id, s.workspaceId, s.subjectType, s.subjectId, stored) })
