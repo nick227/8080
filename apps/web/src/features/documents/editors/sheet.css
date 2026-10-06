@@ -1,0 +1,30 @@
+/* Typed sheets (doc/13 A2): numbers line up, totals sit under the rows, generated
+   sheets say what they were made from. Tokens with fallbacks (shared tree). */
+.work-rdg .rdg-cell.work-cell-num { text-align: right; font-variant-numeric: tabular-nums; }
+.work-rdg .rdg-summary-row .rdg-cell { font-weight: 600; border-top: var(--line-width, 1px) solid var(--ink, currentColor); }
+.work-rdg .rdg-summary-row .work-rownum { font-weight: 400; color: var(--muted, inherit); }
+.work-coltype {
+  flex: none; max-width: 76px; margin-left: 4px; padding: 0 2px;
+  font: inherit; font-size: 11px; color: var(--muted, inherit); background: transparent;
+  border: 0; cursor: pointer; opacity: 0.7;
+}
+.work-coltype:hover, .work-coltype:focus { opacity: 1; outline: none; color: var(--ink, inherit); }
+.work-coltotal {
+  flex: none; padding: 0 4px; font: inherit; font-size: 12px; background: transparent; border: 0; cursor: pointer;
+  color: var(--muted, inherit); opacity: 0.6;
+}
+.work-coltotal[aria-pressed='true'] { color: var(--signal, inherit); opacity: 1; }
+.work-sheet-note { margin-left: auto; font-size: 12px; color: var(--muted, inherit); }
+.work-recipe {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px;
+  padding: 8px 16px; font-size: 12px; color: var(--muted, inherit);
+  border-bottom: var(--line-width, 1px) solid var(--rule, rgba(128, 128, 128, 0.3));
+}
+.work-recipe-what { color: var(--ink, inherit); }
+.work-recipe-stale { display: inline-flex; align-items: baseline; gap: 8px; color: var(--signal, inherit); }
+.work-recipe-stale button {
+  padding: 2px 10px; font: inherit; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink, inherit); background: transparent; cursor: pointer;
+  border: var(--line-width, 1px) solid var(--signal, currentColor);
+}
+.work-recipe-stale button:disabled { opacity: 0.5; cursor: default; }

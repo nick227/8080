@@ -1,8 +1,11 @@
 import { create } from 'zustand'
 import { ApiError, documentContentApi } from '@project/sdk'
+import type { SheetContent } from '@project/shared'
 import type { Block } from './types'
+import { rebaseSheet } from './sheetModel'
 
-// Shared content for block documents (doc/10 §10, minimal POC). The server holds
+// Shared content for block documents (doc/10 §10, minimal POC) and native sheets
+// (doc/13 A2; cells merged one by one, see sheetModel.rebaseSheet). The server holds
 // the content with a version; this module keeps one open document in sync:
 //  - load it, and open its event stream (updates + who's here / editing);
 //  - save local edits ~300 ms after typing pauses, based on a version;
@@ -22,12 +25,24 @@ type Hooks = {
   me: string | null
 }
 
-type Session = {
+// What differs between content kinds (blocks, sheets); the session is the same.
+type Kind<T> = {
+  read: (content: unknown) => T | null
+  empty: T
+  isEmpty: (content: T) => boolean
+  /** Local edits since `base` onto `remote`; conflicts are reported by `conflicted`. */
+  merge: (base: T, local: T, remote: T) => { merged: T; conflicts: number }
+  conflicted: (s: Session<T>, base: T, local: T, remote: T, by: string) => string
+}
+type ContentHooks<T> = { get: () => T | undefined; apply: (content: T) => void; status: (text: string) => void; canEdit: boolean; me: string | null }
+
+type Session<T = unknown> = {
   workspaceId: string
   documentId: string
-  hooks: Hooks
+  hooks: ContentHooks<T>
+  kind: Kind<T>
   baseVersion: number
-  base: Block[]
+  base: T
   dirty: boolean
   timer?: number
   retry?: number
@@ -107,19 +122,20 @@ export function rebase(base: Block[], local: Block[], remote: Block[]) {
   return { merged, conflicts }
 }
 
-const sessions = new Map<string, Session>()
+const sessions = new Map<string, Session<any>>()
 
-function enqueue(s: Session, task: () => Promise<void>) {
+function enqueue(s: Session<any>, task: () => Promise<void>) {
   s.queue = s.queue.then(task, task).catch(() => {})
   return s.queue
 }
 
-async function pull(s: Session) {
+async function pull<T>(s: Session<T>) {
   const latest = await documentContentApi.get(s.workspaceId, s.documentId)
   if (s.closed || latest.version <= s.baseVersion) return
-  const remote = (latest.content ?? []) as Block[]
-  const local = s.hooks.blocks() ?? []
-  const { merged, conflicts } = rebase(s.base, local, remote)
+  const remote = s.kind.read(latest.content) ?? s.kind.empty
+  const local = s.hooks.get() ?? s.kind.empty
+  const base = s.base
+  const { merged, conflicts } = s.kind.merge(base, local, remote)
   s.base = remote
   s.baseVersion = latest.version
   s.hooks.apply(merged)
@@ -127,28 +143,20 @@ async function pull(s: Session) {
     s.dirty = true
     schedule(s)
   }
-  if (conflicts.length) {
-    const by = latest.updatedBy?.name ?? s.lastRemoteName ?? 'Someone'
-    s.conflict = `Conflict · ${by} changed the same block — kept their text`
+  if (conflicts) {
+    s.conflict = s.kind.conflicted(s, base, local, remote, latest.updatedBy?.name ?? s.lastRemoteName ?? 'Someone')
     s.hooks.status(s.conflict)
-    // Keep what this person wrote in the contested blocks, for recovery.
-    const lost = conflicts.flatMap((blockId) => {
-      const mine = local.find((b) => b.id === blockId)?.text
-      const theirs = remote.find((b) => b.id === blockId)?.text
-      return mine && mine !== theirs ? [{ id: crypto.randomUUID(), blockId, text: mine, by, at: Date.now() }] : []
-    })
-    if (lost.length) saveRecovered(s.documentId, [...recovered(s.documentId), ...lost])
   }
 }
 
-async function flush(s: Session, final = false) {
+async function flush<T>(s: Session<T>, final = false) {
   if ((s.closed && !final) || !s.dirty || !s.hooks.canEdit) return
   s.dirty = false
-  const content = s.hooks.blocks() ?? []
+  const content = (s.hooks.get() ?? s.kind.empty) as never
   s.hooks.status('Saving…')
   try {
     const saved = await documentContentApi.save(s.workspaceId, s.documentId, { expectedVersion: s.baseVersion, content })
-    s.base = (saved.content ?? []) as Block[]
+    s.base = s.kind.read(saved.content) ?? s.kind.empty
     s.baseVersion = saved.version
     if (!s.dirty) s.hooks.status(s.conflict ?? 'Saved · shared')
   } catch (error) {
@@ -169,30 +177,61 @@ async function flush(s: Session, final = false) {
   }
 }
 
-function schedule(s: Session, delay = SAVE_DELAY_MS) {
+function schedule(s: Session<any>, delay = SAVE_DELAY_MS) {
   window.clearTimeout(s.timer)
   s.timer = window.setTimeout(() => void enqueue(s, () => flush(s)), delay)
 }
 
-/** Start syncing an open block document. Returns a detach function. */
-export function attachBlocks(workspaceId: string, documentId: string, hooks: Hooks) {
+const BLOCKS: Kind<Block[]> = {
+  read: (content) => (Array.isArray(content) ? (content as Block[]) : null),
+  empty: [],
+  isEmpty: (blocks) => !blocks.length,
+  merge: (base, local, remote) => { const r = rebase(base, local, remote); return { merged: r.merged, conflicts: r.conflicts.length } },
+  conflicted: (s, base, local, remote, by) => {
+    // Keep what this person wrote in the contested blocks, for recovery.
+    const { conflicts } = rebase(base, local, remote)
+    const lost = conflicts.flatMap((blockId) => {
+      const mine = local.find((b) => b.id === blockId)?.text
+      const theirs = remote.find((b) => b.id === blockId)?.text
+      return mine && mine !== theirs ? [{ id: crypto.randomUUID(), blockId, text: mine, by, at: Date.now() }] : []
+    })
+    if (lost.length) saveRecovered(s.documentId, [...recovered(s.documentId), ...lost])
+    return `Conflict · ${by} changed the same block — kept their text`
+  },
+}
+
+const SHEETS: Kind<SheetContent> = {
+  read: (content) => (content && typeof content === 'object' && !Array.isArray(content) ? (content as SheetContent) : null),
+  empty: { schemaVersion: 1, columns: [], rows: [] },
+  isEmpty: (sheet) => !sheet.columns.length && !sheet.rows.length,
+  merge: rebaseSheet,
+  conflicted: (_s, base, local, remote, by) => {
+    const n = rebaseSheet(base, local, remote).conflicts
+    return `Conflict · ${by} changed ${n === 1 ? 'a cell you changed' : `${n} cells you changed`} — kept their values`
+  },
+}
+
+function attach<T>(workspaceId: string, documentId: string, hooks: ContentHooks<T>, kind: Kind<T>) {
   detachBlocks(documentId)
-  const s: Session = { workspaceId, documentId, hooks, baseVersion: 0, base: [], dirty: false, queue: Promise.resolve(), source: null, lastPing: 0, lastRemoteName: null, conflict: null, closed: false }
+  const s: Session<T> = { workspaceId, documentId, hooks, kind, baseVersion: 0, base: kind.empty, dirty: false, queue: Promise.resolve(), source: null, lastPing: 0, lastRemoteName: null, conflict: null, closed: false }
   sessions.set(documentId, s)
   useRecovery.setState((st) => ({ items: { ...st.items, [documentId]: readRecovered(documentId) } }))
 
   void enqueue(s, async () => {
     const first = await documentContentApi.get(workspaceId, documentId)
     if (s.closed) return
+    const server = kind.read(first.content)
     if (first.version === 0) {
-      // Nothing shared yet: this browser's (device-local) content becomes version 1.
-      const local = hooks.blocks() ?? []
-      s.base = []
-      if (hooks.canEdit && local.length) { s.dirty = true; schedule(s, 0) }
-      hooks.status(hooks.canEdit ? 'Shared · live' : 'Shared · nothing written yet')
+      // Nothing saved yet. A sheet may start from its import or recipe snapshot; this
+      // browser's (device-local) content, if any, becomes version 1.
+      s.base = server ?? kind.empty
+      const local = hooks.get()
+      if (hooks.canEdit && local && !kind.isEmpty(local) && !same(local, s.base)) { s.dirty = true; schedule(s, 0) }
+      else if (server) hooks.apply(server)
+      hooks.status(hooks.canEdit ? 'Shared · live' : server ? 'Shared · read only' : 'Shared · nothing written yet')
       return
     }
-    s.base = (first.content ?? []) as Block[]
+    s.base = server ?? kind.empty
     s.baseVersion = first.version
     hooks.apply(s.base)
     hooks.status('Shared · live')
@@ -209,6 +248,16 @@ export function attachBlocks(workspaceId: string, documentId: string, hooks: Hoo
     setPeople(documentId, (JSON.parse((event as MessageEvent).data) as { people: Person[] }).people)
   })
   return () => detachBlocks(documentId)
+}
+
+/** Start syncing an open block document. Returns a detach function. */
+export function attachBlocks(workspaceId: string, documentId: string, hooks: Hooks) {
+  return attach(workspaceId, documentId, { get: hooks.blocks, apply: hooks.apply, status: hooks.status, canEdit: hooks.canEdit, me: hooks.me }, BLOCKS)
+}
+
+/** Start syncing an open native sheet (typed cells, doc/13 A2). Returns a detach function. */
+export function attachSheet(workspaceId: string, documentId: string, hooks: ContentHooks<SheetContent>) {
+  return attach(workspaceId, documentId, hooks, SHEETS)
 }
 
 export function detachBlocks(documentId: string) {

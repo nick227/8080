@@ -26,7 +26,8 @@ export function covers(range: CellRange, row: number, col: number) {
   return row >= box.r0 && row <= box.r1 && col >= box.c0 && col <= box.c1
 }
 
-export function visibleRows(rows: readonly GridRow[], filter: string, sort: readonly SortColumn[]) {
+/** `numeric` columns (typed number/money sheets) sort by value, blanks last. */
+export function visibleRows(rows: readonly GridRow[], filter: string, sort: readonly SortColumn[], numeric: (key: string) => boolean = () => false) {
   const query = filter.trim().toLowerCase()
   const filtered = query
     ? rows.filter((row) => Object.entries(row).some(([key, value]) => key !== 'id' && key !== 'version' && value.toLowerCase().includes(query)))
@@ -34,6 +35,14 @@ export function visibleRows(rows: readonly GridRow[], filter: string, sort: read
   const column = sort[0]
   if (!column) return filtered
   const dir = column.direction === 'ASC' ? 1 : -1
+  if (numeric(column.columnKey)) {
+    const value = (row: GridRow) => { const text = (row[column.columnKey] ?? '').replace(/[^\d.eE+-]/g, ''); return text ? Number(text) : NaN }
+    return [...filtered].sort((a, b) => {
+      const [x, y] = [value(a), value(b)]
+      if (Number.isNaN(x) || Number.isNaN(y)) return Number.isNaN(x) === Number.isNaN(y) ? 0 : Number.isNaN(x) ? 1 : -1
+      return (x - y) * dir
+    })
+  }
   return [...filtered].sort((a, b) => (a[column.columnKey] ?? '').localeCompare(b[column.columnKey] ?? '', undefined, { numeric: true }) * dir)
 }
 

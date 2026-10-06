@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import type { SortDirection } from 'react-data-grid'
+import type { CellType } from '@project/shared'
 
 export const ROW_KEY = '__row'
 
@@ -12,9 +13,16 @@ type HeaderProps = {
   onRename: (name: string) => void
   onSort: () => void
   onDelete: () => void
+  /** Typed sheets (doc/13 A2): the column's type and its total, when they can change. */
+  type?: CellType
+  onType?: (type: CellType) => void
+  total?: boolean
+  onTotal?: () => void
 }
 
-export function SheetHeader({ name, selected, sort, editable, onSelect, onRename, onSort, onDelete }: HeaderProps) {
+const TYPE_LABEL: Record<CellType, string> = { text: 'Text', number: 'Number', money: 'Money', date: 'Date', boolean: 'Yes / no' }
+
+export function SheetHeader({ name, selected, sort, editable, onSelect, onRename, onSort, onDelete, type, onType, total, onTotal }: HeaderProps) {
   const [draft, setDraft] = useState<string | null>(null)
   const cancel = useRef(false)
   useEffect(() => {
@@ -75,6 +83,14 @@ export function SheetHeader({ name, selected, sort, editable, onSelect, onRename
       <button type="button" className="work-colsort" aria-label={`Sort ${name}`} data-active={sort || undefined} onMouseDown={keep} onClick={onSort}>
         {sort === 'DESC' ? '↓' : '↑'}
       </button>
+      {type && onType && (
+        <select className="work-coltype" aria-label={`${name} column type`} value={type} onMouseDown={stop} onClick={stop} onKeyDown={(event) => event.stopPropagation()} onChange={(event) => onType(event.target.value as CellType)}>
+          {(Object.keys(TYPE_LABEL) as CellType[]).map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
+        </select>
+      )}
+      {onTotal && (type === 'number' || type === 'money') && (
+        <button type="button" className="work-coltotal" aria-label={total ? `Hide ${name} total` : `Show ${name} total`} aria-pressed={!!total} onMouseDown={keep} onClick={onTotal}>Σ</button>
+      )}
       {editable && <button type="button" className="work-coldel" aria-label={`Delete ${name} column`} onMouseDown={keep} onClick={onDelete}>×</button>}
     </div>
   )

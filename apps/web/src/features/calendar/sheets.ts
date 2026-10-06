@@ -20,9 +20,9 @@ export function titlesOf(doc: DocumentRecord): string[] {
   if (!title) return []
   const status = columns.find((column) => STATUS.test(column.name))
   return doc.sheet.rows.flatMap((row) => {
-    const value = row.cells[title.id]?.trim()
+    const value = String(row.cells[title.id] ?? '').trim()
     if (!value) return []
-    const mark = status ? row.cells[status.id]?.trim() ?? '' : ''
+    const mark = status ? String(row.cells[status.id] ?? '').trim() : ''
     return CLOSED.test(mark) ? [] : [value]
   })
 }

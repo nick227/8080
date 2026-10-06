@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import { documentsApi, getApiClient, unwrap, type Document as ServerDocument } from '@project/sdk'
 import type { DocumentRecord, NativeSheet, SharedInfo } from './types'
 import { starterDocs } from './seed'
-import { attachBlocks, blocksChanged, detachBlocks, isAttached } from './liveBlocks'
+import { attachBlocks, attachSheet, blocksChanged, detachBlocks, isAttached } from './liveBlocks'
+import { fromContent, toContent } from './sheetModel'
 
 // The Documents list. With a workspace, entries come from the shared server
 // registry (identity, title, owner, sharing, room links, deletion — doc/10 §3);
@@ -122,6 +123,7 @@ function toRecord(s: ServerDocument, ctx: Context): DocumentRecord {
     canManage: s.capabilities.manageAccess,
     externalUrl: d.source.kind === 'external' ? d.source.url : undefined,
     externalFileId: s.externalFileId,
+    generated: (s.provenance as { kind?: string } | null)?.kind === 'artifact',
   }
   const base: DocumentRecord = {
     id: s.id,
@@ -147,9 +149,9 @@ export function statusFor(doc: DocumentRecord | undefined, mode: Mode): string {
   switch (doc.shared.kind) {
     case 'dataset': return 'Live data · edits update contacts'
     case 'external': return 'Opens in Google'
-    case 'imported': return 'Imported values · your edits stay on this device'
-    // Block documents are shared and live (liveBlocks.ts); maps and sheets not yet.
-    case 'native': if (doc.surface === 'blocks') return 'Shared · live'
+    case 'imported': return 'Shared · live'
+    // Block documents and sheets are shared and live (liveBlocks.ts); maps not yet.
+    case 'native': if (doc.surface === 'blocks' || doc.surface === 'grid') return 'Shared · live'
       return doc.shared.mine ? 'Content saved on this device only · not shared yet' : 'Content stays on its owner’s device until shared editing'
   }
 }
@@ -161,7 +163,6 @@ let timer: number | undefined
 const renameTimers = new Map<string, number>()
 const pendingTitles = new Map<string, string>()
 const importedRows = new Map<string, NativeSheet>()
-const loadingRows = new Set<string>()
 
 export const useDocuments = create<State>((set, get) => {
   const ws = () => get().workspaceId!
@@ -176,25 +177,29 @@ export const useDocuments = create<State>((set, get) => {
   function setDocs(docs: DocumentRecord[], extra: Partial<State> = {}) {
     const open = docs.find((d) => d.id === get().openId)
     set({ docs, ...extra, status: extra.status ?? statusFor(open, extra.mode ?? get().mode) })
-    // Opened (e.g. from a channel link) before the list knew it: load its rows now.
-    if (open) loadRows(open)
+    // Opened (e.g. from a channel link) before the list knew it: start syncing it now.
+    if (open) attachOpen(open)
   }
 
-  // Server-stored rows (imported or generated sheets), fetched once per document.
-  function loadRows(doc: DocumentRecord) {
-    if (doc.shared?.kind !== 'imported' || importedRows.has(doc.id) || loadingRows.has(doc.id)) return
-    loadingRows.add(doc.id)
-    void documentsApi.materialization(ws(), doc.id).then((m) => {
-      const table = m.table as { columns: { id: string; label: string }[]; rows: { id: string; cells: Record<string, string | null> }[] }
-      const sheet: NativeSheet = {
-        mode: 'sheet',
-        columns: table.columns.map((c) => ({ id: c.id, name: c.label })),
-        rows: table.rows.map((r) => ({ id: r.id, cells: Object.fromEntries(Object.entries(r.cells).map(([k, v]) => [k, v ?? ''])) })),
-      }
-      importedRows.set(doc.id, sheet)
-      const local = readJson<Record<string, Content>>(contentKey(ws()), {})[doc.id]
-      if (!local?.sheet) set({ docs: get().docs.map((d) => (d.id === doc.id ? { ...d, sheet } : d)) })
-    }).catch((error) => set({ status: `Couldn’t load the imported rows — ${errorText(error)}` })).finally(() => loadingRows.delete(doc.id))
+  // Shared content syncs live while open: block documents (liveBlocks) and native
+  // sheets — blank, imported or generated (typed cells, doc/13 A2).
+  function attachOpen(doc: DocumentRecord) {
+    if (get().mode !== 'shared' || !doc.shared || isAttached(doc.id) || get().openId !== doc.id) return
+    const docId = doc.id
+    const status = (text: string) => { if (get().openId === docId) set({ status: text }) }
+    if (doc.surface === 'blocks' && doc.shared.kind === 'native') {
+      attachBlocks(ws(), docId, {
+        blocks: () => get().docs.find((d) => d.id === docId)?.blocks,
+        apply: (blocks) => set({ docs: get().docs.map((d) => (d.id === docId ? { ...d, blocks } : d)) }),
+        status, canEdit: doc.shared.canEdit, me: get().me,
+      })
+    } else if (doc.surface === 'grid' && (doc.shared.kind === 'native' || doc.shared.kind === 'imported') && doc.sheet?.mode !== 'dataset') {
+      attachSheet(ws(), docId, {
+        get: () => { const d = get().docs.find((x) => x.id === docId); return d?.sheet?.mode === 'sheet' ? toContent(d.sheet) : undefined },
+        apply: (content) => set({ docs: get().docs.map((d) => (d.id === docId ? { ...d, sheet: fromContent(content) } : d)) }),
+        status, canEdit: doc.shared.canEdit, me: get().me,
+      })
+    }
   }
 
   function startLocal(owner?: string) {
@@ -330,9 +335,9 @@ export const useDocuments = create<State>((set, get) => {
           return
         }
         const docs = await loadShared(ws(), context.me, context.members)
-        // An open, live block document keeps its synced blocks (not the device copy).
+        // An open, live document keeps its synced content (not the device copy).
         const current = new Map(get().docs.map((d) => [d.id, d]))
-        setDocs(docs.map((d) => (isAttached(d.id) ? { ...d, blocks: current.get(d.id)?.blocks ?? d.blocks } : d)))
+        setDocs(docs.map((d) => (isAttached(d.id) ? { ...d, blocks: current.get(d.id)?.blocks ?? d.blocks, sheet: current.get(d.id)?.sheet ?? d.sheet } : d)))
       } catch {
         // keep showing what we have; the next tick retries
       }
@@ -348,18 +353,7 @@ export const useDocuments = create<State>((set, get) => {
       const previous = get().openId
       if (previous && previous !== id) detachBlocks(previous)
       set({ openId: id, status: statusFor(doc, get().mode) })
-      // Shared block documents sync live with everyone who has them open.
-      if (doc && doc.surface === 'blocks' && doc.shared?.kind === 'native' && get().mode === 'shared' && !isAttached(doc.id)) {
-        const docId = doc.id
-        attachBlocks(ws(), docId, {
-          blocks: () => get().docs.find((d) => d.id === docId)?.blocks,
-          apply: (blocks) => set({ docs: get().docs.map((d) => (d.id === docId ? { ...d, blocks } : d)) }),
-          status: (text) => { if (get().openId === docId) set({ status: text }) },
-          canEdit: doc.shared.canEdit,
-          me: get().me,
-        })
-      }
-      if (doc) loadRows(doc)
+      if (doc) attachOpen(doc)
     },
 
     add(doc) {

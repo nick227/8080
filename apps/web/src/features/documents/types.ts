@@ -1,3 +1,4 @@
+import type { CellType, CellValue } from '@project/shared'
 // external = a Google Doc/Sheet link: opens in a new tab, never in an editor.
 export type Surface = 'blocks' | 'mental_map' | 'grid' | 'external'
 
@@ -40,9 +41,11 @@ export type MapEdge = {
   direction: EdgeDirection
 }
 
-export type SheetColumn = { id: string; name: string }
+// Typed since A2 (doc/13 §12; packages/shared/src/sheetContent.ts): no type = text.
+// Cells hold raw values — money in minor units, dates as YYYY-MM-DD.
+export type SheetColumn = { id: string; name: string; type?: CellType; currency?: string; total?: 'sum' }
 
-export type SheetRow = { id: string; cells: Record<string, string> }
+export type SheetRow = { id: string; cells: Record<string, CellValue> }
 
 export type NativeSheet = { mode: 'sheet'; columns: SheetColumn[]; rows: SheetRow[] }
 
@@ -57,6 +60,8 @@ export type SharedInfo = {
   // native: content local · dataset: live canonical records · imported: rows from the
   // server, edits local · external: Google opens it
   kind: 'native' | 'dataset' | 'imported' | 'external'
+  // Made from records by a recipe (doc/13 A1): shows where it came from and can be made again.
+  generated?: boolean
   mine: boolean
   canEdit: boolean
   canManage: boolean
