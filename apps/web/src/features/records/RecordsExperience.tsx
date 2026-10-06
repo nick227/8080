@@ -372,11 +372,8 @@ function RecordWorkspace({
               level={1}
               newLabel={kind === 'contacts' ? 'contact' : 'item'}
               onNew={() => setAdding(true)}
-            >
-              <button type="button" className="section-add-btn" onClick={() => setImporting(true)}>
-                Import
-              </button>
-            </SectionHeader>
+              onImport={() => setImporting(true)}
+            />
             <CollectionToolbar
               kind={kind}
               archived={archived}

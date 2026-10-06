@@ -59,9 +59,13 @@ export function CalendarExperience() {
             <button type="button" className="cal-btn" onClick={() => shiftMonth(1)}>Next</button>
           </div>
         )}
-        <SectionHeader title={title} level={1} newLabel="task" onNew={startNew}>
-          <button type="button" className="section-add-btn" onClick={() => setImporting(true)}>Import</button>
-        </SectionHeader>
+        <SectionHeader
+          title={title}
+          level={1}
+          newLabel="task"
+          onNew={startNew}
+          onImport={() => setImporting(true)}
+        />
         <div className="cal-tools">
           <button type="button" className="cal-btn" aria-pressed={onToday} onClick={goToday}>Today</button>
           <button type="button" className="cal-btn" onClick={() => setFollowing(true)}>Follow up</button>

@@ -26,19 +26,12 @@
 .section-add-btn:hover,
 .section-add-btn:focus-visible { color: var(--signal); }
 
-.records-experience > .records-scroll > .section-header {
-  padding-inline: 0;
-  margin-bottom: var(--space-md);
-}
-
 .cal-bar .section-header {
   flex: 1;
   min-width: 0;
-  padding: 0;
+  padding-block: 0;
+  padding-inline: 0;
 }
 .cal-bar .section-header h1 {
-  font-size: var(--text-lg);
-}
-@media (max-width: 720px) {
-  .cal-bar .section-header h1 { font-size: var(--text-body); }
+  font-size: var(--text-base);
 }

@@ -66,6 +66,7 @@ function DocumentsTable({ group, docs, owner }: { group: typeof GROUPS[number]; 
         titleId={`docs-group-${group.kind}`}
         newLabel={group.label}
         onNew={() => add(blankDoc(group.surface, owner))}
+        onImport={() => {}}
       />
       <table className="docs-table" aria-labelledby={`docs-group-${group.kind}`}>
         <thead>

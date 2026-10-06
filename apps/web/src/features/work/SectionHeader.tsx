@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
 import './SectionHeader.css'
 
-/** Shared desk list header: quiet title + “+ New”, matching Documents. */
+/** Shared desk list header: quiet title + “+ New” (+ optional Import). */
 export function SectionHeader({
   title,
   titleId,
   level = 2,
   onNew,
+  onImport,
   newLabel,
   children,
 }: {
@@ -14,6 +15,7 @@ export function SectionHeader({
   titleId?: string
   level?: 1 | 2
   onNew?: () => void
+  onImport?: () => void
   newLabel?: string
   children?: ReactNode
 }) {
@@ -29,6 +31,11 @@ export function SectionHeader({
           onClick={onNew}
         >
           + New
+        </button>
+      )}
+      {onImport && (
+        <button type="button" className="section-add-btn" onClick={onImport}>
+          Import
         </button>
       )}
       {children}

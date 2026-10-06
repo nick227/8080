@@ -45,7 +45,18 @@
   min-width: 0;
   overflow: auto;
   overscroll-behavior: contain;
+  padding: 0 0 var(--space-2xl);
+}
+.records-scroll:has(.record-navigation) {
   padding: var(--page-padding-block) var(--page-gutter-current) var(--space-2xl);
+}
+.records-scroll > .record-collection-views,
+.records-scroll > .record-count,
+.records-scroll > .record-empty,
+.records-scroll > .record-loading,
+.records-scroll > .record-error,
+.records-scroll > .record-load-more {
+  padding-inline: var(--table-cell-padding-x);
 }
 .record-identity h1 {
   margin: var(--space-xs) 0;
@@ -84,7 +95,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-  margin: var(--space-md) 0 var(--space-md);
+  margin: 0 0 var(--space-md);
 }
 .record-focus-row,
 .record-sort-row,
@@ -183,7 +194,7 @@
 .record-list .record-tile {
   display: grid;
   grid-template-columns: auto 48px minmax(140px, 1fr) minmax(70px, 0.4fr) minmax(120px, 0.65fr) auto;
-  padding: var(--space-md) var(--space-sm);
+  padding: var(--space-md) var(--table-cell-padding-x);
   border-bottom: var(--line-width) solid var(--line);
 }
 .record-media {
