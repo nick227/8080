@@ -1,12 +1,5 @@
 import { useState } from 'react'
-import {
-  CONNECTED_PREVIEWS,
-  IMPORT_SOURCES,
-  SOURCE_CATEGORY_LABEL,
-  type ConnectField,
-  type ImportSource,
-  type SourceId,
-} from './importSources'
+import { IMPORT_SOURCES, type ConnectField, type ImportSource, type SourceId } from './importSources'
 import type { RecordKind } from './navigation'
 
 export type SyncMode = 'once' | 'synced'
@@ -51,53 +44,25 @@ export function ImportSourceStep({
 
   return (
     <div className="record-import-panel record-import-sources">
-      <section className="record-import-section" aria-labelledby="import-connected">
-        <h3 id="import-connected">Connected</h3>
-        <ul className="record-import-source-list">
-          {CONNECTED_PREVIEWS.map((card) => (
-            <li key={card.id}>
-              <button type="button" className="record-import-source" disabled>
-                <span className="record-import-source-name">{card.label}</span>
-                <span className="record-muted">{card.detail}</span>
-                <span className="record-import-source-meta">{card.meta}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="record-import-section" aria-labelledby="import-new">
-        <h3 id="import-new">New source</h3>
-        {(Object.keys(SOURCE_CATEGORY_LABEL) as ImportSource['category'][]).map((category) => {
-          const group = sources.filter((s) => s.category === category)
-          if (!group.length) return null
-          return (
-            <div key={category} className="record-import-category">
-              <h4>{SOURCE_CATEGORY_LABEL[category]}</h4>
-              <ul className="record-import-source-list">
-                {group.map((source) => (
-                  <li key={source.id}>
-                    <button
-                      type="button"
-                      className="record-import-source"
-                      data-available={source.status === 'available' || undefined}
-                      onClick={() => {
-                        onPick(source.id)
-                        if (source.id === 'csv') return
-                        setDraft({})
-                        setPhase('connect')
-                      }}
-                    >
-                      <span className="record-import-source-name">{source.name}</span>
-                      {source.status === 'preview' && <span className="record-import-badge">Soon</span>}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )
-        })}
-      </section>
+      <ul className="record-import-source-list">
+        {sources.map((source) => (
+          <li key={source.id}>
+            <button
+              type="button"
+              className="record-import-source"
+              data-available={source.status === 'available' || undefined}
+              onClick={() => {
+                onPick(source.id)
+                if (source.id === 'csv') return
+                setDraft({})
+                setPhase('connect')
+              }}
+            >
+              <span className="record-import-source-name">{source.name}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
