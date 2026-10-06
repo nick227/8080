@@ -21,6 +21,7 @@ import { RoomDocuments } from '../features/documents/RoomDocuments'
 import { useDocuments } from '../features/documents/store'
 import { CalendarPage, WorkPage } from '../features/work/WorkPage'
 import type { Desk } from '../features/work/sections'
+import { useWorkPlace } from '../features/records/navigation'
 import { loadRoomView, saveRoomView, seatsFrom, type RoomView } from '../features/room/roomViews'
 import { ChatStream, stillsFrom, type StreamRow } from '../features/room/ChatStream'
 import { ChatBox } from '../features/room/ChatBox'
@@ -53,7 +54,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const updateRoom = useUpdateRoom(roomId ?? '')
   const { pending, post, meId, meName, meAvatar, meGuest } = useRoomPost(roomId)
   const [view, setView] = useState<RoomView>(loadRoomView)
-  const [place, setPlace] = useState<Desk>('team')
+  const [place, setPlace] = useWorkPlace()
   const [queue, setQueue] = useState<Item[]>([])
   const knownIds = useRef<Set<string> | null>(null)
   const newestSeen = useRef(0)

@@ -1503,6 +1503,9 @@ paths:
         - in: query
           name: status
           schema: { $ref: '#/components/schemas/RecordStatus' }
+        - in: query
+          name: leadStatus
+          schema: { $ref: '#/components/schemas/LeadStatus' }
       responses:
         '200':
           description: OK

@@ -2,6 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { getApiClient, unwrap } from '../client'
 import type {
   AccountType,
+  LeadStatus,
   CreateAccountInput,
   CreateContactInput,
   CreateNoteInput,
@@ -38,7 +39,7 @@ const ws = (workspaceId: string) => ({ workspaceId })
 
 // ─── contacts ────────────────────────────────────────────────────────────────
 
-export type ContactListParams = { q?: string; ownerMemberId?: string; tagId?: string; accountId?: string; status?: RecordStatus; limit?: number }
+export type ContactListParams = { q?: string; leadStatus?: LeadStatus; ownerMemberId?: string; tagId?: string; accountId?: string; status?: RecordStatus; limit?: number }
 
 export function useContacts(workspaceId: string | undefined, params: ContactListParams = {}) {
   return useInfiniteQuery({

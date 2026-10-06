@@ -65,3 +65,13 @@ export function useRemoveContactInterest(workspaceId: string) {
     unwrap(await getApiClient().DELETE('/workspaces/{workspaceId}/contacts/{contactId}/interests/{inventoryId}', { params: { path: { workspaceId, contactId, inventoryId } } }))
   })
 }
+
+export function useInventoryItem(workspaceId: string | undefined, inventoryId: string | undefined) {
+  return useQuery({
+    queryKey: keys.inventoryItem(workspaceId ?? '', inventoryId ?? ''),
+    enabled: !!workspaceId && !!inventoryId,
+    queryFn: async () => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/inventory/{inventoryId}', {
+      params: { path: { workspaceId: workspaceId!, inventoryId: inventoryId! } },
+    })).data,
+  })
+}
