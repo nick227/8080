@@ -452,3 +452,19 @@ The user's call, ahead of any further agent workflows: **the differentiator is q
 - **A4: exact inventory prices** (`Inventory.price` Float → integer minor units + currency), on its own.
 - **The Sales/Deal model is a separate design decision.** It is not bundled into the pricing migration.
 
+### 14.1 A4 as built: exact inventory prices (2026-10-06, 146df05 + tests)
+
+- `Inventory.priceMinor` (integer minor units) + `Inventory.currency` (the workspace's default currency at creation) **are the price**.
+  - The change is additive because production start runs `prisma db push` without data loss.
+  - The legacy `price` Float is still written as a mirror and is never read. Dropping it is a later, deliberate migration.
+- Decimals from people and imports are converted once (`lib/money.ts toMinor`).
+  - A price with more decimals than the currency allows is refused (`INVALID_PRICE`; in an import, the row is invalid). Nothing is rounded away.
+  - Zero-decimal currencies (JPY) take whole amounts.
+- Sorting, cursors, sheet stock value (quantity × priceMinor, integer) and sheet price filters use the exact column.
+- The API keeps `price` (the same amount as a decimal) and adds `priceMinor` + `currency`.
+- Backfill: `services/priceBackfill.ts` runs on every start (idempotent; it touches only rows without an exact price), and is available as `pnpm --filter server inventory:prices`.
+- Tests:
+  - `prices.test.ts` 4/4: exact conversion, refused precision, JPY, exact sort and stock value, backfill once
+  - full suite 592/593; the one failure is `record-views.test.ts`, which is date-dependent around UTC midnight and not from this change
+- **Next:** the Sales/Deal model, as its own design decision.
+
