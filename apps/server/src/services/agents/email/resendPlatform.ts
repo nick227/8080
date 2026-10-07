@@ -10,17 +10,19 @@ const TIMEOUT_MS = 15_000
 export class ResendPlatformProvider implements EmailProvider {
   readonly name = 'resend-platform'
 
-  constructor(private readonly apiKey = process.env.RESEND_API_KEY ?? '') {}
+  constructor(private readonly apiKey = process.env.RESEND_API_KEY?.trim() ?? '') {}
+  // The key is only ever sent in the Authorization header; it is never logged or returned.
 
   async test(connection: EmailConnection): Promise<TestResult> {
-    if (!this.apiKey) return { ok: false, code: 'PLATFORM_NOT_CONFIGURED', message: 'Sending with 8080 is not set up on this server.' }
-    if (!platformIdentity(connection)) return { ok: false, code: 'PLATFORM_NOT_CONFIGURED', message: 'The 8080 sending address is not set up on this server.' }
+    if (!this.apiKey) return { ok: false, code: 'PLATFORM_NOT_CONFIGURED', message: 'Sending with 8080 is not set up on this server (no API key).' }
+    if (!platformIdentity(connection)) return { ok: false, code: 'PLATFORM_NOT_CONFIGURED', message: 'Sending with 8080 is not set up on this server (no sending address).' }
     return { ok: true }
   }
 
   async send(connection: EmailConnection, email: OutboundEmail): Promise<SendResult> {
     const identity = platformIdentity(connection)
-    if (!this.apiKey || !identity) return { ok: false, kind: 'auth', code: 'PLATFORM_NOT_CONFIGURED', message: 'Sending with 8080 is not set up on this server.' }
+    const unready = await this.test(connection)
+    if (!unready.ok || !identity) return { ok: false, kind: 'auth', code: 'PLATFORM_NOT_CONFIGURED', message: unready.ok ? 'Sending with 8080 is not set up on this server.' : unready.message }
     let res: Response
     try {
       res = await fetch(ENDPOINT, {

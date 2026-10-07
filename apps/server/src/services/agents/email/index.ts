@@ -3,16 +3,36 @@
 import type { EmailConnection } from '@project/db'
 import { DevOutboxProvider } from './devOutbox'
 import { ResendPlatformProvider } from './resendPlatform'
+import { platformFrom } from './platform'
 import type { EmailProvider } from './provider'
 
 export * from './provider'
-export { platformIdentity, platformFromAddress } from './platform'
+export { platformIdentity, platformFromAddress, platformFrom, parseFrom } from './platform'
 
-/** dev = DevOutbox; resend = Resend. Default: dev in tests or without RESEND_API_KEY. */
+/**
+ * Which transport platform sends use:
+ * - production: always Resend. Missing configuration fails every send visibly
+ *   (PLATFORM_NOT_CONFIGURED); it never falls back to the dev outbox.
+ * - tests: always the dev outbox (tests swap providers with setEmailProvider).
+ * - local dev: the dev outbox, unless EMAIL_TRANSPORT=resend asks for real sends.
+ */
 export function emailTransport(): 'dev' | 'resend' {
-  const set = process.env.EMAIL_TRANSPORT?.trim()
-  if (set === 'dev' || set === 'resend') return set
-  return process.env.NODE_ENV !== 'test' && process.env.RESEND_API_KEY ? 'resend' : 'dev'
+  if (process.env.NODE_ENV === 'production') return 'resend'
+  if (process.env.NODE_ENV === 'test') return 'dev'
+  return process.env.EMAIL_TRANSPORT?.trim() === 'resend' ? 'resend' : 'dev'
+}
+
+/** One startup line about email: names what is missing, never prints the key. */
+export function describeEmailSetup(): { ok: boolean; line: string } {
+  const transport = emailTransport()
+  const from = platformFrom()
+  if (transport === 'dev') return { ok: true, line: `email: dev outbox (from ${from?.address ?? 'unset'})` }
+  const missing = [
+    ...(process.env.RESEND_API_KEY?.trim() ? [] : ['RESEND_API_KEY']),
+    ...(from ? [] : [process.env.EMAIL_PLATFORM_FROM?.trim() ? 'EMAIL_PLATFORM_FROM (not an email address)' : 'EMAIL_PLATFORM_FROM']),
+  ]
+  if (missing.length) return { ok: false, line: `email: Resend NOT CONFIGURED — missing ${missing.join(', ')}; every platform send will fail` }
+  return { ok: true, line: `email: Resend, from ${from!.address}` }
 }
 
 let override: EmailProvider | null = null

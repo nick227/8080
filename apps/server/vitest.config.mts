@@ -35,6 +35,10 @@ export default defineConfig({
       AI_ROUTER: 'off',
       OPENAI_API_KEY: '',
       OPENAI_ROUTER_MODEL: '',
+      // Never send real email from tests (docs/agents/07): the dev outbox, no platform sender.
+      RESEND_API_KEY: '',
+      EMAIL_PLATFORM_FROM: '',
+      EMAIL_TRANSPORT: '',
     },
   },
 })

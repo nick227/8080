@@ -3,6 +3,7 @@ import { loadPacks } from './bots/pack'
 import { startBots } from './bots/runtime'
 import { startWorkspaceHost } from './services/WorkspaceHost'
 import { startAgentRunner } from './services/agents/runner'
+import { describeEmailSetup } from './services/agents/email'
 
 async function main() {
   const server = await buildApp({ logger: true })
@@ -17,6 +18,9 @@ async function main() {
   startWorkspaceHost()
   // Agents job runner (docs/agents/07 S0): single instance; AGENTS_SCHEDULER=off disables it.
   server.log.info(`agents runner: ${startAgentRunner() ? 'on' : 'off'}`)
+  const email = describeEmailSetup()
+  if (email.ok) server.log.info(email.line)
+  else server.log.error(email.line)
 }
 
 main().catch((err) => {

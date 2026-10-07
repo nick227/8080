@@ -11,6 +11,7 @@ import { nextOccurrence, recurrenceProblems } from '../lib/recurrence'
 import { decryptSecret, encryptSecret } from '../lib/secrets'
 import { defaultConnection } from '../services/agents/connections'
 import { ResendPlatformProvider } from '../services/agents/email/resendPlatform'
+import { describeEmailSetup, emailTransport, parseFrom, platformIdentity, providerFor } from '../services/agents/email'
 import { registerAgentType, type EmailRecipient } from '../services/agents/registry'
 import { baseValues, workspaceMembers } from '../services/agents/audiences'
 import { MAX_ATTEMPTS, RETRY_DELAY_MS, scheduleNext, tick } from '../services/agents/runner'
@@ -232,6 +233,68 @@ describe('ResendPlatformProvider', () => {
     expect(await p.test(conn)).toMatchObject({ ok: false, code: 'PLATFORM_NOT_CONFIGURED' })
     expect(await p.send(conn, email)).toMatchObject({ ok: false, kind: 'auth', code: 'PLATFORM_NOT_CONFIGURED' })
     expect(globalThis.fetch).not.toHaveBeenCalled()
+  })
+})
+
+// ─── platform configuration (production never falls back to the dev outbox) ────
+
+describe('platform email configuration', () => {
+  afterEach(() => vi.unstubAllEnvs())
+  const conn = { id: 'c1', workspaceId: 'w1', strategy: 'platform', displayName: 'Acme Co', replyTo: 'hello@acme.test' } as any
+
+  it('EMAIL_PLATFORM_FROM may be an address or "Name <address>"; the workspace name is shown', () => {
+    expect(parseFrom('Hatsy Shirtsy <notifications@hatsyshirtsy.com>')).toEqual({ address: 'notifications@hatsyshirtsy.com', name: 'Hatsy Shirtsy' })
+    expect(parseFrom('"Hatsy, Shirtsy" <n@h.com>')).toEqual({ address: 'n@h.com', name: 'Hatsy, Shirtsy' })
+    expect(parseFrom('notifications@hatsyshirtsy.com')).toEqual({ address: 'notifications@hatsyshirtsy.com', name: null })
+    expect(parseFrom('Hatsy Shirtsy')).toBeNull()
+    vi.stubEnv('EMAIL_PLATFORM_FROM', 'Hatsy Shirtsy <notifications@hatsyshirtsy.com>')
+    expect(platformIdentity(conn)).toMatchObject({ from: '"Acme Co" <notifications@hatsyshirtsy.com>', replyTo: 'hello@acme.test' })
+    expect(platformIdentity({ ...conn, displayName: ' ' })?.from).toBe('"Hatsy Shirtsy" <notifications@hatsyshirtsy.com>')
+  })
+
+  it('transport: production always Resend, tests always the dev outbox, local dev only Resend when asked', () => {
+    vi.stubEnv('NODE_ENV', 'test')
+    vi.stubEnv('EMAIL_TRANSPORT', 'resend')
+    expect(emailTransport()).toBe('dev')
+    vi.stubEnv('NODE_ENV', 'development')
+    expect(emailTransport()).toBe('resend')
+    vi.stubEnv('EMAIL_TRANSPORT', '')
+    vi.stubEnv('RESEND_API_KEY', 're_local')
+    expect(emailTransport()).toBe('dev') // a key alone never makes local dev send for real
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('EMAIL_TRANSPORT', 'dev')
+    expect(emailTransport()).toBe('resend')
+    expect(providerFor(conn).name).toBe('resend-platform')
+  })
+
+  it('production without configuration says what is missing, never prints the key, and sends nothing', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('RESEND_API_KEY', '')
+    vi.stubEnv('EMAIL_PLATFORM_FROM', '')
+    expect(describeEmailSetup()).toEqual({ ok: false, line: 'email: Resend NOT CONFIGURED — missing RESEND_API_KEY, EMAIL_PLATFORM_FROM; every platform send will fail' })
+    vi.stubEnv('RESEND_API_KEY', 're_secret_value')
+    vi.stubEnv('EMAIL_PLATFORM_FROM', 'Hatsy Shirtsy')
+    expect(describeEmailSetup().line).toBe('email: Resend NOT CONFIGURED — missing EMAIL_PLATFORM_FROM (not an email address); every platform send will fail')
+    vi.stubEnv('EMAIL_PLATFORM_FROM', 'Hatsy Shirtsy <notifications@hatsyshirtsy.com>')
+    expect(describeEmailSetup()).toEqual({ ok: true, line: 'email: Resend, from notifications@hatsyshirtsy.com' })
+    expect(JSON.stringify(describeEmailSetup())).not.toContain('re_secret_value')
+
+    vi.stubEnv('RESEND_API_KEY', '')
+    vi.stubGlobal('fetch', vi.fn())
+    const result = await providerFor(conn).send(conn, { to: 'a@b.com', subject: 's', html: '', text: 't' })
+    expect(result).toMatchObject({ ok: false, kind: 'auth', code: 'PLATFORM_NOT_CONFIGURED' })
+    expect(globalThis.fetch).not.toHaveBeenCalled()
+    expect(await db.devOutboxEmail.count()).toBe(0)
+    vi.unstubAllGlobals()
+  })
+
+  it('the API key never appears in a result, even when Resend rejects it', async () => {
+    vi.stubEnv('EMAIL_PLATFORM_FROM', 'notifications@hatsyshirtsy.com')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ name: 'validation_error', message: 'API key is invalid' }), { status: 403 })))
+    const result = await new ResendPlatformProvider('re_secret_value').send(conn, { to: 'a@b.com', subject: 's', html: '', text: 't' })
+    expect(result).toMatchObject({ ok: false, kind: 'auth' })
+    expect(JSON.stringify(result)).not.toContain('re_secret_value')
+    vi.unstubAllGlobals()
   })
 })
 
