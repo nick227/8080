@@ -188,7 +188,7 @@ describe('email connections', () => {
     const res = await call(testUserId, 'POST', `/workspaces/${ws.id}/email-connections/${conn.id}/test`)
     expect(res.statusCode).toBe(200)
     await validateResponse('testEmailConnection', 200, res.json())
-    expect(res.json().data).toMatchObject({ ok: true, sentTo: 'alice@test.local', error: null })
+    expect(res.json().data).toMatchObject({ ok: true, sentTo: 'alice@test.local', error: null, providerMessageId: expect.stringMatching(/^dev:/) })
     const mail = await db.devOutboxEmail.findFirstOrThrow({ where: { to: 'alice@test.local' } })
     expect(mail).toMatchObject({ from: '"Acme Co" <agents@8080.localhost>', replyTo: 'alice@test.local', html: '' })
     expect((await db.emailConnection.findUniqueOrThrow({ where: { id: conn.id } })).lastTestedAt).not.toBeNull()

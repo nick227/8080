@@ -3705,6 +3705,8 @@ export interface components {
             data: {
                 ok: boolean;
                 sentTo: string | null;
+                /** @description The provider's id for the sent email (e.g. Resend's) */
+                providerMessageId: string | null;
                 error: {
                     code: string;
                     message: string;

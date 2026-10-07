@@ -132,8 +132,14 @@ export class EmailConnectionService {
           },
         })
         return {
-          value: { ok: !error, sentTo: error ? null : to, error: error ? { code: error.code, message: error.message } : null, connection: toEmailConnection(after) },
-          result: { ok: !error, code: error?.code ?? null },
+          value: {
+            ok: !error,
+            sentTo: error ? null : to,
+            providerMessageId: sent?.ok ? sent.providerMessageId : null,
+            error: error ? { code: error.code, message: error.message } : null,
+            connection: toEmailConnection(after),
+          },
+          result: { ok: !error, code: error?.code ?? null, providerMessageId: sent?.ok ? sent.providerMessageId : null },
         }
       },
     )

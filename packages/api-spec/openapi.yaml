@@ -5567,10 +5567,11 @@ components:
       properties:
         data:
           type: object
-          required: [ok, sentTo, error, connection]
+          required: [ok, sentTo, providerMessageId, error, connection]
           properties:
             ok: { type: boolean }
             sentTo: { type: [string, 'null'] }
+            providerMessageId: { type: [string, 'null'], description: "The provider's id for the sent email (e.g. Resend's)" }
             error:
               type: [object, 'null']
               required: [code, message]
