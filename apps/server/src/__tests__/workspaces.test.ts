@@ -107,6 +107,7 @@ function sampleBody(op: any) {
     RegenerateDocumentInput: { idempotencyKey: 'x' },
     CreateMarketingBudgetInput: { monthlyBudgetMinor: 100, goal: 'leads', idempotencyKey: 'x' },
     UpdateCompanyProfileInput: { expectedRevision: 0, changes: { name: 'x' } },
+    UpdateEmailConnectionInput: { displayName: 'x' },
     UpdateWorkspaceInput: { name: 'x' },
     UpdateWorkspaceMemberInput: { title: 'x' },
     CreateWorkspaceInviteInput: { email: 'x@test.local' },

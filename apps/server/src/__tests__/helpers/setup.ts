@@ -31,6 +31,8 @@ afterEach(async () => {
   await db.team.deleteMany()
   await db.workspaceInvite.deleteMany()
   await db.workspaceMember.deleteMany()
+  // Agents (docs/agents) cascade from Workspace; the dev outbox has no FK.
+  await db.devOutboxEmail.deleteMany()
   await db.workspace.deleteMany()
   await db.botDecision.deleteMany()
   await db.botRoute.deleteMany()

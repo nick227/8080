@@ -547,6 +547,8 @@ model Workspace {
   assistantCalls   AssistantCall[]
   proposals        AgentProposal[]
   contactBriefs    ContactBrief[]
+  emailConnections EmailConnection[]
+  agents           Agent[]
 
   @@index([createdById])
 }
@@ -1758,4 +1760,289 @@ model ContactBrief {
   @@unique([contactId, memberId])
   @@index([workspaceId])
   @@index([memberId])
+}
+
+// ─── communication agents (docs/agents) ───────────────────────────────────────
+
+// How a connection sends. The UI shows two choices: "Send with 8080" (platform) and
+// "Use my own email/domain" (every other strategy).
+enum EmailConnectionStrategy {
+  platform
+  smtp
+  google
+  microsoft
+  resend_domain
+}
+
+enum EmailConnectionStatus {
+  active
+  needs_attention // authentication failed; its sends fail until fixed
+  disabled
+}
+
+// A sender identity (docs/agents/07 decision 1). Agents reference one; nobody else
+// ever sees `secret`. Every workspace gets a platform connection at creation.
+model EmailConnection {
+  id                String                  @id @default(cuid())
+  workspaceId       String
+  strategy          EmailConnectionStrategy
+  status            EmailConnectionStatus   @default(active)
+  // = workspaceId while this is the workspace default, else null (one default each).
+  defaultFor        String?                 @unique
+  displayName       String                  @db.VarChar(120)
+  // Null for platform: the platform address comes from the environment.
+  fromAddress       String?                 @db.VarChar(255)
+  replyTo           String?                 @db.VarChar(255)
+  // Encrypted credentials (lib/secrets.ts); null for platform.
+  secret            String?                 @db.Text
+  lastTestedAt      DateTime?
+  lastError         String?                 @db.VarChar(500)
+  createdByMemberId String?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  agents    Agent[]
+
+  @@index([workspaceId])
+}
+
+enum AgentFamily {
+  scheduled
+  followup
+  manual
+  team
+  social
+}
+
+enum AgentStatus {
+  draft
+  active
+  paused
+  archived
+}
+
+// One user-configured instance of a built-in Agent type (services/agents/registry.ts).
+// Configs are bounded data the type validates — never code or expressions.
+model Agent {
+  id                String      @id @default(cuid())
+  workspaceId       String
+  typeKey           String      @db.VarChar(64)
+  family            AgentFamily
+  name              String      @db.VarChar(160)
+  status            AgentStatus @default(draft)
+  // Null = the workspace default sender, resolved at send time.
+  emailConnectionId String?
+  recipientConfig   Json
+  deliveryConfig    Json
+  ruleConfig        Json
+  templateKey       String      @db.VarChar(64)
+  themeKey          String      @db.VarChar(64)
+  createdByMemberId String
+  publishedAt       DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  emailConnection EmailConnection? @relation(fields: [emailConnectionId], references: [id], onDelete: SetNull)
+  messages        AgentMessage[]
+  events          AgentEvent[]
+
+  @@index([workspaceId, status])
+  @@index([emailConnectionId])
+}
+
+enum AgentMessageStatus {
+  empty
+  draft
+  ready
+}
+
+// One piece of content an Agent owns. `content` is email blocks (@project/shared
+// emailBlocks), not provider HTML.
+model AgentMessage {
+  id          String             @id @default(cuid())
+  workspaceId String
+  agentId     String
+  position    Int
+  title       String             @db.VarChar(160)
+  status      AgentMessageStatus @default(empty)
+  subject     String?            @db.VarChar(200)
+  content     Json
+  // Overrides of the Agent's template/theme.
+  templateKey String?            @db.VarChar(64)
+  themeKey    String?            @db.VarChar(64)
+  // Set when a queued message is consumed by an event.
+  usedAt      DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  agent  Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  events AgentEvent[]
+
+  @@index([agentId, position])
+  @@index([workspaceId])
+}
+
+enum AgentEventStatus {
+  scheduled
+  running
+  completed
+  failed
+  canceled
+}
+
+// One concrete past or future action of an Agent — the activity river row.
+model AgentEvent {
+  id             String           @id @default(cuid())
+  workspaceId    String
+  agentId        String
+  messageId      String?
+  status         AgentEventStatus @default(scheduled)
+  scheduledFor   DateTime
+  // Which occurrence this is (e.g. "2026-11-02T09:00" or "contact:<id>"); one event each.
+  occurrenceKey  String           @db.VarChar(120)
+  // The job runner's claim; null while idle (waiting for a retry or not yet due).
+  leaseUntil     DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  // Set once targets are resolved and frozen.
+  preparedAt     DateTime?
+  targetCount    Int              @default(0)
+  successCount   Int              @default(0)
+  failureCount   Int              @default(0)
+  skippedCount   Int              @default(0)
+  failureCode    String?          @db.VarChar(64)
+  failureSummary String?          @db.VarChar(500)
+  // Type-specific facts known when the event was created (e.g. the contact it is about).
+  context        Json?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  agent      Agent                @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  message    AgentMessage?        @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  deliveries AgentEventDelivery[]
+
+  @@unique([agentId, occurrenceKey])
+  @@index([status, scheduledFor])
+  @@index([workspaceId, scheduledFor])
+  @@index([messageId])
+}
+
+enum AgentDestination {
+  email
+  internal_chat
+}
+
+enum AgentDeliveryStatus {
+  pending
+  running
+  completed
+  failed
+}
+
+// One destination of an event (doc 06 §5); destinations fail independently.
+model AgentEventDelivery {
+  id             String              @id @default(cuid())
+  workspaceId    String
+  eventId        String
+  destination    AgentDestination
+  status         AgentDeliveryStatus @default(pending)
+  // Frozen sender: { connectionId, strategy, from, replyTo }.
+  sender         Json?
+  targetCount    Int                 @default(0)
+  successCount   Int                 @default(0)
+  failureCount   Int                 @default(0)
+  skippedCount   Int                 @default(0)
+  failureSummary String?             @db.VarChar(500)
+  startedAt      DateTime?
+  completedAt    DateTime?
+
+  event   AgentEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  targets AgentEventTarget[]
+
+  @@unique([eventId, destination])
+  @@index([workspaceId])
+}
+
+enum AgentTargetStatus {
+  pending
+  sent
+  failed
+  skipped
+}
+
+// One recipient of one delivery, with its frozen rendered payload.
+model AgentEventTarget {
+  id                String            @id @default(cuid())
+  workspaceId       String
+  deliveryId        String
+  agentId           String
+  contactId         String?
+  memberId          String?
+  address           String            @db.VarChar(255)
+  // Type-defined duplicate key; `dedupeSlot` holds "<agentId>:<key>" while the target
+  // is pending or sent, so a second live target for it cannot exist.
+  dedupeKey         String?           @db.VarChar(160)
+  dedupeSlot        String?           @unique @db.VarChar(191)
+  status            AgentTargetStatus @default(pending)
+  subject           String            @db.VarChar(255)
+  html              String            @db.MediumText
+  text              String            @db.MediumText
+  attempts          Int               @default(0)
+  nextAttemptAt     DateTime?
+  providerMessageId String?           @db.VarChar(255)
+  failureCode       String?           @db.VarChar(64)
+  failureMessage    String?           @db.VarChar(500)
+  sentAt            DateTime?
+  createdAt         DateTime          @default(now())
+
+  delivery     AgentEventDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  sendAttempts AgentSendAttempt[]
+
+  @@index([deliveryId, status])
+  @@index([agentId, dedupeKey])
+  @@index([workspaceId])
+}
+
+enum AgentAttemptOutcome {
+  sent
+  transient // retried while attempts remain
+  permanent
+  auth
+}
+
+// Every provider call for a target — retries are visible (docs/agents/07 decision 7).
+model AgentSendAttempt {
+  id                String              @id @default(cuid())
+  targetId          String
+  number            Int
+  outcome           AgentAttemptOutcome
+  code              String?             @db.VarChar(64)
+  message           String?             @db.VarChar(500)
+  providerMessageId String?             @db.VarChar(255)
+  at                DateTime            @default(now())
+
+  target AgentEventTarget @relation(fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([targetId, number])
+}
+
+// What the dev/test provider "sent" (EMAIL_TRANSPORT=dev). Never used in production.
+model DevOutboxEmail {
+  id             String   @id @default(cuid())
+  workspaceId    String?
+  connectionId   String?
+  from           String   @db.VarChar(320)
+  replyTo        String?  @db.VarChar(255)
+  to             String   @db.VarChar(255)
+  subject        String   @db.VarChar(255)
+  html           String   @db.MediumText
+  text           String   @db.MediumText
+  headers        Json?
+  // The sender's idempotency key: the same key is stored once.
+  idempotencyKey String?  @unique @db.VarChar(191)
+  createdAt      DateTime @default(now())
+
+  @@index([to, createdAt])
 }

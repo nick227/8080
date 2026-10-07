@@ -42,6 +42,8 @@ tags:
     description: Real-time room events (SSE)
   - name: workspaces
     description: Workspaces, members, invites, teams, activity and audit (doc/09)
+  - name: agents
+    description: Communication agents and their email senders (docs/agents)
 
 paths:
   # ─── auth ──────────────────────────────────────────────────────────────────
@@ -1500,6 +1502,71 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+
+  # ─── agents: email senders (docs/agents/07) ───────────────────────────────
+  /workspaces/{workspaceId}/email-connections:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listEmailConnections
+      summary: The workspace's email senders
+      description: |
+        Always includes "Send with 8080" (mode `platform`), which every workspace has from
+        creation. Own senders (mode `own`) arrive later; their strategy (SMTP, Google,
+        Microsoft, Resend domain) is how they connect, not a separate kind of sender.
+      tags: [agents]
+      responses:
+        '200':
+          description: Senders, oldest first
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmailConnectionListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/email-connections/{connectionId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/EmailConnectionId'
+    patch:
+      operationId: updateEmailConnection
+      summary: Change the name people see or the reply-to address (owners/admins)
+      tags: [agents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateEmailConnectionInput' }
+      responses:
+        '200':
+          description: The sender after the change
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmailConnectionResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/email-connections/{connectionId}/test:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/EmailConnectionId'
+    post:
+      operationId: testEmailConnection
+      summary: Check a sender and email a short test to the caller (owners/admins)
+      description: A failed check is a 200 with `ok` false and the reason; it is also kept on the sender as `lastError`.
+      tags: [agents]
+      responses:
+        '200':
+          description: What happened
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmailConnectionTestResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /workspaces/{workspaceId}/activity:
     parameters:
@@ -4526,6 +4593,11 @@ components:
       name: userId
       required: true
       schema: { type: string, minLength: 1, maxLength: 64 }
+    EmailConnectionId:
+      in: path
+      name: connectionId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
     ItemId:
       in: path
       name: itemId
@@ -5204,6 +5276,60 @@ components:
             offerings: { type: array, maxItems: 12, items: { type: string, maxLength: 500 } }
             customers: { type: array, maxItems: 12, items: { type: string, maxLength: 500 } }
             differentiators: { type: array, maxItems: 12, items: { type: string, maxLength: 500 } }
+
+    EmailConnection:
+      type: object
+      required: [id, mode, strategy, label, displayName, fromAddress, replyTo, status, isDefault, lastTestedAt, lastError]
+      properties:
+        id: { type: string }
+        mode: { type: string, enum: [platform, own], description: 'What the UI offers: "Send with 8080" or "Use my own email/domain"' }
+        strategy: { type: string, enum: [platform, smtp, google, microsoft, resend_domain], description: How an own sender connects }
+        label: { type: string, description: 'Ready to show, e.g. "Send with 8080"' }
+        displayName: { type: string, description: The name recipients see }
+        fromAddress: { type: [string, 'null'], description: Null when the platform address is not configured }
+        replyTo: { type: [string, 'null'] }
+        status: { type: string, enum: [active, needs_attention, disabled] }
+        isDefault: { type: boolean }
+        lastTestedAt: { type: [string, 'null'], format: date-time }
+        lastError: { type: [string, 'null'] }
+
+    EmailConnectionResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/EmailConnection' }
+
+    EmailConnectionListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/EmailConnection' } }
+
+    UpdateEmailConnectionInput:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 120 }
+        replyTo: { type: [string, 'null'], maxLength: 254 }
+
+    EmailConnectionTestResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [ok, sentTo, error, connection]
+          properties:
+            ok: { type: boolean }
+            sentTo: { type: [string, 'null'] }
+            error:
+              type: [object, 'null']
+              required: [code, message]
+              properties:
+                code: { type: string }
+                message: { type: string }
+            connection: { $ref: '#/components/schemas/EmailConnection' }
 
     CompanyProfileResponse:
       type: object

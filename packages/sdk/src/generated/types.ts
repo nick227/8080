@@ -1084,6 +1084,73 @@ export interface paths {
         patch: operations["updateCompanyProfile"];
         trace?: never;
     };
+    "/workspaces/{workspaceId}/email-connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The workspace's email senders
+         * @description Always includes "Send with 8080" (mode `platform`), which every workspace has from
+         *     creation. Own senders (mode `own`) arrive later; their strategy (SMTP, Google,
+         *     Microsoft, Resend domain) is how they connect, not a separate kind of sender.
+         */
+        get: operations["listEmailConnections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/email-connections/{connectionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                connectionId: components["parameters"]["EmailConnectionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change the name people see or the reply-to address (owners/admins) */
+        patch: operations["updateEmailConnection"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/email-connections/{connectionId}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                connectionId: components["parameters"]["EmailConnectionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check a sender and email a short test to the caller (owners/admins)
+         * @description A failed check is a 200 with `ok` false and the reason; it is also kept on the sender as `lastError`.
+         */
+        post: operations["testEmailConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/activity": {
         parameters: {
             query?: never;
@@ -3392,6 +3459,53 @@ export interface components {
                 differentiators?: string[];
             };
         };
+        EmailConnection: {
+            id: string;
+            /**
+             * @description What the UI offers: "Send with 8080" or "Use my own email/domain"
+             * @enum {string}
+             */
+            mode: "platform" | "own";
+            /**
+             * @description How an own sender connects
+             * @enum {string}
+             */
+            strategy: "platform" | "smtp" | "google" | "microsoft" | "resend_domain";
+            /** @description Ready to show, e.g. "Send with 8080" */
+            label: string;
+            /** @description The name recipients see */
+            displayName: string;
+            /** @description Null when the platform address is not configured */
+            fromAddress: string | null;
+            replyTo: string | null;
+            /** @enum {string} */
+            status: "active" | "needs_attention" | "disabled";
+            isDefault: boolean;
+            /** Format: date-time */
+            lastTestedAt: string | null;
+            lastError: string | null;
+        };
+        EmailConnectionResponse: {
+            data: components["schemas"]["EmailConnection"];
+        };
+        EmailConnectionListResponse: {
+            data: components["schemas"]["EmailConnection"][];
+        };
+        UpdateEmailConnectionInput: {
+            displayName?: string;
+            replyTo?: string | null;
+        };
+        EmailConnectionTestResponse: {
+            data: {
+                ok: boolean;
+                sentTo: string | null;
+                error: {
+                    code: string;
+                    message: string;
+                } | null;
+                connection: components["schemas"]["EmailConnection"];
+            };
+        };
         CompanyProfileResponse: {
             data: components["schemas"]["CompanyProfile"];
         };
@@ -5017,6 +5131,7 @@ export interface components {
         SearchQuery: string;
         RoomId: string;
         UserId: string;
+        EmailConnectionId: string;
         ItemId: string;
         ReactionTypeParam: components["schemas"]["ReactionType"];
         DocumentId: string;
@@ -6961,6 +7076,88 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    listEmailConnections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Senders, oldest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailConnectionListResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateEmailConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                connectionId: components["parameters"]["EmailConnectionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateEmailConnectionInput"];
+            };
+        };
+        responses: {
+            /** @description The sender after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailConnectionResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    testEmailConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                connectionId: components["parameters"]["EmailConnectionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What happened */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailConnectionTestResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     listWorkspaceActivity: {

@@ -92,6 +92,10 @@ export async function buildApp(opts: BuildOptions = {}) {
   if (process.env.BOTS_DEV === '1' && process.env.NODE_ENV !== 'production') {
     await server.register((await import('./plugins/devBots')).default)
   }
+  // Dev outbox viewer (docs/agents/07 S0): local opt-in only, never in production.
+  if (process.env.EMAIL_OUTBOX_DEV === '1' && process.env.NODE_ENV !== 'production') {
+    await server.register((await import('./plugins/devEmailOutbox')).default)
+  }
 
   return server
 }

@@ -166,6 +166,17 @@ const CHECKS: { name: string; sql: string }[] = [
   { name: 'InboxItem.member', sql: 'SELECT c.id FROM InboxItem c JOIN WorkspaceMember p ON p.id = c.memberId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'Compose.author', sql: 'SELECT c.id FROM Compose c JOIN WorkspaceMember p ON p.id = c.authorMemberId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'Compose.contact', sql: 'SELECT c.id FROM Compose c JOIN Contact p ON p.id = c.contactId WHERE c.workspaceId <> p.workspaceId' },
+  // Communication agents (docs/agents)
+  { name: 'EmailConnection.createdBy', sql: 'SELECT c.id FROM EmailConnection c JOIN WorkspaceMember p ON p.id = c.createdByMemberId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'Agent.emailConnection', sql: 'SELECT c.id FROM Agent c JOIN EmailConnection p ON p.id = c.emailConnectionId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'Agent.createdBy', sql: 'SELECT c.id FROM Agent c JOIN WorkspaceMember p ON p.id = c.createdByMemberId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'AgentMessage.agent', sql: 'SELECT c.id FROM AgentMessage c JOIN Agent p ON p.id = c.agentId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'AgentEvent.agent', sql: 'SELECT c.id FROM AgentEvent c JOIN Agent p ON p.id = c.agentId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'AgentEvent.message', sql: 'SELECT c.id FROM AgentEvent c JOIN AgentMessage p ON p.id = c.messageId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'AgentEventDelivery.event', sql: 'SELECT c.id FROM AgentEventDelivery c JOIN AgentEvent p ON p.id = c.eventId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'AgentEventTarget.delivery', sql: 'SELECT c.id FROM AgentEventTarget c JOIN AgentEventDelivery p ON p.id = c.deliveryId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'AgentEventTarget.contact', sql: 'SELECT c.id FROM AgentEventTarget c JOIN Contact p ON p.id = c.contactId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'AgentEventTarget.member', sql: 'SELECT c.id FROM AgentEventTarget c JOIN WorkspaceMember p ON p.id = c.memberId WHERE c.workspaceId <> p.workspaceId' },
 ]
 
 /** Rows whose references cross a workspace boundary, by check name. Empty = sound. */

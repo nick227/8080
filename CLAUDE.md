@@ -133,6 +133,13 @@ The in-lobby River (playing posts and replies inline) was retired: the Lobby onl
 - **Documents backend seam** (doc/10 §14): registry/descriptor union, grants, relations, room links, Google links (`externalFileId`), Contacts dataset (keyset query, export, review copy, versioned writeback). **Import has two paths**: ordinary sheet CSV → native grid (no CRM writes); "import as contacts" → `ContactImportService` (preview via the matcher, review, resumable idempotent commit, `Contact.importBatchId`). Lead import should reuse `ImportBatch`.
 - **Shared block documents (POC, doc/10 §15):** `DocumentContent` (versioned whole-document JSON), `PUT …/content` with expectedVersion (409 = rebase), SSE `…/stream` (updated + presence) via in-process `documentHub` + 2 s version check; client `liveBlocks.ts` rebases per block. Maps/sheets still device-local.
 
+## Communication Agents (2026-10-07) — spec: `docs/agents/` (roadmap `07-implementation-roadmap.md`)
+
+- Email-first automation surface: Agent (instance of a built-in type) → AgentMessage (email blocks) → AgentEvent (river row) → delivery per destination → target per recipient (frozen render). No workflow engine; types live in `services/agents/registry.ts`.
+- **Senders:** `EmailConnection`, referenced by Agents (null = workspace default). Every workspace gets "Send with 8080" (`platform`) at creation, Reply-To = creator's email; UI shows only "Send with 8080" vs "Use my own email/domain" — SMTP/Google/Microsoft/Resend domain are strategies (S5). Agent code never branches on strategy (`providerFor`).
+- **Runner** (`services/agents/runner.ts`): in-process tick, single instance, conditional-update claims + lease. Retries: transient errors only, 3 attempts, 2 min apart, each in `AgentSendAttempt`; auth failure stops the delivery. Failed events → one `agent.failed` ActivityEvent. One upcoming event per active scheduled Agent (`scheduleNext`), never backfilled.
+- Team Agents ship to production first; customer bulk email stays behind the S8 compliance gate. Templates/themes are their own email system (`presentation.ts`), not Documents blocks.
+
 ## Key Design Decisions
 
 - Items numbered per room: `Room.itemCount` incremented inside the createItem transaction; `@@unique([roomId, number])`.

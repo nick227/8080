@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "rooms:recount": "tsx src/scripts/recountRooms.ts",
     "record-images:migrate": "tsx src/scripts/migrateRecordImages.ts",
-    "bots:seed": "tsx src/scripts/seedBots.ts"
+    "bots:seed": "tsx src/scripts/seedBots.ts",
+    "email:backfill": "tsx src/scripts/backfillEmailConnections.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1144.0",

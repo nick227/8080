@@ -18,6 +18,7 @@ import { events } from './events'
 import { diff, runAction, type ActionActor } from './actions'
 import { redactRooms } from './records'
 import { authorize, permit, type Actor } from './workspacePolicy'
+import { createPlatformConnection } from './agents/connections'
 
 type Tx = Prisma.TransactionClient
 
@@ -109,6 +110,8 @@ export class WorkspaceService {
             data: { name, slug, timezone: input.timezone, defaultCurrency: input.defaultCurrency, createdById: ctx.user.id },
           })
           const member = await tx.workspaceMember.create({ data: { workspaceId: workspace.id, userId: ctx.user.id, role: 'owner' } })
+          // "Send with 8080" is every workspace's sender from the start (docs/agents/07).
+          await createPlatformConnection(tx, workspace, ctx.user.email ?? null, member.id)
           return {
             value: toWorkspace(workspace, 'owner'),
             workspaceId: workspace.id,
