@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { buildTestApp, testUserId } from './helpers'
 import { caller, carolId, createWorkspace, join, memberId, seedPeople } from './helpers/workspace'
 
@@ -12,11 +12,18 @@ async function setup() {
   return { base: `/workspaces/${ws.id}`, alice: await memberId(ws.id, testUserId) }
 }
 
+// "Due today" and "overdue" are workspace-local days (UTC here). The clock is frozen at
+// mid-day UTC so the boundary never moves under the test (it failed after 7 pm Central).
+// Only Date is faked; timers run normally.
+const NOON_UTC = new Date('2026-10-06T12:00:00.000Z')
+afterEach(() => { vi.useRealTimers() })
+
 describe('record collection views', () => {
   it('counts contact working views and filters overdue / unassigned by server rules', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOON_UTC)
     const { base, alice } = await setup()
-    const today = new Date()
-    today.setHours(12, 0, 0, 0)
+    const today = new Date(NOON_UTC)
     const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
     await call(testUserId, 'POST', `${base}/contacts`, {
       displayName: 'Due today',
