@@ -466,5 +466,9 @@ The user's call, ahead of any further agent workflows: **the differentiator is q
 - Tests:
   - `prices.test.ts` 4/4: exact conversion, refused precision, JPY, exact sort and stock value, backfill once
   - full suite 592/593; the one failure is `record-views.test.ts`, which is date-dependent around UTC midnight and not from this change
-- **Next:** the Sales/Deal model, as its own design decision.
+- **Retiring the transition:**
+  - Run `inventory:prices` once on Railway and see `mismatched: 0` (the script verifies every row).
+  - Then, in one deliberate change, remove the startup backfill, the legacy `price` Float and its dual writes (`db push --accept-data-loss`, run once by hand).
+  - `priceMinor` + `currency` drive every calculation; the API's decimal `price` is a compatibility representation only.
+- **Next:** the Sales/Deal model, designed in doc/14 and awaiting decisions.
 
