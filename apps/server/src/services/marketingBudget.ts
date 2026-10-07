@@ -105,7 +105,7 @@ export function describeBudget(i: BudgetInputs) {
     `${money(i.monthlyMinor, i.currency)} a month`,
     i.businessType ? `for ${i.businessType}` : null,
     i.goal === 'general' ? null : `goal: ${GOAL_LABEL[i.goal]}`,
-    i.priorities.length ? `priorities: ${andList(i.priorities.map((p) => CHANNEL_LABEL[p]))}` : 'no channel priorities',
+    i.priorities.length ? `priorities: ${andList(i.priorities.map((p) => CHANNEL_LABEL[p]))}` : null,
   ].filter(Boolean).join(' · ')
 }
 

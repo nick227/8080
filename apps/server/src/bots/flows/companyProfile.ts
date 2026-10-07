@@ -269,13 +269,13 @@ const contents = new DocumentContentService()
 
 const learned = (d: Draft) =>
   list([
-    d.name ? 'your name' : '',
-    d.location || d.serviceArea ? 'where you work' : '',
-    d.purpose ? 'what you do' : '',
-    d.offerings?.length ? `${d.offerings.length} ${d.offerings.length === 1 ? 'offering' : 'offerings'}` : '',
-    d.customers?.length ? 'who you sell to' : '',
-    d.differentiators?.length ? 'what makes you different' : '',
-    d.brandVoice ? `a ${d.brandVoice} voice` : '',
+    d.name ? 'company name' : '',
+    d.location || d.serviceArea ? 'location' : '',
+    d.purpose ? 'what the business does' : '',
+    d.offerings?.length ? `${d.offerings.length} ${d.offerings.length === 1 ? 'product or service' : 'products and services'}` : '',
+    d.customers?.length ? 'customers' : '',
+    d.differentiators?.length ? 'what sets it apart' : '',
+    d.brandVoice ? 'tone' : '',
   ].filter(Boolean))
 
 /** The person's own words, question by question (what the drafting call is given). */
