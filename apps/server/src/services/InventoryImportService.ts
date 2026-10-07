@@ -14,6 +14,8 @@ import { memberActor, type WorkspaceCtx } from './WorkspaceService'
 import { authorize } from './workspacePolicy'
 import { lockImport, lockPreview } from './importState'
 import { retentionDays } from './ContactImportService'
+import { fromMinor, toMinor } from '../lib/money'
+import { minorDigits } from '@project/shared'
 
 type Tx = Prisma.TransactionClient
 const documents = new DocumentService()
@@ -76,8 +78,12 @@ function parsePrice(raw: string | undefined): number | null | undefined {
   if (!raw.trim()) return null
   const n = Number(raw.replace(/[$,\s]/g, ''))
   if (!Number.isFinite(n) || n < 0) return undefined
+  // Exact prices (doc/13 A4): a fraction of a cent is an invalid value, not rounded away.
+  if (toMinor(n, 'USD') === null) return undefined
   return n
 }
+/** The parsed decimal → minor units in the item's currency (0-decimal currencies round). */
+const minorOf = (price: number, currency: string) => toMinor(price, currency) ?? Math.round(price * 10 ** minorDigits(currency))
 
 function parseQuantity(raw: string | undefined): number | null | undefined {
   if (raw === undefined) return undefined
@@ -567,7 +573,7 @@ export class InventoryImportService {
           data: {
             ...(values.name?.trim() ? { name: values.name.trim().slice(0, 160) } : {}),
             ...(values.description !== undefined ? { description: values.description.trim() || null } : {}),
-            ...(price !== undefined && price !== null ? { price } : {}),
+            ...(price !== undefined && price !== null ? { priceMinor: minorOf(price, target.currency), price: fromMinor(minorOf(price, target.currency), target.currency) } : {}),
             ...(values.category !== undefined ? { category: values.category.trim() || null } : {}),
             ...(quantity !== undefined
               ? { quantity, lowStock: isLowStock(quantity, target.lowStockThreshold) }
@@ -601,6 +607,8 @@ export class InventoryImportService {
       if (existing) return set('matched', existing.id, 'MATCHED_AT_COMMIT')
     }
     const price = parsePrice(values.price) ?? 0
+    const { defaultCurrency: currency } = await tx.workspace.findUniqueOrThrow({ where: { id: workspaceId }, select: { defaultCurrency: true } })
+    const priceMinor = minorOf(price === null ? 0 : price, currency)
     const quantity = parseQuantity(values.quantity)
     const availability = parseAvailability(values.availability) ?? true
     const qty = quantity === undefined ? null : quantity
@@ -611,7 +619,9 @@ export class InventoryImportService {
           name: (values.name ?? 'Untitled').trim().slice(0, 160),
           sku,
           description: values.description?.trim() || null,
-          price: price === null ? 0 : price,
+          priceMinor,
+          currency,
+          price: fromMinor(priceMinor, currency), // legacy mirror
           category: values.category?.trim() || null,
           quantity: qty,
           lowStock: isLowStock(qty, null),

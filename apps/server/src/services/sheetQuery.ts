@@ -135,7 +135,7 @@ export function addDays(day: string, n: number) {
 const window = (w: { from?: string; to?: string }, tz: string) => ({ ...(w.from ? { gte: dayStart(w.from, tz) } : {}), ...(w.to ? { lt: dayStart(addDays(w.to, 1), tz) } : {}) })
 const shortDay = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 const cellDay = (d: Date | null, tz: string) => (d ? localDayKey(d, tz) : null)
-/** A price (stored as a float today, doc/13 F4) → exact minor units, rounded once here. */
+/** A decimal amount from a query filter → minor units (prices themselves are stored exact, A4). */
 const minor = (n: number, currency: string) => Math.round(n * 10 ** minorDigits(currency))
 const money = (n: number) => (Math.round(n * 100) / 100).toFixed(2)
 
@@ -240,7 +240,7 @@ function inventoryWhere(ctx: SheetContext, q: InventorySheetQuery): Prisma.Inven
     ],
     ...(f.category ? { category: f.category } : {}),
     ...(f.available !== undefined ? { availability: f.available } : {}),
-    ...(f.priceMin !== undefined || f.priceMax !== undefined ? { price: { ...(f.priceMin !== undefined ? { gte: f.priceMin } : {}), ...(f.priceMax !== undefined ? { lte: f.priceMax } : {}) } } : {}),
+    ...(f.priceMin !== undefined || f.priceMax !== undefined ? { priceMinor: { ...(f.priceMin !== undefined ? { gte: minor(f.priceMin, ctx.currency) } : {}), ...(f.priceMax !== undefined ? { lte: minor(f.priceMax, ctx.currency) } : {}) } } : {}),
   }
 }
 
@@ -249,12 +249,12 @@ async function inventorySheet(ctx: SheetContext, q: InventorySheetQuery, asOf: s
   const total = await db.inventory.count({ where })
   if (q.groupBy) {
     if (total > SHEET_MAX_ROWS * 10) throw tooLarge(total)
-    const items = await db.inventory.findMany({ where, select: { category: true, quantity: true, price: true } })
+    const items = await db.inventory.findMany({ where, select: { category: true, quantity: true, priceMinor: true } })
     const by = new Map<string, { items: number; units: number; value: number }>()
     for (const i of items) {
       const k = i.category ?? ''
       const g = by.get(k) ?? { items: 0, units: 0, value: 0 }
-      g.items++; g.units += i.quantity ?? 0; g.value += (i.quantity ?? 0) * i.price
+      g.items++; g.units += i.quantity ?? 0; g.value += (i.quantity ?? 0) * i.priceMinor // exact: integers
       by.set(k, g)
     }
     const rows = [...by].sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)))
@@ -265,19 +265,19 @@ async function inventorySheet(ctx: SheetContext, q: InventorySheetQuery, asOf: s
         { id: 'category', label: 'Category', type: 'text' }, { id: 'items', label: 'Items', type: 'number', total: 'sum' },
         { id: 'units', label: 'Units in stock', type: 'number', total: 'sum' }, { id: 'value', label: `Stock value (${cur})`, type: 'money', currency: cur, total: 'sum' },
       ],
-      rows: rows.map(([k, g], i) => ({ id: `g${i + 1}`, cells: { category: k || 'Uncategorized', items: g.items, units: g.units, value: minor(g.value, cur) } })),
+      rows: rows.map(([k, g], i) => ({ id: `g${i + 1}`, cells: { category: k || 'Uncategorized', items: g.items, units: g.units, value: g.value } })),
     }, asOf)
   }
   const sort = q.sort ?? { field: 'name', direction: 'asc' }
   // Stock value isn't a column, so that order is computed here over every match.
   const inMemory = sort.field === 'stockValue'
   if (total > SHEET_MAX_ROWS && (!q.limit || inMemory)) throw tooLarge(total)
-  const field = { name: 'name', price: 'price', quantity: 'quantity', updated: 'updatedAt', stockValue: 'name' }[sort.field]
+  const field = { name: 'name', price: 'priceMinor', quantity: 'quantity', updated: 'updatedAt', stockValue: 'name' }[sort.field]
   let found = await db.inventory.findMany({
     where, take: inMemory ? undefined : Math.min(q.limit ?? SHEET_MAX_ROWS, SHEET_MAX_ROWS),
     orderBy: [{ [field]: inMemory ? 'asc' : sort.direction }, { id: 'asc' }],
   })
-  const value = (i: typeof found[number]) => (i.quantity === null ? null : i.quantity * i.price)
+  const value = (i: typeof found[number]) => (i.quantity === null ? null : i.quantity * i.priceMinor)
   if (inMemory) {
     const dir = sort.direction === 'asc' ? 1 : -1
     found = found.sort((a, b) => ((value(a) ?? -1) - (value(b) ?? -1)) * dir).slice(0, q.limit ?? SHEET_MAX_ROWS)
@@ -289,10 +289,10 @@ async function inventorySheet(ctx: SheetContext, q: InventorySheetQuery, asOf: s
       case 'name': return i.name
       case 'sku': return i.sku
       case 'category': return i.category
-      case 'price': return minor(i.price, cur)
+      case 'price': return i.priceMinor
       case 'quantity': return i.quantity
       case 'lowStockThreshold': return i.lowStockThreshold
-      case 'stockValue': { const v = value(i); return v === null ? null : minor(v, cur) }
+      case 'stockValue': return value(i)
       case 'location': return i.location
       case 'available': return i.availability
       case 'status': return i.status === 'active' ? 'Active' : 'Archived'

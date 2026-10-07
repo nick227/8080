@@ -4,6 +4,7 @@ import { db, Prisma, type RecordStatus } from '@project/db'
 import { badRequest, conflict, notFound } from '../lib/errors'
 import { decodeKeyCursor, encodeKeyCursor, normalizeLimit, page } from '../lib/pagination'
 import { toContactRef } from '../lib/serialize'
+import { fromMinor, toMinor } from '../lib/money'
 import { authorize } from './workspacePolicy'
 import { RecordImageService } from './RecordImageService'
 
@@ -27,6 +28,8 @@ type InventoryRow = {
   sku: string | null
   description: string | null
   price: number
+  priceMinor: number
+  currency: string
   category: string | null
   status: RecordStatus
   quantity: number | null
@@ -51,7 +54,10 @@ export const toInventoryItem = (i: InventoryRow) => ({
   name: i.name,
   sku: i.sku,
   description: i.description,
-  price: i.price,
+  // Exact: priceMinor in currency. `price` is the same amount as a decimal.
+  price: fromMinor(i.priceMinor, i.currency),
+  priceMinor: i.priceMinor,
+  currency: i.currency,
   category: i.category,
   status: i.status,
   quantity: i.quantity,
@@ -64,6 +70,13 @@ export const toInventoryItem = (i: InventoryRow) => ({
   createdAt: i.createdAt,
   updatedAt: i.updatedAt,
 })
+
+/** A decimal price → exact minor units, or 400 if it has more decimals than the currency. */
+export function exactPrice(price: number, currency: string) {
+  const minor = toMinor(price, currency)
+  if (minor === null) throw badRequest(`Price has more decimal places than ${currency} allows`, 'INVALID_PRICE')
+  return minor
+}
 
 function assertValid(input: InventoryInput) {
   if (input.price !== undefined && (!Number.isFinite(input.price) || input.price < 0)) throw badRequest('Price must be zero or more', 'INVALID_PRICE')
@@ -158,7 +171,7 @@ export class InventoryService {
     const tip = dir === 'desc' ? ('desc' as const) : ('asc' as const)
     const orderBy: Prisma.InventoryOrderByWithRelationInput[] =
       sort === 'price'
-        ? [{ price: tip }, { id: tip }]
+        ? [{ priceMinor: tip }, { id: tip }]
         : sort === 'updated'
           ? [{ updatedAt: tip }, { id: tip }]
           : sort === 'quantity'
@@ -170,7 +183,7 @@ export class InventoryService {
     ])
     const result = page(rows, limit, (last) =>
       encodeKeyCursor({
-        v: sort === 'price' || sort === 'quantity' ? last[sort] : sort === 'updated' ? last.updatedAt.toISOString() : last.name,
+        v: sort === 'price' ? last.priceMinor : sort === 'quantity' ? last.quantity : sort === 'updated' ? last.updatedAt.toISOString() : last.name,
         id: last.id,
         sort,
         dir,
@@ -241,7 +254,7 @@ export class InventoryService {
     cursor: { v: string | number | null; id: string },
   ): Prisma.InventoryWhereInput {
     const gt = dir === 'asc'
-    const field = sort === 'price' ? 'price' : sort === 'updated' ? 'updatedAt' : sort === 'quantity' ? 'quantity' : 'name'
+    const field = sort === 'price' ? 'priceMinor' : sort === 'updated' ? 'updatedAt' : sort === 'quantity' ? 'quantity' : 'name'
     if (cursor.v === null) {
       return {
         OR: [
@@ -265,10 +278,12 @@ export class InventoryService {
   }
 
   async create(userId: string, workspaceId: string, input: InventoryInput) {
-    await authorize(userId, workspaceId, 'record.write')
+    const actor = await authorize(userId, workspaceId, 'record.write')
+    const currency = actor.workspace.defaultCurrency
     const name = blank(input.name)
     if (!name) throw badRequest('An item needs a name', 'EMPTY_ITEM')
     assertValid(input)
+    const priceMinor = exactPrice(input.price ?? 0, currency)
     const quantity = input.quantity ?? null
     const lowStockThreshold = quantity == null ? null : (input.lowStockThreshold ?? null)
     try {
@@ -278,7 +293,9 @@ export class InventoryService {
           name: name.slice(0, 160),
           sku: blank(input.sku),
           description: blank(input.description),
-          price: input.price ?? 0,
+          priceMinor,
+          currency,
+          price: fromMinor(priceMinor, currency), // legacy mirror
           category: blank(input.category),
           status: input.status ?? 'active',
           quantity,
@@ -300,6 +317,8 @@ export class InventoryService {
     if ('name' in input && !blank(input.name)) throw badRequest('An item needs a name', 'EMPTY_ITEM')
     if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 1) throw badRequest('expectedVersion is required', 'INVALID_VERSION')
     assertValid(input)
+    // A new price is in the item's own currency, exactly.
+    const priceMinor = input.price === undefined ? undefined : exactPrice(input.price, before.currency)
     const nextQuantity = 'quantity' in input ? (input.quantity ?? null) : before.quantity
     const nextThreshold =
       nextQuantity == null
@@ -317,7 +336,8 @@ export class InventoryService {
             name: 'name' in input ? blank(input.name)!.slice(0, 160) : undefined,
             sku: 'sku' in input ? blank(input.sku) : undefined,
             description: 'description' in input ? blank(input.description) : undefined,
-            price: input.price,
+            priceMinor,
+            price: priceMinor === undefined ? undefined : fromMinor(priceMinor, before.currency), // legacy mirror
             category: 'category' in input ? blank(input.category) : undefined,
             status: input.status,
             quantity: 'quantity' in input ? nextQuantity : undefined,

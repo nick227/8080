@@ -895,7 +895,12 @@ model Inventory {
   name              String       @db.VarChar(160)
   sku               String?      @db.VarChar(80)
   description       String?      @db.Text
+  // Legacy mirror of priceMinor (kept so production `db push` never drops data;
+  // removed in a deliberate migration later). Never read it: priceMinor is the price.
   price             Float        @default(0)
+  // The price, exactly: integer minor units (cents) in `currency` (doc/13 A4).
+  priceMinor        Int          @default(0)
+  currency          String       @default("USD") @db.Char(3)
   category          String?      @db.VarChar(80)
   status            RecordStatus @default(active)
   quantity          Int? // null = service / catalog entry with no stock count
@@ -926,6 +931,7 @@ model Inventory {
   @@index([workspaceId, name])
   @@index([importBatchId])
   @@index([workspaceId, lowStock])
+  @@index([workspaceId, priceMinor])
 }
 
 // Ordered gallery for a contact or inventory item. Media holds bytes/playback;

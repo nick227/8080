@@ -10,6 +10,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "rooms:recount": "tsx src/scripts/recountRooms.ts",
+    "inventory:prices": "tsx src/scripts/backfillPrices.ts",
     "record-images:migrate": "tsx src/scripts/migrateRecordImages.ts",
     "bots:seed": "tsx src/scripts/seedBots.ts"
   },

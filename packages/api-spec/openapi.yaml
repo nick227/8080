@@ -5939,7 +5939,7 @@ components:
 
     InventoryItem:
       type: object
-      required: [id, workspaceId, name, sku, description, price, category, status, quantity, lowStockThreshold, lowStock, location, availability, imageUrl, version, createdAt, updatedAt]
+      required: [id, workspaceId, name, sku, description, price, priceMinor, currency, category, status, quantity, lowStockThreshold, lowStock, location, availability, imageUrl, version, createdAt, updatedAt]
       properties:
         id: { type: string }
         version: { type: integer, minimum: 1, description: Bumped by every update; send it back as expectedVersion }
@@ -5947,7 +5947,9 @@ components:
         name: { type: string }
         sku: { type: [string, 'null'] }
         description: { type: [string, 'null'] }
-        price: { type: number }
+        price: { type: number, description: 'The same amount as priceMinor, as a decimal (display; send decimals with at most the currency''s decimal places)' }
+        priceMinor: { type: integer, description: 'The price, exactly: minor units (cents) in currency' }
+        currency: { type: string, minLength: 3, maxLength: 3 }
         category: { type: [string, 'null'] }
         status: { $ref: '#/components/schemas/RecordStatus' }
         quantity: { type: [integer, 'null'], description: 'null = no stock count (services, catalog entries)' }

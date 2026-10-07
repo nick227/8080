@@ -3891,7 +3891,11 @@ export interface components {
             name: string;
             sku: string | null;
             description: string | null;
+            /** @description The same amount as priceMinor, as a decimal (display; send decimals with at most the currency's decimal places) */
             price: number;
+            /** @description The price, exactly: minor units (cents) in currency */
+            priceMinor: number;
+            currency: string;
             category: string | null;
             status: components["schemas"]["RecordStatus"];
             /** @description null = no stock count (services, catalog entries) */
