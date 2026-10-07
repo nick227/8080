@@ -60,6 +60,8 @@ export function CompanyProfilePanel({ workspaceId, onClose }: { workspaceId: str
         await profile.refetch()
         setForm(null)
         setStatus('The profile was changed elsewhere and has been reloaded. Make your edit again.')
+      } else if (error instanceof ApiError && error.status === 403) {
+        setStatus('Only workspace owners and admins can edit the company profile.')
       } else setStatus(error instanceof Error ? error.message : 'Couldn’t save.')
     } finally {
       setSaving(false)

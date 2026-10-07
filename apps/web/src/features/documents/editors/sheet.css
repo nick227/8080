@@ -28,3 +28,4 @@
   border: var(--line-width, 1px) solid var(--signal, currentColor);
 }
 .work-recipe-stale button:disabled { opacity: 0.5; cursor: default; }
+.docs-notice { margin: 8px 16px 0; font-size: 13px; color: var(--muted, inherit); }

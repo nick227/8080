@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
-import { getApiClient, useLogin, useLogout, useRegister, useSession, type User } from '@project/sdk'
+import { getApiClient, useLogin, useLogout, useMyWorkspaces, useRegister, useSession, type User } from '@project/sdk'
+import { CompanyProfilePanel } from './profile/CompanyProfilePanel'
 import { AccountAvatar } from './AccountAvatar'
 import { useShell } from '../state/shell'
 
@@ -16,15 +17,17 @@ export function AccountSheet() {
   const open = useShell((s) => s.accountOpen)
   const session = useSession()
   const user = session.data?.data
+  const [profileFor, setProfileFor] = useState<string | null>(null)
   return (
     <>
+      {profileFor && <CompanyProfilePanel workspaceId={profileFor} onClose={() => setProfileFor(null)} />}
       {open && user && (
         <button type="button" className="sheet-dismiss" aria-label="Close account" onClick={() => useShell.setState({ accountOpen: false })} />
       )}
       <AnimatePresence>
         {open && user && (
           <motion.section key="account" className="account-sheet" role="dialog" aria-label={user.isGuest ? 'Guest' : 'Account'} style={{ transformOrigin: 'top right' }} {...sheetMotion}>
-            {user.isGuest ? <GuestAuth user={user} /> : <MemberAccount user={user} />}
+            {user.isGuest ? <GuestAuth user={user} /> : <MemberAccount user={user} onProfile={(id) => { useShell.setState({ accountOpen: false }); setProfileFor(id) }} />}
           </motion.section>
         )}
       </AnimatePresence>
@@ -89,9 +92,10 @@ function GuestAuth({ user }: { user: User }) {
   )
 }
 
-function MemberAccount({ user }: { user: User }) {
+function MemberAccount({ user, onProfile }: { user: User; onProfile: (workspaceId: string) => void }) {
   const [name, setName] = useState(user.displayName)
   const [error, setError] = useState('')
+  const workspace = useMyWorkspaces().data?.[0] ?? null
   const logout = useLogout()
   const saveName = useSaveName()
 
@@ -110,6 +114,10 @@ function MemberAccount({ user }: { user: User }) {
       </label>
       {error && <p className="account-error" role="alert">{error}</p>}
       <button type="submit" className="account-submit">Save name</button>
+      {/* Owners and admins edit the company profile (companyProfile.edit). */}
+      {workspace && (workspace.role === 'owner' || workspace.role === 'admin') && (
+        <button type="button" className="account-text" onClick={() => onProfile(workspace.id)}>Edit company profile</button>
+      )}
       <button
         type="button"
         className="account-text"

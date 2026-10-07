@@ -34,6 +34,8 @@ type State = {
   ready: boolean
   openId: string | null
   status: string
+  // A one-line notice over the list (e.g. a chat link to a document this person can't open).
+  notice: string | null
   mode: Mode
   workspaceId: string | null
   members: Member[]
@@ -41,6 +43,8 @@ type State = {
   me: string | null
   ensure: (owner?: string) => void
   open: (id: string | null) => void
+  // A chat link: show that workspace's documents and open this one (false = not available).
+  openFromLink: (workspaceId: string, id: string) => Promise<boolean>
   add: (doc: DocumentRecord) => void
   change: (id: string, recipe: (doc: DocumentRecord) => DocumentRecord) => void
   remove: (id: string) => void
@@ -163,6 +167,7 @@ let timer: number | undefined
 const renameTimers = new Map<string, number>()
 const pendingTitles = new Map<string, string>()
 const importedRows = new Map<string, NativeSheet>()
+let preferredWorkspace: string | null = null
 
 export const useDocuments = create<State>((set, get) => {
   const ws = () => get().workspaceId!
@@ -245,7 +250,8 @@ export const useDocuments = create<State>((set, get) => {
 
   async function startShared(owner: string) {
     const workspaces = unwrap(await getApiClient().GET('/workspaces')).data
-    const workspace = workspaces[0]
+    // The workspace a chat link pointed at, else the first membership (doc/09 D15).
+    const workspace = workspaces.find((w) => w.id === preferredWorkspace) ?? workspaces[0]
     if (!workspace) return false
     const memberRows = unwrap(await getApiClient().GET('/workspaces/{workspaceId}/members', { params: { path: { workspaceId: workspace.id } } })).data
     const me = unwrap(await getApiClient().GET('/auth/me')).data
@@ -265,6 +271,12 @@ export const useDocuments = create<State>((set, get) => {
   }
 
   let context: { me: string | null; members: Map<string, string> } = { me: null, members: new Map() }
+
+  function startTimer() {
+    if (timer !== undefined || typeof window === 'undefined') return
+    timer = window.setInterval(() => void get().refresh(), REFRESH_MS)
+    window.addEventListener('focus', () => void get().refresh())
+  }
 
   async function rename(id: string) {
     const title = pendingTitles.get(id)
@@ -303,6 +315,7 @@ export const useDocuments = create<State>((set, get) => {
     ready: false,
     openId: null,
     status: '',
+    notice: null,
     mode: 'starting',
     workspaceId: null,
     members: [],
@@ -319,11 +332,33 @@ export const useDocuments = create<State>((set, get) => {
         } finally {
           starting = null
         }
-        if (timer === undefined && typeof window !== 'undefined') {
-          timer = window.setInterval(() => void get().refresh(), REFRESH_MS)
-          window.addEventListener('focus', () => void get().refresh())
-        }
+        startTimer()
       })()
+    },
+
+    async openFromLink(workspaceId, id) {
+      if (starting) await starting
+      if (get().mode !== 'shared' || get().workspaceId !== workspaceId) {
+        preferredWorkspace = workspaceId
+        const previous = get().openId
+        if (previous) detachBlocks(previous)
+        set({ openId: null, docs: [], ready: false, mode: 'starting' })
+        try {
+          if (!(await startShared('You'))) startLocal()
+        } catch {
+          startLocal()
+        }
+        startTimer()
+      } else {
+        await get().refresh()
+      }
+      if (!get().docs.some((d) => d.id === id)) {
+        set({ openId: null, notice: 'That document isn’t available to you, or it was deleted.' })
+        return false
+      }
+      get().open(id)
+      set({ notice: null })
+      return true
     },
 
     async refresh() {

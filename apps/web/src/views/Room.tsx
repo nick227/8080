@@ -160,18 +160,15 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
     reply: (_id: string) => {},
     remove: (_id: string) => {},
     choose: async (_id: string, _optionIds: string[]) => {},
-    openLink: (_link: { type: string; id: string }) => {},
+    openLink: (_link: { type: string; id: string; workspaceId: string }) => {},
   })
   actions.current = {
     act: (proposalId, action) => proposalAction.mutateAsync({ proposalId, action }),
     edit: (proposalId, edits) => proposalEdit.mutateAsync({ proposalId, edits }),
     openLink: (link) => {
       if (link.type === 'document') {
-        const docs = useDocuments.getState()
-        void docs.refresh().finally(() => {
-          useDocuments.getState().open(link.id)
-          openPlace('documents')
-        })
+        // Opens in Documents, in the link's workspace; an unavailable one says so there.
+        void useDocuments.getState().openFromLink(link.workspaceId, link.id).finally(() => openPlace('documents'))
         return
       }
       if (link.type === 'contact' || link.type === 'compose') {
