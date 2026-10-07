@@ -43,8 +43,8 @@ async function contact(ws: string, name: string, data: Record<string, unknown> =
   }
   return c
 }
-// Exact prices (A4): priceMinor is the price; fixtures give it from the decimal.
-const item = (ws: string, name: string, data: Record<string, unknown> = {}) => db.inventory.create({ data: { workspaceId: ws, name, ...data, ...(typeof data.price === 'number' ? { priceMinor: Math.round(data.price * 100) } : {}) } })
+// Exact prices (A4): fixtures give a decimal `price`, stored as priceMinor.
+const item = (ws: string, name: string, { price, ...data }: Record<string, unknown> = {}) => db.inventory.create({ data: { workspaceId: ws, name, ...data, ...(typeof price === 'number' ? { priceMinor: Math.round(price * 100) } : {}) } })
 const sheet = (base: string, body: object, who = testUserId) => call(who, 'POST', `${base}/sheets`, { idempotencyKey: `k-${Math.random()}`, ...body })
 const rows = async (base: string, id: string, who = testUserId) => (await call(who, 'GET', `${base}/documents/${id}/materialization`)).json().data.table as { columns: { id: string; label: string }[]; rows: { id: string; cells: Record<string, string> }[] }
 

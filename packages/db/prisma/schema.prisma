@@ -895,9 +895,6 @@ model Inventory {
   name              String       @db.VarChar(160)
   sku               String?      @db.VarChar(80)
   description       String?      @db.Text
-  // Legacy mirror of priceMinor (kept so production `db push` never drops data;
-  // removed in a deliberate migration later). Never read it: priceMinor is the price.
-  price             Float        @default(0)
   // The price, exactly: integer minor units (cents) in `currency` (doc/13 A4).
   priceMinor        Int          @default(0)
   currency          String       @default("USD") @db.Char(3)

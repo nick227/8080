@@ -97,11 +97,11 @@ describe('MVP import safeguards', () => {
     ).json().data
     await db.inventory.update({
       where: { id: item.id },
-      data: { price: 30, version: { increment: 1 }, updatedAt: new Date(Date.now() + 1000) },
+      data: { priceMinor: 3000, version: { increment: 1 }, updatedAt: new Date(Date.now() + 1000) },
     })
     const result = await call(testUserId, 'POST', `${base}/inventory-imports/${preview.id}/commit`, {})
     expect(result.statusCode).toBe(200)
-    expect((await db.inventory.findUniqueOrThrow({ where: { id: item.id } })).price).toBe(30)
+    expect((await db.inventory.findUniqueOrThrow({ where: { id: item.id } })).priceMinor).toBe(3000)
     expect((await db.importRow.findFirstOrThrow({ where: { batchId: preview.id } })).outcomeNote).toBe(
       'ITEM_CHANGED',
     )

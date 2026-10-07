@@ -1,11 +1,10 @@
 // doc/13 A4 — exact inventory prices: integer minor units + currency are the price;
-// decimals are converted once and refused when too precise; the legacy float is a
-// mirror; old rows are backfilled once.
+// decimals are converted once and refused when too precise. (The legacy float and its
+// backfill were retired after production verified mismatched: 0.)
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '@project/db'
 import { buildTestApp, testUserId, validateResponse } from './helpers'
 import { caller, createWorkspace, seedPeople } from './helpers/workspace'
-import { backfillPrices } from '../services/priceBackfill'
 import { toMinor } from '../lib/money'
 
 const app = buildTestApp()
@@ -19,7 +18,7 @@ async function setup(body: object = { name: 'Acme Co' }) {
 const create = (base: string, body: object) => call(testUserId, 'POST', `${base}/inventory`, body)
 
 describe('exact prices', () => {
-  it('converts decimals exactly (19.99, 0.1 + 0.2 style) and keeps the legacy float in step', async () => {
+  it('converts decimals exactly (19.99, 0.1 + 0.2 style)', async () => {
     expect([toMinor(19.99, 'USD'), toMinor(0.3, 'USD'), toMinor(1.005, 'USD'), toMinor(1200, 'JPY'), toMinor(1.5, 'JPY')]).toEqual([1999, 30, null, 1200, null])
     const { base } = await setup()
     const res = await create(base, { name: 'Lens', price: 19.99 })
@@ -27,7 +26,7 @@ describe('exact prices', () => {
     await validateResponse('createInventoryItem', 201, res.json())
     expect(res.json().data).toMatchObject({ price: 19.99, priceMinor: 1999, currency: 'USD' })
     const row = await db.inventory.findUniqueOrThrow({ where: { id: res.json().data.id } })
-    expect([row.priceMinor, row.price]).toEqual([1999, 19.99])
+    expect([row.priceMinor, row.currency]).toEqual([1999, 'USD'])
 
     const item = res.json().data
     const upd = await call(testUserId, 'PATCH', `${base}/inventory/${item.id}`, { expectedVersion: item.version, price: 0.3 })
@@ -50,18 +49,5 @@ describe('exact prices', () => {
     const doc = (await call(testUserId, 'POST', `${base}/sheets`, { idempotencyKey: 'p1', query: { source: 'inventory', columns: ['name', 'stockValue'], sort: { field: 'stockValue', direction: 'asc' } } })).json().data
     const content = (await call(testUserId, 'GET', `${base}/documents/${doc.id}/content`)).json().data.content
     expect(content.rows.map((r: any) => [r.cells.name, r.cells.stockValue])).toEqual([['A', 30], ['C', 500], ['B', 1000]]) // 0.1 × 3 = 30 cents, not 30.000000000000004
-  })
-
-  it('backfills items made before exact prices, in their workspace currency, once', async () => {
-    const { ws } = await setup()
-    const yen = await setup({ name: 'Tokyo Co', defaultCurrency: 'JPY' })
-    const old = await db.inventory.create({ data: { workspaceId: ws.id, name: 'Old', price: 19.99 } })
-    const oldYen = await db.inventory.create({ data: { workspaceId: yen.ws.id, name: 'Old tea', price: 1200 } })
-    expect(await backfillPrices()).toBeGreaterThanOrEqual(2)
-    expect(await db.inventory.findUniqueOrThrow({ where: { id: old.id } })).toMatchObject({ priceMinor: 1999, currency: 'USD' })
-    expect(await db.inventory.findUniqueOrThrow({ where: { id: oldYen.id } })).toMatchObject({ priceMinor: 1200, currency: 'JPY' })
-    const after = await db.inventory.findMany({ where: { id: { in: [old.id, oldYen.id] } } })
-    await backfillPrices()
-    expect(await db.inventory.findMany({ where: { id: { in: [old.id, oldYen.id] } } })).toEqual(after) // idempotent
   })
 })

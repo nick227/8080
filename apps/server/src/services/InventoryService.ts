@@ -27,7 +27,6 @@ type InventoryRow = {
   name: string
   sku: string | null
   description: string | null
-  price: number
   priceMinor: number
   currency: string
   category: string | null
@@ -295,7 +294,6 @@ export class InventoryService {
           description: blank(input.description),
           priceMinor,
           currency,
-          price: fromMinor(priceMinor, currency), // legacy mirror
           category: blank(input.category),
           status: input.status ?? 'active',
           quantity,
@@ -337,7 +335,6 @@ export class InventoryService {
             sku: 'sku' in input ? blank(input.sku) : undefined,
             description: 'description' in input ? blank(input.description) : undefined,
             priceMinor,
-            price: priceMinor === undefined ? undefined : fromMinor(priceMinor, before.currency), // legacy mirror
             category: 'category' in input ? blank(input.category) : undefined,
             status: input.status,
             quantity: 'quantity' in input ? nextQuantity : undefined,

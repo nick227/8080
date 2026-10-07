@@ -14,7 +14,7 @@ import { memberActor, type WorkspaceCtx } from './WorkspaceService'
 import { authorize } from './workspacePolicy'
 import { lockImport, lockPreview } from './importState'
 import { retentionDays } from './ContactImportService'
-import { fromMinor, toMinor } from '../lib/money'
+import { toMinor } from '../lib/money'
 import { minorDigits } from '@project/shared'
 
 type Tx = Prisma.TransactionClient
@@ -573,7 +573,7 @@ export class InventoryImportService {
           data: {
             ...(values.name?.trim() ? { name: values.name.trim().slice(0, 160) } : {}),
             ...(values.description !== undefined ? { description: values.description.trim() || null } : {}),
-            ...(price !== undefined && price !== null ? { priceMinor: minorOf(price, target.currency), price: fromMinor(minorOf(price, target.currency), target.currency) } : {}),
+            ...(price !== undefined && price !== null ? { priceMinor: minorOf(price, target.currency) } : {}),
             ...(values.category !== undefined ? { category: values.category.trim() || null } : {}),
             ...(quantity !== undefined
               ? { quantity, lowStock: isLowStock(quantity, target.lowStockThreshold) }
@@ -621,7 +621,6 @@ export class InventoryImportService {
           description: values.description?.trim() || null,
           priceMinor,
           currency,
-          price: fromMinor(priceMinor, currency), // legacy mirror
           category: values.category?.trim() || null,
           quantity: qty,
           lowStock: isLowStock(qty, null),

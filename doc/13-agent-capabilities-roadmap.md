@@ -521,7 +521,7 @@ These are the §13 contracts.
 | 3 | Remove "Fix a fact" and cute workflow language | Done: 31c8689, 957b963 (Summarize contact, Refresh data, Dismiss, plain bot lines). The dev-only choice demo (`devBots`) is unchanged |
 | 4 | Company Profile direct edit | Done: Edit company profile in the account sheet (owners/admins) and from the chat summary; `PATCH …/company-profile` |
 | 5 | Browser test of the marketing budget, once | Done: `e2e/simplify.cjs` 11/11, plus `sheets2.cjs` 20/20 after the polish |
-| 6 | Retire the legacy price column after production verification | **Blocked on deploy:** A4 isn't pushed or deployed yet. Then run `inventory:prices` on Railway (expect `mismatched: 0`) and remove the startup backfill, the `price` Float and its dual writes in one deliberate change |
+| 6 | Retire the legacy price column after production verification | Done: the cleanup deployed (1940f64); `inventory:prices` on production printed `mismatched: 0` (0 items); the retirement commit removes the startup backfill, the script, the `price` Float and its dual writes, and was deployed separately |
 | 7 | Generated artifacts feel finished | Done: one blank row instead of a screen; header controls on hover; the recipe line ("Planning template · …", "As of …", Refresh data); chat links labelled by what they open |
 | 8 | Roadmap deferrals | This section |
 
