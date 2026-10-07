@@ -3,6 +3,7 @@
 // There is no generic workflow engine: the user customizes an instance of a type.
 import type { Agent, AgentDestination, AgentEvent, AgentFamily, Workspace } from '@project/db'
 import type { EmailContent, EmailTemplateKey, EmailThemeKey, MergeValues } from '@project/shared'
+import type { MessageLink } from '../../lib/choice'
 import type { Occurrence } from '../../lib/recurrence'
 
 export type AgentConfig = Pick<Agent, 'recipientConfig' | 'deliveryConfig' | 'ruleConfig'>
@@ -28,8 +29,11 @@ export type PreparedEmail = {
   recipients: EmailRecipient[]
 }
 
+/** One post in the workspace's company chat, as the workspace host (never as a member). */
+export type PreparedChat = { text: string; links: MessageLink[] }
+
 export type Prepared =
-  | { ok: true; messageId?: string | null; email?: PreparedEmail }
+  | { ok: true; messageId?: string | null; email?: PreparedEmail; chat?: PreparedChat }
   // Nothing can be sent (e.g. no READY message): the event fails visibly.
   | { ok: false; code: string; summary: string }
 

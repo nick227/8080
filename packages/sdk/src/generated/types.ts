@@ -1151,6 +1151,212 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/agent-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** The built-in agents that can be added */
+        get: operations["listAgentTypes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Active, paused and draft agents */
+        get: operations["listAgents"];
+        put?: never;
+        /** Add a built-in agent — creates a draft straight away (owners/admins) */
+        post: operations["createAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/agents/{agentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                agentId: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        /** One agent with its sender, recipients and next/last event */
+        get: operations["getAgent"];
+        put?: never;
+        post?: never;
+        /** Delete a draft with no history, else archive it (owners/admins) */
+        delete: operations["deleteAgent"];
+        options?: never;
+        head?: never;
+        /**
+         * Change name, template, theme, destinations, time or sections (owners/admins)
+         * @description Edits affect future events only. An active agent's upcoming event follows a new time.
+         */
+        patch: operations["updateAgent"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/agents/{agentId}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                agentId: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start (or resume) the agent; schedules its next event (owners/admins) */
+        post: operations["publishAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/agents/{agentId}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                agentId: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pause an active agent; its upcoming event is removed (owners/admins) */
+        post: operations["pauseAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/agents/{agentId}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                agentId: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        /** The report as it would go out now, rendered for the caller (no side effects) */
+        get: operations["previewAgent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/agents/{agentId}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                agentId: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Email the current report to the caller only, marked as a test (owners/admins)
+         * @description No event is created and nothing is posted to company chat. A failed send is a 200 with `ok` false.
+         */
+        post: operations["sendAgentTest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/agent-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** The activity river — upcoming and past agent events, latest scheduled time first */
+        get: operations["listAgentEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/agent-events/{eventId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                eventId: components["parameters"]["AgentEventId"];
+            };
+            cookie?: never;
+        };
+        /** The frozen facts of one event — per-destination results, failures and attempts */
+        get: operations["getAgentEvent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/agent-events/{eventId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                eventId: components["parameters"]["AgentEventId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel an upcoming or running event; the schedule moves on (owners/admins) */
+        post: operations["cancelAgentEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/activity": {
         parameters: {
             query?: never;
@@ -3506,6 +3712,186 @@ export interface components {
                 connection: components["schemas"]["EmailConnection"];
             };
         };
+        AgentType: {
+            key: string;
+            /** @enum {string} */
+            family: "scheduled" | "followup" | "manual" | "team" | "social";
+            name: string;
+            description: string;
+        };
+        AgentTypeListResponse: {
+            data: components["schemas"]["AgentType"][];
+        };
+        /** @description Exact workspace-local time. Team agents repeat daily. */
+        AgentSchedule: {
+            /** @enum {string} */
+            repeat: "once" | "daily" | "weekly" | "monthly";
+            time?: string;
+            weekdaysOnly?: boolean;
+            weekday?: number;
+            /** @description 1–4 or "last" */
+            nth?: number | string;
+            /** @description 1–28 or "last" */
+            date?: number | string;
+            /** @description Local YYYY-MM-DDTHH:MM (once) */
+            at?: string;
+        };
+        /** @enum {string} */
+        AgentDestination: "email" | "internal_chat";
+        AgentEventDelivery: {
+            destination: components["schemas"]["AgentDestination"];
+            /** @enum {string} */
+            status: "pending" | "running" | "completed" | "failed";
+            targetCount: number;
+            successCount: number;
+            failureCount: number;
+            skippedCount: number;
+            failureSummary: string | null;
+        };
+        AgentEventSummary: {
+            id: string;
+            agentId: string;
+            agentName: string;
+            typeKey: string;
+            /** @enum {string} */
+            status: "scheduled" | "running" | "completed" | "failed" | "canceled";
+            /** Format: date-time */
+            scheduledFor: string;
+            /** Format: date-time */
+            startedAt: string | null;
+            /** Format: date-time */
+            completedAt: string | null;
+            /** @description e.g. "Emailed 12 team members · Posted to company chat" */
+            label: string;
+            counts: {
+                targets: number;
+                sent: number;
+                failed: number;
+                skipped: number;
+            };
+            deliveries: components["schemas"]["AgentEventDelivery"][];
+            failureCode: string | null;
+            failureSummary: string | null;
+        };
+        Agent: {
+            id: string;
+            typeKey: string;
+            typeName: string;
+            /** @enum {string} */
+            family: "scheduled" | "followup" | "manual" | "team" | "social";
+            name: string;
+            /** @enum {string} */
+            status: "draft" | "active" | "paused" | "archived";
+            destinations: components["schemas"]["AgentDestination"][];
+            schedule: components["schemas"]["AgentSchedule"] | null;
+            /** @description Section keys included in the report */
+            include: string[];
+            /** @description The sections this type offers */
+            sections: {
+                key: string;
+                label: string;
+            }[];
+            templateKey: string;
+            themeKey: string;
+            sender: components["schemas"]["EmailConnection"];
+            /** @description Team members who will receive the email */
+            recipientCount: number;
+            nextEvent: components["schemas"]["AgentEventSummary"] | null;
+            lastEvent: components["schemas"]["AgentEventSummary"] | null;
+            /** @description What blocks publishing (empty = ready) */
+            problems: string[];
+            /** Format: date-time */
+            publishedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AgentResponse: {
+            data: components["schemas"]["Agent"];
+        };
+        AgentListResponse: {
+            data: components["schemas"]["Agent"][];
+        };
+        CreateAgentInput: {
+            typeKey: string;
+        };
+        UpdateAgentInput: {
+            name?: string;
+            templateKey?: string;
+            themeKey?: string;
+            destinations?: components["schemas"]["AgentDestination"][];
+            schedule?: components["schemas"]["AgentSchedule"];
+            include?: string[];
+        };
+        DeleteAgentResponse: {
+            data: {
+                /** @enum {string} */
+                result: "deleted" | "archived";
+            };
+        };
+        AgentPreviewResponse: {
+            data: {
+                subject: string;
+                /** @description Empty for the Plain text template */
+                html: string;
+                text: string;
+                /** @description The company-chat post */
+                chat: string;
+                sections: {
+                    key: string;
+                    title: string;
+                    count: number;
+                }[];
+                recipientCount: number;
+            };
+        };
+        AgentTestResponse: {
+            data: {
+                ok: boolean;
+                sentTo: string | null;
+                providerMessageId: string | null;
+                error: {
+                    code: string;
+                    message: string;
+                } | null;
+            };
+        };
+        AgentEventListResponse: {
+            data: components["schemas"]["AgentEventSummary"][];
+            meta: components["schemas"]["PaginatedMeta"];
+        };
+        AgentEventDetailResponse: {
+            data: components["schemas"]["AgentEventSummary"] & {
+                sender: {
+                    [key: string]: unknown;
+                } | null;
+                preview: {
+                    subject: string | null;
+                    html: string | null;
+                    text: string | null;
+                    chat: string | null;
+                };
+                /** @description Targets that failed, were skipped, or needed retries */
+                issues: {
+                    destination: components["schemas"]["AgentDestination"];
+                    address: string;
+                    /** @enum {string} */
+                    status: "pending" | "sent" | "failed" | "skipped";
+                    failureCode: string | null;
+                    failureMessage: string | null;
+                    attempts: {
+                        number: number;
+                        /** @enum {string} */
+                        outcome: "sent" | "transient" | "permanent" | "auth";
+                        code: string | null;
+                        message: string | null;
+                        /** Format: date-time */
+                        at: string;
+                    }[];
+                }[];
+            };
+        };
         CompanyProfileResponse: {
             data: components["schemas"]["CompanyProfile"];
         };
@@ -5132,6 +5518,8 @@ export interface components {
         RoomId: string;
         UserId: string;
         EmailConnectionId: string;
+        AgentId: string;
+        AgentEventId: string;
         ItemId: string;
         ReactionTypeParam: components["schemas"]["ReactionType"];
         DocumentId: string;
@@ -7158,6 +7546,356 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listAgentTypes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Available types */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentTypeListResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listAgents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Agents, active first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentListResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAgentInput"];
+            };
+        };
+        responses: {
+            /** @description The new draft */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                agentId: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The agent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                agentId: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What happened */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteAgentResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                agentId: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAgentInput"];
+            };
+        };
+        responses: {
+            /** @description The agent after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    publishAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                agentId: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The active agent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    pauseAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                agentId: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The paused agent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    previewAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                agentId: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rendered email, chat post and section counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentPreviewResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    sendAgentTest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                agentId: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What happened */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentTestResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listAgentEvents: {
+        parameters: {
+            query?: {
+                agentId?: string;
+                /** @description Opaque cursor returned by the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentEventListResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getAgentEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                eventId: components["parameters"]["AgentEventId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentEventDetailResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    cancelAgentEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                eventId: components["parameters"]["AgentEventId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The canceled event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentEventDetailResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     listWorkspaceActivity: {

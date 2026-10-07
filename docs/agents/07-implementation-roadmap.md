@@ -62,6 +62,14 @@ Naming: UI word is **Agent**. Tables `Agent*` don't collide (`AgentProposal` is 
 - Failures loud: river + editor + event detail; one `recordActivityEvent` per failed event.
 - Done when: create → test → publish → next morning's event delivers by email (Resend) and chat → visible in river; browser suite. **Ship to production.**
 
+**S1 as built (2026-10-07):**
+- Types `daily_team_brief` (08:00) and `daily_customer_report` (17:00) in `services/agents/types/team.ts`; sections in `services/agents/reports.ts` (deterministic, windowed on the event's scheduled time). Brief: important activity (ActivityEvent), follow-ups due, Agent failures, low stock. Customer report: new contacts, stage changes (from `contact.update` audit rows — bulk "set stage" is not audited at HEAD, so it doesn't show), follow-ups due, quiet 30 days (any stage but customer/lost, so workspace-defined stages work).
+- Company chat = a second destination in the same runner (`freezeChat`/`sendChat`): one frozen target, posted by the workspace host on the existing activity flow, contact links only (existing link kinds). Not retried; host off → `CHAT_UNAVAILABLE`, visible, email unaffected. The chat UI collapses line breaks, so the post is written as sentences.
+- `AgentService` + 13 operations (catalog, list/get/create/update/delete-or-archive, publish/pause, preview, Send test, river, event detail, cancel). Verbs `agent.read` (everyone) / `agent.manage` (admins). Send test = the caller only, `[Test]`, no event, no chat post.
+- Web: `features/agents/*` — Agents desk (`?desk=agents&agent=&event=&add=1`), catalog, list, editor (destinations, repeat/time, sections with today's counts, template/theme, sender → Company › Integrations, live Email/Company chat preview), river, event detail (failures, attempts, frozen preview, cancel/stop). Sender management stays in the Company desk (other editor's Integrations section).
+- Tests: server `agentsTeam.test.ts` 8/8 + `agents.test.ts` 26/26; browser check 24/24 (isolated pair, dev DB).
+- Not yet: calendar section (calendar is device-local), Calendar overlay (S6), AI opener (S7).
+
 ### S2 — Manual customer email (Company announcement)
 - Recipients (Customers / Leads / All) + Send now / choose time. Late binding: resolve → skip no-email → dedupe → render → freeze targets → send.
 - Production: customer-audience types are hidden behind a flag until S8.

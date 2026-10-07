@@ -1,4 +1,5 @@
 import { useSession } from '@project/sdk'
+import { AgentsDesk } from '../agents/AgentsDesk'
 import { CalendarExperience } from '../calendar/CalendarExperience'
 import { DocumentsExperience } from '../documents/DocumentsExperience'
 import { ContactsDesk } from '../inbox/ContactsDesk'
@@ -21,6 +22,8 @@ export function WorkPage({ place, roomId, onPlace }: { place: Exclude<Desk, 'tea
         <ContactsDesk />
       ) : place === 'inventory' ? (
         <InventoryDesk />
+      ) : place === 'agents' ? (
+        <AgentsDesk onPlace={onPlace} />
       ) : empty ? (
         <p className="work-empty">{empty}</p>
       ) : null}

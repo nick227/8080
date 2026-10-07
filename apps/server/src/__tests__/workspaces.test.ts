@@ -108,6 +108,8 @@ function sampleBody(op: any) {
     CreateMarketingBudgetInput: { monthlyBudgetMinor: 100, goal: 'leads', idempotencyKey: 'x' },
     UpdateCompanyProfileInput: { expectedRevision: 0, changes: { name: 'x' } },
     UpdateEmailConnectionInput: { displayName: 'x' },
+    CreateAgentInput: { typeKey: 'daily_team_brief' },
+    UpdateAgentInput: { name: 'x' },
     UpdateWorkspaceInput: { name: 'x' },
     UpdateWorkspaceMemberInput: { title: 'x' },
     CreateWorkspaceInviteInput: { email: 'x@test.local' },

@@ -1989,6 +1989,8 @@ model AgentEventTarget {
   subject           String            @db.VarChar(255)
   html              String            @db.MediumText
   text              String            @db.MediumText
+  // Destination-specific frozen extras (company chat: the post's links).
+  payload           Json?
   attempts          Int               @default(0)
   nextAttemptAt     DateTime?
   providerMessageId String?           @db.VarChar(255)

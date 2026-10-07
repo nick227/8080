@@ -6,11 +6,15 @@
 // rest of that delivery too. While an event waits for a retry it stays `running`
 // with `leaseUntil` = when to look again.
 import { db, Prisma, type Agent, type AgentEvent, type EmailConnection } from '@project/db'
-import { recordActivityEvent } from '../activityEvent'
+import { postSays } from '../../bots/flows/post'
+import type { MessageLink } from '../../lib/choice'
+import { ACTIVITY, recordActivityEvent } from '../activityEvent'
+import { HOST_HANDLE, workspaceHost } from '../WorkspaceHost'
 import { isEmailAddress, providerFor, type SendResult } from './email'
 import { agentConnection } from './connections'
 import { renderEmail } from './presentation'
-import { getAgentType, type PreparedEmail } from './registry'
+import { getAgentType, type PreparedChat, type PreparedEmail } from './registry'
+import './types'
 
 export const MAX_ATTEMPTS = 3
 export const RETRY_DELAY_MS = 2 * 60_000
@@ -55,6 +59,7 @@ async function runEvent(eventId: string, now: Date) {
     if (outcome) return failEvent(eventId, now, outcome.code, outcome.summary)
   }
   await sendPending(eventId, now)
+  await sendChat(eventId, now)
   await finalize(eventId, now)
 }
 
@@ -70,6 +75,7 @@ async function prepare(event: AgentEvent, agent: Agent, now: Date): Promise<{ co
   const connection = prepared.email ? await agentConnection(agent) : null
   await db.$transaction(async (tx) => {
     if (prepared.email && connection) await freezeEmail(tx, event, agent, connection, prepared.email)
+    if (prepared.chat) await freezeChat(tx, event, agent, prepared.chat)
     await tx.agentEvent.update({ where: { id: event.id }, data: { preparedAt: now, messageId: prepared.messageId ?? event.messageId } })
     if (prepared.messageId) await tx.agentMessage.updateMany({ where: { id: prepared.messageId, agentId: agent.id, usedAt: null }, data: { usedAt: now } })
   })
@@ -122,7 +128,48 @@ async function freezeEmail(tx: Tx, event: AgentEvent, agent: Agent, connection: 
   if (rows.length) await tx.agentEventTarget.createMany({ data: rows })
 }
 
+/** Company chat: one target, the workspace channel; the post is frozen like an email. */
+async function freezeChat(tx: Tx, event: AgentEvent, agent: Agent, chat: PreparedChat) {
+  const delivery = await tx.agentEventDelivery.create({
+    data: { workspaceId: agent.workspaceId, eventId: event.id, destination: 'internal_chat', status: 'running', startedAt: new Date() },
+  })
+  await tx.agentEventTarget.create({
+    data: {
+      workspaceId: agent.workspaceId,
+      deliveryId: delivery.id,
+      agentId: agent.id,
+      address: 'company-chat',
+      dedupeSlot: `${agent.id}:chat:${event.occurrenceKey}`.slice(0, 191),
+      dedupeKey: `chat:${event.occurrenceKey}`,
+      subject: chat.text.split(/[.\n]/)[0]!.slice(0, 255),
+      html: '',
+      text: chat.text,
+      payload: { links: chat.links } as unknown as Prisma.InputJsonValue,
+    },
+  })
+}
+
 // ─── send ──────────────────────────────────────────────────────────────────────
+
+/** Posts a frozen chat target as the workspace host. Not retried: a refusal is final. */
+async function sendChat(eventId: string, now: Date) {
+  const targets = await db.agentEventTarget.findMany({ where: { delivery: { eventId, destination: 'internal_chat', status: 'running' }, status: 'pending' } })
+  for (const target of targets) {
+    let result: SendResult
+    try {
+      const channel = await workspaceHost.ensureChannel(target.workspaceId)
+      const bot = await db.bot.findUnique({ where: { handle: HOST_HANDLE }, select: { userId: true, enabled: true } })
+      const links = ((target.payload as { links?: MessageLink[] } | null)?.links ?? []) as MessageLink[]
+      const posted = bot?.enabled ? await postSays(bot.userId, channel.roomId, true, ACTIVITY, [{ text: target.text, links: links.length ? links : undefined }]) : []
+      result = posted[0]
+        ? { ok: true, providerMessageId: `item:${posted[0]}` }
+        : { ok: false, kind: 'permanent', code: 'CHAT_UNAVAILABLE', message: 'Company chat did not accept the post (the workspace host is off on this server).' }
+    } catch (err) {
+      result = { ok: false, kind: 'permanent', code: 'CHAT_FAILED', message: (err as Error).message.slice(0, 300) }
+    }
+    await recordAttempt(target.id, target.attempts + 1, result, now)
+  }
+}
 
 async function sendPending(eventId: string, now: Date) {
   const deliveries = await db.agentEventDelivery.findMany({ where: { eventId, destination: 'email', status: 'running' } })

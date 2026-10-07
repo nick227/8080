@@ -1568,6 +1568,244 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  # ─── agents (docs/agents; roadmap S1) ──────────────────────────────────────
+  /workspaces/{workspaceId}/agent-types:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listAgentTypes
+      summary: The built-in agents that can be added
+      tags: [agents]
+      responses:
+        '200':
+          description: Available types
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentTypeListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/agents:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listAgents
+      summary: Active, paused and draft agents
+      tags: [agents]
+      responses:
+        '200':
+          description: Agents, active first
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createAgent
+      summary: Add a built-in agent — creates a draft straight away (owners/admins)
+      tags: [agents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAgentInput' }
+      responses:
+        '201':
+          description: The new draft
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/agents/{agentId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AgentId'
+    get:
+      operationId: getAgent
+      summary: One agent with its sender, recipients and next/last event
+      tags: [agents]
+      responses:
+        '200':
+          description: The agent
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateAgent
+      summary: Change name, template, theme, destinations, time or sections (owners/admins)
+      description: Edits affect future events only. An active agent's upcoming event follows a new time.
+      tags: [agents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateAgentInput' }
+      responses:
+        '200':
+          description: The agent after the change
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: deleteAgent
+      summary: Delete a draft with no history, else archive it (owners/admins)
+      tags: [agents]
+      responses:
+        '200':
+          description: What happened
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeleteAgentResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/agents/{agentId}/publish:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AgentId'
+    post:
+      operationId: publishAgent
+      summary: Start (or resume) the agent; schedules its next event (owners/admins)
+      tags: [agents]
+      responses:
+        '200':
+          description: The active agent
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /workspaces/{workspaceId}/agents/{agentId}/pause:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AgentId'
+    post:
+      operationId: pauseAgent
+      summary: Pause an active agent; its upcoming event is removed (owners/admins)
+      tags: [agents]
+      responses:
+        '200':
+          description: The paused agent
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /workspaces/{workspaceId}/agents/{agentId}/preview:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AgentId'
+    get:
+      operationId: previewAgent
+      summary: The report as it would go out now, rendered for the caller (no side effects)
+      tags: [agents]
+      responses:
+        '200':
+          description: Rendered email, chat post and section counts
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentPreviewResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/agents/{agentId}/test:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AgentId'
+    post:
+      operationId: sendAgentTest
+      summary: Email the current report to the caller only, marked as a test (owners/admins)
+      description: No event is created and nothing is posted to company chat. A failed send is a 200 with `ok` false.
+      tags: [agents]
+      responses:
+        '200':
+          description: What happened
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentTestResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/agent-events:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listAgentEvents
+      summary: The activity river — upcoming and past agent events, latest scheduled time first
+      tags: [agents]
+      parameters:
+        - in: query
+          name: agentId
+          schema: { type: string, maxLength: 64 }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: One page of events
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentEventListResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/agent-events/{eventId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AgentEventId'
+    get:
+      operationId: getAgentEvent
+      summary: The frozen facts of one event — per-destination results, failures and attempts
+      tags: [agents]
+      responses:
+        '200':
+          description: The event
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentEventDetailResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/agent-events/{eventId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AgentEventId'
+    post:
+      operationId: cancelAgentEvent
+      summary: Cancel an upcoming or running event; the schedule moves on (owners/admins)
+      tags: [agents]
+      responses:
+        '200':
+          description: The canceled event
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentEventDetailResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /workspaces/{workspaceId}/activity:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -4598,6 +4836,16 @@ components:
       name: connectionId
       required: true
       schema: { type: string, minLength: 1, maxLength: 64 }
+    AgentId:
+      in: path
+      name: agentId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    AgentEventId:
+      in: path
+      name: eventId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
     ItemId:
       in: path
       name: itemId
@@ -5330,6 +5578,250 @@ components:
                 code: { type: string }
                 message: { type: string }
             connection: { $ref: '#/components/schemas/EmailConnection' }
+
+    AgentType:
+      type: object
+      required: [key, family, name, description]
+      properties:
+        key: { type: string }
+        family: { type: string, enum: [scheduled, followup, manual, team, social] }
+        name: { type: string }
+        description: { type: string }
+
+    AgentTypeListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/AgentType' } }
+
+    AgentSchedule:
+      type: object
+      additionalProperties: false
+      required: [repeat]
+      description: Exact workspace-local time. Team agents repeat daily.
+      properties:
+        repeat: { type: string, enum: [once, daily, weekly, monthly] }
+        time: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        weekdaysOnly: { type: boolean }
+        weekday: { type: integer, minimum: 0, maximum: 6 }
+        nth: { type: [integer, string], description: '1–4 or "last"' }
+        date: { type: [integer, string], description: '1–28 or "last"' }
+        at: { type: string, description: 'Local YYYY-MM-DDTHH:MM (once)' }
+
+    AgentDestination:
+      type: string
+      enum: [email, internal_chat]
+
+    AgentEventDelivery:
+      type: object
+      required: [destination, status, targetCount, successCount, failureCount, skippedCount, failureSummary]
+      properties:
+        destination: { $ref: '#/components/schemas/AgentDestination' }
+        status: { type: string, enum: [pending, running, completed, failed] }
+        targetCount: { type: integer }
+        successCount: { type: integer }
+        failureCount: { type: integer }
+        skippedCount: { type: integer }
+        failureSummary: { type: [string, 'null'] }
+
+    AgentEventSummary:
+      type: object
+      required: [id, agentId, agentName, typeKey, status, scheduledFor, startedAt, completedAt, label, counts, deliveries, failureCode, failureSummary]
+      properties:
+        id: { type: string }
+        agentId: { type: string }
+        agentName: { type: string }
+        typeKey: { type: string }
+        status: { type: string, enum: [scheduled, running, completed, failed, canceled] }
+        scheduledFor: { type: string, format: date-time }
+        startedAt: { type: [string, 'null'], format: date-time }
+        completedAt: { type: [string, 'null'], format: date-time }
+        label: { type: string, description: 'e.g. "Emailed 12 team members · Posted to company chat"' }
+        counts:
+          type: object
+          required: [targets, sent, failed, skipped]
+          properties:
+            targets: { type: integer }
+            sent: { type: integer }
+            failed: { type: integer }
+            skipped: { type: integer }
+        deliveries: { type: array, items: { $ref: '#/components/schemas/AgentEventDelivery' } }
+        failureCode: { type: [string, 'null'] }
+        failureSummary: { type: [string, 'null'] }
+
+    Agent:
+      type: object
+      required: [id, typeKey, typeName, family, name, status, destinations, schedule, include, sections, templateKey, themeKey, sender, recipientCount, nextEvent, lastEvent, problems, publishedAt, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        typeKey: { type: string }
+        typeName: { type: string }
+        family: { type: string, enum: [scheduled, followup, manual, team, social] }
+        name: { type: string }
+        status: { type: string, enum: [draft, active, paused, archived] }
+        destinations: { type: array, items: { $ref: '#/components/schemas/AgentDestination' } }
+        schedule:
+          oneOf:
+            - $ref: '#/components/schemas/AgentSchedule'
+            - type: 'null'
+        include: { type: array, items: { type: string }, description: Section keys included in the report }
+        sections:
+          type: array
+          description: The sections this type offers
+          items:
+            type: object
+            required: [key, label]
+            properties:
+              key: { type: string }
+              label: { type: string }
+        templateKey: { type: string }
+        themeKey: { type: string }
+        sender: { $ref: '#/components/schemas/EmailConnection' }
+        recipientCount: { type: integer, description: Team members who will receive the email }
+        nextEvent:
+          oneOf:
+            - $ref: '#/components/schemas/AgentEventSummary'
+            - type: 'null'
+        lastEvent:
+          oneOf:
+            - $ref: '#/components/schemas/AgentEventSummary'
+            - type: 'null'
+        problems: { type: array, items: { type: string }, description: What blocks publishing (empty = ready) }
+        publishedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AgentResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Agent' }
+
+    AgentListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Agent' } }
+
+    CreateAgentInput:
+      type: object
+      additionalProperties: false
+      required: [typeKey]
+      properties:
+        typeKey: { type: string, minLength: 1, maxLength: 64 }
+
+    UpdateAgentInput:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        templateKey: { type: string, maxLength: 64 }
+        themeKey: { type: string, maxLength: 64 }
+        destinations: { type: array, maxItems: 2, items: { $ref: '#/components/schemas/AgentDestination' } }
+        schedule: { $ref: '#/components/schemas/AgentSchedule' }
+        include: { type: array, maxItems: 20, items: { type: string, maxLength: 64 } }
+
+    DeleteAgentResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [result]
+          properties:
+            result: { type: string, enum: [deleted, archived] }
+
+    AgentPreviewResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [subject, html, text, chat, sections, recipientCount]
+          properties:
+            subject: { type: string }
+            html: { type: string, description: Empty for the Plain text template }
+            text: { type: string }
+            chat: { type: string, description: The company-chat post }
+            sections:
+              type: array
+              items:
+                type: object
+                required: [key, title, count]
+                properties:
+                  key: { type: string }
+                  title: { type: string }
+                  count: { type: integer }
+            recipientCount: { type: integer }
+
+    AgentTestResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [ok, sentTo, providerMessageId, error]
+          properties:
+            ok: { type: boolean }
+            sentTo: { type: [string, 'null'] }
+            providerMessageId: { type: [string, 'null'] }
+            error:
+              type: [object, 'null']
+              required: [code, message]
+              properties:
+                code: { type: string }
+                message: { type: string }
+
+    AgentEventListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/AgentEventSummary' } }
+        meta: { $ref: '#/components/schemas/PaginatedMeta' }
+
+    AgentEventDetailResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          allOf:
+            - $ref: '#/components/schemas/AgentEventSummary'
+            - type: object
+              required: [sender, preview, issues]
+              properties:
+                sender: { type: [object, 'null'], additionalProperties: true }
+                preview:
+                  type: object
+                  required: [subject, html, text, chat]
+                  properties:
+                    subject: { type: [string, 'null'] }
+                    html: { type: [string, 'null'] }
+                    text: { type: [string, 'null'] }
+                    chat: { type: [string, 'null'] }
+                issues:
+                  type: array
+                  description: Targets that failed, were skipped, or needed retries
+                  items:
+                    type: object
+                    required: [destination, address, status, failureCode, failureMessage, attempts]
+                    properties:
+                      destination: { $ref: '#/components/schemas/AgentDestination' }
+                      address: { type: string }
+                      status: { type: string, enum: [pending, sent, failed, skipped] }
+                      failureCode: { type: [string, 'null'] }
+                      failureMessage: { type: [string, 'null'] }
+                      attempts:
+                        type: array
+                        items:
+                          type: object
+                          required: [number, outcome, code, message, at]
+                          properties:
+                            number: { type: integer }
+                            outcome: { type: string, enum: [sent, transient, permanent, auth] }
+                            code: { type: [string, 'null'] }
+                            message: { type: [string, 'null'] }
+                            at: { type: string, format: date-time }
 
     CompanyProfileResponse:
       type: object

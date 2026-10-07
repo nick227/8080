@@ -45,6 +45,9 @@ export type WorkspaceVerb =
   // Email senders (docs/agents): everyone sees which sender an Agent uses; admins set them up.
   | 'email.read'
   | 'email.manage'
+  // Communication agents: everyone sees them and their activity; admins run them.
+  | 'agent.read'
+  | 'agent.manage'
 
 const OWNERS: readonly WorkspaceRole[] = ['owner']
 const ADMINS: readonly WorkspaceRole[] = ['owner', 'admin']
@@ -85,6 +88,8 @@ const ROLES: Record<WorkspaceVerb, readonly WorkspaceRole[]> = {
   'companyProfile.edit': ADMINS,
   'email.read': EVERYONE,
   'email.manage': ADMINS,
+  'agent.read': EVERYONE,
+  'agent.manage': ADMINS,
 }
 
 // What a verb is applied to, when the answer depends on it.
