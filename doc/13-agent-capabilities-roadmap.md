@@ -417,3 +417,38 @@ Deliberately boring. Each of the four inputs has its own owner:
   - several months as columns
   - a short budget note document beside the sheet
 
+## 14. Course correction: ask → create → link (2026-10-06)
+
+The user's call, ahead of any further agent workflows: **the differentiator is quickly producing useful, editable business artifacts from information already available**, not elaborate conversations. Five rules:
+
+1. **No "Fix a fact".** The company profile is edited through ordinary fields (**Edit company profile**: `PATCH /workspaces/{id}/company-profile`, one action, and the values are final). No conversational correction.
+2. **Plain, professional language.** "Create document", "Create spreadsheet", "Edit company profile", "Refresh data". No cute labels or conversational theatrics.
+3. **No implied financial intelligence.** Until expenses, revenue and transactions are connected, a budget is a **planning template** (a standard split), not an analysis. It never invents spending or claims to know results, and it says so.
+4. **Small, complete artifacts.** A company introduction, a customer summary, a price list, a contact list, a monthly budget: each does one recognizable business job without a long interview. No monoliths. The A6 business plan is dropped from the near-term track.
+5. **Documents is the permanent home.** Every generated document and spreadsheet is in Documents at once (reopen, edit, organize, export); the chat posts a link.
+
+**Generating ≠ changing records.** Creating an artifact needs no proposal or approval and no confirmation step. Proposals stay only for consequential CRM changes (D2 notes→CRM).
+
+**The flow:**
+- "Create a monthly marketing budget for $2,500." → code reads the amount, goal words and channel names → known profile + deterministic template → native sheet in Documents → chat link.
+- Only genuinely missing information is asked for, e.g. no amount → "What is the monthly budget, in USD?".
+
+**As built (31c8689, 81873d3):**
+- `profileFix` flow removed. The company-profile summary links the document and **Edit company profile** (a plain form panel in the room).
+- Request reading is code (`bots/flows/requests.ts`):
+  - "Create a spreadsheet of …" (familiar asks match a preset without a model; negations never do) / "sheet: …"
+  - "Create a monthly marketing budget for …" / "budget"
+- Spreadsheets are created at once (no confirm).
+- The budget asks only for a missing amount. No goal given → a general split.
+- Recipe bar: **Refresh data**.
+- **Browser suite** `e2e/simplify.cjs` 11/11:
+  - plain welcome and summary; no Fix a fact
+  - the profile form saves its fields
+  - one sentence → budget in Documents with computed totals, edited like any sheet
+  - a spreadsheet request is created and linked
+- Server suite 588/589. The one failure is `record-views.test.ts`, "due vs overdue" around UTC midnight: date-dependent and not from this change.
+
+**Next:**
+- **A4: exact inventory prices** (`Inventory.price` Float → integer minor units + currency), on its own.
+- **The Sales/Deal model is a separate design decision.** It is not bundled into the pricing migration.
+
