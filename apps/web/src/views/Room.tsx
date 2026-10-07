@@ -20,6 +20,7 @@ import { RoomFloor } from '../features/room/RoomFloor'
 import { WorkNav } from '../features/work/WorkNav'
 import { useDocuments } from '../features/documents/store'
 import { CalendarPage, WorkPage } from '../features/work/WorkPage'
+import { CompanyProfilePanel } from '../features/profile/CompanyProfilePanel'
 import type { Desk } from '../features/work/sections'
 import { useWorkPlace } from '../features/records/navigation'
 import { loadRoomView, saveRoomView, seatsFrom, type RoomView } from '../features/room/roomViews'
@@ -41,6 +42,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
 
   const [desk, setDesk] = useState(false)
   const [compose, setCompose] = useState(false)
+  const [profileFor, setProfileFor] = useState<string | null>(null)
   const [pin, setPin] = useState(0)
   const [readMark, setReadMark] = useState(0)
   const [activity, setActivity] = useState<PresenceActivity>('here')
@@ -176,6 +178,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
         openPlace('contacts')
         return
       }
+      if (link.type === 'profile') setProfileFor(link.id) // Edit company profile (id = workspace)
     },
     choose: async (itemId, optionIds) => { await chooseOption.mutateAsync({ itemId, optionIds }) },
     reply: (id) => { setCompose(false); ui.startReply(id); setDesk(true) },
@@ -317,6 +320,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
         )}
       />
       </HostChannelProvider>
+      {profileFor && <CompanyProfilePanel workspaceId={profileFor} onClose={() => setProfileFor(null)} />}
       {showDesk && (
         <RecordSurface
           title={fresh && !replyName ? (data?.title ?? 'New Message') : undefined}

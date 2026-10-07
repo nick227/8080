@@ -4,7 +4,7 @@
 // answer is `stated`; what a model read or tidied is `inferred`, and never replaces a
 // stated or corrected fact (doc/12 §2).
 import { db, type CompanyFactKind, type CompanyFactStatus, type CompanyServiceArea, type CompanyVoice, type Prisma } from '@project/db'
-import { conflict } from '../lib/errors'
+import { badRequest, conflict } from '../lib/errors'
 import { runAction } from './actions'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
 import { authorize } from './workspacePolicy'
@@ -176,6 +176,43 @@ export class CompanyProfileService {
         return { value: { revision: profile.revision, before }, targetId: workspaceId, result: { revision: profile.revision } }
       },
     )
+  }
+
+  /** Edit company profile: ordinary fields, saved together, only if the profile is still
+   *  at `expectedRevision` (else 409). What a person sets here is `corrected` — the
+   *  setup's reading never replaces it. Only the fields given change. */
+  async update(ctx: WorkspaceCtx, workspaceId: string, input: { expectedRevision: number; changes: Partial<Record<Scalar | keyof typeof LISTS, unknown>> }) {
+    const actor = await authorize(ctx.user.id, workspaceId, 'companyProfile.edit')
+    const bad = (m: string) => badRequest(m, 'INVALID_PROFILE')
+    const MAX: Record<Scalar, number> = { name: 200, location: 200, purpose: 1000, serviceArea: 0, brandVoice: 0 }
+    const ENUMS: Partial<Record<Scalar, readonly string[]>> = { serviceArea: ['local', 'regional', 'national', 'global'], brandVoice: ['professional', 'friendly', 'bold', 'technical'] }
+    const fields = Object.keys(input.changes) as (Scalar | keyof typeof LISTS)[]
+    if (!fields.length) throw bad('Nothing to change')
+    const next: FieldSnapshot[] = fields.map((field) => {
+      const raw = input.changes[field]
+      if (isList(field)) {
+        if (!Array.isArray(raw) || raw.length > 12 || raw.some((v) => typeof v !== 'string' || v.length > 500)) throw bad(`${field}: at most 12 items of up to 500 characters`)
+        const values = [...new Set((raw as string[]).map((v) => v.trim().replace(/\s+/g, ' ')).filter(Boolean))]
+        return { field, facts: values.map((value) => ({ value, status: 'corrected' as const, sourceAnswerId: null, sourceRunId: null, setByMemberId: actor.member.id })) }
+      }
+      if (!(SCALARS as readonly string[]).includes(field)) throw bad(`Unknown field ${field}`)
+      const value = raw === null ? null : typeof raw === 'string' ? raw.trim().replace(/\s+/g, ' ') || null : undefined
+      if (value === undefined) throw bad(`${field} is text or null`)
+      const allowed = ENUMS[field as Scalar]
+      if (value !== null && (allowed ? !allowed.includes(value) : value.length > MAX[field as Scalar])) throw bad(allowed ? `${field} is one of ${allowed.join(', ')}` : `${field} is at most ${MAX[field as Scalar]} characters`)
+      return { field: field as Scalar, value, source: value === null ? null : { status: 'corrected' as const, sourceAnswerId: null, setByMemberId: actor.member.id } }
+    })
+    await runAction(
+      { action: 'companyProfile.update', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { fields, expectedRevision: input.expectedRevision }, target: { type: 'companyProfile', id: workspaceId } },
+      async (tx) => {
+        if ((await lockRevision(tx, workspaceId)) !== input.expectedRevision) throw conflict('The company profile changed; reload it and save again', 'PROFILE_REVISION_CONFLICT')
+        let revision = input.expectedRevision
+        for (const field of next) revision = (await writeField(tx, workspaceId, field)).revision
+        await tx.companyProfileRevision.create({ data: { workspaceId, revision, snapshot: (await snapshot(tx, workspaceId)) as unknown as Prisma.InputJsonValue } })
+        return { value: revision, targetId: workspaceId, result: { revision } }
+      },
+    )
+    return snapshot(db, workspaceId)
   }
 
   /** Puts one field back exactly as it was — only if the profile is still at

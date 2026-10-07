@@ -11,6 +11,7 @@ import { startWorkspaceHost } from '../services/WorkspaceHost'
 import { setAssistantProvider, type AssistantProvider, type BudgetNotesInput } from '../bots/assistant/provider'
 import { resetAssistantCaps } from '../bots/assistant/calls'
 import { CHANNELS, GOALS, allocate } from '../services/marketingBudget'
+import { amountIn, budgetRequest } from '../bots/flows/requests'
 
 const app = buildTestApp()
 const call = caller(app)
@@ -68,13 +69,13 @@ describe('POST /budgets', () => {
     expect(res.statusCode).toBe(201)
     await validateResponse('createMarketingBudget', 201, res.json())
     const doc = res.json().data
-    expect(doc.title).toMatch(/^Monthly marketing budget · [A-Z][a-z]{2} \d{1,2}$/)
+    expect(doc.title).toBe('Monthly Marketing Budget')
     expect(doc.workspaceAccess).toBeNull()
     expect(doc.provenance).toMatchObject({
       kind: 'artifact', generator: 'budget.monthly', currency: 'USD',
       inputs: { businessType: 'commercial photography', monthlyMinor: 1_200_000, goal: 'leads', priorities: ['search', 'local'] },
       sources: { businessType: 'typed', notes: 'template', callId: null },
-      summary: 'Monthly marketing budget · $12,000.00 a month · for commercial photography · goal: Leads · priorities: Paid search and Local and print',
+      summary: 'Planning template · $12,000.00 a month · for commercial photography · goal: Leads · priorities: Paid search and Local and print',
     })
     const c = await content(base, doc.id)
     expect(c.columns.map((x: any) => [x.label, x.type, x.total ?? null])).toEqual([['Channel', 'text', null], ['Share (%)', 'number', 'sum'], ['Per month', 'money', 'sum'], ['What it pays for', 'text', null]])
@@ -126,55 +127,51 @@ describe('POST /budgets', () => {
   })
 })
 
+describe('reading the request is code', () => {
+  it('amounts, goals and channels from a plain sentence', () => {
+    expect(budgetRequest('Create a monthly marketing budget for $2,500.', 'USD')).toEqual({ monthlyMinor: 250_000, goal: null, priorities: [] })
+    expect(budgetRequest('make a marketing budget of 2.5k to get more leads from google ads and email', 'USD')).toEqual({ monthlyMinor: 250_000, goal: 'leads', priorities: ['search', 'email'] })
+    expect(budgetRequest('budget', 'USD')).toEqual({ monthlyMinor: null, goal: null, priorities: [] })
+    expect(budgetRequest('Create a marketing budget for our launch, 1200 USD a month', 'USD')?.monthlyMinor).toBe(120_000)
+    expect(budgetRequest('Create a marketing budget for 3 months', 'USD')?.monthlyMinor).toBeNull() // "3 months" is no amount
+    expect(budgetRequest('our budget is tight', 'USD')).toBeNull()
+    expect(amountIn('for 12.345', 'USD')).toBeNull() // no fractions of a cent
+  })
+})
+
 describe('the channel', () => {
   const said = async (roomId: string) => (await db.item.findMany({ where: { roomId, message: { authorId: bot.userId } }, include: { message: true }, orderBy: { number: 'asc' } })).at(-1)!
   const say = async (roomId: string, text: string) => { expect((await call(testUserId, 'POST', `/rooms/${roomId}/items`, { text, chat: true })).statusCode).toBe(201); await host.idle() }
-  const choose = async (itemId: string, optionIds: string[]) => { expect((await call(testUserId, 'POST', `/items/${itemId}/choice`, { optionIds })).statusCode).toBe(200); await host.idle() }
 
-  it('budget → business → amount (parsed by code) → goal → priorities → confirm → a shared sheet', async () => {
+  it('"Create a monthly marketing budget for $2,500" → the sheet in Documents and a link; no questions', async () => {
     setAssistantProvider(null)
     const { ws, roomId, base } = await workspace()
-    await say(roomId, 'budget')
-    expect((await said(roomId)).message.text).toBe('What does the business do, in a few words? For example: commercial photography.')
-    await say(roomId, 'commercial photography')
-    expect((await said(roomId)).message.text).toBe('What is the monthly marketing budget, in USD? Type an amount, for example 2,500.')
-    await say(roomId, 'about a lot')
-    expect((await said(roomId)).message.text).toBe('“about a lot” isn’t an amount I can use. Type the monthly budget as a number, for example 2,500.')
-    await say(roomId, '$2,500')
-    const goal = await said(roomId)
-    expect((goal.message.actions as any).options.map((o: any) => o.label)).toEqual(['Awareness', 'Leads', 'Sales', 'Keep customers', 'Launch'])
-    await choose(goal.id, ['leads'])
-    const pri = await said(roomId)
-    expect((pri.message.actions as any).mode).toBe('many')
-    await choose(pri.id, ['search', 'email', 'local', 'events'])
-    expect((await said(roomId)).message.text).toBe('Which channels matter most right now? Pick up to three, or none.')
-    await choose((await said(roomId)).id, ['search', 'email'])
-    const confirm = await said(roomId)
-    expect(confirm.message.text).toBe('I’d make a monthly budget: $2,500.00 a month · for commercial photography · goal: Leads · priorities: Paid search and Email. The split follows the goal, with more for your priorities.')
-    expect(await db.document.count({ where: { workspaceId: ws.id } })).toBe(0)
-    await choose(confirm.id, ['make'])
+    await db.companyProfile.create({ data: { workspaceId: ws.id, revision: 1, purpose: 'Commercial photography for local businesses' } })
+    await say(roomId, 'Create a monthly marketing budget for $2,500.')
     const done = await said(roomId)
-    expect(done.message.text).toMatch(/^Made “Monthly marketing budget · [A-Z][a-z]{2} \d{1,2}”: \$2,500\.00 a month across 7 channels\. /)
+    expect(done.message.text).toBe('Created “Monthly Marketing Budget” in Documents: $2,500.00 a month across 7 channels. It is a planning template using a standard split; it does not use sales or spending data.')
+    expect(done.message.actions).toBeNull()
     const doc = await db.document.findUniqueOrThrow({ where: { id: (done.message.links as any[])[0].id } })
     expect(doc.workspaceAccess).toBe('viewer')
+    expect(doc.provenance).toMatchObject({ inputs: { businessType: 'Commercial photography for local businesses', goal: 'general', priorities: [] }, sources: { businessType: 'profile' } })
     expect(sheetTotals(await content(base, doc.id))).toEqual({ share: 100, monthly: 250_000 })
+    expect((await call(testUserId, 'GET', `${base}/documents`)).json().data.map((d: any) => d.title)).toContain('Monthly Marketing Budget')
   })
 
-  it('with a company profile it skips the business question; Cancel makes nothing', async () => {
+  it('only a missing amount is asked; goal and channel words are read from the request', async () => {
     setAssistantProvider(null)
     const { ws, roomId } = await workspace()
-    await db.companyProfile.create({ data: { workspaceId: ws.id, revision: 1, purpose: 'Commercial photography for local businesses' } })
-    await say(roomId, 'budget')
-    const lines = (await db.item.findMany({ where: { roomId, message: { authorId: bot.userId } }, include: { message: true }, orderBy: { number: 'asc' } })).slice(-2).map((i) => i.message.text)
-    expect(lines).toEqual(['A monthly marketing budget for Commercial photography for local businesses, from the company profile.', 'What is the monthly marketing budget, in USD? Type an amount, for example 2,500.'])
-    await say(roomId, '1000')
-    await choose((await said(roomId)).id, ['sales'])
-    await choose((await said(roomId)).id, ['none'])
-    const confirm = await said(roomId)
-    expect(confirm.message.text).toContain('no channel priorities')
-    await choose(confirm.id, ['cancel'])
-    expect((await said(roomId)).message.text).toBe('Cancelled. Nothing was made.')
-    expect(await db.document.count({ where: { workspaceId: ws.id } })).toBe(0)
+    await say(roomId, 'Create a marketing budget to get more leads, mostly paid search and email')
+    expect((await said(roomId)).message.text).toBe('What is the monthly budget, in USD?')
+    await say(roomId, 'about a lot')
+    expect((await said(roomId)).message.text).toBe('“about a lot” isn’t an amount. Type the monthly budget as a number, for example 2,500.')
+    await say(roomId, '1,200')
+    const done = await said(roomId)
+    expect(done.message.text).toBe('Created “Monthly Marketing Budget” in Documents: $1,200.00 a month across 7 channels. It is a planning template using a standard split for leads; it does not use sales or spending data.')
+    const doc = await db.document.findFirstOrThrow({ where: { workspaceId: ws.id } })
+    expect(doc.provenance).toMatchObject({ inputs: { goal: 'leads', priorities: ['search', 'email'], monthlyMinor: 120_000, businessType: null }, sources: { businessType: 'none' } })
+    await say(roomId, '500') // the request is done: a bare number is just a message now
+    expect(await db.document.count({ where: { workspaceId: ws.id } })).toBe(1)
     expect(CHANNELS).toHaveLength(7)
   })
 })

@@ -45,50 +45,40 @@ async function click(who: string, itemId: string, optionIds: string[]) {
 const propose = (base: string, who: string, field: string, value: unknown) =>
   call(who, 'POST', base, { kind: 'company-profile.fact', targetId: base.split('/')[2], change: { field, value } })
 
-describe('Fix a fact in the channel → a proposal card', () => {
-  it('typed: "fix a fact" → which fact → the new value → one card, the same object chat and record show', async () => {
-    const { ws, roomId, base } = await setup()
-    await say(carolId, roomId, 'Fix a fact')
-    expect((await lastBot(roomId)).message.text).toBe('Which fact should change?')
-    await click(carolId, (await lastBot(roomId)).id, ['location'])
-    expect((await lastBot(roomId)).message.text).toBe('Location says: Austin, TX. What should it say?')
-    await say(carolId, roomId, 'Austin and Central Texas')
+// "Fix a fact" was removed (2026-10-06): the profile is edited through ordinary fields.
+describe('Edit company profile: ordinary fields', () => {
+  const edit = (who: string, ws: string, body: object) => call(who, 'PATCH', `/workspaces/${ws}/company-profile`, body)
 
-    const card = await lastBot(roomId)
-    const inChat = (await call(carolId, 'GET', `/items/${card.id}`)).json().data
-    await validateResponse('getItem', 200, { data: inChat })
-    expect(inChat.proposal).toMatchObject({
-      kind: 'company-profile.fact', targetType: 'companyProfile', targetId: ws.id, status: 'pending', requires: 'admin',
-      title: 'Company profile · Location', diff: [{ label: 'Location', before: 'Austin, TX', after: 'Austin and Central Texas' }],
-    })
-    const onRecord = await call(carolId, 'GET', `${base}?targetType=companyProfile&targetId=${ws.id}`)
-    await validateResponse('listProposals', 200, onRecord.json())
-    expect(onRecord.json().data).toEqual([inChat.proposal])
-    // Nothing changed yet.
-    expect((await profiles.current(ws.id)).location).toBe('Austin, TX')
+  it('owners save several fields at once; the values are final (corrected); lists replace the list', async () => {
+    const { ws } = await setup()
+    const before = await profiles.current(ws.id)
+    const audits = () => db.actionExecution.count({ where: { workspaceId: ws.id, action: 'companyProfile.update' } })
+    const auditsBefore = await audits()
+    const res = await edit(testUserId, ws.id, { expectedRevision: before.revision, changes: { location: 'Austin and Central Texas', serviceArea: 'national', offerings: ['Web design', ' AI automation '] } })
+    expect(res.statusCode).toBe(200)
+    await validateResponse('updateCompanyProfile', 200, res.json())
+    expect(res.json().data).toMatchObject({ location: 'Austin and Central Texas', serviceArea: 'national' })
+    expect(res.json().data.facts.filter((f: any) => f.kind === 'offering').map((f: any) => [f.value, f.status])).toEqual([['Web design', 'corrected'], ['AI automation', 'corrected']])
+    expect(await db.companyScalarSource.findUniqueOrThrow({ where: { workspaceId_field: { workspaceId: ws.id, field: 'location' } } })).toMatchObject({ status: 'corrected' })
+    expect(await audits()).toBe(auditsBefore + 1) // one audited action for the whole save
+    expect(await db.agentProposal.count({ where: { workspaceId: ws.id } })).toBe(0) // no proposal machinery for ordinary edits
   })
 
-  it('buttons where the options are fixed; a list is typed with commas', async () => {
-    const { roomId } = await setup()
-    await say(testUserId, roomId, 'fix a fact')
-    await click(testUserId, (await lastBot(roomId)).id, ['service-area'])
-    await click(testUserId, (await lastBot(roomId)).id, ['national'])
-    expect((await call(testUserId, 'GET', `/items/${(await lastBot(roomId)).id}`)).json().data.proposal.diff).toEqual([{ label: 'Where it works', before: 'regional', after: 'national' }])
-
-    await say(testUserId, roomId, 'fix a fact')
-    await click(testUserId, (await lastBot(roomId)).id, ['offerings'])
-    expect((await lastBot(roomId)).message.text).toBe('Offerings says: Web design. What should it say? Separate items with commas.')
-    await say(testUserId, roomId, 'Web design, AI automation')
-    expect((await call(testUserId, 'GET', `/items/${(await lastBot(roomId)).id}`)).json().data.proposal.diff).toEqual([{ label: 'Offerings', before: 'Web design', after: 'Web design, AI automation' }])
+  it('a stale revision is refused (409); bad values are refused; plain members cannot edit', async () => {
+    const { ws } = await setup()
+    const rev = (await profiles.current(ws.id)).revision
+    expect((await edit(testUserId, ws.id, { expectedRevision: rev + 5, changes: { name: 'X' } })).json().code).toBe('PROFILE_REVISION_CONFLICT')
+    expect((await edit(testUserId, ws.id, { expectedRevision: rev, changes: { serviceArea: 'galactic' } })).statusCode).toBe(400)
+    expect((await edit(testUserId, ws.id, { expectedRevision: rev, changes: { revenue: '1M' } })).statusCode).toBe(400)
+    expect((await edit(testUserId, ws.id, { expectedRevision: rev, changes: {} })).statusCode).toBe(400)
+    expect((await edit(carolId, ws.id, { expectedRevision: rev, changes: { name: 'X' } })).statusCode).toBe(403)
   })
 
-  it('the same value is "already says"; an invalid one is explained; no card', async () => {
+  it('"fix a fact" in the channel is no longer a command', async () => {
     const { roomId } = await setup()
+    const before = await db.item.count({ where: { roomId } })
     await say(testUserId, roomId, 'fix a fact')
-    await click(testUserId, (await lastBot(roomId)).id, ['location'])
-    await say(testUserId, roomId, 'Austin, TX')
-    expect((await lastBot(roomId)).message.text).toBe("That's what it already says.")
-    expect(await db.agentProposal.count()).toBe(0)
+    expect(await db.item.count({ where: { roomId } })).toBe(before + 1) // only the person's line
   })
 })
 

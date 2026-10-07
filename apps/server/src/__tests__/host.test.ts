@@ -92,11 +92,14 @@ describe('the whole path (AI off)', () => {
 
     // The link, as the last line.
     const link = await lastBot(roomId)
-    expect(link.message.text).toMatch(/^I created Midnight Creative — Company Description and saved what I learned/)
+    expect(link.message.text).toMatch(/^Created Midnight Creative — Company Description in Documents from a template\. Saved to the company profile: /)
     const res = await call(testUserId, 'GET', `/items/${link.id}`)
     await validateResponse('getItem', 200, res.json())
     const [docLink] = res.json().data.message.links
     expect(docLink).toMatchObject({ type: 'document', workspaceId: ws.id, title: 'Midnight Creative — Company Description' })
+    // Corrections are ordinary fields: a link to them, no "Fix a fact" step.
+    expect(res.json().data.message.links[1]).toEqual({ type: 'profile', id: ws.id, workspaceId: ws.id, title: 'Edit company profile' })
+    expect(res.json().data.message.actions).toBeNull()
 
     // One line for one completion: the workspace activity record points at the
     // workflow's own summary instead of posting a second line.
@@ -175,7 +178,7 @@ describe('the channel is public to members, the setup is the creator’s', () =>
     expect((await click(carolId, welcome.id, ['setup'])).json().code).toBe('NOT_YOUR_CHOICE')
     // Her own intro is hers.
     expect((await click(carolId, hello.id, ['intro'])).statusCode).toBe(200)
-    expect((await lastBot(roomId)).message.text).toMatch(/^I welcome everyone who joins/)
+    expect((await lastBot(roomId)).message.text).toMatch(/^I create documents and spreadsheets from what the workspace already knows/)
     // Nobody is welcomed twice, however often the channel is opened.
     for (const who of [testUserId, carolId]) {
       const res = await call(who, 'POST', `/workspaces/${ws.id}/channel`)
@@ -280,7 +283,7 @@ describe('deterministic steps', () => {
     const { ws, roomId } = await workspace()
     await click(testUserId, (await lastBot(roomId)).id, ['later'])
     const later = await lastBot(roomId)
-    expect(later.message.text).toBe("No problem. Whenever you're ready:")
+    expect(later.message.text).toBe('Set it up when you’re ready.')
     expect((await db.workflowRun.findFirstOrThrow({ where: { workspaceId: ws.id } })).status).toBe('paused')
     await click(testUserId, later.id, ['setup'])
     expect((await lastBot(roomId)).message.text).toBe("What's your company called?")
@@ -305,7 +308,7 @@ describe('deterministic steps', () => {
     const { ws, roomId } = await workspace()
     await click(testUserId, (await lastBot(roomId)).id, ['setup'])
     await say(testUserId, roomId, 'x'.repeat(201))
-    expect((await lastBot(roomId)).message.text).toBe("That's a bit long — can you keep it under 200 characters?")
+    expect((await lastBot(roomId)).message.text).toBe('Please keep it under 200 characters.')
     const media = await db.media.create({ data: { ownerId: testUserId, kind: 'audio', storageKey: 'note.webm', mimeType: 'audio/webm', size: 1 } })
     expect((await call(testUserId, 'POST', `/rooms/${roomId}/items`, { mediaIds: [media.id], chat: true })).statusCode).toBe(201)
     await host.idle()
@@ -339,7 +342,7 @@ describe('deterministic steps', () => {
     const broken = (await db.workflowRun.findUniqueOrThrow({ where: { id: run.id } })).state as any
     await db.workflowRun.update({ where: { id: run.id }, data: { state: { ...broken, draft: { ...broken.draft, brandVoice: 'friendly' } } } })
     await click(testUserId, failed.id, ['retry'])
-    expect((await lastBot(roomId)).message.text).toMatch(/^I created Midnight Creative/)
+    expect((await lastBot(roomId)).message.text).toMatch(/^Created Midnight Creative/)
     expect((await db.workflowRun.findUniqueOrThrow({ where: { id: run.id } })).status).toBe('done')
     expect(await db.document.count({ where: { workspaceId: ws.id } })).toBe(1)
   })

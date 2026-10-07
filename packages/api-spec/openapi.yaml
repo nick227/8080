@@ -1476,6 +1476,30 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateCompanyProfile
+      summary: Edit company profile — ordinary fields, saved together
+      description: |
+        Only the fields given change. Saved only if the profile is still at
+        `expectedRevision` (else 409 PROFILE_REVISION_CONFLICT). What a person sets here
+        is final: the setup's reading never replaces it. Lists replace the whole list.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateCompanyProfileInput' }
+      responses:
+        '200':
+          description: The profile after the change
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompanyProfileResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   /workspaces/{workspaceId}/activity:
     parameters:
@@ -1933,7 +1957,7 @@ paths:
       - $ref: '#/components/parameters/WorkspaceId'
     post:
       operationId: createMarketingBudget
-      summary: Make a monthly marketing budget sheet (doc/13 §12, A3)
+      summary: Create a monthly marketing budget (a planning template; doc/13 §12, A3)
       description: |
         Four inputs, each with its own owner: the monthly amount (minor units, in the
         workspace currency), a goal and up to three channel priorities from fixed
@@ -5124,7 +5148,7 @@ components:
       type: object
       required: [type, id, workspaceId, title]
       properties:
-        type: { type: string, enum: [document, contact, compose] }
+        type: { type: string, enum: [document, contact, compose, profile], description: 'profile = Edit company profile (id = the workspace)' }
         id: { type: string }
         workspaceId: { type: string }
         title: { type: string, description: The title when the link was posted }
@@ -5160,6 +5184,26 @@ components:
         brandVoice: { type: [string, 'null'], enum: [professional, friendly, bold, technical, null] }
         facts: { type: array, items: { $ref: '#/components/schemas/CompanyFact' } }
         updatedAt: { type: [string, 'null'], format: date-time }
+
+    UpdateCompanyProfileInput:
+      type: object
+      additionalProperties: false
+      required: [expectedRevision, changes]
+      properties:
+        expectedRevision: { type: integer, minimum: 0 }
+        changes:
+          type: object
+          additionalProperties: false
+          minProperties: 1
+          properties:
+            name: { type: [string, 'null'], maxLength: 200 }
+            location: { type: [string, 'null'], maxLength: 200 }
+            purpose: { type: [string, 'null'], maxLength: 1000 }
+            serviceArea: { type: [string, 'null'], enum: [local, regional, national, global, null] }
+            brandVoice: { type: [string, 'null'], enum: [professional, friendly, bold, technical, null] }
+            offerings: { type: array, maxItems: 12, items: { type: string, maxLength: 500 } }
+            customers: { type: array, maxItems: 12, items: { type: string, maxLength: 500 } }
+            differentiators: { type: array, maxItems: 12, items: { type: string, maxLength: 500 } }
 
     CompanyProfileResponse:
       type: object
@@ -7339,10 +7383,10 @@ components:
     CreateMarketingBudgetInput:
       type: object
       additionalProperties: false
-      required: [monthlyBudgetMinor, goal, idempotencyKey]
+      required: [monthlyBudgetMinor, idempotencyKey]
       properties:
         monthlyBudgetMinor: { type: integer, minimum: 1, description: 'Minor units (cents) in the workspace currency' }
-        goal: { type: string, enum: [awareness, leads, sales, retention, launch] }
+        goal: { type: string, enum: [general, awareness, leads, sales, retention, launch], description: 'Default general (an even-handed split)' }
         priorities:
           type: array
           maxItems: 3

@@ -3,8 +3,11 @@
 //
 //   business type   the company profile (or the person's own words) — never decided by AI
 //   monthly budget  typed by the person, parsed by code into minor units — never AI
-//   goal            one of GOALS, a button
-//   priorities      0–3 of CHANNELS, buttons
+//   goal            one of GOALS, read from the request by code (none → general)
+//   priorities      0–3 of CHANNELS, read from the request by code
+//
+// It is a planning template: a standard split by goal, not an analysis. No sales,
+// spending or results data exists yet, and nothing here claims any.
 //
 // Code owns the channels, the split, rounding, amounts, totals, currency, the sheet
 // and its storage. The model may only write one short note per channel, with no
@@ -21,9 +24,9 @@ import { runAction } from './actions'
 const documents = new DocumentService()
 const json = (x: unknown) => JSON.parse(JSON.stringify(x)) as Prisma.InputJsonValue
 
-export const GOALS = ['awareness', 'leads', 'sales', 'retention', 'launch'] as const
+export const GOALS = ['general', 'awareness', 'leads', 'sales', 'retention', 'launch'] as const
 export type Goal = typeof GOALS[number]
-export const GOAL_LABEL: Record<Goal, string> = { awareness: 'Awareness', leads: 'Leads', sales: 'Sales', retention: 'Keep customers', launch: 'Launch' }
+export const GOAL_LABEL: Record<Goal, string> = { general: 'General', awareness: 'Awareness', leads: 'Leads', sales: 'Sales', retention: 'Keep customers', launch: 'Launch' }
 
 export const CHANNELS = ['search', 'social', 'email', 'content', 'local', 'events', 'referral'] as const
 export type Channel = typeof CHANNELS[number]
@@ -34,6 +37,8 @@ export const CHANNEL_LABEL: Record<Channel, string> = {
 // The starting split for each goal, in whole percents (each row sums to 100). A
 // product decision written down once — not a model's guess.
 const SPLIT: Record<Goal, Record<Channel, number>> = {
+  // No goal stated: an even-handed starting point.
+  general: { search: 25, social: 20, email: 15, content: 15, local: 15, events: 5, referral: 5 },
   awareness: { search: 10, social: 35, email: 5, content: 20, local: 15, events: 10, referral: 5 },
   leads: { search: 35, social: 20, email: 10, content: 15, local: 10, events: 5, referral: 5 },
   sales: { search: 35, social: 20, email: 20, content: 5, local: 10, events: 0, referral: 10 },
@@ -99,7 +104,7 @@ export function describeBudget(i: BudgetInputs) {
   return [
     `${money(i.monthlyMinor, i.currency)} a month`,
     i.businessType ? `for ${i.businessType}` : null,
-    `goal: ${GOAL_LABEL[i.goal]}`,
+    i.goal === 'general' ? null : `goal: ${GOAL_LABEL[i.goal]}`,
     i.priorities.length ? `priorities: ${andList(i.priorities.map((p) => CHANNEL_LABEL[p]))}` : 'no channel priorities',
   ].filter(Boolean).join(' · ')
 }
@@ -126,13 +131,12 @@ export type BudgetSource = { businessType: 'profile' | 'typed' | 'none'; notes: 
 export async function createBudget(ctx: WorkspaceCtx, workspaceId: string, input: BudgetInputs & { title?: string; idempotencyKey: string; workspaceAccess?: 'viewer' | 'editor' | null; notes: Partial<Record<Channel, string>>; source: BudgetSource }) {
   const actor = await authorize(ctx.user.id, workspaceId, 'document.create')
   permit(actor, 'workspace.read')
-  const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: actor.workspace.timezone })
-  const title = input.title?.trim() || `Monthly marketing budget · ${today}`
+  const title = input.title?.trim() || 'Monthly Marketing Budget'
   if (title.length > 200) throw badRequest('Title must contain 1–200 characters', 'INVALID_TITLE')
   const content = budgetSheet(input, input.notes)
   const inputs = { businessType: input.businessType, monthlyMinor: input.monthlyMinor, currency: input.currency, goal: input.goal, priorities: input.priorities }
   const recipe = {
-    kind: 'artifact', generator: 'budget.monthly', generatorVersion: 1, inputs, summary: `Monthly marketing budget · ${describeBudget(input)}`,
+    kind: 'artifact', generator: 'budget.monthly', generatorVersion: 1, inputs, summary: `Planning template · ${describeBudget(input)}`,
     sources: input.source, asOf: new Date().toISOString(), timezone: actor.workspace.timezone, currency: input.currency, rowCount: content.rows.length,
     dataHash: createHash('sha256').update(JSON.stringify(content)).digest('hex'), previousId: null,
   }

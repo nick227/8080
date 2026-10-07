@@ -1075,7 +1075,13 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Edit company profile — ordinary fields, saved together
+         * @description Only the fields given change. Saved only if the profile is still at
+         *     `expectedRevision` (else 409 PROFILE_REVISION_CONFLICT). What a person sets here
+         *     is final: the setup's reading never replaces it. Lists replace the whole list.
+         */
+        patch: operations["updateCompanyProfile"];
         trace?: never;
     };
     "/workspaces/{workspaceId}/activity": {
@@ -1441,7 +1447,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Make a monthly marketing budget sheet (doc/13 §12, A3)
+         * Create a monthly marketing budget (a planning template; doc/13 §12, A3)
          * @description Four inputs, each with its own owner: the monthly amount (minor units, in the
          *     workspace currency), a goal and up to three channel priorities from fixed
          *     lists, and the business type (given, else the company profile). Code makes the
@@ -3331,8 +3337,11 @@ export interface components {
             change: Record<string, never>;
         };
         MessageLink: {
-            /** @enum {string} */
-            type: "document" | "contact" | "compose";
+            /**
+             * @description profile = Edit company profile (id = the workspace)
+             * @enum {string}
+             */
+            type: "document" | "contact" | "compose" | "profile";
             id: string;
             workspaceId: string;
             /** @description The title when the link was posted */
@@ -3367,6 +3376,21 @@ export interface components {
             facts: components["schemas"]["CompanyFact"][];
             /** Format: date-time */
             updatedAt: string | null;
+        };
+        UpdateCompanyProfileInput: {
+            expectedRevision: number;
+            changes: {
+                name?: string | null;
+                location?: string | null;
+                purpose?: string | null;
+                /** @enum {string|null} */
+                serviceArea?: "local" | "regional" | "national" | "global" | null;
+                /** @enum {string|null} */
+                brandVoice?: "professional" | "friendly" | "bold" | "technical" | null;
+                offerings?: string[];
+                customers?: string[];
+                differentiators?: string[];
+            };
         };
         CompanyProfileResponse: {
             data: components["schemas"]["CompanyProfile"];
@@ -4541,8 +4565,11 @@ export interface components {
         CreateMarketingBudgetInput: {
             /** @description Minor units (cents) in the workspace currency */
             monthlyBudgetMinor: number;
-            /** @enum {string} */
-            goal: "awareness" | "leads" | "sales" | "retention" | "launch";
+            /**
+             * @description Default general (an even-handed split)
+             * @enum {string}
+             */
+            goal?: "general" | "awareness" | "leads" | "sales" | "retention" | "launch";
             priorities?: ("search" | "social" | "email" | "content" | "local" | "events" | "referral")[];
             businessType?: string;
             title?: string;
@@ -6899,6 +6926,37 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    updateCompanyProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCompanyProfileInput"];
+            };
+        };
+        responses: {
+            /** @description The profile after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyProfileResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     listWorkspaceActivity: {

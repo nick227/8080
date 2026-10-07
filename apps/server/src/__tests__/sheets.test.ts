@@ -200,74 +200,74 @@ const modelQuery = (over: Record<string, unknown> = {}) => ({
 
 describe('the channel', () => {
   const said = async (roomId: string) => (await db.item.findMany({ where: { roomId, message: { authorId: bot.userId } }, include: { message: true }, orderBy: { number: 'asc' } })).at(-1)!
+  const botLines = async (roomId: string) => db.item.count({ where: { roomId, message: { authorId: bot.userId } } })
   const say = async (roomId: string, text: string) => { expect((await call(testUserId, 'POST', `/rooms/${roomId}/items`, { text, chat: true })).statusCode).toBe(201); await host.idle() }
   const choose = async (itemId: string, option: string) => { expect((await call(testUserId, 'POST', `/items/${itemId}/choice`, { optionIds: [option] })).statusCode).toBe(200); await host.idle() }
 
-  it('AI off: "sheet" offers the presets; a pick makes a workspace-visible sheet and links it', async () => {
+  it('AI off: "Create spreadsheet" offers the presets; a pick creates a workspace-visible sheet in Documents and links it', async () => {
     setAssistantProvider(null)
     const { ws, roomId, base } = await workspace()
     await contact(ws.id, 'A A', { leadStatus: 'new' })
     await join(app, ws.id, carolId, 'carol@test.local')
-    await say(roomId, 'sheet')
+    await say(roomId, 'Create spreadsheet')
     const offer = await said(roomId)
-    expect(offer.message.text).toBe('Which sheet? Each one reads your current records.')
+    expect(offer.message.text).toBe('Choose a spreadsheet:')
     expect((offer.message.actions as any).options.map((o: any) => o.label)).toEqual(['Follow-ups this week', 'Leads by stage', 'Gone quiet', 'Low or out of stock', 'Stock by category', 'Price list'])
     await choose(offer.id, 'leads-by-stage')
     const done = await said(roomId)
-    expect(done.message.text).toMatch(/^Made “Leads by stage · [A-Z][a-z]{2} \d{1,2}”: 6 groups\. /)
+    expect(done.message.text).toMatch(/^Created “Leads by stage · [A-Z][a-z]{2} \d{1,2}” in Documents: 6 groups\. Includes: Contacts counted by lead status\.$/)
     const link = (done.message.links as any[])[0]
     expect(link).toMatchObject({ type: 'document', workspaceId: ws.id })
     const doc = await db.document.findUniqueOrThrow({ where: { id: link.id } })
     expect(doc.workspaceAccess).toBe('viewer')
     expect((await call(carolId, 'GET', `${base}/documents/${doc.id}`)).statusCode).toBe(200)
+    expect((await call(carolId, 'GET', `${base}/documents`)).json().data.map((d: any) => d.id)).toContain(doc.id) // in Documents
 
+    // A familiar ask is created at once, by code (no model, no questions).
+    await item(ws.id, 'Nuts', { quantity: 0 })
+    await say(roomId, 'Create a spreadsheet of low stock items.')
+    expect((await said(roomId)).message.text).toMatch(/^Created “Low or out of stock · .*” in Documents: 1 item\./)
+    // AI off and nothing familiar: the presets.
     await say(roomId, 'sheet: contacts with no email')
-    expect((await said(roomId)).message.text).toBe('I can make these sheets now. Pick one:')
+    expect((await said(roomId)).message.text).toBe('These spreadsheets are available:')
+    const lines = await botLines(roomId)
     await say(roomId, 'sheets are great') // not a request
-    expect((await said(roomId)).message.text).toBe('I can make these sheets now. Pick one:')
+    expect(await botLines(roomId)).toBe(lines)
   })
 
-  it('"sheet: …": the model fills the query, the person sees it, then [Make the sheet]', async () => {
+  it('"Create a spreadsheet of …": the model plans the query, the server checks it, the sheet is created at once', async () => {
     const planner = new Planner(() => modelQuery())
     setAssistantProvider(planner)
     const { ws, roomId } = await workspace()
     await item(ws.id, 'Drill', { category: 'Tools' })
     await contact(ws.id, 'Ann A', { leadStatus: 'new', primaryEmail: 'ann@x.test' })
     await contact(ws.id, 'Ben B', { leadStatus: 'contacting', nextFollowUp: noon(today()) })
-    await say(roomId, 'sheet: open leads with no follow-up')
+    await say(roomId, 'Create a spreadsheet of open leads with no follow-up')
     expect(planner.inputs[0]).toMatchObject({ request: 'open leads with no follow-up', today: today(), categories: ['Tools'] })
-    const confirm = await said(roomId)
-    expect(confirm.message.text).toBe('I’d make this sheet: Contacts · lead status New or Contacting · no follow-up set · columns: Name, Email, Lead status · sorted by name.')
-    expect(await db.document.count({ where: { workspaceId: ws.id } })).toBe(0) // nothing runs before the button
-    await choose(confirm.id, 'make')
     const done = await said(roomId)
-    expect(done.message.text).toMatch(/^Made “Open leads with no follow-up”: 1 contact\. /)
+    expect(done.message.text).toBe('Created “Open leads with no follow-up” in Documents: 1 contact. Includes: Contacts · lead status New or Contacting · no follow-up set · columns: Name, Email, Lead status · sorted by name.')
+    expect(done.message.actions).toBeNull() // nothing to confirm
     const doc = await db.document.findUniqueOrThrow({ where: { id: (done.message.links as any[])[0].id } })
     expect((doc.payload as any).rows.map((r: any) => r.cells.name)).toEqual(['Ann A'])
+    // A short, familiar ask uses no model call.
+    await say(roomId, 'Create a spreadsheet of low stock')
     expect(await db.assistantCall.count({ where: { workspaceId: ws.id } })).toBe(1)
-
-    await say(roomId, 'sheet: open leads with no follow-up')
-    await choose((await said(roomId)).id, 'cancel')
-    expect((await said(roomId)).message.text).toBe('Cancelled. Nothing was made.')
-    expect(await db.document.count({ where: { workspaceId: ws.id } })).toBe(1)
   })
 
-  it('unsupported, invalid and empty requests are said plainly; nothing is made', async () => {
+  it('unsupported, invalid and empty requests are said plainly; nothing is created', async () => {
     let next: any = { supported: false, reason: 'There is no deals data yet.', title: null, query: null }
     setAssistantProvider(new Planner(() => next))
     const { ws, roomId } = await workspace()
-    await say(roomId, 'sheet: deals closing this month')
-    expect((await said(roomId)).message.text).toBe('I can’t make that sheet: There is no deals data yet. I can read Contacts and Inventory. These are ready:')
+    await say(roomId, 'Create a spreadsheet of deals closing this month')
+    expect((await said(roomId)).message.text).toBe('I can’t create that spreadsheet: There is no deals data yet. I can use Contacts and Inventory. These are available:')
 
     next = modelQuery({ columns: ['name', 'salary'] })
     await say(roomId, 'sheet: everyone’s salary')
-    expect((await said(roomId)).message.text).toBe('I couldn’t turn that into a sheet I can build from Contacts or Inventory. These are ready:')
+    expect((await said(roomId)).message.text).toBe('I couldn’t build that from Contacts or Inventory. These are available:')
 
-    next = modelQuery({ columns: ['email', 'leadStatus'] }) // no name: code adds it
-    await say(roomId, 'sheet: open leads with no follow-up')
-    expect((await said(roomId)).message.text).toBe('I’d make this sheet: Contacts · lead status New or Contacting · no follow-up set · columns: Name, Email, Lead status · sorted by name.')
-    await choose((await said(roomId)).id, 'make')
-    expect((await said(roomId)).message.text).toBe('No contacts match that right now, so I made no sheet.')
+    next = modelQuery({ columns: ['email', 'leadStatus'] }) // no name column: code adds it
+    await say(roomId, 'Create a spreadsheet of open leads with no follow-up')
+    expect((await said(roomId)).message.text).toBe('No contacts match that, so nothing was created.')
     expect(await db.document.count({ where: { workspaceId: ws.id } })).toBe(0)
   })
 })

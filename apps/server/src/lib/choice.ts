@@ -9,7 +9,7 @@ export type StoredActions = { flow: string; step: string; mode: 'one' | 'many'; 
 export type StoredChoice = { optionIds: string[]; userId: string; at: string }
 /** Something a bot message points at (doc/12 §5.4). */
 export type MessageLink = {
-  type: 'document' | 'contact' | 'compose'
+  type: 'document' | 'contact' | 'compose' | 'profile'
   id: string
   workspaceId: string
   title: string

@@ -5,8 +5,8 @@ import { useDocuments } from '../store'
 import type { DocumentRecord } from '../types'
 
 // A generated sheet says what it was made from and when (doc/13 A1/A2). When the
-// records have changed since, it offers to make it again — a new sheet beside this
-// one; this sheet and its edits are never overwritten.
+// records have changed since, Refresh data makes a new sheet from current data beside
+// this one; this sheet and its edits are never overwritten.
 
 const when = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 
@@ -36,7 +36,7 @@ export function SheetRecipe({ doc }: { doc: DocumentRecord }) {
       void queryClient.invalidateQueries({ queryKey: ['document-recipe', workspaceId, doc.id] })
       open(made.id)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Couldn’t make it again')
+      setError(e instanceof Error ? e.message : 'Couldn’t refresh the data')
     } finally {
       setMaking(false)
     }
@@ -49,7 +49,7 @@ export function SheetRecipe({ doc }: { doc: DocumentRecord }) {
       {data.stale && (
         <span className="work-recipe-stale">
           {data.dataChanged ? 'The records have changed since.' : 'The dates it covers have moved on.'}
-          <button type="button" className="work-add" disabled={making} onClick={() => void again()}>{making ? 'Making…' : 'Make it again'}</button>
+          <button type="button" className="work-add" disabled={making} onClick={() => void again()}>{making ? 'Refreshing…' : 'Refresh data'}</button>
         </span>
       )}
       {error && <span role="alert">{error}</span>}

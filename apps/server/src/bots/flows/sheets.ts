@@ -1,23 +1,20 @@
-// Sheets in the channel (doc/13 §12, A1). "sheet" → the presets as buttons; "sheet:
-// <request>" → the model fills the whitelisted sheet query, the server validates it,
-// and the person sees it in plain words with [Make the sheet] before anything runs.
-// Data, counts and totals are code (services/sheetQuery.ts). A sheet made here is
-// workspace-visible, like the channel it was asked in (doc/12 §5.4).
-//
-//   channel: "sheet: open leads with no follow-up"  → confirm → document link
-import { db, type Prisma } from '@project/db'
+// Spreadsheets from the channel (doc/13 §12 A1, §14). "Create a spreadsheet of …" is
+// created at once and linked: familiar asks match a preset by code; anything else is
+// planned by the model into the whitelisted query and checked by the server. Data,
+// counts and totals are code (services/sheetQuery.ts). Created here = workspace-visible,
+// like the channel it was asked in (doc/12 §5.4). "Create spreadsheet" alone → presets.
+import { db } from '@project/db'
 import { authorize } from '../../services/workspacePolicy'
 import { sheetArtifacts } from '../../services/SheetArtifactService'
-import { SHEET_PRESETS, describeSheetQuery, todayIn, validateSheetQuery } from '../../services/sheetQuery'
+import { SHEET_PRESETS, todayIn, validateSheetQuery } from '../../services/sheetQuery'
+import { presetIn, spreadsheetRequest } from './requests'
 import type { WorkspaceCtx } from '../../services/WorkspaceService'
 import { assistantAvailable, planSheet } from '../assistant/calls'
 import type { ChoiceFlow, FlowSay } from './registry'
 import type { SheetQuery } from '@project/shared'
 
 export const SHEET_FLOW = 'sheet-query'
-export const SHEET_PREFIX = /^\s*sheets?\s*(?::\s*(.*))?$/is
 
-type Draft = { query: SheetQuery; title: string | null; request: string; callId: string | null }
 const WEEKDAY = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })
 
 const presetOffer = (text: string, userId: string): FlowSay => ({
@@ -39,18 +36,18 @@ const unit = (q: SheetQuery, n: number) => {
 const withName = (q: SheetQuery): SheetQuery =>
   q.groupBy || !q.columns || (q.columns as string[]).includes('name') ? q : ({ ...q, columns: ['name', ...q.columns] } as SheetQuery)
 
-/** Makes the sheet and says so with a link; a refusal (too large, no match) is said plainly. */
+/** Creates the spreadsheet and links it; a refusal (too large, no match) is said plainly. */
 async function make(userId: string, workspaceId: string, input: { preset?: string; query?: SheetQuery; title?: string | null }, key: string): Promise<FlowSay[]> {
   try {
     const doc = await sheetArtifacts.create(await ctxOf(userId), workspaceId, {
       ...(input.preset ? { preset: input.preset } : { query: input.query }), ...(input.title ? { title: input.title } : {}),
       idempotencyKey: key, workspaceAccess: 'viewer', refuseEmpty: true,
     })
-    const recipe = doc.provenance as { rowCount: number; query: SheetQuery }
-    return [{ text: `Made “${doc.title}”: ${unit(recipe.query, recipe.rowCount)}. It shows the data as of now; open it later and I can make it again from current data.`, links: [{ type: 'document', id: doc.id, workspaceId, title: doc.title }] }]
+    const recipe = doc.provenance as { rowCount: number; query: SheetQuery; summary: string }
+    return [{ text: `Created “${doc.title}” in Documents: ${unit(recipe.query, recipe.rowCount)}. Includes: ${recipe.summary}.`, links: [{ type: 'document', id: doc.id, workspaceId, title: doc.title }] }]
   } catch (error) {
     const e = error as { statusCode?: number; message?: string }
-    if (e.statusCode && e.statusCode < 500) return [{ text: e.message?.endsWith('.') ? e.message : `${e.message ?? 'That sheet could not be made'}.` }]
+    if (e.statusCode && e.statusCode < 500) return [{ text: e.message?.endsWith('.') ? e.message : `${e.message ?? 'That spreadsheet could not be created'}.` }]
     throw error
   }
 }
@@ -59,50 +56,41 @@ export const sheetFlow: ChoiceFlow = {
   advance: () => [],
   async afterCommit(ctx) {
     const ws = await workspaceOf(ctx.roomId)
-    if (!ws) return []
+    if (!ws || ctx.step !== 'preset') return []
     const pick = ctx.optionIds[0]!
-    if (ctx.step === 'preset') return make(ctx.userId, ws, { preset: pick }, `sheet:${ctx.itemId}:${pick}`)
-    const [kind, draftId] = ctx.step.split(':')
-    if (kind !== 'confirm' || !draftId) return []
-    const run = await db.workflowRun.findFirst({ where: { id: draftId, workspaceId: ws, userId: ctx.userId, workflowKey: SHEET_FLOW, status: 'waiting' } })
-    if (!run) return [{ text: 'That sheet request is gone. Type “sheet” to start again.' }]
-    await db.workflowRun.update({ where: { id: run.id }, data: { status: 'done', stepId: pick === 'make' ? 'made' : 'cancelled' } })
-    if (pick !== 'make') return [{ text: 'Cancelled. Nothing was made.' }]
-    const draft = run.state as unknown as Draft
-    return make(ctx.userId, ws, { query: draft.query, title: draft.title }, `sheet:${run.id}`)
+    return make(ctx.userId, ws, { preset: pick }, `sheet:${ctx.itemId}:${pick}`)
   },
 }
 
-/** A typed "sheet" / "sheet: …" line in the channel, or null if it isn't one. */
-export async function sheetText(item: { roomId: string; actorId: string; text: string | null }): Promise<FlowSay[] | null> {
-  const match = item.text?.trim().match(SHEET_PREFIX)
-  if (!match) return null
+/** "Create a spreadsheet of …" (or "sheet: …") in the channel → the spreadsheet, at once.
+ *  Common asks match a preset by their words (no model); anything else is planned by
+ *  the model into the whitelisted query, checked, and created. Nothing to confirm:
+ *  creating a document changes no records. Null if the line isn't a request. */
+export async function sheetText(item: { roomId: string; itemId: string; actorId: string; text: string | null }): Promise<FlowSay[] | null> {
+  const request = spreadsheetRequest(item.text ?? '')
+  if (request === null) return null
   const workspaceId = await workspaceOf(item.roomId)
   if (!workspaceId) return null
   const actor = await authorize(item.actorId, workspaceId, 'record.read')
-  const request = match[1]?.trim() ?? ''
-  if (request.length > 300) return [presetOffer('That request is too long for me to read. Say it in a sentence, or pick one of these:', item.actorId)]
-  if (!request) return [presetOffer('Which sheet? Each one reads your current records.', item.actorId)]
-  if (!(await assistantAvailable(workspaceId))) return [presetOffer('I can make these sheets now. Pick one:', item.actorId)]
-
+  if (request.length > 300) return [presetOffer('That request is too long. Describe it in one sentence, or choose one:', item.actorId)]
+  if (!request) return [presetOffer('Choose a spreadsheet:', item.actorId)]
+  const key = `sheet:${item.itemId}`
+  const preset = presetIn(request)
+  // Short, familiar asks ("low stock", "price list") need no model.
+  if (preset && request.split(/\s+/).length <= 5) return make(item.actorId, workspaceId, { preset }, key)
+  if (!(await assistantAvailable(workspaceId))) {
+    return preset ? make(item.actorId, workspaceId, { preset }, key) : [presetOffer('These spreadsheets are available:', item.actorId)]
+  }
   const today = todayIn(actor.workspace.timezone)
   const categories = (await db.inventory.findMany({ where: { workspaceId, status: 'active', category: { not: null } }, distinct: ['category'], select: { category: true }, orderBy: { category: 'asc' }, take: 30 })).map((c) => c.category!)
   const planned = await planSheet({ workspaceId, runId: null }, { request, today, weekday: WEEKDAY(today), categories })
-  if (!planned) return [presetOffer('I couldn’t read that request just now. These sheets work without it:', item.actorId)]
+  if (!planned) return preset ? make(item.actorId, workspaceId, { preset }, key) : [presetOffer('I couldn’t read that request. These spreadsheets are available:', item.actorId)]
   if (!planned.plan.supported || !planned.plan.query) {
-    return [presetOffer(`I can’t make that sheet${planned.plan.reason ? `: ${planned.plan.reason.replace(/\.$/, '')}` : ''}. I can read Contacts and Inventory. These are ready:`, item.actorId)]
+    return [presetOffer(`I can’t create that spreadsheet${planned.plan.reason ? `: ${planned.plan.reason.replace(/\.$/, '')}` : ''}. I can use Contacts and Inventory. These are available:`, item.actorId)]
   }
   let query: SheetQuery
   try { query = withName(validateSheetQuery(planned.plan.query)) } catch {
-    return [presetOffer('I couldn’t turn that into a sheet I can build from Contacts or Inventory. These are ready:', item.actorId)]
+    return [presetOffer('I couldn’t build that from Contacts or Inventory. These are available:', item.actorId)]
   }
-  const summary = await describeSheetQuery({ workspaceId, timezone: actor.workspace.timezone, currency: actor.workspace.defaultCurrency }, query)
-  const draft: Draft = { query, title: planned.plan.title, request, callId: planned.callId }
-  const run = await db.workflowRun.create({
-    data: { workspaceId, memberId: actor.member.id, userId: item.actorId, roomId: item.roomId, workflowKey: SHEET_FLOW, version: 1, stepId: 'confirm', status: 'waiting', state: draft as unknown as Prisma.InputJsonValue },
-  })
-  return [{
-    text: `I’d make this sheet: ${summary}.`,
-    offer: { step: `confirm:${run.id}`, options: [{ id: 'make', label: 'Make the sheet' }, { id: 'cancel', label: 'Cancel' }], forUserId: item.actorId },
-  }]
+  return make(item.actorId, workspaceId, { query, title: planned.plan.title }, key)
 }

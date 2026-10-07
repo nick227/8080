@@ -99,7 +99,7 @@ describe('assisted company profile', () => {
 
     // The drafted document, shared with the workspace, with its provenance.
     const texts = await botTexts(roomId)
-    expect(texts.at(-1)).toMatch(/^I drafted Midnight Creative — Company Description and saved what I learned.*Some of it I read from your description/)
+    expect(texts.at(-1)).toMatch(/^Created Midnight Creative — Company Description in Documents\. Saved to the company profile: .*Some of it was read from your description/)
     const d = await doc(roomId)
     expect(d.workspaceAccess).toBe('viewer')
     expect(d.provenance).toMatchObject({ generator: 'ai', model: 'fake-1', brief: { audience: 'customers', length: 'medium' } })
@@ -147,7 +147,7 @@ describe('assisted company profile', () => {
     await click(roomId, ['setup'])
     await say(roomId, ABOUT)
     const texts = await botTexts(roomId)
-    expect(texts.slice(-2)).toEqual(["I couldn't read that just now, so let me ask a few quick questions instead.", "What's your company called?"])
+    expect(texts.slice(-2)).toEqual(['I couldn’t read that, so I’ll ask the questions one at a time.', "What's your company called?"])
     expect((await run(ws.id)).state).toMatchObject({ mode: 'direct' })
     expect(await db.assistantCall.findMany({ where: { workspaceId: ws.id } })).toMatchObject([{ kind: 'extract', error: 'boom' }])
   })
@@ -169,7 +169,7 @@ describe('assisted company profile', () => {
     await click(roomId, ['setup'])
     await say(roomId, ABOUT)
     for (const answer of [['regional'], ['businesses'], ['friendly'], ['customers'], ['short']]) await click(roomId, answer)
-    expect((await botTexts(roomId)).at(-1)).toMatch(/from a template — I couldn't reach the writing model just now/)
+    expect((await botTexts(roomId)).at(-1)).toMatch(/in Documents from a template \(the writing model was unavailable\)/)
     const d = await doc(roomId)
     expect(d.provenance).toMatchObject({ generator: 'template' })
     expect((d.content!.content as { text: string }[])[1]!.text).toMatch(/^Midnight Creative is a team based in Austin and works across the region\./)

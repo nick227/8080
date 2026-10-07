@@ -57,7 +57,7 @@ export type ChoiceActions = {
 
 export type Choice = { optionIds: string[]; userId: string; at: string }
 
-export type MessageLink = { type: 'document' | 'contact' | 'compose'; id: string; workspaceId: string; title: string }
+export type MessageLink = { type: 'document' | 'contact' | 'compose' | 'profile'; id: string; workspaceId: string; title: string }
 
 // A capture or file chosen in the UI but not uploaded yet. Room.send uploads it
 // (SDK uploadMedia) and attaches the returned id.

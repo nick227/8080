@@ -1,6 +1,7 @@
 // chatbot as workspace host + the company profile (doc/12).
 import { workspaceHost } from '../services/WorkspaceHost'
 import { CompanyProfileService } from '../services/CompanyProfileService'
+import { workspaceCtx } from '../lib/session'
 
 const profiles = new CompanyProfileService()
 
@@ -10,4 +11,8 @@ export async function openWorkspaceChannel(request: any, reply: any) {
 
 export async function getCompanyProfile(request: any, reply: any) {
   return reply.send({ data: await profiles.get(request.user.id, request.params.workspaceId) })
+}
+
+export async function updateCompanyProfile(request: any, reply: any) {
+  return reply.send({ data: await profiles.update(workspaceCtx(request), request.params.workspaceId, request.body) })
 }

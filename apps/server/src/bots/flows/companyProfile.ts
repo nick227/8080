@@ -117,7 +117,7 @@ function ask(step: Step, d: Draft, userId: string): FlowSay {
 /** The welcome the creator sees (doc/12 §3), opening the run's first step. */
 export function startOffer(name: string, userId: string): FlowSay {
   return {
-    text: `Welcome, ${name}. I'm chatbot, the host of this channel — what I do here, everyone in the workspace can see. I can write a company description for you from a few quick questions. Want to set up the company profile?`,
+    text: `Welcome, ${name}. This channel is shared with everyone in the workspace. Set up the company profile to create documents from it.`,
     offer: { step: 'start', options: START, forUserId: userId },
   }
 }
@@ -181,7 +181,7 @@ async function answer(tx: Tx, run: LockedRun, a: Answer): Promise<Advanced> {
     }
     if (a.optionIds[0] === 'later') {
       await save(tx, run, 'start', 'paused', state)
-      return { says: [{ text: "No problem. Whenever you're ready:", offer: { step: 'start', options: START.slice(0, 1), forUserId: run.userId } }], generate: false }
+      return { says: [{ text: 'Set it up when you’re ready.', offer: { step: 'start', options: START.slice(0, 1), forUserId: run.userId } }], generate: false }
     }
     // Setup: with the assistant available, one open question replaces the fact
     // questions; otherwise the direct interview.
@@ -193,7 +193,7 @@ async function answer(tx: Tx, run: LockedRun, a: Answer): Promise<Advanced> {
   } else if (a.stepId === ABOUT.id) {
     if (a.kind !== 'text' || run.status !== 'waiting') throw conflict('That question was already answered', 'STEP_CLOSED')
     await save(tx, run, 'extract', 'working', state)
-    return { says: [{ text: 'Thanks — reading that now.' }], generate: false, extract: true }
+    return { says: [{ text: 'Reading your description.' }], generate: false, extract: true }
   } else {
     const step = STEP.get(a.stepId)
     if (!step || step.kind !== a.kind || run.status !== 'waiting') throw conflict('That question was already answered', 'STEP_CLOSED')
@@ -209,7 +209,7 @@ async function answer(tx: Tx, run: LockedRun, a: Answer): Promise<Advanced> {
     return { says: [ask(next, state.draft, run.userId)], generate: false }
   }
   await save(tx, run, 'generate', 'working', state)
-  return { says: [{ text: 'Thanks — writing your company description now.' }], generate: true }
+  return { says: [{ text: 'Writing the company description.' }], generate: true }
 }
 
 // ─── extraction (assisted) ────────────────────────────────────────────────────
@@ -254,7 +254,7 @@ export async function extract(roomId: string, userId: string): Promise<FlowSay[]
     state.followUps = missing.slice(0, FOLLOW_UPS)
   } else {
     state.mode = 'direct'
-    says.push({ text: "I couldn't read that just now, so let me ask a few quick questions instead." })
+    says.push({ text: 'I couldn’t read that, so I’ll ask the questions one at a time.' })
   }
   const next = nextFor(state)!
   await db.workflowRun.update({ where: { id: run.id }, data: { stepId: next.id, status: 'waiting', state: state as unknown as Prisma.InputJsonValue } })
@@ -352,17 +352,17 @@ export async function generate(roomId: string, userId: string): Promise<FlowSay[
     })
     await documents.roomLink(ctx, run.workspaceId, doc.id, roomId, false)
     await db.workflowRun.update({ where: { id: run.id }, data: { status: 'done', stepId: 'done', state: { ...state, documentId: doc.id } as unknown as Prisma.InputJsonValue } })
-    const saved = `saved what I learned to the company profile: ${learned(d)}.`
+    const saved = `Saved to the company profile: ${learned(d)}.`
     const text = drafted
-      ? `I drafted ${doc.title} and ${saved}${state.inferred?.length ? ' Some of it I read from your description, so check it over.' : ''}`
+      ? `Created ${doc.title} in Documents. ${saved}${state.inferred?.length ? ' Some of it was read from your description; check it in the company profile.' : ''}`
       : state.mode === 'assisted'
-        ? `I created ${doc.title} from a template — I couldn't reach the writing model just now — and ${saved}`
-        : `I created ${doc.title} and ${saved} It's a template draft — edit it like any document.`
+        ? `Created ${doc.title} in Documents from a template (the writing model was unavailable). ${saved}`
+        : `Created ${doc.title} in Documents from a template. ${saved}`
     const links = [{ type: 'document' as const, id: doc.id, workspaceId: run.workspaceId, title: doc.title }]
     return [{
-      text, links,
-      // Corrections go through a proposal (bots/flows/profileFix.ts, flow "profile-fix").
-      offer: { flow: 'profile-fix', step: 'fix', options: [{ id: 'fix', label: 'Fix a fact' }] },
+      text,
+      // The profile is corrected through its ordinary fields, not a conversation.
+      links: [...links, { type: 'profile' as const, id: run.workspaceId, workspaceId: run.workspaceId, title: 'Edit company profile' }],
       // The workspace activity record points at this line instead of posting its own.
       onPosted: (itemId) => recordActivityEvent({
         workspaceId: run.workspaceId, type: 'workflow.completed', title: 'Assistant finished',
@@ -404,7 +404,7 @@ export async function textAnswer(item: { roomId: string; itemId: string; actorId
     if (!step || ('kind' in step && step.kind !== 'text')) return null
     const text = item.text?.trim() ?? ''
     if (!text) return item.hasMedia ? { says: [{ text: 'For now, please type your answer.' }], generate: false } : null
-    if (text.length > step.max) return { says: [{ text: `That's a bit long — can you keep it under ${step.max} characters?` }], generate: false }
+    if (text.length > step.max) return { says: [{ text: `Please keep it under ${step.max} characters.` }], generate: false }
     return answer(tx, run, { stepId: step.id, kind: 'text', text, itemId: item.itemId })
   })
 }

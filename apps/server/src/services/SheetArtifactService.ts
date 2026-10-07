@@ -73,7 +73,7 @@ export class SheetArtifactService {
       input: { preset: resolved.preset, query: resolved.query, title: resolved.title, previousId: input.previousId ?? null }, idempotencyKey: input.idempotencyKey,
     }, async (tx) => {
       const result = await runSheetQuery(ctx, resolved.query)
-      if (input.refuseEmpty && result.rowCount === 0) throw badRequest(resolved.query.source === 'contacts' ? 'No contacts match that right now, so I made no sheet' : 'No inventory items match that right now, so I made no sheet', 'SHEET_EMPTY')
+      if (input.refuseEmpty && result.rowCount === 0) throw badRequest(resolved.query.source === 'contacts' ? 'No contacts match that, so nothing was created' : 'No inventory items match that, so nothing was created', 'SHEET_EMPTY')
       const recipe: SheetRecipe = {
         kind: 'artifact', generator: 'sheet.query', generatorVersion: 1, preset: resolved.preset, query: resolved.query, summary,
         asOf: result.asOf, timezone: ctx.timezone, currency: ctx.currency, rowCount: result.rowCount, dataHash: result.dataHash, previousId: input.previousId ?? null,
