@@ -1,6 +1,6 @@
 # 14 · Sales: the Deal model (design, for decision)
 
-**Status:** design only, 2026-10-06. Nothing is built until it is approved. It replaces the Sales sketch in doc/09 §4.2: same intent, smaller first version.
+**Status: deferred (2026-10-06).** A design note only; none of it is to be built now (doc/13 §15). Kept so the thinking isn't lost if Sales becomes a real need. It replaces the Sales sketch in doc/09 §4.2: same intent, smaller first version.
 
 ## 1. The distinction
 

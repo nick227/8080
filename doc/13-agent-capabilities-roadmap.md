@@ -470,5 +470,60 @@ The user's call, ahead of any further agent workflows: **the differentiator is q
   - Run `inventory:prices` once on Railway and see `mismatched: 0` (the script verifies every row).
   - Then, in one deliberate change, remove the startup backfill, the legacy `price` Float and its dual writes (`db push --accept-data-loss`, run once by hand).
   - `priceMinor` + `currency` drive every calculation; the API's decimal `price` is a compatibility representation only.
-- **Next:** the Sales/Deal model, designed in doc/14 and awaiting decisions.
+- Sales/Deals: **deferred** (doc/13 §15); doc/14 is kept only as a design note.
+
+## 15. Product center, and what is deferred (2026-10-06)
+
+**The question for the next iterations:** what can a business create or accomplish with the information already inside this workspace?
+
+```
+connect / import data → Contacts & Inventory → ask the agent → create a Document / Spreadsheet / Map
+  → it lives in Documents → the chat links to it
+```
+
+**The product we have evidence for:**
+- **Chat:** shared workspace, agent interaction, links to work.
+- **Documents:** real documents, spreadsheets, maps.
+- **Contacts:** customer and business records.
+- **Inventory:** products, services, items.
+- **Calendar:** scheduled work.
+- **Company Profile:** reusable business context.
+- **Connections and imports:** bring existing data into Contacts and Inventory.
+
+**The AI jobs we understand:**
+- understand a request
+- extract structured facts from messy text
+- summarize bounded evidence
+- write small amounts of custom text
+- create native artifacts from known business data
+
+These are the §13 contracts.
+
+**Explicitly deferred, not "next":**
+- Deals / Sales / opportunities / pipeline (doc/14 is a design note only)
+- quotes and quote lifecycle
+- tax rules
+- forecasting and any financial analysis (no revenue, expense or transaction data exists)
+- outbound email and communications (D4 follow-up drafts)
+- task engines
+- lead qualification (D5)
+- change detection / next-step suggestions (D8)
+- accounting assumptions
+- long multi-section documents (the business plan, A6)
+- server-stored maps (A7) until a map artifact is needed
+
+### 15.1 Cleanup milestone (done)
+
+| # | Item | State |
+|---|---|---|
+| 1 | Don't start Deals/Sales | Done: doc/14 is a design note; nothing built |
+| 2 | Generated artifacts appear in Documents, and chat links open them | Done: channel artifacts are workspace-visible; `openFromLink` opens the link's workspace and document; an unavailable one says so above the list (9c5ea8d) |
+| 3 | Remove "Fix a fact" and cute workflow language | Done: 31c8689, 957b963 (Summarize contact, Refresh data, Dismiss, plain bot lines). The dev-only choice demo (`devBots`) is unchanged |
+| 4 | Company Profile direct edit | Done: Edit company profile in the account sheet (owners/admins) and from the chat summary; `PATCH …/company-profile` |
+| 5 | Browser test of the marketing budget, once | Done: `e2e/simplify.cjs` 11/11, plus `sheets2.cjs` 20/20 after the polish |
+| 6 | Retire the legacy price column after production verification | **Blocked on deploy:** A4 isn't pushed or deployed yet. Then run `inventory:prices` on Railway (expect `mismatched: 0`) and remove the startup backfill, the `price` Float and its dual writes in one deliberate change |
+| 7 | Generated artifacts feel finished | Done: one blank row instead of a screen; header controls on hover; the recipe line ("Planning template · …", "As of …", Refresh data); chat links labelled by what they open |
+| 8 | Roadmap deferrals | This section |
+
+The midnight-dependent test was also fixed with a frozen clock (9e81c12). The server suite is 593/593.
 
