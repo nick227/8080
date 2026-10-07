@@ -56,8 +56,8 @@ export function ContactBrief({ workspaceId, contactId }: { workspaceId: string; 
     return (
       <section className="brief" aria-busy={busy || undefined}>
         <div className="brief-bar">
-          <h2>Brief</h2>
-          <button type="button" className="record-primary" disabled={busy} onClick={() => generate.mutate()}>{busy ? 'Reading…' : 'Brief me'}</button>
+          <h2>Summary</h2>
+          <button type="button" className="record-primary" disabled={busy} onClick={() => generate.mutate()}>{busy ? 'Summarizing…' : 'Summarize contact'}</button>
         </div>
         {busy ? <div className="brief-placeholder" /> : <p className="brief-muted">What to know before you contact them, from their records, notes and conversations.</p>}
         {generate.error && <p className="brief-error">{generate.error.message}</p>}
@@ -71,9 +71,9 @@ export function ContactBrief({ workspaceId, contactId }: { workspaceId: string; 
     <section className="brief" aria-busy={busy || undefined} data-stale={data.stale || undefined}>
       <div className="brief-bar">
         <h2>Brief</h2>
-        <button type="button" disabled={busy} onClick={() => generate.mutate()}>{busy ? 'Reading…' : 'Refresh'}</button>
+        <button type="button" disabled={busy} onClick={() => generate.mutate()}>{busy ? 'Summarizing…' : 'Refresh data'}</button>
       </div>
-      {data.stale && <p className="brief-stale" role="status">Things changed since this brief. Refresh it before relying on it.</p>}
+      {data.stale && <p className="brief-stale" role="status">The records have changed since this summary. Refresh it before relying on it.</p>}
       {SECTIONS.filter(([k]) => data[k].length).map(([k, label]) => (
         <div key={k} className="brief-section">
           <h3>{label}</h3>

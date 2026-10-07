@@ -312,7 +312,7 @@ describe('deterministic steps', () => {
     const media = await db.media.create({ data: { ownerId: testUserId, kind: 'audio', storageKey: 'note.webm', mimeType: 'audio/webm', size: 1 } })
     expect((await call(testUserId, 'POST', `/rooms/${roomId}/items`, { mediaIds: [media.id], chat: true })).statusCode).toBe(201)
     await host.idle()
-    expect((await lastBot(roomId)).message.text).toBe('For now, please type your answer.')
+    expect((await lastBot(roomId)).message.text).toBe('Please type your answer.')
     expect((await db.workflowRun.findFirstOrThrow({ where: { workspaceId: ws.id } })).stepId).toBe('name')
   })
 

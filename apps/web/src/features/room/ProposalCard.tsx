@@ -103,7 +103,7 @@ export function ProposalCard({ proposal, canDecide, onAct, onEdit }: ProposalVie
           <>
             <button type="button" disabled={busy} onClick={() => void act('apply')}>Apply</button>
             {shown.editable && onEdit && shown.diff.some((r) => r.key) && <button type="button" disabled={busy} onClick={startEdit}>Edit</button>}
-            <button type="button" disabled={busy} onClick={() => void act('dismiss')}>Not now</button>
+            <button type="button" disabled={busy} onClick={() => void act('dismiss')}>Dismiss</button>
           </>
         ) : <p className="room-proposal-note">Waiting for an owner or admin to apply it.</p>)}
         {shown.status === 'applied' && (

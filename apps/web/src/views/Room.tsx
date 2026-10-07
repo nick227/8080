@@ -21,6 +21,9 @@ import { WorkNav } from '../features/work/WorkNav'
 import { useDocuments } from '../features/documents/store'
 import { CalendarPage, WorkPage } from '../features/work/WorkPage'
 import { CompanyProfilePanel } from '../features/profile/CompanyProfilePanel'
+
+// What a chat link opens, as its small label ('' = none: the title says it).
+const LINK_KIND: Record<string, string> = { document: 'Document', contact: 'Contact', compose: 'Contact', profile: '' }
 import type { Desk } from '../features/work/sections'
 import { useWorkPlace } from '../features/records/navigation'
 import { loadRoomView, saveRoomView, seatsFrom, type RoomView } from '../features/room/roomViews'
@@ -206,7 +209,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       choice: item.actions
         ? { actions: item.actions, choice: item.choice, meId, onChoose: (optionIds) => actions.current.choose(item.id, optionIds) }
         : undefined,
-      links: item.links?.map((link) => ({ id: link.id, title: link.title, onOpen: () => actions.current.openLink(link) })),
+      links: item.links?.map((link) => ({ id: link.id, title: link.title, kind: LINK_KIND[link.type] ?? '', onOpen: () => actions.current.openLink(link) })),
       onReply: () => actions.current.reply(item.id),
       onDelete: item.author.id === meId ? () => actions.current.remove(item.id) : undefined,
     }

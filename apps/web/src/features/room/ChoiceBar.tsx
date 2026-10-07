@@ -59,7 +59,7 @@ export function ChoiceBar({ actions, choice, meId, onChoose }: ChoiceView) {
         )}
       </div>
       {choice && <p className="room-choice-note">{choice.userId === meId ? 'You chose' : 'Chosen:'} {labels}</p>}
-      {!choice && !mine && <p className="room-choice-note">Waiting on someone else</p>}
+      {!choice && !mine && <p className="room-choice-note">Waiting for the person asked</p>}
       {error && <p className="room-choice-note" data-error>{error}</p>}
     </div>
   )

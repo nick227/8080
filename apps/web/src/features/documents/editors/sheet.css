@@ -6,13 +6,17 @@
 .work-coltype {
   flex: none; max-width: 76px; margin-left: 4px; padding: 0 2px;
   font: inherit; font-size: 11px; color: var(--muted, inherit); background: transparent;
-  border: 0; cursor: pointer; opacity: 0.7;
+  border: 0; cursor: pointer; opacity: 0;
 }
-.work-coltype:hover, .work-coltype:focus { opacity: 1; outline: none; color: var(--ink, inherit); }
+/* The header reads as a table header; its controls show on hover/focus (always, dim, on touch). */
+.work-colhead:hover .work-coltype, .work-colhead:focus-within .work-coltype, .work-coltype:focus { opacity: 0.8; outline: none; }
+.work-coltype:hover, .work-coltype:focus { opacity: 1; color: var(--ink, inherit); }
+@media (hover: none) { .work-coltype { opacity: 0.5; } .work-coltotal { opacity: 0.5; } }
 .work-coltotal {
   flex: none; padding: 0 4px; font: inherit; font-size: 12px; background: transparent; border: 0; cursor: pointer;
-  color: var(--muted, inherit); opacity: 0.6;
+  color: var(--muted, inherit); opacity: 0;
 }
+.work-colhead:hover .work-coltotal, .work-colhead:focus-within .work-coltotal { opacity: 0.7; }
 .work-coltotal[aria-pressed='true'] { color: var(--signal, inherit); opacity: 1; }
 .work-sheet-note { margin-left: auto; font-size: 12px; color: var(--muted, inherit); }
 .work-recipe {

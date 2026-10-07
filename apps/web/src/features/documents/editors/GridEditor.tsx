@@ -39,6 +39,7 @@ export function GridEditor({ doc }: { doc: DocumentRecord }) {
 
   const dataset = doc.sheet?.mode === 'dataset' ? datasetAdapter(doc.sheet.dataset) : null
   const sheet = doc.sheet?.mode === 'sheet' ? doc.sheet : null
+  const generated = !!doc.shared?.generated
   const current = useCurrentWorkspace()
   const workspaceId = dataset ? (current.workspace?.id ?? null) : null
   const live = useDatasetRows(workspaceId)
@@ -56,8 +57,9 @@ export function GridEditor({ doc }: { doc: DocumentRecord }) {
   const numeric = useMemo(() => new Set((sheet?.columns ?? []).filter((c) => c.type === 'number' || c.type === 'money').map((c) => c.id)), [sheet])
   const shown = useMemo(() => visibleRows(source, filter, sort, (key) => numeric.has(key)), [source, filter, sort, numeric])
   const displayed = useMemo(
-    () => (sheet && !filter.trim() ? padRows(shown, keys, Math.max(capacity, shown.length + 1 + tail)) : shown),
-    [sheet, filter, shown, keys, capacity, tail],
+    // A generated sheet is a finished artifact: one blank row to add to, not a screen of them.
+    () => (sheet && !filter.trim() ? padRows(shown, keys, generated ? shown.length + 1 + tail : Math.max(capacity, shown.length + 1 + tail)) : shown),
+    [sheet, filter, shown, keys, capacity, tail, generated],
   )
   const indexOf = useMemo(() => new Map(displayed.map((row, index) => [row.id, index])), [displayed])
   const remoteIds = useMemo(() => new Set(peers.flatMap((peer) => (peer.focus?.kind === 'cell' && peer.focus.id ? [peer.focus.id] : []))), [peers])

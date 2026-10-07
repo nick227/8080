@@ -403,7 +403,7 @@ export async function textAnswer(item: { roomId: string; itemId: string; actorId
     const step = run.stepId === ABOUT.id ? { id: ABOUT.id, max: ABOUT.max } : STEP.get(run.stepId)
     if (!step || ('kind' in step && step.kind !== 'text')) return null
     const text = item.text?.trim() ?? ''
-    if (!text) return item.hasMedia ? { says: [{ text: 'For now, please type your answer.' }], generate: false } : null
+    if (!text) return item.hasMedia ? { says: [{ text: 'Please type your answer.' }], generate: false } : null
     if (text.length > step.max) return { says: [{ text: `Please keep it under ${step.max} characters.` }], generate: false }
     return answer(tx, run, { stepId: step.id, kind: 'text', text, itemId: item.itemId })
   })
