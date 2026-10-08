@@ -1,6 +1,7 @@
 import { useSession } from '@project/sdk'
 import { AgentsDesk } from '../agents/AgentsDesk'
 import { CalendarExperience } from '../calendar/CalendarExperience'
+import { CompanyDesk } from '../company/CompanyDesk'
 import { DocumentsExperience } from '../documents/DocumentsExperience'
 import { ContactsDesk } from '../inbox/ContactsDesk'
 import { InventoryDesk } from '../inventory/InventoryDesk'
@@ -14,7 +15,9 @@ export function WorkPage({ place, roomId, onPlace }: { place: Exclude<Desk, 'tea
   const empty = deskEmpty(place)
   return (
     <section className="work-page" aria-label={label}>
-      {place === 'documents' ? (
+      {place === 'company' ? (
+        <CompanyDesk onPlace={onPlace} />
+      ) : place === 'documents' ? (
         <DocumentsExperience roomId={roomId} owner={owner} />
       ) : place === 'inbox' ? (
         <InboxExperience onPlace={onPlace} />

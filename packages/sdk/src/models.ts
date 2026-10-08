@@ -137,6 +137,8 @@ export type Compose = S['Compose']
 
 // Communication agents (docs/agents)
 export type EmailConnection = S['EmailConnection']
+export type CreateEmailConnectionInput = S['CreateEmailConnectionInput']
+export type UpdateEmailConnectionInput = S['UpdateEmailConnectionInput']
 export type AgentType = S['AgentType']
 export type Agent = S['Agent']
 export type AgentSchedule = S['AgentSchedule']

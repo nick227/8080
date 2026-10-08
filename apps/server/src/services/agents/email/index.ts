@@ -1,9 +1,10 @@
-// Picks the provider for a connection. Only "Send with 8080" exists in S0; the
-// "use my own" strategies (SMTP, Google, Microsoft, Resend domain) arrive in S5.
+// Picks the provider for a connection. "Send with 8080" (platform) and the first
+// "use my own" strategy, SMTP; Google, Microsoft and Resend domain come later.
 import type { EmailConnection } from '@project/db'
 import { DevOutboxProvider } from './devOutbox'
 import { ResendPlatformProvider } from './resendPlatform'
 import { platformFrom } from './platform'
+import { SmtpProvider } from './smtp'
 import type { EmailProvider } from './provider'
 
 export * from './provider'
@@ -42,9 +43,15 @@ export function setEmailProvider(provider: EmailProvider | null) {
 }
 
 const dev = new DevOutboxProvider()
+const smtp = new SmtpProvider()
 
+/**
+ * The platform follows emailTransport(). An own SMTP sender always sends for real,
+ * in every environment: someone entered those mailbox credentials to send with them.
+ */
 export function providerFor(connection: EmailConnection): EmailProvider {
   if (override) return override
+  if (connection.strategy === 'smtp') return smtp
   if (connection.strategy !== 'platform') throw new Error(`Email strategy ${connection.strategy} is not available yet`)
   return emailTransport() === 'resend' ? new ResendPlatformProvider() : dev
 }

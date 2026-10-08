@@ -8,12 +8,14 @@ import {
   useCreateInventoryItem,
   useUpdateContact,
   useUpdateInventoryItem,
+  useTags,
   useWorkspaceMembers,
+  useWorkspaceVocabulary,
   type Contact,
   type ContactRef,
   type InventoryItem,
 } from '@project/sdk'
-import { RecordFormDialog } from './RecordChrome'
+import { FormSlideout } from '../work/FormSlideout'
 import { ContactFields, InventoryFields, type FormDraft } from './formFields'
 import type { RecordKind } from './navigation'
 
@@ -42,9 +44,10 @@ export function RecordForm({
     email: contact?.primaryEmail ?? '',
     phone: contact?.primaryPhone ?? '',
     company: primary?.name ?? '',
-    stage: contact?.leadStatus ?? 'new',
+    stage: contact?.leadStatus ?? '',
     ownerId: contact?.ownerMemberId ?? '',
     source: contact?.leadSource ?? '',
+    tagIds: contact?.tags.map((tag) => tag.id) ?? [],
     price: item ? String(item.price) : '',
     sku: item?.sku ?? '',
     category: item?.category ?? '',
@@ -64,6 +67,13 @@ export function RecordForm({
   const [skuConflictId, setSkuConflictId] = useState<string | null>(null)
   const [createdId, setCreatedId] = useState<string | null>(null)
   const members = useWorkspaceMembers(kind === 'contacts' ? workspaceId : undefined)
+  const vocabulary = useWorkspaceVocabulary(workspaceId)
+  const tags = useTags(kind === 'contacts' ? workspaceId : undefined)
+  const inventoryCategories = vocabulary.data?.categories ?? []
+  const contactCategories = tags.data ?? []
+  const stages = (vocabulary.data?.stages ?? [])
+    .filter((s) => !s.archived)
+    .map((s) => ({ key: s.key, label: s.label }))
   const createContact = useCreateContact(workspaceId)
   const createAccount = useCreateAccount(workspaceId)
   const createItem = useCreateInventoryItem(workspaceId)
@@ -169,9 +179,10 @@ export function RecordForm({
     ]
     const body = {
       displayName: form.name.trim(),
-      leadStatus: form.stage,
+      leadStatus: form.stage || undefined,
       ownerMemberId: form.ownerId || null,
       leadSource: form.source.trim() || null,
+      tagIds: form.tagIds,
       points: points.length ? points : contact ? [] : undefined,
       accounts:
         !contact && form.company.trim()
@@ -217,7 +228,7 @@ export function RecordForm({
   const title = `${contact || item ? 'Edit' : 'Add'} ${kind === 'contacts' ? 'contact' : 'inventory item'}`
   if (duplicates && createdId)
     return (
-      <RecordFormDialog title="Possible duplicates" onClose={() => finish(createdId)}>
+      <FormSlideout title="Possible duplicates" onClose={() => finish(createdId)}>
         <div className="record-form-fields">
           <p>Created. These contacts may already cover the same person:</p>
           <ul className="record-related">
@@ -243,10 +254,10 @@ export function RecordForm({
             </button>
           </footer>
         </div>
-      </RecordFormDialog>
+      </FormSlideout>
     )
   return (
-    <RecordFormDialog title={title} onClose={close}>
+    <FormSlideout title={title} onClose={close}>
       <form className="record-form" onSubmit={save}>
         <div className="record-form-fields">
           {restoredDraft && (
@@ -261,9 +272,18 @@ export function RecordForm({
               fieldError={fieldError}
               members={members.data ?? []}
               creating={!contact}
+              stages={stages.length ? stages : undefined}
+              categories={contactCategories}
             />
           ) : (
-            <InventoryFields form={form} set={set} fieldError={fieldError} currency={currency} item={item} />
+            <InventoryFields
+              form={form}
+              set={set}
+              fieldError={fieldError}
+              currency={currency}
+              item={item}
+              categories={inventoryCategories}
+            />
           )}
           {error && (
             <p role="alert" className="record-error">
@@ -288,14 +308,22 @@ export function RecordForm({
           </button>
         </footer>
       </form>
-    </RecordFormDialog>
+    </FormSlideout>
   )
 }
 
 function readDraft(key: string, initial: FormDraft) {
   try {
     const saved = JSON.parse(sessionStorage.getItem(key) || 'null')
-    if (saved && Object.keys(initial).every((k) => typeof saved[k] === typeof initial[k as keyof FormDraft]))
+    if (
+      saved &&
+      Object.keys(initial).every((k) => {
+        const a = saved[k]
+        const b = initial[k as keyof FormDraft]
+        if (Array.isArray(b)) return Array.isArray(a)
+        return typeof a === typeof b
+      })
+    )
       return saved as FormDraft
   } catch {
     /* Storage may be unavailable. */

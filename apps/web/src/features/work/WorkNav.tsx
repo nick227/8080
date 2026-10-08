@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { Desk } from './sections'
 import { DESKS } from './sections'
@@ -8,8 +8,9 @@ import { SearchIcon } from '../../components/icons'
 
 const SEARCHABLE: Desk[] = ['contacts', 'inventory']
 
-export function WorkNav({ desk, teamActive, onSelect }: {
+export function WorkNav({ desk, teamActive, onSelect, layoutControl }: {
   desk: Desk
+  layoutControl?: ReactNode
   teamActive: boolean
   onSelect: (desk: Desk) => void
 }) {
@@ -25,16 +26,17 @@ export function WorkNav({ desk, teamActive, onSelect }: {
     if (!searchable || value === q) return
     const timer = window.setTimeout(() => {
       const next = new URLSearchParams(location.search)
+      if (desk === 'contacts') { next.delete('record'); next.delete('preview'); next.delete('previewKind') }
       const trimmed = value.trim()
       if (trimmed) next.set('q', trimmed)
       else next.delete('q')
       navigate({ search: next.toString() }, { replace: true })
     }, 200)
     return () => window.clearTimeout(timer)
-  }, [value, q, searchable, location.search, navigate])
+  }, [value, q, searchable, location.search, navigate, desk])
 
   return (
-    <nav className="work-nav" aria-label="Workspace">
+    <nav className="work-nav" aria-label="Workspace" data-desk={desk}>
       {DESKS.map((item) => {
         const current = item.id === 'team' ? teamActive : desk === item.id
         return (
@@ -51,12 +53,13 @@ export function WorkNav({ desk, teamActive, onSelect }: {
       })}
       
       <div className="work-nav-search">
+        {layoutControl}
         <ActiveUsersWidget />
         <div className="work-search">
           <input
             ref={searchRef}
             type="search"
-            placeholder={`Search ${label}...`}
+            placeholder={desk === 'contacts' ? 'Search contacts, companies, interests…' : `Search ${label}...`}
             aria-label={`Search ${label}`}
             value={searchable ? value : ''}
             disabled={!searchable}

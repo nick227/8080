@@ -1,11 +1,14 @@
+import { listWorkbench, contactFieldDefinitions, validateWorkbenchInput, type WorkbenchQuery } from './contactWorkbench'
 import type { ContactsQuery } from '@project/shared'
 import { contactsWhere, queryHash } from './contactDataset'
 // Contacts (doc/09 §4.1). Email is a match signal, never a unique key (D2):
 // create never refuses a duplicate — it reports possible ones — and duplicates
 // are resolved by merge. Every mutation is a runAction (audit + timeline).
-import { db, Prisma, type ContactPointKind, type LeadStatus, type RecordStatus } from '@project/db'
+import { db, Prisma, type ContactPointKind, type RecordStatus } from '@project/db'
+import { contactTransitions, produceBusinessEvent } from './agents/businessTriggers'
+import { defaultContactStage, pipelineService } from './PipelineService'
 import { badRequest, conflict, notFound } from '../lib/errors'
-import { decodeKeyCursor, encodeKeyCursor, normalizeLimit, page } from '../lib/pagination'
+import { decodeKeyCursor, encodeKeyCursor, normalizeLimit } from '../lib/pagination'
 import { contactInclude, toAccountRef, toContact, toContactRef, type ContactRow } from '../lib/serialize'
 import { localDayBounds } from '../lib/workspaceDay'
 import { diff, runAction, subjectKey, type SubjectRef } from './actions'
@@ -16,24 +19,24 @@ import { memberActor, type WorkspaceCtx } from './WorkspaceService'
 import { authorize, permit } from './workspacePolicy'
 
 type Tx = Prisma.TransactionClient
-export type ContactFocus = 'due' | 'overdue' | 'unassigned'
-export type ContactSort = 'name' | 'followUp' | 'updated' | 'activity'
-type ContactListOpts = {
-  q?: string
-  leadStatus?: LeadStatus
-  ownerMemberId?: string
-  tagId?: string
-  accountId?: string
-  status?: RecordStatus
-  focus?: ContactFocus
-  sort?: ContactSort
-  dir?: 'asc' | 'desc'
-  cursor?: string
-  limit?: number
-}
+type ContactListOpts = WorkbenchQuery
 
 export type PointInput = { kind: ContactPointKind; value: string; label?: string | null; isPrimary?: boolean; shared?: boolean }
 export type ContactInput = {
+  contacted?: boolean
+  qualified?: boolean
+  proposalSent?: boolean
+  won?: boolean
+  nextAction?: string | null
+  interestedIn?: string | null
+  lastContactedAt?: string | null
+  priority?: string
+  waitingOn?: string | null
+  potentialValue?: number | null
+  fieldValues?: Record<string, string | number | boolean | null>
+  logContact?: boolean
+  undoLogContact?: boolean
+  contactLog?: { channel: 'email' | 'phone' | 'text' | 'other'; outcome: 'sent' | 'connected' | 'noAnswer' | 'leftMessage'; note?: string }
   firstName?: string | null
   lastName?: string | null
   displayName?: string | null
@@ -41,7 +44,7 @@ export type ContactInput = {
   status?: RecordStatus
   ownerMemberId?: string | null
   teamId?: string | null
-  leadStatus?: LeadStatus | null
+  leadStatus?: string | null
   leadSource?: string | null
   nextFollowUp?: string | null
   points?: PointInput[]
@@ -144,26 +147,12 @@ export class ContactService {
 
   async list(userId: string, workspaceId: string, opts: ContactListOpts) {
     const actor = await authorize(userId, workspaceId, 'record.read')
-    const limit = normalizeLimit(opts.limit)
-    const sort = opts.sort ?? 'name'
-    const dir = opts.dir === 'desc' ? 'desc' : 'asc'
-    if (opts.focus && !['due', 'overdue', 'unassigned'].includes(opts.focus)) throw badRequest('Unknown contact focus', 'INVALID_FOCUS')
-    if (opts.sort && !['name', 'followUp', 'updated', 'activity'].includes(opts.sort)) throw badRequest('Unknown sort', 'INVALID_SORT')
-    const where = this.listWhere(workspaceId, opts, actor.workspace.timezone)
-    const cursor = decodeKeyCursor<{ v: string | null; id: string; sort: string; dir: string }>(opts.cursor)
-    if (cursor) {
-      if (cursor.sort !== sort || cursor.dir !== dir) throw badRequest('Invalid cursor')
-      where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), this.cursorClause(sort, dir, cursor)]
-    }
-    const orderBy = this.orderBy(sort, dir)
-    const [rows, total] = await Promise.all([
-      db.contact.findMany({ where, include: contactInclude, orderBy, take: limit + 1 }),
-      db.contact.count({ where: this.listWhere(workspaceId, opts, actor.workspace.timezone) }),
-    ])
-    const result = page(rows, limit, (last) =>
-      encodeKeyCursor({ v: this.sortValue(last, sort), id: last.id, sort, dir }),
-    )
-    return { data: result.data.map(toContact), meta: { ...result.meta, total } }
+    return listWorkbench(workspaceId, actor.workspace.timezone, opts)
+  }
+
+  async fields(userId: string, workspaceId: string) {
+    await authorize(userId, workspaceId, 'record.read')
+    return { data: await contactFieldDefinitions(workspaceId) }
   }
 
   async counts(userId: string, workspaceId: string) {
@@ -171,11 +160,12 @@ export class ContactService {
     const base = { workspaceId, deletedAt: null as Date | null }
     const active = { ...base, status: 'active' as const }
     const timezone = actor.workspace.timezone
+    const openKeys = await pipelineService.openKeys(workspaceId)
     const [all, due, overdue, unassigned, archived] = await Promise.all([
       db.contact.count({ where: active }),
-      db.contact.count({ where: this.listWhere(workspaceId, { status: 'active', focus: 'due' }, timezone) }),
-      db.contact.count({ where: this.listWhere(workspaceId, { status: 'active', focus: 'overdue' }, timezone) }),
-      db.contact.count({ where: this.listWhere(workspaceId, { status: 'active', focus: 'unassigned' }, timezone) }),
+      db.contact.count({ where: this.listWhere(workspaceId, { status: 'active', focus: 'due' }, timezone, openKeys) }),
+      db.contact.count({ where: this.listWhere(workspaceId, { status: 'active', focus: 'overdue' }, timezone, openKeys) }),
+      db.contact.count({ where: this.listWhere(workspaceId, { status: 'active', focus: 'unassigned' }, timezone, openKeys) }),
       db.contact.count({ where: { ...base, status: 'archived' } }),
     ])
     return { data: { all, due, overdue, unassigned, archived } }
@@ -184,42 +174,43 @@ export class ContactService {
   async bulk(
     userId: string,
     workspaceId: string,
-    input: { ids: string[]; action: 'archive' | 'restore' | 'setStage'; leadStatus?: LeadStatus },
+    input: { ids: string[]; action: 'archive' | 'restore' | 'setStage'; leadStatus?: string },
   ) {
     await authorize(userId, workspaceId, 'record.write')
     const ids = [...new Set(input.ids.map((id) => id.trim()).filter(Boolean))]
     if (!ids.length) throw badRequest('Select at least one contact', 'EMPTY_BULK')
     if (ids.length > 50) throw badRequest('At most 50 contacts at a time', 'BULK_TOO_LARGE')
     if (input.action === 'setStage' && !input.leadStatus) throw badRequest('Choose a lead stage', 'MISSING_STAGE')
+    const stage = input.action === 'setStage' ? await pipelineService.assertActiveKey(workspaceId, input.leadStatus) : null
     const data =
       input.action === 'archive'
         ? { status: 'archived' as const }
         : input.action === 'restore'
           ? { status: 'active' as const }
-          : { leadStatus: input.leadStatus! }
-    const result = await db.contact.updateMany({
-      where: { workspaceId, deletedAt: null, id: { in: ids } },
-      data: { ...data, version: { increment: 1 } },
+          : { leadStatus: stage! }
+    const result = await db.$transaction(async tx => {
+      const rows = await tx.contact.findMany({ where: { workspaceId, deletedAt: null, mergedIntoId: null, id: { in: ids } }, include: contactInclude })
+      for (const before of rows) {
+        const updated = await tx.contact.updateMany({ where: { id: before.id, version: before.version }, data: { ...data, version: { increment: 1 } } })
+        if (!updated.count) throw conflict('A selected contact changed; reload before retrying', 'CONTACT_VERSION_CONFLICT')
+        await contactTransitions(tx, workspaceId, before, await loadContact(tx, before.id), new Date())
+      }
+      return { count: rows.length }
     })
     return { data: { updated: result.count } }
   }
 
-  private listWhere(workspaceId: string, opts: ContactListOpts, timezone: string): Prisma.ContactWhereInput {
+  private listWhere(workspaceId: string, opts: ContactListOpts, timezone: string, openKeys: string[]): Prisma.ContactWhereInput {
     const q = opts.q?.trim()
     const { start, end } = localDayBounds(timezone)
+    const open = openKeys.length ? { leadStatus: { in: openKeys }, won: false } : { won: false }
     const focusWhere: Prisma.ContactWhereInput =
       opts.focus === 'unassigned'
         ? { ownerMemberId: null }
         : opts.focus === 'due'
-          ? {
-              nextFollowUp: { gte: start, lt: end },
-              leadStatus: { notIn: ['customer', 'lost'] },
-            }
+          ? { nextFollowUp: { gte: start, lt: end }, ...open }
           : opts.focus === 'overdue'
-            ? {
-                nextFollowUp: { lt: start },
-                leadStatus: { notIn: ['customer', 'lost'] },
-              }
+            ? { nextFollowUp: { lt: start }, ...open }
             : {}
     return {
       workspaceId,
@@ -231,46 +222,6 @@ export class ContactService {
       ...(opts.accountId ? { accounts: { some: { accountId: opts.accountId, endedAt: null } } } : {}),
       ...(q ? { OR: [{ displayName: { contains: q } }, { points: { some: { normalized: { startsWith: q.toLowerCase() } } } }] } : {}),
       ...focusWhere,
-    }
-  }
-
-  private orderBy(sort: ContactSort, dir: 'asc' | 'desc'): Prisma.ContactOrderByWithRelationInput[] {
-    const tip = dir === 'desc' ? ('desc' as const) : ('asc' as const)
-    if (sort === 'followUp') return [{ nextFollowUp: tip }, { id: tip }]
-    if (sort === 'updated') return [{ updatedAt: tip }, { id: tip }]
-    if (sort === 'activity') return [{ lastActivityAt: tip }, { id: tip }]
-    return [{ displayName: tip }, { id: tip }]
-  }
-
-  private sortValue(row: { displayName: string; nextFollowUp: Date | null; updatedAt: Date; lastActivityAt: Date | null }, sort: ContactSort) {
-    if (sort === 'followUp') return row.nextFollowUp?.toISOString() ?? null
-    if (sort === 'updated') return row.updatedAt.toISOString()
-    if (sort === 'activity') return row.lastActivityAt?.toISOString() ?? null
-    return row.displayName
-  }
-
-  private cursorClause(
-    sort: ContactSort,
-    dir: 'asc' | 'desc',
-    cursor: { v: string | null; id: string },
-  ): Prisma.ContactWhereInput {
-    const gt = dir === 'asc'
-    const field =
-      sort === 'followUp' ? 'nextFollowUp' : sort === 'updated' ? 'updatedAt' : sort === 'activity' ? 'lastActivityAt' : 'displayName'
-    if (cursor.v === null) {
-      return {
-        OR: [
-          { [field]: null, id: gt ? { gt: cursor.id } : { lt: cursor.id } },
-          ...(gt ? [] : [{ [field]: { not: null } }]),
-        ],
-      }
-    }
-    const value = sort === 'name' ? cursor.v : new Date(cursor.v)
-    return {
-      OR: [
-        { [field]: gt ? { gt: value } : { lt: value } },
-        { [field]: value, id: gt ? { gt: cursor.id } : { lt: cursor.id } },
-      ],
     }
   }
 
@@ -294,12 +245,25 @@ export class ContactService {
     const accounts = input.accounts ?? []
     for (const a of accounts) await liveAccount(db, workspaceId, a.accountId)
 
+    await validateWorkbenchInput(workspaceId, input)
+    const leadStatus = input.leadStatus ? (await pipelineService.assertActiveKey(workspaceId, input.leadStatus))! : await defaultContactStage(db, workspaceId)
     const contact = await runAction(
       { action: 'contact.create', workspaceId, actor: memberActor(actor), origin: ctx.origin, input, target: { type: 'contact' } },
       async (tx) => {
         const created = await tx.contact.create({
           data: {
             workspaceId,
+            contacted: input.contacted,
+            qualified: input.qualified,
+            proposalSent: input.proposalSent,
+            won: input.won,
+            nextAction: blank(input.nextAction),
+            interestedIn: blank(input.interestedIn),
+            lastContactedAt: input.lastContactedAt ? new Date(input.lastContactedAt) : null,
+            priority: input.priority,
+            waitingOn: input.waitingOn,
+            potentialValue: input.potentialValue,
+            fieldValues: input.fieldValues,
             firstName: blank(input.firstName),
             lastName: blank(input.lastName),
             displayName,
@@ -307,7 +271,7 @@ export class ContactService {
             status: input.status,
             ownerMemberId: input.ownerMemberId ?? null,
             teamId: input.teamId ?? null,
-            leadStatus: input.leadStatus === undefined ? 'new' : input.leadStatus,
+            leadStatus,
             leadSource: blank(input.leadSource),
             nextFollowUp: input.nextFollowUp === undefined ? null : (input.nextFollowUp ? new Date(input.nextFollowUp) : null),
             origin: ctx.origin === 'ui' ? 'manual' : 'api',
@@ -322,6 +286,7 @@ export class ContactService {
         for (const a of new Map(accounts.map((a) => [a.accountId, a])).values()) {
           await tx.contactAccount.create({ data: { workspaceId, contactId: created.id, accountId: a.accountId, role: blank(a.role), isPrimary: a === primary } })
         }
+        await contactTransitions(tx, workspaceId, null, await loadContact(tx, created.id), created.createdAt)
         const subjects: SubjectRef[] = [{ contactId: created.id }, ...accounts.map((a) => ({ accountId: a.accountId }))]
         return {
           value: await loadContact(tx, created.id),
@@ -355,6 +320,7 @@ export class ContactService {
     const actor = await authorize(ctx.user.id, workspaceId, 'record.write')
     const before = await db.contact.findFirst({ where: { id: contactId, workspaceId, deletedAt: null }, include: contactInclude })
     if (!before) throw notFound('Contact not found')
+    await validateWorkbenchInput(workspaceId, input)
     const points = input.points ? preparePoints(input.points) : null
     // An explicit name wins; clearing it or changing first/last re-derives it.
     const rederive = 'displayName' in input || 'firstName' in input || 'lastName' in input
@@ -370,6 +336,9 @@ export class ContactService {
       : before.displayName
     await assertAssignees(workspaceId, input)
     await assertTags(workspaceId, input.tagIds)
+    const leadStatus = 'leadStatus' in input
+      ? ((await pipelineService.assertActiveKey(workspaceId, input.leadStatus)) ?? before.leadStatus)
+      : undefined
 
     return runAction(
       { action: 'contact.update', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { contactId, ...input }, idempotencyKey: input.idempotencyKey, target: { type: 'contact', id: contactId } },
@@ -382,6 +351,17 @@ export class ContactService {
         await tx.contact.update({
           where: { id: contactId },
           data: {
+            contacted: input.logContact ? true : input.contacted,
+            qualified: input.qualified,
+            proposalSent: input.proposalSent,
+            won: input.won,
+            nextAction: 'nextAction' in input ? blank(input.nextAction) : undefined,
+            interestedIn: 'interestedIn' in input ? blank(input.interestedIn) : undefined,
+            lastContactedAt: input.logContact ? new Date() : 'lastContactedAt' in input ? (input.lastContactedAt ? new Date(input.lastContactedAt) : null) : undefined,
+            priority: input.priority,
+            waitingOn: input.waitingOn,
+            potentialValue: input.potentialValue,
+            fieldValues: input.fieldValues ? { ...(before.fieldValues as Record<string, Prisma.JsonValue> ?? {}), ...input.fieldValues } : undefined,
             firstName: 'firstName' in input ? blank(input.firstName) : undefined,
             lastName: 'lastName' in input ? blank(input.lastName) : undefined,
             displayName,
@@ -389,7 +369,7 @@ export class ContactService {
             status: input.status,
             ownerMemberId: input.ownerMemberId,
             teamId: input.teamId,
-            leadStatus: 'leadStatus' in input ? input.leadStatus : undefined,
+            leadStatus,
             leadSource: 'leadSource' in input ? blank(input.leadSource) : undefined,
             nextFollowUp: 'nextFollowUp' in input ? (input.nextFollowUp ? new Date(input.nextFollowUp) : null) : undefined,
             externalProvider: 'externalProvider' in input ? blank(input.externalProvider) : undefined,
@@ -399,13 +379,17 @@ export class ContactService {
         if (points) await writePoints(tx, workspaceId, contactId, points)
         if (input.tagIds) await replaceTags(tx, 'contact', workspaceId, contactId, input.tagIds)
         const after = await loadContact(tx, contactId)
-        const changes = diff(before, after, ['firstName', 'lastName', 'displayName', 'title', 'status', 'ownerMemberId', 'teamId', 'leadStatus', 'leadSource', 'nextFollowUp', 'externalProvider', 'externalId'])
+        await contactTransitions(tx, workspaceId, before, after, after.updatedAt)
+        if (input.logContact && after.lastContactedAt) await produceBusinessEvent(tx, workspaceId, { contactId, kind: 'outreach_sent', sourceKey: `contact:${contactId}:v${after.version}:outreach`, occurredAt: after.lastContactedAt })
+        const changes = diff(before, after, ['firstName', 'lastName', 'displayName', 'title', 'status', 'ownerMemberId', 'teamId', 'leadStatus', 'leadSource', 'nextFollowUp', 'externalProvider', 'externalId', 'contacted', 'qualified', 'proposalSent', 'won', 'nextAction', 'interestedIn', 'lastContactedAt', 'priority', 'waitingOn', 'potentialValue', 'fieldValues'])
         if (points) {
           const [a, b] = [pointsSnapshot(before.points), pointsSnapshot(after.points)]
           if (a.join('\n') !== b.join('\n')) changes.points = [a, b]
         }
         const subjects = [{ contactId }]
         const activities = []
+        if (input.logContact) activities.push({ type: 'contact.contacted', summary: { contactId, name: after.displayName, ...input.contactLog }, subjects })
+        if (input.undoLogContact) activities.push({ type: 'contact.outreach_retracted', summary: { contactId, name: after.displayName }, subjects })
         if (changes.ownerMemberId) activities.push({ type: 'owner.changed', summary: { contactId, name: after.displayName, from: before.ownerMemberId, to: after.ownerMemberId }, subjects })
         if (changes.status) activities.push({ type: after.status === 'archived' ? 'contact.archived' : 'contact.restored', summary: { contactId, name: after.displayName }, subjects })
         const value = toContact(after)
@@ -505,7 +489,12 @@ export class ContactService {
           }
         }
         const points = await tx.contactPoint.findMany({ where: { contactId: winner.id } })
-        await tx.contact.update({ where: { id: winner.id }, data: { version: { increment: 1 }, primaryEmail: primaryOf(points, 'email'), primaryPhone: primaryOf(points, 'phone') } })
+        await tx.contact.update({ where: { id: winner.id }, data: { version: { increment: 1 }, primaryEmail: primaryOf(points, 'email'), primaryPhone: primaryOf(points, 'phone'),
+          contacted: winner.contacted || loser.contacted, qualified: winner.qualified || loser.qualified,
+          proposalSent: winner.proposalSent || loser.proposalSent, won: winner.won || loser.won,
+          lastContactedAt: !winner.lastContactedAt ? loser.lastContactedAt : !loser.lastContactedAt ? winner.lastContactedAt : winner.lastContactedAt > loser.lastContactedAt ? winner.lastContactedAt : loser.lastContactedAt,
+          fieldValues: { ...(loser.fieldValues as Record<string, Prisma.JsonValue> ?? {}), ...(winner.fieldValues as Record<string, Prisma.JsonValue> ?? {}) },
+        } })
 
         // Accounts: keep the winner's row where both have one; one primary.
         const winnerAccounts = new Set((await tx.contactAccount.findMany({ where: { contactId: winner.id } })).map((ca) => ca.accountId))

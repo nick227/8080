@@ -2,9 +2,9 @@ import { type MouseEvent } from 'react'
 import {
   useUpdateContact,
   useUpdateInventoryItem,
+  useWorkspaceVocabulary,
   type Contact,
   type InventoryItem,
-  type LeadStatus,
 } from '@project/sdk'
 import { RecordMedia } from './RecordChrome'
 import {
@@ -112,6 +112,9 @@ export function CollectionRow({
 function InlineStage({ contact, workspaceId }: { contact: Contact; workspaceId: string }) {
   const update = useUpdateContact(workspaceId)
   const feedback = useSaveFeedback(update.isPending, update.error)
+  const vocabulary = useWorkspaceVocabulary(workspaceId)
+  const stages = (vocabulary.data?.stages ?? []).filter((s) => !s.archived)
+  const options = stages.length ? stages : STAGES.map((key) => ({ key, label: titleCase(key) }))
   return (
     <span className="record-tile-state">
       <select
@@ -123,13 +126,13 @@ function InlineStage({ contact, workspaceId }: { contact: Contact; workspaceId: 
           update.mutate({
             contactId: contact.id,
             expectedVersion: contact.version,
-            leadStatus: e.target.value as LeadStatus,
+            leadStatus: e.target.value,
           })
         }
       >
-        {STAGES.map((stage) => (
-          <option key={stage} value={stage}>
-            {titleCase(stage)}
+        {options.map((stage) => (
+          <option key={stage.key} value={stage.key}>
+            {stage.label}
           </option>
         ))}
       </select>

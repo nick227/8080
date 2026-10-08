@@ -1,3 +1,4 @@
+import { defaultContactStage } from './PipelineService'
 // "Import as contacts" (doc/10 §7A step 5, doc/09 §9.1): the explicit canonical
 // import. An ordinary spreadsheet import (DocumentService.importCsv) only makes a
 // native grid and never touches contacts; this service is the one path from a
@@ -498,6 +499,7 @@ export class ContactImportService {
     const points = preparePoints(pointInputs)
     const contact = await tx.contact.create({
       data: {
+        leadStatus: await defaultContactStage(tx, workspaceId),
         workspaceId,
         firstName: values.firstName?.slice(0, 80) ?? null,
         lastName: values.lastName?.slice(0, 80) ?? null,

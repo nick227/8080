@@ -3,8 +3,10 @@
  *  fill the same shape from a sentence, and the server validates it either way.
  *  Dates are workspace-local calendar days (YYYY-MM-DD); `to` is inclusive. */
 
-export const LEAD_STATUSES = ['new', 'contacting', 'connected', 'qualified', 'customer', 'lost'] as const
-export type LeadStatusValue = typeof LEAD_STATUSES[number]
+import { LEGACY_LEAD_STATUSES } from './pipeline'
+/** @deprecated Prefer workspace pipeline stages; kept for sheet presets. */
+export const LEAD_STATUSES = LEGACY_LEAD_STATUSES
+export type LeadStatusValue = (typeof LEAD_STATUSES)[number]
 
 export const CONTACT_SHEET_COLUMNS = ['name', 'company', 'title', 'email', 'phone', 'leadStatus', 'leadSource', 'nextFollowUp', 'lastActivity', 'owner', 'created'] as const
 export type ContactSheetColumn = typeof CONTACT_SHEET_COLUMNS[number]
@@ -19,7 +21,8 @@ export type ContactSheetQuery = {
   /** Required unless grouped; a grouped sheet has fixed columns. */
   columns?: ContactSheetColumn[]
   filters?: {
-    leadStatus?: LeadStatusValue[]
+    /** Pipeline stage keys (workspace-scoped). */
+    leadStatus?: string[]
     followUp?: DayWindow
     /** Only contacts with no follow-up date. */
     noFollowUp?: boolean

@@ -2,11 +2,41 @@
 // 1–4). Every workspace has "Send with 8080" from creation; nobody creates it. Agents
 // point at a connection (or the default); credentials never leave this layer.
 import { db, Prisma, type EmailConnection } from '@project/db'
-import { badRequest, notFound } from '../../lib/errors'
+import { badRequest, conflict, notFound } from '../../lib/errors'
+import { decryptSecret, encryptSecret } from '../../lib/secrets'
 import { runAction } from '../actions'
 import { authorize } from '../workspacePolicy'
 import { memberActor, type WorkspaceCtx } from '../WorkspaceService'
 import { isEmailAddress, platformIdentity, providerFor } from './email'
+import { smtpHostProblem, type SmtpSecret, type SmtpSecurity } from './email/smtp'
+
+export type SmtpInput = { host: string; port: number; security: SmtpSecurity; username: string; password: string }
+export type CreateConnectionInput = { strategy: 'smtp'; displayName: string; fromAddress: string; replyTo?: string | null; smtp: SmtpInput; makeDefault?: boolean }
+export type UpdateConnectionInput = {
+  displayName?: string
+  replyTo?: string | null
+  fromAddress?: string
+  /** Own senders only; omitted fields keep their value (the password is write-only). */
+  smtp?: Partial<SmtpInput>
+  makeDefault?: boolean
+}
+
+async function smtpProblem(smtp: SmtpInput) {
+  if (!smtp.username.trim() || !smtp.password) return 'Enter the mailbox user name and password'
+  if (smtp.security !== 'implicit' && smtp.security !== 'starttls') return 'Choose how the connection is secured'
+  return smtpHostProblem(smtp.host.trim(), smtp.port)
+}
+
+/** Public SMTP details for editing (never the password). */
+function smtpDetails(c: EmailConnection) {
+  if (c.strategy !== 'smtp' || !c.secret) return null
+  try {
+    const s = decryptSecret<SmtpSecret>(c.secret)
+    return { host: s.host, port: s.port, security: s.security, username: s.username }
+  } catch {
+    return null
+  }
+}
 
 type Tx = Prisma.TransactionClient
 
@@ -68,7 +98,14 @@ export function toEmailConnection(c: EmailConnection) {
     isDefault: c.defaultFor === c.workspaceId,
     lastTestedAt: c.lastTestedAt,
     lastError: c.lastError,
+    smtp: smtpDetails(c),
   }
+}
+
+/** Makes `connectionId` the workspace default (the unique `defaultFor` moves). */
+async function setDefault(tx: Tx, workspaceId: string, connectionId: string) {
+  await tx.emailConnection.updateMany({ where: { defaultFor: workspaceId, NOT: { id: connectionId } }, data: { defaultFor: null } })
+  await tx.emailConnection.update({ where: { id: connectionId }, data: { defaultFor: workspaceId } })
 }
 
 export class EmailConnectionService {
@@ -79,7 +116,34 @@ export class EmailConnectionService {
     return rows.map(toEmailConnection)
   }
 
-  async update(ctx: WorkspaceCtx, workspaceId: string, connectionId: string, input: { displayName?: string; replyTo?: string | null }) {
+  /** Adds an own sender ("Use my own email/domain"). Not the default unless asked. */
+  async create(ctx: WorkspaceCtx, workspaceId: string, input: CreateConnectionInput) {
+    const actor = await authorize(ctx.user.id, workspaceId, 'email.manage')
+    if (input.strategy !== 'smtp') throw badRequest('That way of connecting is not available yet', 'UNSUPPORTED_STRATEGY')
+    const displayName = input.displayName.trim()
+    const fromAddress = input.fromAddress.trim()
+    const replyTo = input.replyTo?.trim() || null
+    if (!displayName) throw badRequest('Enter the name people see', 'INVALID_DISPLAY_NAME')
+    if (!isEmailAddress(fromAddress)) throw badRequest('Enter the email address to send from', 'INVALID_FROM')
+    if (replyTo && !isEmailAddress(replyTo)) throw badRequest('Enter a valid reply-to email address', 'INVALID_REPLY_TO')
+    const smtp = { ...input.smtp, host: input.smtp.host.trim(), username: input.smtp.username.trim() }
+    const problem = await smtpProblem(smtp)
+    if (problem) throw badRequest(problem, 'INVALID_SMTP')
+    return runAction(
+      // The password never enters the audit row.
+      { action: 'emailConnection.create', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { strategy: 'smtp', displayName, fromAddress, replyTo, host: smtp.host, port: smtp.port }, target: { type: 'emailConnection' } },
+      async (tx) => {
+        const created = await tx.emailConnection.create({
+          data: { workspaceId, strategy: 'smtp', displayName, fromAddress, replyTo, secret: encryptSecret(smtp satisfies SmtpSecret), createdByMemberId: actor.member.id },
+        })
+        if (input.makeDefault) await setDefault(tx, workspaceId, created.id)
+        const row = await tx.emailConnection.findUniqueOrThrow({ where: { id: created.id } })
+        return { value: toEmailConnection(row), targetId: created.id }
+      },
+    )
+  }
+
+  async update(ctx: WorkspaceCtx, workspaceId: string, connectionId: string, input: UpdateConnectionInput) {
     const actor = await authorize(ctx.user.id, workspaceId, 'email.manage')
     const displayName = input.displayName?.trim()
     if (input.displayName !== undefined && !displayName) throw badRequest('Enter the name people see', 'INVALID_DISPLAY_NAME')
@@ -87,16 +151,61 @@ export class EmailConnectionService {
     if (replyTo && !isEmailAddress(replyTo)) throw badRequest('Enter a valid reply-to email address', 'INVALID_REPLY_TO')
     const before = await db.emailConnection.findFirst({ where: { id: connectionId, workspaceId } })
     if (!before) throw notFound()
+    const own = before.strategy !== 'platform'
+    if (!own && (input.fromAddress !== undefined || input.smtp)) throw badRequest('Send with 8080 uses the 8080 address; change the reply-to instead', 'PLATFORM_FIXED')
+    const fromAddress = input.fromAddress?.trim()
+    if (fromAddress !== undefined && !isEmailAddress(fromAddress)) throw badRequest('Enter the email address to send from', 'INVALID_FROM')
+    let secret: string | undefined
+    if (input.smtp && before.strategy === 'smtp') {
+      const current = before.secret ? decryptSecret<SmtpSecret>(before.secret) : null
+      const next = { ...current, ...input.smtp } as SmtpInput
+      next.host = (next.host ?? '').trim()
+      next.username = (next.username ?? '').trim()
+      const problem = await smtpProblem(next)
+      if (problem) throw badRequest(problem, 'INVALID_SMTP')
+      secret = encryptSecret(next satisfies SmtpSecret)
+    }
     return runAction(
-      { action: 'emailConnection.update', workspaceId, actor: memberActor(actor), origin: ctx.origin, input, target: { type: 'emailConnection', id: connectionId } },
+      {
+        action: 'emailConnection.update',
+        workspaceId,
+        actor: memberActor(actor),
+        origin: ctx.origin,
+        input: { displayName: input.displayName, replyTo: input.replyTo, fromAddress: input.fromAddress, makeDefault: input.makeDefault, smtpChanged: !!input.smtp },
+        target: { type: 'emailConnection', id: connectionId },
+      },
       async (tx) => {
-        const after = await tx.emailConnection.update({ where: { id: connectionId }, data: { displayName, replyTo } })
+        await tx.emailConnection.update({
+          where: { id: connectionId },
+          // New credentials clear an old failure; the next test or send decides again.
+          data: { displayName, replyTo, fromAddress, ...(secret ? { secret, status: 'active' as const, lastError: null } : {}) },
+        })
+        if (input.makeDefault) await setDefault(tx, workspaceId, connectionId)
+        const after = await tx.emailConnection.findUniqueOrThrow({ where: { id: connectionId } })
         const changes: Record<string, [unknown, unknown]> = {}
-        if (before.displayName !== after.displayName) changes.displayName = [before.displayName, after.displayName]
-        if (before.replyTo !== after.replyTo) changes.replyTo = [before.replyTo, after.replyTo]
+        for (const f of ['displayName', 'replyTo', 'fromAddress', 'defaultFor'] as const) if (before[f] !== after[f]) changes[f] = [before[f], after[f]]
+        if (secret) changes.smtp = ['(hidden)', '(changed)']
         return { value: toEmailConnection(after), changes }
       },
     )
+  }
+
+  /** Removes an own sender. Agents that used it fall back to the default. */
+  async remove(ctx: WorkspaceCtx, workspaceId: string, connectionId: string) {
+    const actor = await authorize(ctx.user.id, workspaceId, 'email.manage')
+    const connection = await db.emailConnection.findFirst({ where: { id: connectionId, workspaceId } })
+    if (!connection) throw notFound()
+    if (connection.strategy === 'platform') throw conflict('Send with 8080 is always available and can’t be removed', 'PLATFORM_FIXED')
+    if (connection.defaultFor) throw conflict('Make another sender the default first', 'DEFAULT_SENDER')
+    const agents = await db.agent.count({ where: { workspaceId, emailConnectionId: connectionId } })
+    await runAction(
+      { action: 'emailConnection.delete', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { connectionId }, target: { type: 'emailConnection', id: connectionId } },
+      async (tx) => {
+        await tx.emailConnection.delete({ where: { id: connectionId } })
+        return { value: null, changes: { displayName: [connection.displayName, null] }, result: { agentsMovedToDefault: agents } }
+      },
+    )
+    return { removed: true, agentsMovedToDefault: agents }
   }
 
   /** Checks the connection, then sends a short test email to the caller's own address. */

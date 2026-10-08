@@ -78,6 +78,8 @@ export async function buildApp(opts: BuildOptions = {}) {
   // looks up a parser for each. SSE routes are GET-only, so this is never used for bodies.
   server.addContentTypeParser('text/event-stream', { parseAs: 'string' }, (_req, body, done) => done(null, body))
 
+  server.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_request, body, done) => done(null, Object.fromEntries(new URLSearchParams(String(body)))))
+
   await server.register(openapiGlue, {
     specification: specPath,
     serviceHandlers: handlers,

@@ -1,11 +1,24 @@
 // Workspace tags for contacts and accounts. Any member may create one (tagging is
 // everyday work); renaming and deleting change everyone's records, so admins only.
-import { db } from '@project/db'
+import { db, type Prisma } from '@project/db'
+import { DEFAULT_CONTACT_CATEGORIES } from '@project/shared'
 import { badRequest, conflict, notFound } from '../lib/errors'
 import { toTag } from '../lib/serialize'
 import { diff, runAction } from './actions'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
 import { authorize } from './workspacePolicy'
+
+type Client = Prisma.TransactionClient | typeof db
+
+export async function ensureContactCategories(client: Client, workspaceId: string) {
+  for (const name of DEFAULT_CONTACT_CATEGORIES) {
+    await client.tag.upsert({
+      where: { workspaceId_name: { workspaceId, name } },
+      create: { workspaceId, name },
+      update: {},
+    })
+  }
+}
 
 const taken = (err: unknown) => (err as { code?: string })?.code === 'P2002'
 const nameOf = (name: string) => {
@@ -17,6 +30,7 @@ const nameOf = (name: string) => {
 export class TagService {
   async list(userId: string, workspaceId: string) {
     await authorize(userId, workspaceId, 'record.read')
+    await ensureContactCategories(db, workspaceId)
     const tags = await db.tag.findMany({ where: { workspaceId }, orderBy: [{ name: 'asc' }, { id: 'asc' }] })
     return tags.map(toTag)
   }

@@ -1,8 +1,13 @@
+import { LEGACY_LEAD_STATUSES } from '@project/shared'
 import type { Contact, InventoryItem, LeadStatus } from '@project/sdk'
 
-export const STAGES: LeadStatus[] = ['new', 'contacting', 'connected', 'qualified', 'customer', 'lost']
+/** Fallback stage keys before vocabulary loads. */
+export const STAGES: LeadStatus[] = [...LEGACY_LEAD_STATUSES]
 
-export const titleCase = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
+export const titleCase = (value: string) =>
+  value.includes('_') || value === value.toLowerCase()
+    ? value.replace(/[_-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    : value.charAt(0).toUpperCase() + value.slice(1)
 
 export const dateLabel = (value: string | null) =>
   value
@@ -35,6 +40,7 @@ export const contactSubtitle = (contact: Contact) =>
   'Contact'
 
 export const followUpLate = (contact: Contact) =>
+  !contact.won &&
   !!contact.nextFollowUp &&
   localDay(contact.nextFollowUp) < localDay(new Date().toISOString()) &&
   contact.leadStatus !== 'customer' &&

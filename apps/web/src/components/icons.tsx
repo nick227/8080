@@ -74,6 +74,25 @@ export function MinimizeIcon() {
   )
 }
 
+export function MaximizeIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+      <path d="M3 6.5V3h3.5M13 6.5V3H9.5M3 9.5V13h3.5M13 9.5V13H9.5" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function GridViewIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+      <rect x="2" y="2" width="5" height="5" rx="0.8" fill="none" stroke="currentColor" strokeWidth="1.25" />
+      <rect x="9" y="2" width="5" height="5" rx="0.8" fill="none" stroke="currentColor" strokeWidth="1.25" />
+      <rect x="2" y="9" width="5" height="5" rx="0.8" fill="none" stroke="currentColor" strokeWidth="1.25" />
+      <rect x="9" y="9" width="5" height="5" rx="0.8" fill="none" stroke="currentColor" strokeWidth="1.25" />
+    </svg>
+  )
+}
+
 export function ReplyIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>

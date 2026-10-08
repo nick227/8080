@@ -88,7 +88,7 @@ describe('a new person and company → one card → one atomic apply', () => {
     const applied = await act(base, p.id, 'apply')
     expect(applied.statusCode).toBe(200)
     const contact = await db.contact.findFirstOrThrow({ where: { workspaceId: ws.id }, include: { accounts: { include: { account: true } } } })
-    expect(contact).toMatchObject({ displayName: 'Sarah Lee', firstName: 'Sarah', lastName: 'Lee', leadStatus: 'new', origin: 'conversation' })
+    expect(contact).toMatchObject({ displayName: 'Sarah Lee', firstName: 'Sarah', lastName: 'Lee', leadStatus: 'contacted', origin: 'conversation' })
     expect(contact.nextFollowUp!.toISOString().slice(0, 10)).toBe(friday())
     expect(contact.accounts.map((a) => [a.account.name, a.isPrimary])).toEqual([['Brightside Dental', true]])
     const note = await db.note.findFirstOrThrow({ where: { workspaceId: ws.id }, include: { message: true, links: true } })

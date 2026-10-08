@@ -136,14 +136,23 @@ function teamType(spec: TeamSpec): AgentTypeDef {
     prepare: async ({ agent, event, workspace }) => {
       const destinations = teamDelivery(agent).destinations
       const report = await buildReport(spec, workspace, teamRules(agent).include, event.scheduledFor)
+      const rules = (agent.ruleConfig as { customSubject?: string; customText?: string } | null) ?? {}
+      const subject = rules.customSubject?.trim() || report.subject
+      let content = report.content
+      if (rules.customText?.trim()) {
+        content = {
+          ...report.content,
+          blocks: [{ type: 'text', text: rules.customText.trim() }, ...report.content.blocks],
+        }
+      }
       const base = await baseValues(workspace)
       return {
         ok: true,
         ...(destinations.includes('email')
           ? {
               email: {
-                subject: report.subject,
-                content: report.content,
+                subject,
+                content,
                 template: agent.templateKey as EmailTemplateKey,
                 theme: agent.themeKey as EmailThemeKey,
                 footer: teamFooter(spec),

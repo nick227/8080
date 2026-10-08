@@ -3,7 +3,7 @@
   --edge: 16px;
   display: flex;
   flex-direction: column;
-  width: 100%;
+  width: var(--shell-w);
   height: 100dvh;
   min-height: 100dvh;
   margin: 0;
@@ -207,7 +207,7 @@
   left: 8px;
   bottom: 6px;
   z-index: 1;
-  max-width: calc(100% - 16px);
+  max-width: calc(100% - 48px);
   overflow: hidden;
   font-family: var(--sans);
   font-size: var(--text-md);
@@ -215,6 +215,23 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.room-tile-view {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 3;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: var(--line-width) solid var(--line);
+  background: var(--overlay-backdrop);
+  color: var(--ink);
+  cursor: pointer;
+}
+.room-tile-view:hover { border-color: var(--muted); }
+.room-tile-view:focus-visible { outline: 2px solid var(--ink); outline-offset: 0; }
 .room-cast-live {
   position: relative;
   width: min(280px, 70%);
@@ -388,7 +405,7 @@
   color: var(--muted);
 }
 
-.room-stream { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-anchor: none; }
+.room-stream { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-anchor: none; padding-bottom: var(--space-lg); }
 .room-chatbox {
   --chatbox-action: 32px;
   --chatbox-action-pad: calc(var(--chatbox-action) + var(--space-sm));
@@ -1148,9 +1165,6 @@
 }
 .room-load-older:disabled { opacity: 0.6; cursor: wait; }
 
-.room-live[data-layout="grid"] .room-tile { cursor: pointer; }
-.room-live[data-layout="grid"] .room-tile:focus-visible { outline: var(--line-width-strong) solid var(--muted); outline-offset: -2px; }
-
 /* Full-screen user switcher. Keep the bank compact and scrollable on small screens. */
 .room-live[data-layout="screen"][data-thumbnails] { grid-template-rows: auto minmax(0, 1fr); }
 .room-thumbnails {
@@ -1175,3 +1189,43 @@
 .room-thumbnail:hover { border-color: var(--muted); }
 .room-thumbnail:focus-visible { outline: 2px solid var(--ink); outline-offset: 0; }
 .room-thumbnail .room-seat-name { font-size: 11px; }
+
+
+/* Team layouts share the same persistent media session. */
+.team-layout-control { position: relative; order: 3; margin-left: var(--space-sm); }
+.team-layout-trigger { display: grid; place-items: center; width: 32px; height: 32px; padding: 6px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer; }
+.team-layout-trigger svg { width: 18px; height: 18px; }
+.team-layout-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 150px; padding: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgb(0 0 0 / .15); }
+.team-layout-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 12px; background: transparent; color: var(--ink); border: 0; text-align: left; cursor: pointer; }
+.team-layout-menu button span { width: 16px; }
+.team-layout-menu button:hover, .team-layout-menu button:focus-visible { background: var(--surface-deep); }
+.team-table-scroll { min-height: 0; overflow: auto; align-self: stretch; }
+.team-table-view { min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; background: var(--bg); }
+.team-table-view > .section-header { flex: none; border-bottom: 1px solid var(--line); }
+.team-table tbody tr { cursor: pointer; }
+.team-table tbody tr:hover { background: var(--surface-deep); }
+.team-member-link { display: inline-flex; align-items: center; gap: 10px; border: 0; padding: 4px; background: transparent; color: inherit; cursor: pointer; text-align: left; }
+.team-member-link img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+.team-member-link svg { width: 20px; height: 20px; }
+.team-member-link small { color: var(--muted); }
+.team-streaming-add { position: absolute; right: clamp(20px, 3vw, 44px); bottom: clamp(20px, 4vh, 44px); z-index: 5; min-width: 144px; min-height: 52px; padding: 12px 22px; border: 1px solid var(--ink); border-radius: var(--radius-pill); background: var(--ink); color: var(--bg); font: 700 var(--text-base) var(--mono); box-shadow: 0 10px 30px rgb(0 0 0 / .2); cursor: pointer; }
+.team-streaming-add:hover, .team-streaming-add:focus-visible { background: var(--signal); border-color: var(--signal); }
+.team-invite-dialog { width: min(520px, calc(100vw - 32px)); padding: 0; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: 0 24px 70px rgb(0 0 0 / .28); }
+.team-invite-dialog::backdrop { background: rgb(0 0 0 / .48); }
+.team-invite-dialog header { display: flex; justify-content: space-between; gap: 24px; padding: 24px; border-bottom: 1px solid var(--line); }
+.team-invite-dialog h2, .team-invite-dialog p { margin: 0; }
+.team-invite-dialog p { margin-top: 6px; color: var(--muted); }
+.team-invite-close { align-self: start; padding: 4px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.team-invite-link { display: flex; gap: 8px; padding: 24px 24px 10px; }
+.team-invite-link input, .team-invite-email input { min-width: 0; flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--input-bg); color: var(--input-color); }
+.team-invite-link button, .team-invite-share, .team-invite-email button { flex: none; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--ink); color: var(--bg); cursor: pointer; }
+.team-invite-share { display: block; width: calc(100% - 48px); margin: 0 24px 14px; }
+.team-invite-email { margin: 0 24px 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.team-invite-email label { display: block; margin-bottom: 8px; font-weight: 600; }
+.team-invite-email > div { display: flex; gap: 8px; }
+.team-invite-email small { display: block; margin-top: 7px; color: var(--muted); }
+.team-invite-email input:disabled, .team-invite-email button:disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 520px) {
+  .team-invite-link, .team-invite-email > div { flex-direction: column; }
+  .team-streaming-add { min-width: 0; }
+}

@@ -12,6 +12,7 @@
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
+    "test:contacts": "node tests/contact-workbench.mjs",
     "test:records": "node tests/records.mjs",
     "test:import-safety": "node tests/import-safety.mjs",
     "test:theme": "node tests/theme-tokens.mjs",

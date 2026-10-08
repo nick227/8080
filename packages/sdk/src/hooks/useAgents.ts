@@ -1,6 +1,7 @@
+import type { RecipientConfig } from '@project/shared'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getApiClient, unwrap } from '../client'
-import type { UpdateAgentInput } from '../models'
+import type { CreateEmailConnectionInput, UpdateAgentInput, UpdateEmailConnectionInput } from '../models'
 
 // Communication agents (docs/agents). Everything lives under ['workspaces', id,
 // 'agents'] so one invalidation refreshes the list, the editor and the river.
@@ -63,8 +64,8 @@ export function useAgentPreview(workspaceId: string | undefined, agentId: string
 }
 
 export function useCreateAgent(workspaceId: string) {
-  return useAgentsMutation(workspaceId, async (typeKey: string) =>
-    unwrap(await getApiClient().POST('/workspaces/{workspaceId}/agents', { ...ws(workspaceId), body: { typeKey } })).data,
+  return useAgentsMutation(workspaceId, async (input: string | { typeKey: string; recipientConfig?: RecipientConfig }) =>
+    unwrap(await getApiClient().POST('/workspaces/{workspaceId}/agents', { ...ws(workspaceId), body: typeof input === 'string' ? { typeKey: input } : input })).data,
   )
 }
 
@@ -121,4 +122,45 @@ export function useCancelAgentEvent(workspaceId: string) {
   return useAgentsMutation(workspaceId, async (eventId: string) =>
     unwrap(await getApiClient().POST('/workspaces/{workspaceId}/agent-events/{eventId}/cancel', { params: { path: { workspaceId, eventId } } })).data,
   )
+}
+
+export function useEmailConnections(workspaceId: string | undefined) {
+  return useQuery({
+    queryKey: ['workspaces', workspaceId ?? '', 'email-connections'],
+    enabled: !!workspaceId,
+    queryFn: async () => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/email-connections', { params: { path: { workspaceId: workspaceId! } } })).data,
+  })
+}
+
+export function useCreateEmailConnection(workspaceId: string) {
+  return useAgentsMutation(workspaceId, async (body: CreateEmailConnectionInput) =>
+    unwrap(await getApiClient().POST('/workspaces/{workspaceId}/email-connections', { ...ws(workspaceId), body })).data,
+  )
+}
+
+export function useUpdateEmailConnection(workspaceId: string, connectionId: string) {
+  return useAgentsMutation(workspaceId, async (body: UpdateEmailConnectionInput) =>
+    unwrap(await getApiClient().PATCH('/workspaces/{workspaceId}/email-connections/{connectionId}', { params: { path: { workspaceId, connectionId } }, body })).data,
+  )
+}
+
+export function useDeleteEmailConnection(workspaceId: string) {
+  return useAgentsMutation(workspaceId, async (connectionId: string) =>
+    unwrap(await getApiClient().DELETE('/workspaces/{workspaceId}/email-connections/{connectionId}', { params: { path: { workspaceId, connectionId } } })).data,
+  )
+}
+
+export function useTestEmailConnection(workspaceId: string) {
+  return useMutation({
+    mutationFn: async (connectionId: string) =>
+      unwrap(await getApiClient().POST('/workspaces/{workspaceId}/email-connections/{connectionId}/test', { params: { path: { workspaceId, connectionId } } })).data,
+  })
+}
+
+export function useAudiencePreview(workspaceId: string, config: RecipientConfig | null) {
+  return useQuery({
+    queryKey: [...agentKeys.all(workspaceId), 'audience', config],
+    enabled: !!config,
+    queryFn: async () => unwrap(await getApiClient().POST('/workspaces/{workspaceId}/agent-audience/preview', { ...ws(workspaceId), body: config! })).data,
+  })
 }

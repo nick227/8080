@@ -5,15 +5,10 @@ import {
   useUpdateContact,
   useUpdateInventoryItem,
   useDeleteInventoryItem,
-  useContactInterests,
-  useInventoryInterests,
-  useAddContactInterest,
-  useRemoveContactInterest,
-  useInventory,
   useRecordTimeline,
+  useWorkspaceVocabulary,
   type Contact,
   type InventoryItem,
-  type LeadStatus,
 } from '@project/sdk'
 import { RecordMedia } from './RecordChrome'
 import { RecordForm } from './RecordForm'
@@ -32,7 +27,7 @@ import {
   titleCase,
 } from './labels'
 import { useSaveFeedback } from './saveFeedback'
-import type { RecordKind, RecordRef } from './navigation'
+import type { RecordKind } from './navigation'
 
 export {
   STAGES,
@@ -49,7 +44,6 @@ export function RecordDetail({
   id,
   workspaceId,
   currency = 'USD',
-  onRelated,
   onMessage,
   onDeleted,
   onOpenRecord,
@@ -58,7 +52,6 @@ export function RecordDetail({
   id: string
   workspaceId: string
   currency?: string
-  onRelated: (ref: RecordRef) => void
   onMessage: (id: string) => void
   onDeleted: () => void
   onOpenRecord?: (kind: RecordKind, id: string) => void
@@ -86,7 +79,6 @@ export function RecordDetail({
       contact={contact.data!}
       workspaceId={workspaceId}
       currency={currency}
-      onRelated={onRelated}
       onMessage={onMessage}
       onOpenRecord={onOpenRecord}
     />
@@ -98,7 +90,6 @@ export function RecordDetail({
       currency={currency}
       onDeleted={onDeleted}
       onOpenRecord={onOpenRecord}
-      onRelated={onRelated}
     />
   )
 }
@@ -107,21 +98,21 @@ function ContactDetail({
   contact: c,
   workspaceId,
   currency,
-  onRelated,
   onMessage,
   onOpenRecord,
 }: {
   contact: Contact
   workspaceId: string
   currency: string
-  onRelated: (ref: RecordRef) => void
   onMessage: (id: string) => void
   onOpenRecord?: (kind: RecordKind, id: string) => void
 }) {
   const update = useUpdateContact(workspaceId)
   const feedback = useSaveFeedback(update.isPending, update.error)
+  const vocabulary = useWorkspaceVocabulary(workspaceId)
+  const stages = (vocabulary.data?.stages ?? []).filter((s) => !s.archived)
+  const stageOptions = stages.length ? stages : STAGES.map((key) => ({ key, label: titleCase(key) }))
   const [editing, setEditing] = useState(false)
-  const [tab, setTab] = useState('overview')
   const change = (data: Parameters<typeof update.mutate>[0]) =>
     update.mutate({ expectedVersion: c.version, ...data })
   return (
@@ -153,11 +144,11 @@ function ContactDetail({
             aria-label="Lead stage"
             value={c.leadStatus ?? 'new'}
             disabled={update.isPending}
-            onChange={(e) => change({ contactId: c.id, leadStatus: e.target.value as LeadStatus })}
+            onChange={(e) => change({ contactId: c.id, leadStatus: e.target.value })}
           >
-            {STAGES.map((s) => (
-              <option key={s} value={s}>
-                {titleCase(s)}
+            {stageOptions.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
               </option>
             ))}
           </select>
@@ -189,68 +180,34 @@ function ContactDetail({
           {feedback.label}
         </p>
       )}
-      <nav className="record-tabs" aria-label="Contact sections">
-        {['overview', 'activity'].map((value) => (
-          <button key={value} aria-current={tab === value ? 'page' : undefined} onClick={() => setTab(value)}>
-            {titleCase(value)}
-          </button>
-        ))}
-      </nav>
-      {tab === 'activity' ? (
-        <Activity workspaceId={workspaceId} contactId={c.id} />
-      ) : (
-        <div className="record-body">
-          <div className="record-main">
-            <ContactBrief workspaceId={workspaceId} contactId={c.id} />
-            <RecordGallery workspaceId={workspaceId} kind="contacts" recordId={c.id} name={c.displayName} />
-            <RecordNotes workspaceId={workspaceId} subject={{ contactId: c.id }} recordName={c.displayName} />
-            <section>
-              <h2>Relationship</h2>
-              <p>{c.title || 'Add a title and company information as this relationship develops.'}</p>
-              {c.accounts.map((account) => (
-                <p key={account.accountId}>
-                  {account.name}
-                  {account.role && ` · ${account.role}`}
-                </p>
-              ))}
-              {c.tags.length > 0 && (
-                <div className="record-tags">
-                  {c.tags.map((tag) => (
-                    <span key={tag.id}>{tag.name}</span>
-                  ))}
-                </div>
-              )}
-            </section>
-            <ContactInterests
-              workspaceId={workspaceId}
-              contactId={c.id}
-              currency={currency}
-              onRelated={onRelated}
-            />
-            <section>
-              <h2>Recent activity</h2>
-              <Activity workspaceId={workspaceId} contactId={c.id} compact />
-            </section>
-          </div>
-          <aside className="record-properties">
-            <h2>Properties</h2>
-            <dl>
-              <dt>Email</dt>
-              <dd>
-                {c.primaryEmail ? <a href={`mailto:${c.primaryEmail}`}>{c.primaryEmail}</a> : 'Not set'}
-              </dd>
-              <dt>Phone</dt>
-              <dd>{c.primaryPhone ? <a href={`tel:${c.primaryPhone}`}>{c.primaryPhone}</a> : 'Not set'}</dd>
-              <dt>Source</dt>
-              <dd>{c.leadSource || 'Not set'}</dd>
-              <dt>Last activity</dt>
-              <dd>{dateLabel(c.lastActivityAt)}</dd>
-            </dl>
-            <RecordDates created={c.createdAt} updated={c.updatedAt} />
-            <button onClick={() => setEditing(true)}>Edit properties</button>
-          </aside>
+      <div className="record-body">
+        <div className="record-main">
+          <RecordNotes workspaceId={workspaceId} subject={{ contactId: c.id }} recordName={c.displayName} />
+          <ContactBrief workspaceId={workspaceId} contactId={c.id} />
+          <RecordGallery workspaceId={workspaceId} kind="contacts" recordId={c.id} name={c.displayName} />
+          <section>
+            <h2>Recent activity</h2>
+            <Activity workspaceId={workspaceId} contactId={c.id} />
+          </section>
         </div>
-      )}
+        <aside className="record-properties">
+          <h2>Properties</h2>
+          <dl>
+            <dt>Email</dt>
+            <dd>
+              {c.primaryEmail ? <a href={`mailto:${c.primaryEmail}`}>{c.primaryEmail}</a> : 'Not set'}
+            </dd>
+            <dt>Phone</dt>
+            <dd>{c.primaryPhone ? <a href={`tel:${c.primaryPhone}`}>{c.primaryPhone}</a> : 'Not set'}</dd>
+            <dt>Source</dt>
+            <dd>{c.leadSource || 'Not set'}</dd>
+            <dt>Last activity</dt>
+            <dd>{dateLabel(c.lastActivityAt)}</dd>
+          </dl>
+          <RecordDates created={c.createdAt} updated={c.updatedAt} />
+          <button onClick={() => setEditing(true)}>Edit properties</button>
+        </aside>
+      </div>
       {editing && (
         <RecordForm
           kind="contacts"
@@ -272,14 +229,12 @@ function InventoryDetail({
   currency,
   onDeleted,
   onOpenRecord,
-  onRelated,
 }: {
   item: InventoryItem
   workspaceId: string
   currency: string
   onDeleted: () => void
   onOpenRecord?: (kind: RecordKind, id: string) => void
-  onRelated: (ref: RecordRef) => void
 }) {
   const update = useUpdateInventoryItem(workspaceId)
   const remove = useDeleteInventoryItem(workspaceId)
@@ -362,6 +317,7 @@ function InventoryDetail({
       )}
       <div className="record-body">
         <div className="record-main">
+          <RecordNotes workspaceId={workspaceId} subject={{ inventoryId: item.id }} recordName={item.name} />
           <RecordGallery workspaceId={workspaceId} kind="inventory" recordId={item.id} name={item.name} />
           <section>
             <h2>Description</h2>
@@ -369,8 +325,6 @@ function InventoryDetail({
               {item.description || 'Add a description to help your team understand this item.'}
             </p>
           </section>
-          <RecordNotes workspaceId={workspaceId} subject={{ inventoryId: item.id }} recordName={item.name} />
-          <ItemInterests workspaceId={workspaceId} inventoryId={item.id} onRelated={onRelated} />
           {tracked && <StockHistory workspaceId={workspaceId} inventoryId={item.id} />}
         </div>
         <aside className="record-properties">
@@ -430,11 +384,9 @@ function RecordDates({ created, updated }: { created: string; updated: string })
 function Activity({
   workspaceId,
   contactId,
-  compact = false,
 }: {
   workspaceId: string
   contactId: string
-  compact?: boolean
 }) {
   const timeline = useRecordTimeline(workspaceId, { contactId })
   const entries = timeline.data?.pages.flatMap((page) => page.data) ?? []
@@ -452,7 +404,7 @@ function Activity({
         <p className="record-muted">No activity recorded yet.</p>
       ) : (
         <ol>
-          {(compact ? entries.slice(0, 3) : entries).map((entry) => (
+          {entries.map((entry) => (
             <li key={entry.id}>
               <span>{titleCase(entry.type.replace(/[._]/g, ' '))}</span>
               <small>
@@ -462,136 +414,11 @@ function Activity({
           ))}
         </ol>
       )}
-      {!compact && timeline.hasNextPage && (
+      {timeline.hasNextPage && (
         <button disabled={timeline.isFetchingNextPage} onClick={() => timeline.fetchNextPage()}>
           Show more activity
         </button>
       )}
     </div>
-  )
-}
-function ContactInterests({
-  workspaceId,
-  contactId,
-  currency,
-  onRelated,
-}: {
-  workspaceId: string
-  contactId: string
-  currency: string
-  onRelated: (ref: RecordRef) => void
-}) {
-  const interests = useContactInterests(workspaceId, contactId)
-  const catalog = useInventory(workspaceId)
-  const add = useAddContactInterest(workspaceId)
-  const drop = useRemoveContactInterest(workspaceId)
-  const chosen = new Set(interests.data?.map((interest) => interest.item.id))
-  const choices = (catalog.data?.pages.flatMap((page) => page.data) ?? []).filter(
-    (item) => !chosen.has(item.id),
-  )
-  return (
-    <section>
-      <h2>Interested in</h2>
-      {interests.isLoading && <p role="status">Loading interests…</p>}
-      {interests.isError && (
-        <p role="alert">
-          Could not load interests. <button onClick={() => interests.refetch()}>Try again</button>
-        </p>
-      )}
-      {interests.data?.length === 0 && (
-        <p className="record-muted">Connect this contact to items in your catalog.</p>
-      )}
-      <ul className="record-related">
-        {interests.data?.map(({ id, item }) => (
-          <li key={id}>
-            <RecordMedia name={item.name} src={item.imageUrl} />
-            <button
-              className="record-related-name"
-              onClick={() => onRelated({ kind: 'inventory', id: item.id, name: item.name })}
-            >
-              {item.name}
-              <small>
-                {item.category || item.sku || 'Inventory'} · {priceLabel(item.price, currency)}
-              </small>
-            </button>
-            <button
-              aria-label={`Remove interest in ${item.name}`}
-              disabled={drop.isPending}
-              onClick={() => drop.mutate({ contactId, inventoryId: item.id })}
-            >
-              Remove
-            </button>
-          </li>
-        ))}
-      </ul>
-      <select
-        aria-label="Add inventory interest"
-        value=""
-        disabled={add.isPending || interests.isLoading || interests.isError}
-        onChange={(e) => e.target.value && add.mutate({ contactId, inventoryId: e.target.value })}
-      >
-        <option value="">Add an item…</option>
-        {choices.map((item) => (
-          <option key={item.id} value={item.id}>
-            {item.name}
-          </option>
-        ))}
-      </select>
-      {catalog.hasNextPage && (
-        <button disabled={catalog.isFetchingNextPage} onClick={() => catalog.fetchNextPage()}>
-          Load more items
-        </button>
-      )}
-      {catalog.isError && (
-        <p role="alert">
-          Could not load catalog. <button onClick={() => catalog.refetch()}>Try again</button>
-        </p>
-      )}
-      {(add.isError || drop.isError) && (
-        <p className="record-error" role="alert">
-          Could not update interests. Try again.
-        </p>
-      )}
-    </section>
-  )
-}
-
-function ItemInterests({
-  workspaceId,
-  inventoryId,
-  onRelated,
-}: {
-  workspaceId: string
-  inventoryId: string
-  onRelated: (ref: RecordRef) => void
-}) {
-  const interests = useInventoryInterests(workspaceId, inventoryId)
-  return (
-    <section>
-      <h2>Interested contacts</h2>
-      {interests.isLoading && <p role="status">Loading contacts…</p>}
-      {interests.isError && (
-        <p role="alert">
-          Could not load interested contacts. <button onClick={() => interests.refetch()}>Try again</button>
-        </p>
-      )}
-      {interests.data?.length === 0 && (
-        <p className="record-muted">No contacts are linked to this item yet.</p>
-      )}
-      <ul className="record-related">
-        {interests.data?.map(({ id, contact }) => (
-          <li key={id}>
-            <RecordMedia name={contact.displayName} person />
-            <button
-              className="record-related-name"
-              onClick={() => onRelated({ kind: 'contacts', id: contact.id, name: contact.displayName })}
-            >
-              {contact.displayName}
-              <small>{contact.primaryEmail || 'Contact'}</small>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </section>
   )
 }

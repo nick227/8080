@@ -47,6 +47,7 @@ async function snapshot(client: Tx | typeof db, workspaceId: string) {
     serviceArea: profile?.serviceArea ?? null,
     purpose: profile?.purpose ?? null,
     brandVoice: profile?.brandVoice ?? null,
+    imageUrl: profile?.imageUrl ?? null,
     facts: facts.map((f) => ({ id: f.id, kind: f.kind, value: f.value, status: f.status })),
     updatedAt: profile?.updatedAt ?? null,
   }

@@ -1,3 +1,4 @@
+import type { ContactSort, CONTACT_FOCUSES } from '@project/shared'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getApiClient, unwrap } from '../client'
 import type {
@@ -41,14 +42,19 @@ const ws = (workspaceId: string) => ({ workspaceId })
 // ─── contacts ────────────────────────────────────────────────────────────────
 
 export type ContactListParams = {
+  audience?: string
   q?: string
   leadStatus?: LeadStatus
   ownerMemberId?: string
   tagId?: string
   accountId?: string
   status?: RecordStatus
-  focus?: 'due' | 'overdue' | 'unassigned'
-  sort?: 'name' | 'followUp' | 'updated' | 'activity'
+  focus?: typeof CONTACT_FOCUSES[number]
+  sort?: ContactSort
+  thenSort?: ContactSort
+  thenDir?: 'asc' | 'desc'
+  milestone?: 'contacted' | 'qualified' | 'proposalSent' | 'won'
+  checked?: boolean
   dir?: 'asc' | 'desc'
   limit?: number
 }
@@ -312,4 +318,12 @@ export function useUnlinkRecord(workspaceId: string) {
     },
     ({ roomId }) => (roomId ? [[...keys.roomLinks(roomId)]] : []),
   )
+}
+
+export function useContactFields(workspaceId: string | undefined) {
+  return useQuery({
+    queryKey: [...keys.workspace(workspaceId ?? ''), 'contactFields'],
+    enabled: !!workspaceId,
+    queryFn: async () => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/contacts/fields', { params: { path: { workspaceId: workspaceId! } } })).data,
+  })
 }

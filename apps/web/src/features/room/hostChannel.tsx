@@ -1,4 +1,4 @@
-import { createContext, useContext, type MouseEvent } from 'react'
+import { createContext, useContext } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMyWorkspaces, useOpenWorkspaceChannel, useRoomBots } from '@project/sdk'
 
@@ -32,12 +32,8 @@ export function useHostChannel(roomId: string | undefined): HostChannel {
 export function ChannelButton({ seatId }: { seatId: string }) {
   const { hostId, busy, open } = useContext(Context)
   if (!open || seatId !== hostId) return null
-  const go = (event: MouseEvent) => {
-    event.stopPropagation() // the tile's own click focuses it
-    open()
-  }
   return (
-    <button type="button" className="room-channel-link" disabled={busy} onClick={go}>
+    <button type="button" className="room-channel-link" disabled={busy} onClick={open}>
       Channel
     </button>
   )

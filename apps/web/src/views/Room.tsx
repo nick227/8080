@@ -16,6 +16,7 @@ import { useData } from '../state/data'
 import type { Item, SendInput } from '../api/types'
 import { roomPeopleFrom, type PresenceActivity } from '../features/room/PeopleStrip'
 import { ChatShell } from '../features/room/ChatShell'
+import { TeamLayoutMenu } from '../features/room/TeamLayoutMenu'
 import { RoomFloor } from '../features/room/RoomFloor'
 import { WorkNav } from '../features/work/WorkNav'
 import { useDocuments } from '../features/documents/store'
@@ -74,7 +75,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   }
   const openPlace = (next: Desk) => {
     setPlace(next)
-    if (next === 'team') chooseView('grid')
+
   }
   const removeItem = useDeleteItem()
 
@@ -209,7 +210,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       choice: item.actions
         ? { actions: item.actions, choice: item.choice, meId, onChoose: (optionIds) => actions.current.choose(item.id, optionIds) }
         : undefined,
-      links: item.links?.map((link) => ({ id: link.id, title: link.title, kind: LINK_KIND[link.type] ?? '', onOpen: () => actions.current.openLink(link) })),
+      links: item.links?.map((link) => ({ id: link.id, type: link.type, title: link.title, kind: LINK_KIND[link.type] ?? '', onOpen: () => actions.current.openLink(link) })),
       onReply: () => actions.current.reply(item.id),
       onDelete: item.author.id === meId ? () => actions.current.remove(item.id) : undefined,
     }
@@ -281,7 +282,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
         view={view}
         stage={(
           <div className="work-column">
-            <WorkNav desk={place} teamActive={place === 'team' && view === 'grid'} onSelect={(next) => {
+            <WorkNav desk={place} teamActive={place === 'team'} layoutControl={place === 'team' ? <TeamLayoutMenu view={view} onChange={chooseView} /> : undefined} onSelect={(next) => {
               if (next === 'documents') useDocuments.getState().open(null)
               openPlace(next)
             }} />
@@ -294,7 +295,6 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
                 onEnded={() => setQueue((current) => current.slice(1))}
                 onSend={send}
                 onActivity={onActivity}
-                onView={chooseView}
               />
             ) : place === 'calendar' ? (
               <CalendarPage />

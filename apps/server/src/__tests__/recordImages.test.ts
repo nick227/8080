@@ -116,6 +116,35 @@ describe('record gallery', () => {
     expect(count).toBe(MAX_RECORD_IMAGES)
   })
 
+  it('uploads company gallery images and projects onto companyProfile.imageUrl', async () => {
+    const { base } = await setup()
+    const first = await uploadImage(base, '/company-profile/images')
+    expect(first.statusCode).toBe(201)
+    await validateResponse('uploadCompanyImage', 201, first.json())
+    expect(first.json().data).toMatchObject({ sortOrder: 0, isPrimary: true })
+
+    const listed = await call(testUserId, 'GET', `${base}/company-profile/images`)
+    await validateResponse('listCompanyImages', 200, listed.json())
+    expect(listed.json().data).toHaveLength(1)
+
+    const profile = (await call(testUserId, 'GET', `${base}/company-profile`)).json().data
+    expect(profile.imageUrl).toBe(playbackUrl(first.json().data.mediaId))
+
+    const second = await uploadImage(base, '/company-profile/images')
+    expect(second.statusCode).toBe(201)
+    expect(
+      (await call(testUserId, 'PATCH', `${base}/company-profile/images/${second.json().data.id}/primary`)).statusCode,
+    ).toBe(200)
+    expect((await call(testUserId, 'GET', `${base}/company-profile`)).json().data.imageUrl).toBe(
+      playbackUrl(second.json().data.mediaId),
+    )
+
+    expect((await call(testUserId, 'DELETE', `${base}/company-profile/images/${second.json().data.id}`)).statusCode).toBe(200)
+    expect((await call(testUserId, 'GET', `${base}/company-profile`)).json().data.imageUrl).toBe(
+      playbackUrl(first.json().data.mediaId),
+    )
+  })
+
   it('works for contacts and migrates legacy inventory playback URLs idempotently', async () => {
     const { base, ws } = await setup()
     const contact = (await call(testUserId, 'POST', `${base}/contacts`, { displayName: 'Ada' })).json().data

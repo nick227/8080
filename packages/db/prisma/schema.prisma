@@ -519,6 +519,12 @@ model Workspace {
   actions          ActionExecution[]
   activities       Activity[]
   activitySubjects ActivitySubject[]
+  businessEvents AgentBusinessEvent[]
+  emailSuppressions AgentEmailSuppression[]
+  unsubscribeTokens AgentUnsubscribeToken[]
+  contactFieldDefinitions ContactFieldDefinition[]
+  pipelineStages   PipelineStage[]
+  inventoryCategories InventoryCategory[]
   contacts         Contact[]
   contactPoints    ContactPoint[]
   accounts         Account[]
@@ -549,6 +555,9 @@ model Workspace {
   contactBriefs    ContactBrief[]
   emailConnections EmailConnection[]
   agents           Agent[]
+  sprints          Sprint[]
+  workTasks        WorkTask[]
+  workLogs         WorkLog[]
 
   @@index([createdById])
 }
@@ -596,6 +605,9 @@ model WorkspaceMember {
   proposalsMade    AgentProposal[] @relation("ProposalCreator")
   contactBriefs    ContactBrief[]
   proposalsDecided AgentProposal[] @relation("ProposalDecider")
+  assignedWorkTasks WorkTask[]
+  workComments      WorkComment[]
+  workLogs          WorkLog[]
 
   @@unique([workspaceId, userId])
   @@index([userId, status])
@@ -845,10 +857,22 @@ model Contact {
   createdById      String?
   // Set on the losing contact of a merge; its URL resolves to the winner
   mergedIntoId     String?
-  // Sales pipeline (optional); distinct from RecordStatus (active/archived).
-  leadStatus       LeadStatus?  @default(new)
+  // Sales pipeline stage key → PipelineStage.key (distinct from RecordStatus).
+  leadStatus       String       @default("contacted") @db.VarChar(64)
   leadSource       String?      @db.VarChar(80)
   nextFollowUp     DateTime?
+  // Sales workbench: milestones are independent of the current lead stage.
+  contacted        Boolean @default(false)
+  qualified        Boolean @default(false)
+  proposalSent     Boolean @default(false)
+  won              Boolean @default(false)
+  nextAction       String? @db.VarChar(255)
+  interestedIn     String? @db.VarChar(255)
+  lastContactedAt  DateTime?
+  priority         String @default("normal") @db.VarChar(40)
+  waitingOn        String? @db.VarChar(40)
+  potentialValue   Decimal? @db.Decimal(15, 2)
+  fieldValues      Json?
   // Denormalized primary gallery projection — written only by RecordImageService.
   imageUrl         String?      @db.VarChar(512)
   createdAt        DateTime     @default(now())
@@ -871,6 +895,7 @@ model Contact {
   subjects    ActivitySubject[]
   composes    Compose[]
   interests   Interest[]
+  businessEvents AgentBusinessEvent[]
 
   @@unique([workspaceId, externalProvider, externalId])
   @@index([workspaceId, displayName, id])
@@ -880,14 +905,53 @@ model Contact {
   @@index([importBatchId])
 }
 
-// Sales pipeline stage for a contact (not RecordStatus).
-enum LeadStatus {
-  new
-  contacting
-  connected
-  qualified
-  customer
-  lost
+// Named inventory categories for the Company vocabulary (items still store category as text).
+model InventoryCategory {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String   @db.VarChar(80)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, name])
+}
+
+// Workspace sales pipeline. Seeded from DEFAULT_PIPELINE_STAGES; Company vocabulary edits these.
+model PipelineStage {
+  id          String  @id @default(cuid())
+  workspaceId String
+  key         String  @db.VarChar(64)
+  label       String  @db.VarChar(80)
+  position    Int     @default(0)
+  kind        String  @db.VarChar(16) // open | won | lost
+  archived    Boolean @default(false)
+  system      Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId, position])
+}
+
+// Stable workspace-scoped definitions for the Company vocabulary / Contacts workbench.
+// Built-in IDs map to typed Contact columns; custom IDs map into fieldValues.
+model ContactFieldDefinition {
+  id String @id @default(cuid())
+  workspaceId String
+  key String @db.VarChar(64)
+  label String @db.VarChar(80)
+  type String @db.VarChar(16)
+  numberConfig Json?
+  options Json?
+  position Int @default(0)
+  archived Boolean @default(false)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, key])
 }
 
 // What the workspace sells. Soft-archive via status; hard-delete is admin-only.
@@ -938,6 +1002,7 @@ model Inventory {
 enum RecordImageSubject {
   contact
   inventory
+  company
 }
 
 model RecordImage {
@@ -1600,6 +1665,8 @@ model CompanyProfile {
   serviceArea CompanyServiceArea?
   purpose     String?             @db.VarChar(1000)
   brandVoice  CompanyVoice?
+  // Denormalized primary gallery projection — written only by RecordImageService.
+  imageUrl    String?             @db.VarChar(512)
   updatedAt   DateTime            @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -2047,4 +2114,126 @@ model DevOutboxEmail {
   createdAt      DateTime @default(now())
 
   @@index([to, createdAt])
+}
+
+// Durable facts used to produce contact-triggered Agent runs. Written with the business change.
+model AgentBusinessEvent {
+  id String @id @default(cuid())
+  workspaceId String
+  contactId String
+  kind String @db.VarChar(40)
+  sourceKey String @db.VarChar(160)
+  occurredAt DateTime
+  facts Json
+  createdAt DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  @@unique([workspaceId, sourceKey])
+  @@index([workspaceId, contactId, kind, occurredAt])
+}
+
+// Workspace-wide customer-email exclusion; shared email addresses share an opt-out.
+model AgentEmailSuppression {
+  id String @id @default(cuid())
+  workspaceId String
+  address String @db.VarChar(254)
+  reason String @db.VarChar(40)
+  createdAt DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@unique([workspaceId, address])
+}
+
+// Only the digest is stored. Old message links remain valid after contact edits/deletion.
+model AgentUnsubscribeToken {
+  tokenHash String @id @db.Char(64)
+  workspaceId String
+  address String @db.VarChar(254)
+  createdAt DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@index([workspaceId, address])
+}
+
+// ─── Jira-style work management & sprint tracking ──────────────────────────────
+model Sprint {
+  id          String     @id @default(cuid())
+  workspaceId String
+  name        String     @db.VarChar(120)
+  goal        String?    @db.VarChar(500)
+  startDate   DateTime?
+  endDate     DateTime?
+  status      String     @default("active") @db.VarChar(32)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tasks     WorkTask[]
+
+  @@index([workspaceId, status])
+}
+
+model WorkTask {
+  id               String           @id @default(cuid())
+  workspaceId      String
+  taskKey          String           @db.VarChar(32)
+  taskNumber       Int
+  title            String           @db.VarChar(255)
+  description      String?          @db.Text
+  status           String           @default("open") @db.VarChar(32)
+  issueType        String           @default("task") @db.VarChar(32)
+  area             String?          @default("Engineering") @db.VarChar(64)
+  priority         String           @default("medium") @db.VarChar(32)
+  storyPoints      Int              @default(1)
+  scheduledDate    String?          @db.VarChar(10)
+  scheduledTime    String?          @db.VarChar(5)
+  dueDate          DateTime?
+  assigneeMemberId String?
+  sprintId         String?
+  source           String?          @db.VarChar(64)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  sprint    Sprint?          @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  assignee  WorkspaceMember? @relation(fields: [assigneeMemberId], references: [id], onDelete: SetNull)
+  comments  WorkComment[]
+  workLogs  WorkLog[]
+
+  @@unique([workspaceId, taskKey])
+  @@index([workspaceId, status])
+  @@index([workspaceId, sprintId])
+}
+
+model WorkComment {
+  id             String           @id @default(cuid())
+  taskId         String
+  authorMemberId String?
+  authorName     String           @db.VarChar(120)
+  text           String           @db.Text
+  createdAt      DateTime         @default(now())
+
+  task   WorkTask         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author WorkspaceMember? @relation(fields: [authorMemberId], references: [id], onDelete: SetNull)
+
+  @@index([taskId, createdAt])
+}
+
+model WorkLog {
+  id             String           @id @default(cuid())
+  workspaceId    String
+  taskId         String?
+  taskKey        String?          @db.VarChar(32)
+  summary        String           @db.VarChar(500)
+  day            String           @db.VarChar(10)
+  time           String?          @db.VarChar(5)
+  authorMemberId String?
+  authorName     String?          @db.VarChar(120)
+  hoursSpent     Float?
+  createdAt      DateTime         @default(now())
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  task      WorkTask?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  author    WorkspaceMember? @relation(fields: [authorMemberId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, day])
+  @@index([taskId])
 }

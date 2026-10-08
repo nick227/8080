@@ -25,13 +25,3 @@
 }
 .section-add-btn:hover,
 .section-add-btn:focus-visible { color: var(--signal); }
-
-.cal-bar .section-header {
-  flex: 1;
-  min-width: 0;
-  padding-block: 0;
-  padding-inline: 0;
-}
-.cal-bar .section-header h1 {
-  font-size: var(--text-base);
-}

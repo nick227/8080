@@ -167,3 +167,7 @@ export async function deleteRecordLink(request: any, reply: any) {
 export async function listRoomLinks(request: any, reply: any) {
   return reply.send({ data: await links.forRoom(request.user.id, request.params.roomId) })
 }
+
+export async function listContactFields(request: any, reply: any) {
+  return reply.send(await contacts.fields(request.user.id, request.params.workspaceId))
+}

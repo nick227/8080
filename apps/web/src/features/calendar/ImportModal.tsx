@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { dayTitle } from './dates'
+import { CsvExample } from '../../components/CsvExample'
 import { parseTaskCsv, parseTaskList, type ImportedTask } from './importParse'
 
 export function ImportModal({ mode, day, onClose, onImport }: {
@@ -81,11 +81,14 @@ export function ImportModal({ mode, day, onClose, onImport }: {
               onChange={(event) => { setText(event.target.value); setError('') }}
             />
           </label>
-          <p className="cal-noon">
-            {list
-              ? `Commas or new lines.`
-              : 'Needs title, date and time columns.'}
-          </p>
+          {list ? (
+            <p className="cal-noon">Commas or new lines. Example: Call Dana, Send the note</p>
+          ) : (
+            <CsvExample
+              example={`title,date,time,status\nCall Dana,${day},9:00 AM,open`}
+              note="Required: title, date (YYYY-MM-DD). Optional: time, status (open or done)."
+            />
+          )}
           {error && <p className="cal-error" role="alert">{error}</p>}
           <div className="cal-actions">
             <button type="button" className="cal-btn" onClick={onClose}>Cancel</button>

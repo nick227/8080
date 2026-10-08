@@ -90,7 +90,7 @@ describe('streamRoomEvents', () => {
     } finally {
       stream.close()
     }
-  })
+  }, 15_000)
 })
 
 

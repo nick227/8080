@@ -110,6 +110,7 @@ function sampleBody(op: any) {
     UpdateEmailConnectionInput: { displayName: 'x' },
     CreateAgentInput: { typeKey: 'daily_team_brief' },
     UpdateAgentInput: { name: 'x' },
+    CreateEmailConnectionInput: { strategy: 'smtp', displayName: 'x', fromAddress: 'x@test.local', smtp: { host: 'smtp.test.local', port: 587, security: 'starttls', username: 'x', password: 'x' } },
     UpdateWorkspaceInput: { name: 'x' },
     UpdateWorkspaceMemberInput: { title: 'x' },
     CreateWorkspaceInviteInput: { email: 'x@test.local' },

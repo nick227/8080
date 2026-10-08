@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { CsvExample } from '../../components/CsvExample'
 import { useQueryClient } from '@tanstack/react-query'
 import { keys, type ImportProposal } from '@project/sdk'
 import { ImportSourceStep, type SyncMode } from './ImportSourceStep'
@@ -217,6 +218,14 @@ export function RecordImportFlow({
                   }}
                 />
               </label>
+              <CsvExample
+                example={kind === 'contacts'
+                  ? 'firstName,lastName,email,phone\nDana,Lee,dana@example.com,512-555-0100'
+                  : 'name,sku,price,quantity\nPool filter,PF-100,49.99,12'}
+                note={kind === 'contacts'
+                  ? 'Include a name, email, or phone. You can map your column headers in the next step.'
+                  : 'Include a name. Price and quantity are numbers; you can map your column headers in the next step.'}
+              />
               {csv.trim() && (
                 <p className="record-muted" role="status">
                   {filename}

@@ -1,4 +1,4 @@
-// Record galleries (contact + inventory images).
+// Record galleries (contact + inventory + company images).
 import { MediaService, type StoredFile } from '../services/MediaService'
 import { RecordImageService, type GallerySubject } from '../services/RecordImageService'
 import { badRequest } from '../lib/errors'
@@ -30,6 +30,11 @@ function subjectFromContact(request: any): { workspaceId: string; subjectType: G
 
 function subjectFromInventory(request: any): { workspaceId: string; subjectType: GallerySubject; subjectId: string } {
   return { workspaceId: request.params.workspaceId, subjectType: 'inventory', subjectId: request.params.inventoryId }
+}
+
+function subjectFromCompany(request: any): { workspaceId: string; subjectType: GallerySubject; subjectId: string } {
+  const workspaceId = request.params.workspaceId as string
+  return { workspaceId, subjectType: 'company', subjectId: workspaceId }
 }
 
 export async function listContactImages(request: any, reply: any) {
@@ -98,6 +103,39 @@ export async function setInventoryImagePrimary(request: any, reply: any) {
 
 export async function deleteInventoryImage(request: any, reply: any) {
   const s = subjectFromInventory(request)
+  await gallery.remove(request.user.id, s.workspaceId, s.subjectType, s.subjectId, request.params.imageId)
+  return reply.send({ data: null })
+}
+
+export async function listCompanyImages(request: any, reply: any) {
+  const s = subjectFromCompany(request)
+  return reply.send(await gallery.list(request.user.id, s.workspaceId, s.subjectType, s.subjectId))
+}
+
+export async function uploadCompanyImage(request: any, reply: any) {
+  const s = subjectFromCompany(request)
+  await authorize(request.user.id, s.workspaceId, 'companyProfile.edit')
+  const stored = await uploadParts(request)
+  try {
+    return reply.status(201).send({ data: await gallery.attach(request.user.id, s.workspaceId, s.subjectType, s.subjectId, stored) })
+  } catch (err) {
+    await mediaService.discard(stored).catch(() => undefined)
+    throw err
+  }
+}
+
+export async function reorderCompanyImages(request: any, reply: any) {
+  const s = subjectFromCompany(request)
+  return reply.send(await gallery.reorder(request.user.id, s.workspaceId, s.subjectType, s.subjectId, request.body.imageIds))
+}
+
+export async function setCompanyImagePrimary(request: any, reply: any) {
+  const s = subjectFromCompany(request)
+  return reply.send(await gallery.setPrimary(request.user.id, s.workspaceId, s.subjectType, s.subjectId, request.params.imageId))
+}
+
+export async function deleteCompanyImage(request: any, reply: any) {
+  const s = subjectFromCompany(request)
   await gallery.remove(request.user.id, s.workspaceId, s.subjectType, s.subjectId, request.params.imageId)
   return reply.send({ data: null })
 }

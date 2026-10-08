@@ -1,16 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
 import { HOURS, hourLabel } from './dates'
-import type { CalTask } from './types'
+import type { CalTask, CalAccomplishment } from './types'
 
-export function DayView({ day, today, tasks, composing, onComposeEnd, onAdd, onToggle, onRemove }: {
+export function DayView({
+  day,
+  today,
+  tasks,
+  accomplishments = [],
+  composing,
+  onComposeEnd,
+  onAdd,
+  onToggle,
+  onRemove,
+  onSelectTask,
+}: {
   day: string
   today: string
   tasks: CalTask[]
+  accomplishments?: CalAccomplishment[]
   composing?: boolean
   onComposeEnd?: () => void
   onAdd: (title: string, time: string | null) => void
   onToggle: (id: string) => void
   onRemove: (id: string) => void
+  onSelectTask?: (task: CalTask) => void
 }) {
   const planRef = useRef<HTMLDivElement>(null)
   const [editing, setEditing] = useState<string | null>(null)
@@ -56,6 +69,8 @@ export function DayView({ day, today, tasks, composing, onComposeEnd, onAdd, onT
     if (next) setEditing(next.value)
   }
 
+  const dayAccs = accomplishments.filter((a) => a.day === day)
+
   return (
     <div
       className="cal-plan"
@@ -69,25 +84,60 @@ export function DayView({ day, today, tasks, composing, onComposeEnd, onAdd, onT
         stepHour(slot ? slot.getAttribute('data-hour') : null, event.shiftKey ? -1 : 1)
       }}
     >
+
+      {/* Accomplishments / Work Log Banner */}
+      {dayAccs.length > 0 && (
+        <section className="cal-day-accomplishments-banner">
+          <h4>Completed</h4>
+          <div className="cal-day-acc-list">
+            {dayAccs.map((acc) => (
+              <div key={acc.id} className="cal-acc-chip">
+                <span className="cal-acc-icon">{acc.icon || '✨'}</span>
+                {acc.taskKey && <span className="cal-acc-key">[{acc.taskKey}]</span>}
+                <span className="cal-acc-title">{acc.title}</span>
+                {acc.assigneeName && <span className="cal-acc-assignee">@{acc.assigneeName}</span>}
+                {acc.time && <time className="cal-acc-time">{hourLabel(acc.time)}</time>}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {untimed.length > 0 && (
         <section className="cal-slot" data-has="">
           <span className="cal-hour">Any</span>
           <div className="cal-slot-tasks">
-            {untimed.map((task) => <TaskLine key={task.id} task={task} onToggle={onToggle} onRemove={onRemove} />)}
+            {untimed.map((task) => (
+              <TaskLine
+                key={task.id}
+                task={task}
+                onToggle={onToggle}
+                onRemove={onRemove}
+                onSelectTask={onSelectTask}
+              />
+            ))}
           </div>
         </section>
       )}
-      {composing && (
+
+      {(composing || editing === 'untimed') && (
         <section className="cal-slot" data-has="">
           <span className="cal-hour">Any</span>
           <div className="cal-slot-tasks">
             <UntimedAdd
-              onAdd={(title) => onAdd(title, null)}
-              onClose={() => onComposeEnd?.()}
+              onAdd={(title) => {
+                onAdd(title, null)
+                setEditing(null)
+              }}
+              onClose={() => {
+                setEditing(null)
+                onComposeEnd?.()
+              }}
             />
           </div>
         </section>
       )}
+
       {HOURS.map((hour, index) => {
         const rows = byHour.get(hour.value) ?? []
         return (
@@ -101,7 +151,14 @@ export function DayView({ day, today, tasks, composing, onComposeEnd, onAdd, onT
             <time className="cal-hour" dateTime={hour.value}>{hour.label}</time>
             <div className="cal-slot-tasks">
               {rows.map((task) => (
-                <TaskLine key={task.id} task={task} showTime={task.time !== hour.value} onToggle={onToggle} onRemove={onRemove} />
+                <TaskLine
+                  key={task.id}
+                  task={task}
+                  showTime={task.time !== hour.value}
+                  onToggle={onToggle}
+                  onRemove={onRemove}
+                  onSelectTask={onSelectTask}
+                />
               ))}
               <HourAdd
                 label={hour.label}
@@ -147,8 +204,8 @@ function UntimedAdd({ onAdd, onClose }: { onAdd: (title: string) => void; onClos
       <input
         ref={inputRef}
         value={title}
-        aria-label="New task"
-        placeholder="Task"
+        aria-label="New ticket"
+        placeholder="Ticket summary..."
         autoComplete="off"
         onChange={(event) => setTitle(event.target.value)}
         onBlur={() => finish(true)}
@@ -190,7 +247,7 @@ function HourAdd({ label, editing, onOpen, onClose, onAdd, onStep }: {
 
   if (!editing) {
     return (
-      <button type="button" className="cal-slot-add" aria-label={`Add a task at ${label}`} onClick={onOpen}>
+      <button type="button" className="cal-slot-add" aria-label={`Add a ticket at ${label}`} onClick={onOpen}>
         <span className="cal-plus" aria-hidden="true">+</span>
       </button>
     )
@@ -202,8 +259,8 @@ function HourAdd({ label, editing, onOpen, onClose, onAdd, onStep }: {
       <input
         ref={inputRef}
         value={title}
-        aria-label={`Task at ${label}`}
-        placeholder="Task"
+        aria-label={`Ticket at ${label}`}
+        placeholder="Ticket summary..."
         autoComplete="off"
         onChange={(event) => setTitle(event.target.value)}
         onBlur={() => finish(true)}
@@ -224,13 +281,28 @@ function HourAdd({ label, editing, onOpen, onClose, onAdd, onStep }: {
   )
 }
 
-function TaskLine({ task, showTime, onToggle, onRemove }: {
+function TaskLine({
+  task,
+  showTime,
+  onToggle,
+  onRemove,
+  onSelectTask,
+}: {
   task: CalTask
   showTime?: boolean
   onToggle: (id: string) => void
   onRemove: (id: string) => void
+  onSelectTask?: (task: CalTask) => void
 }) {
   const done = task.status === 'done'
+  const categoryIcons: Record<string, string> = {
+    feature: '⚡',
+    bug: '🐛',
+    task: '📌',
+    story: '🟢',
+    epic: '🟣',
+  }
+
   return (
     <div className="cal-row" data-done={done ? '' : undefined}>
       <button
@@ -242,7 +314,29 @@ function TaskLine({ task, showTime, onToggle, onRemove }: {
       >
         <span />
       </button>
-      <span className="cal-row-title">{task.title}</span>
+
+      <div
+        className="cal-row-content cal-clickable-row"
+        onClick={() => onSelectTask?.(task)}
+        title="Click to view/edit ticket details & comments"
+      >
+        <span className="cal-ticket-key-tag">{task.taskKey}</span>
+        <span className="cal-cat-icon">{categoryIcons[task.category || 'task'] || '📌'}</span>
+        <span className="cal-row-title">{task.title}</span>
+
+        {task.storyPoints && (
+          <span className="cal-points-badge" title={`${task.storyPoints} story points`}>
+            {task.storyPoints}pt
+          </span>
+        )}
+
+        {task.assigneeName && (
+          <span className="cal-task-assignee-badge">
+            👤 {task.assigneeName}
+          </span>
+        )}
+      </div>
+
       {showTime && task.time && <time dateTime={task.time}>{hourLabel(task.time)}</time>}
       <button type="button" className="cal-btn" aria-label={`Remove ${task.title}`} onClick={() => onRemove(task.id)}>Remove</button>
     </div>

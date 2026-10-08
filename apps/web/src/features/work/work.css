@@ -6,7 +6,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
+ }
 .work-column .room-live {
   position: relative;
   flex: 1;
@@ -14,22 +14,22 @@
   grid-row: auto;
 }
 .work-nav {
-  height: var(--work-nav-height);
   width: 100%;
   overflow-x: auto;
   background: var(--surface-deep);
 }
 .work-nav-item {
   flex: none;
-  padding: 0;
+  padding: 2px;
   font-family: var(--mono);
   font-size: var(--text-label);
   letter-spacing: var(--tracking-spaced);
   text-transform: uppercase;
   white-space: nowrap;
   color: var(--muted);
+  margin: 0 2px;
 }
-.work-nav-item[aria-current="page"] { color: var(--ink); }
+.work-nav-item[aria-current="page"] { color: var(--ink); font-weight: 900; }
 .work-nav-item:hover,
 .work-nav-item:focus-visible { color: var(--ink); }
 
@@ -77,6 +77,8 @@
   display: flex;
   flex-direction: column;
   background: var(--surface-deep);
+  
+  padding: 0 var(--space-sm);
 }
 .work-page:has(.work-empty) { display: grid; place-items: center; }
 .work-empty {
@@ -355,4 +357,12 @@
 @media (max-width: 640px) {
   .docs-col-owner, .docs-col-type { display: none; }
   .docs-col-updated { width: 140px; }
+}
+
+/* Keep contact search available while the workbench scrolls horizontally. */
+@media (max-width: 600px) {
+  .work-nav[data-desk="contacts"] { display: flex; flex-wrap: wrap; height: auto; min-height: var(--work-nav-height); flex-shrink: 0; row-gap: var(--space-sm); padding-block: var(--space-sm); }
+  .work-nav[data-desk="contacts"] .work-nav-search { width: 100%; margin-left: 0; }
+  .work-nav[data-desk="contacts"] .work-search { width: 100%; margin-left: 0; }
+  .work-nav[data-desk="contacts"] .work-search input { width: 100%; min-width: 0; }
 }

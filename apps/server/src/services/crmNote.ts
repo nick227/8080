@@ -1,3 +1,4 @@
+import { defaultContactStage } from './PipelineService'
 // A messy business note → one proposed CRM change (doc/13 §10, D2). The model only
 // reads the note (bots/assistant, grounded); this file matches against the
 // workspace, plans the change, describes it, and applies or undoes it atomically.
@@ -265,6 +266,7 @@ export async function applyPlan(ctx: WorkspaceCtx, workspaceId: string, plan: No
         const points = preparePoints(plan.addPoints.map((p) => ({ kind: p.kind, value: p.value, isPrimary: true })))
         const c = await tx.contact.create({
           data: {
+        leadStatus: await defaultContactStage(tx, workspaceId),
             workspaceId, firstName: plan.contact.create.firstName, lastName: plan.contact.create.lastName,
             displayName: plan.contact.create.displayName, title: plan.set.title ?? null,
             nextFollowUp: plan.set.nextFollowUp ? new Date(`${plan.set.nextFollowUp}T12:00:00Z`) : null,

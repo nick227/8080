@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { InventoryItem, LeadStatus, WorkspaceMember } from '@project/sdk'
+import type { InventoryItem, WorkspaceMember } from '@project/sdk'
 import { STAGES, titleCase } from './labels'
 
 export type FormDraft = {
@@ -7,9 +7,10 @@ export type FormDraft = {
   email: string
   phone: string
   company: string
-  stage: LeadStatus
+  stage: string
   ownerId: string
   source: string
+  tagIds: string[]
   price: string
   sku: string
   category: string
@@ -29,12 +30,16 @@ export function ContactFields({
   fieldError,
   members,
   creating,
+  stages = STAGES.map((key) => ({ key, label: titleCase(key) })),
+  categories = [],
 }: {
   form: FormDraft
   set: SetDraft
   fieldError: Partial<Record<keyof FormDraft, string>>
   members: WorkspaceMember[]
   creating: boolean
+  stages?: { key: string; label: string }[]
+  categories?: { id: string; name: string }[]
 }) {
   return (
     <>
@@ -67,10 +72,11 @@ export function ContactFields({
       <FieldGroup title="Business details">
         <div className="record-field-pair">
           <Field label="Lead stage">
-            <select value={form.stage} onChange={(e) => set('stage', e.target.value as LeadStatus)}>
-              {STAGES.map((stage) => (
-                <option key={stage} value={stage}>
-                  {titleCase(stage)}
+            <select value={form.stage} onChange={(e) => set('stage', e.target.value)}>
+              {creating && <option value="">First open pipeline stage</option>}
+              {stages.map((stage) => (
+                <option key={stage.key} value={stage.key}>
+                  {stage.label}
                 </option>
               ))}
             </select>
@@ -91,6 +97,27 @@ export function ContactFields({
         <Field label="Source">
           <input maxLength={80} value={form.source} onChange={(e) => set('source', e.target.value)} />
         </Field>
+        {categories.length > 0 && (
+          <Field label="Categories">
+            <div className="record-category-toggles" role="group" aria-label="Contact categories">
+              {categories.map((tag) => {
+                const on = form.tagIds.includes(tag.id)
+                return (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() =>
+                      set('tagIds', on ? form.tagIds.filter((id) => id !== tag.id) : [...form.tagIds, tag.id])
+                    }
+                  >
+                    {tag.name}
+                  </button>
+                )
+              })}
+            </div>
+          </Field>
+        )}
       </FieldGroup>
     </>
   )
@@ -102,12 +129,14 @@ export function InventoryFields({
   fieldError,
   currency,
   item,
+  categories = [],
 }: {
   form: FormDraft
   set: SetDraft
   fieldError: Partial<Record<keyof FormDraft, string>>
   currency: string
   item?: InventoryItem
+  categories?: string[]
 }) {
   return (
     <>
@@ -138,7 +167,21 @@ export function InventoryFields({
         </div>
         <div className="record-field-pair">
           <Field label="Category">
-            <input maxLength={80} value={form.category} onChange={(e) => set('category', e.target.value)} />
+            {categories.length ? (
+              <select value={form.category} onChange={(e) => set('category', e.target.value)}>
+                <option value="">None</option>
+                {categories.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+                {form.category && !categories.includes(form.category) && (
+                  <option value={form.category}>{form.category}</option>
+                )}
+              </select>
+            ) : (
+              <input maxLength={80} value={form.category} onChange={(e) => set('category', e.target.value)} />
+            )}
           </Field>
           <Field label="Availability">
             <select

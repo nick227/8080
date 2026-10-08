@@ -1,11 +1,11 @@
-// Gallery for contacts and inventory items. Media is authoritative for bytes;
-// parent imageUrl is a denormalized primary projection maintained here only.
+// Gallery for contacts, inventory, and company profile. Media is authoritative for
+// bytes; parent imageUrl is a denormalized primary projection maintained here only.
 import { db, Prisma, type RecordImageSubject } from '@project/db'
 import { badRequest, conflict, notFound } from '../lib/errors'
 import { playbackUrl } from '../lib/serialize'
 import { ownedMediaId } from '../providers/storage'
 import { MediaService, type StoredFile } from './MediaService'
-import { authorize } from './workspacePolicy'
+import { authorize, type WorkspaceVerb } from './workspacePolicy'
 
 export const MAX_RECORD_IMAGES = 12
 
@@ -30,16 +30,32 @@ const toImage = (row: {
   createdAt: row.createdAt,
 })
 
+function readCap(subjectType: GallerySubject): WorkspaceVerb {
+  return subjectType === 'company' ? 'companyProfile.read' : 'record.read'
+}
+
+function writeCap(subjectType: GallerySubject): WorkspaceVerb {
+  return subjectType === 'company' ? 'companyProfile.edit' : 'record.write'
+}
+
 async function lockSubject(tx: Tx, workspaceId: string, subjectType: GallerySubject, subjectId: string) {
   if (subjectType === 'contact') {
     const rows = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM Contact WHERE id = ${subjectId} AND workspaceId = ${workspaceId} AND deletedAt IS NULL FOR UPDATE`
     if (!rows.length) throw notFound('Contact not found')
-  } else {
+    return
+  }
+  if (subjectType === 'inventory') {
     const rows = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM Inventory WHERE id = ${subjectId} AND workspaceId = ${workspaceId} FOR UPDATE`
     if (!rows.length) throw notFound('Item not found')
+    return
   }
+  if (subjectId !== workspaceId) throw notFound('Company profile not found')
+  const rows = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM Workspace WHERE id = ${workspaceId} FOR UPDATE`
+  if (!rows.length) throw notFound('Workspace not found')
+  await tx.companyProfile.upsert({ where: { workspaceId }, create: { workspaceId }, update: {} })
 }
 
 async function syncPrimary(tx: Tx, workspaceId: string, subjectType: GallerySubject, subjectId: string) {
@@ -50,14 +66,20 @@ async function syncPrimary(tx: Tx, workspaceId: string, subjectType: GallerySubj
   const imageUrl = primary ? playbackUrl(primary.mediaId) : null
   if (subjectType === 'contact') {
     await tx.contact.updateMany({ where: { id: subjectId, workspaceId }, data: { imageUrl } })
-  } else {
+  } else if (subjectType === 'inventory') {
     await tx.inventory.updateMany({ where: { id: subjectId, workspaceId }, data: { imageUrl } })
+  } else {
+    await tx.companyProfile.upsert({
+      where: { workspaceId },
+      create: { workspaceId, imageUrl },
+      update: { imageUrl },
+    })
   }
 }
 
 export class RecordImageService {
   async list(userId: string, workspaceId: string, subjectType: GallerySubject, subjectId: string) {
-    await authorize(userId, workspaceId, 'record.read')
+    await authorize(userId, workspaceId, readCap(subjectType))
     await this.assertSubject(workspaceId, subjectType, subjectId)
     const rows = await db.recordImage.findMany({
       where: { workspaceId, subjectType, subjectId },
@@ -73,7 +95,7 @@ export class RecordImageService {
     subjectId: string,
     stored: StoredFile,
   ) {
-    await authorize(userId, workspaceId, 'record.write')
+    await authorize(userId, workspaceId, writeCap(subjectType))
     if (stored.kind !== 'image') {
       await mediaService.discard(stored)
       throw badRequest('Gallery accepts image files only', 'UNSUPPORTED_TYPE')
@@ -111,7 +133,7 @@ export class RecordImageService {
     subjectId: string,
     imageIds: string[],
   ) {
-    await authorize(userId, workspaceId, 'record.write')
+    await authorize(userId, workspaceId, writeCap(subjectType))
     if (!Array.isArray(imageIds) || !imageIds.length) throw badRequest('imageIds is required', 'INVALID_ORDER')
     if (new Set(imageIds).size !== imageIds.length) throw badRequest('Duplicate image ids', 'INVALID_ORDER')
     await db.$transaction(async (tx) => {
@@ -138,7 +160,7 @@ export class RecordImageService {
     subjectId: string,
     imageId: string,
   ) {
-    await authorize(userId, workspaceId, 'record.write')
+    await authorize(userId, workspaceId, writeCap(subjectType))
     await db.$transaction(async (tx) => {
       await lockSubject(tx, workspaceId, subjectType, subjectId)
       const target = await tx.recordImage.findFirst({ where: { id: imageId, workspaceId, subjectType, subjectId } })
@@ -160,7 +182,7 @@ export class RecordImageService {
     subjectId: string,
     imageId: string,
   ) {
-    await authorize(userId, workspaceId, 'record.write')
+    await authorize(userId, workspaceId, writeCap(subjectType))
     let mediaId: string | null = null
     await db.$transaction(async (tx) => {
       await lockSubject(tx, workspaceId, subjectType, subjectId)
@@ -256,10 +278,14 @@ export class RecordImageService {
     if (subjectType === 'contact') {
       const row = await db.contact.findFirst({ where: { id: subjectId, workspaceId, deletedAt: null }, select: { id: true } })
       if (!row) throw notFound('Contact not found')
-    } else {
+      return
+    }
+    if (subjectType === 'inventory') {
       const row = await db.inventory.findFirst({ where: { id: subjectId, workspaceId }, select: { id: true } })
       if (!row) throw notFound('Item not found')
+      return
     }
+    if (subjectId !== workspaceId) throw notFound('Company profile not found')
   }
 
   async discardOrphanMedia(mediaId: string) {

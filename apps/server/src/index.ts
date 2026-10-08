@@ -1,8 +1,8 @@
 import { buildApp } from './app'
 import { loadPacks } from './bots/pack'
-import { startBots } from './bots/runtime'
+import { startBots, stopBots } from './bots/runtime'
 import { startWorkspaceHost } from './services/WorkspaceHost'
-import { startAgentRunner } from './services/agents/runner'
+import { startAgentRunner, stopAgentRunner } from './services/agents/runner'
 import { describeEmailSetup } from './services/agents/email'
 
 async function main() {
@@ -15,15 +15,33 @@ async function main() {
   const runtime = await startBots(loadPacks())
   server.log.info(`bots: ${runtime.seeded.map((b) => `${b.pack.handle}@${b.pack.version}`).join(', ') || 'none'}${process.env.BOTS === 'off' ? ' (BOTS=off)' : ''}`)
   // chatbot as workspace host (doc/12): channel welcomes and the company-profile flow.
-  startWorkspaceHost()
+  const host = startWorkspaceHost()
   // Agents job runner (docs/agents/07 S0): single instance; AGENTS_SCHEDULER=off disables it.
   server.log.info(`agents runner: ${startAgentRunner() ? 'on' : 'off'}`)
   const email = describeEmailSetup()
   if (email.ok) server.log.info(email.line)
   else server.log.error(email.line)
+
+  const shutdown = async (signal: string) => {
+    server.log.info(`Received ${signal}, shutting down server...`)
+    try {
+      stopAgentRunner()
+      host.stop()
+      await stopBots()
+      await server.close()
+      process.exit(0)
+    } catch (err) {
+      server.log.error(err, 'Error during shutdown')
+      process.exit(1)
+    }
+  }
+
+  process.on('SIGINT', () => { void shutdown('SIGINT') })
+  process.on('SIGTERM', () => { void shutdown('SIGTERM') })
 }
 
 main().catch((err) => {
   console.error(err)
   process.exit(1)
 })
+

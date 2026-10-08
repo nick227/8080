@@ -1,10 +1,24 @@
 import { db } from '@project/db'
-import { afterEach } from 'vitest'
+import { afterAll, afterEach, beforeAll } from 'vitest'
+
+// One shared test DB — serialize concurrent vitest processes (another suite wiping
+// mid-seed shows up as botId/userId FK errors and SSE timeouts).
+const TEST_LOCK = 'voice_chat_test'
+beforeAll(async () => {
+  const rows = await db.$queryRawUnsafe<Array<{ ok: number | null }>>(`SELECT GET_LOCK(?, 180) AS ok`, TEST_LOCK)
+  if (rows[0]?.ok !== 1) throw new Error('could not acquire test database lock (is another vitest using TEST_DATABASE_URL?)')
+})
+afterAll(async () => {
+  await db.$queryRawUnsafe(`SELECT RELEASE_LOCK(?)`, TEST_LOCK)
+})
 
 // Clean between tests — children before parents for FK constraints.
 afterEach(async () => {
   // Workspaces (doc/09) before users: Workspace.createdBy restricts user deletes.
   // Chatbot host + company profile (doc/12), proposals (doc/13): before members.
+  await db.agentBusinessEvent.deleteMany()
+  await db.agentEmailSuppression.deleteMany()
+  await db.agentUnsubscribeToken.deleteMany()
   await db.agentProposal.deleteMany()
   await db.contactBrief.deleteMany()
   await db.companyProfileRevision.deleteMany()
@@ -13,10 +27,15 @@ afterEach(async () => {
   await db.companyProfile.deleteMany()
   await db.workflowAnswer.deleteMany()
   await db.workflowRun.deleteMany()
+  await db.assistantCall.deleteMany()
+  await db.activityEvent.deleteMany()
+  await db.inboxItem.deleteMany()
+  await db.compose.deleteMany()
   await db.workspaceChannel.deleteMany()
   await db.documentRelation.deleteMany()
   await db.documentRoomLink.deleteMany()
   await db.documentGrant.deleteMany()
+  await db.documentContent.deleteMany()
   await db.document.deleteMany()
   await db.activitySubject.deleteMany()
   await db.activity.deleteMany()
@@ -26,7 +45,21 @@ afterEach(async () => {
   await db.recordImage.deleteMany()
   await db.interest.deleteMany()
   await db.inventoryStockMovement.deleteMany()
+  await db.inventoryCategory.deleteMany()
   await db.inventory.deleteMany()
+  await db.importRow.deleteMany()
+  await db.importBatch.deleteMany()
+  await db.contactTag.deleteMany()
+  await db.accountTag.deleteMany()
+  await db.tag.deleteMany()
+  await db.contactAccount.deleteMany()
+  await db.contactPoint.deleteMany()
+  await db.contact.updateMany({ data: { mergedIntoId: null } })
+  await db.contact.deleteMany()
+  await db.account.updateMany({ data: { parentAccountId: null } })
+  await db.account.deleteMany()
+  await db.contactFieldDefinition.deleteMany()
+  await db.pipelineStage.deleteMany()
   await db.teamMember.deleteMany()
   await db.team.deleteMany()
   await db.workspaceInvite.deleteMany()
@@ -47,6 +80,7 @@ afterEach(async () => {
   await db.item.updateMany({ data: { parentId: null } }) // self-FK: unlink before delete
   await db.item.deleteMany()
   await db.message.deleteMany() // after items (FK) and media (SetNull)
+  await db.roomChange.deleteMany()
   await db.roomMember.deleteMany()
   await db.room.deleteMany()
   await db.session.deleteMany()

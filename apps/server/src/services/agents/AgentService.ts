@@ -1,3 +1,9 @@
+import { triggerRules, type TriggerRules } from './businessTriggers'
+import { unsubscribeBaseUrl } from './suppression'
+import { effectiveAudience, intrinsicAudience, recipientCount, recipientProblems } from './recipientSelection'
+import { audienceContacts, contactAudienceWhere, parseAudience, uniqueEmailCount } from '../contactAudience'
+import type { RecipientConfig } from '@project/shared'
+import { catalogSpec } from './types/catalog'
 // Agents management (docs/agents/01, 05, 06; roadmap S1): the built-in catalog,
 // Agent lifecycle (draft → active ⇄ paused → archived), preview, Send test, the
 // activity river and event detail. Delivery itself is the runner's job; this layer
@@ -21,6 +27,11 @@ import { buildReport, teamDelivery, teamFooter, teamRules, teamSpec, type Destin
 type EventWithDeliveries = AgentEvent & { deliveries: AgentEventDelivery[] }
 
 export type UpdateAgentInput = {
+  trigger?: TriggerRules
+  recipientConfig?: RecipientConfig | null
+  emailConnectionId?: string | null
+  subject?: string | null
+  customText?: string | null
   name?: string
   templateKey?: string
   themeKey?: string
@@ -103,7 +114,7 @@ function toEventSummary(event: EventWithDeliveries, agent: Pick<Agent, 'id' | 'n
 
 function toAgent(
   agent: Agent,
-  extra: { connection: EmailConnection; members: number; next: EventWithDeliveries | null; last: EventWithDeliveries | null },
+  extra: { connection: EmailConnection; members: number; next: EventWithDeliveries | null; last: EventWithDeliveries | null; audienceProblem?: string },
 ) {
   const type = getAgentType(agent.typeKey)
   const spec = teamSpec(agent.typeKey)
@@ -123,9 +134,18 @@ function toAgent(
     themeKey: agent.themeKey,
     sender: toEmailConnection(extra.connection),
     recipientCount: extra.members,
+    recipientConfig: effectiveAudience(agent),
+    trigger: agent.family === 'followup' ? ((agent.ruleConfig as { trigger?: TriggerRules })?.trigger ?? { delayDays: 0, noReplyDays: 7 }) : null,
+    subject: (agent.ruleConfig as { customSubject?: string } | null)?.customSubject ?? null,
+    customText: (agent.ruleConfig as { customText?: string } | null)?.customText ?? null,
+    defaultSubject: catalogSpec(agent.typeKey)?.defaultSubject ?? (spec ? `${spec.name} for ${agent.name}` : agent.name),
+    defaultText: catalogSpec(agent.typeKey)?.defaultBody ?? '',
+    effectiveSubject: (agent.ruleConfig as { customSubject?: string } | null)?.customSubject?.trim() || catalogSpec(agent.typeKey)?.defaultSubject || agent.name,
+    effectiveText: (agent.ruleConfig as { customText?: string } | null)?.customText?.trim() || catalogSpec(agent.typeKey)?.defaultBody || '',
+
     nextEvent: extra.next ? toEventSummary(extra.next, agent, extra.members) : null,
     lastEvent: extra.last ? toEventSummary(extra.last, agent, extra.members) : null,
-    problems: type ? type.validate(configOf(agent)) : ['This kind of agent is no longer available'],
+    problems: [...recipientProblems(agent), ...(extra.audienceProblem ? [extra.audienceProblem] : []), ...(type ? type.validate(configOf(agent)) : ['This kind of agent is no longer available']), ...(teamDelivery(agent).destinations.includes('email') && extra.connection.status === 'needs_attention' ? ['The selected sender connection needs attention in Company → Integrations'] : [])],
     publishedAt: agent.publishedAt,
     createdAt: agent.createdAt,
     updatedAt: agent.updatedAt,
@@ -135,8 +155,7 @@ function toAgent(
 async function hydrate(agents: Agent[], workspaceId: string) {
   if (!agents.length) return []
   const ids = agents.map((a) => a.id)
-  const [members, upcoming, finished] = await Promise.all([
-    memberCount(workspaceId),
+  const [upcoming, finished] = await Promise.all([
     db.agentEvent.findMany({ where: { agentId: { in: ids }, status: { in: ['scheduled', 'running'] } }, orderBy: { scheduledFor: 'asc' }, include: { deliveries: true } }),
     db.agentEvent.findMany({
       where: { agentId: { in: ids }, status: { in: ['completed', 'failed', 'canceled'] } },
@@ -150,10 +169,17 @@ async function hydrate(agents: Agent[], workspaceId: string) {
   for (const agent of agents) {
     const key = agent.emailConnectionId ?? 'default'
     if (!connections.has(key)) connections.set(key, await agentConnection(agent))
+    let count = 0
+    let audienceProblem: string | undefined
+    try { count = await recipientCount(agent) } catch (error) {
+      if ((error as { code?: string }).code !== 'INVALID_AUDIENCE') throw error
+      audienceProblem = 'An audience field is no longer available. Edit the audience rules.'
+    }
     result.push(
       toAgent(agent, {
         connection: connections.get(key)!,
-        members,
+        members: count,
+        audienceProblem,
         next: upcoming.find((e) => e.agentId === agent.id) ?? null,
         last: finished.find((e) => e.agentId === agent.id) ?? null,
       }),
@@ -165,6 +191,29 @@ async function hydrate(agents: Agent[], workspaceId: string) {
 // ─── service ───────────────────────────────────────────────────────────────────
 
 export class AgentService {
+  private async validateAudience(workspaceId: string, agent: Pick<Agent, 'family' | 'typeKey'>, value: unknown) {
+    const intrinsic = intrinsicAudience(agent)
+    if (intrinsic) {
+      if (JSON.stringify(value) !== JSON.stringify(intrinsic)) throw badRequest('This Agent has a built-in audience', 'INVALID_AUDIENCE')
+      return
+    }
+    if (value === null) return
+    const config = parseAudience(value)
+    if (!['CONTACTS', 'SELECTED_CONTACTS'].includes(config.source)) throw badRequest('Choose a contact audience', 'INVALID_AUDIENCE')
+    await contactAudienceWhere(workspaceId, config)
+    if (config.source === 'SELECTED_CONTACTS') {
+      const found = await audienceContacts(workspaceId, config)
+      if (found.length !== new Set(config.ids).size) throw badRequest('Selected contacts must be active contacts in this workspace', 'INVALID_AUDIENCE')
+    }
+  }
+
+  async previewAudience(userId: string, workspaceId: string, input: unknown) {
+    await authorize(userId, workspaceId, 'agent.manage')
+    const config = parseAudience(input)
+    if (!['CONTACTS', 'SELECTED_CONTACTS'].includes(config.source)) throw badRequest('Choose a contact audience')
+    const contacts = await audienceContacts(workspaceId, config)
+    return { matchedCount: contacts.length, recipientCount: uniqueEmailCount(contacts), contacts: contacts.slice(0, 100).map(c => ({ id: c.id, name: c.displayName, email: c.primaryEmail })) }
+  }
   async types(userId: string, workspaceId: string) {
     await authorize(userId, workspaceId, 'agent.read')
     return listAgentTypes()
@@ -185,11 +234,12 @@ export class AgentService {
   }
 
   /** Adding a built-in creates a draft straight away (no wizard; docs/agents/01 §2). */
-  async create(ctx: WorkspaceCtx, workspaceId: string, input: { typeKey: string }) {
+  async create(ctx: WorkspaceCtx, workspaceId: string, input: { typeKey: string; recipientConfig?: RecipientConfig }) {
     const actor = await authorize(ctx.user.id, workspaceId, 'agent.manage')
     const type = getAgentType(input.typeKey)
     if (!type?.enabled) throw badRequest('Choose one of the available agents', 'UNKNOWN_AGENT_TYPE')
     const d = type.defaults(actor.workspace)
+    if (input.recipientConfig) await this.validateAudience(workspaceId, { family: type.family, typeKey: type.key }, input.recipientConfig)
     const agent = await runAction(
       { action: 'agent.create', workspaceId, actor: memberActor(actor), origin: ctx.origin, input, target: { type: 'agent' } },
       async (tx) => {
@@ -199,7 +249,7 @@ export class AgentService {
             typeKey: type.key,
             family: type.family,
             name: d.name,
-            recipientConfig: d.recipientConfig as Prisma.InputJsonValue,
+            recipientConfig: (input.recipientConfig ?? d.recipientConfig) as Prisma.InputJsonValue,
             deliveryConfig: d.deliveryConfig as Prisma.InputJsonValue,
             ruleConfig: d.ruleConfig as Prisma.InputJsonValue,
             templateKey: d.templateKey,
@@ -223,9 +273,15 @@ export class AgentService {
     if (input.templateKey !== undefined && !isEmailTemplateKey(input.templateKey)) throw badRequest('Unknown template', 'INVALID_TEMPLATE')
     if (input.themeKey !== undefined && !isEmailThemeKey(input.themeKey)) throw badRequest('Unknown theme', 'INVALID_THEME')
 
+    if (input.recipientConfig !== undefined) await this.validateAudience(workspaceId, before, input.recipientConfig)
+    if (input.emailConnectionId && !(await db.emailConnection.count({ where: { id: input.emailConnectionId, workspaceId } }))) throw badRequest('Choose one of this workspace’s senders', 'INVALID_SENDER')
+    if (input.trigger !== undefined) {
+      if (before.family !== 'followup') throw badRequest('This Agent does not use business triggers', 'INVALID_TRIGGER')
+      triggerRules({ trigger: input.trigger })
+    }
     const delivery = { ...teamDelivery(before), ...(input.destinations ? { destinations: input.destinations } : {}) }
-    const rules = { ...teamRules(before), ...(input.schedule ? { schedule: input.schedule as TeamRules['schedule'] } : {}), ...(input.include ? { include: input.include } : {}) }
-    const problems = type.validate({ recipientConfig: before.recipientConfig, deliveryConfig: delivery as unknown as Prisma.JsonValue, ruleConfig: rules as unknown as Prisma.JsonValue })
+    const rules = { ...teamRules(before), ...(input.trigger !== undefined ? { trigger: input.trigger } : {}), ...(input.subject !== undefined ? { customSubject: input.subject } : {}), ...(input.customText !== undefined ? { customText: input.customText } : {}), ...(input.schedule ? { schedule: input.schedule as TeamRules['schedule'] } : {}), ...(input.include ? { include: input.include } : {}) }
+    const problems = type.validate({ recipientConfig: (input.recipientConfig ?? before.recipientConfig) as Prisma.JsonValue, deliveryConfig: delivery as unknown as Prisma.JsonValue, ruleConfig: rules as unknown as Prisma.JsonValue })
     if (problems.length) throw badRequest(problems[0]!, 'INVALID_AGENT')
 
     const after = await runAction(
@@ -235,6 +291,8 @@ export class AgentService {
           where: { id: agentId },
           data: {
             name,
+            emailConnectionId: input.emailConnectionId,
+            ...(input.recipientConfig !== undefined ? { recipientConfig: (input.recipientConfig ?? {}) as Prisma.InputJsonValue } : {}),
             templateKey: input.templateKey as EmailTemplateKey | undefined,
             themeKey: input.themeKey as EmailThemeKey | undefined,
             deliveryConfig: delivery as unknown as Prisma.InputJsonValue,
@@ -242,8 +300,8 @@ export class AgentService {
           },
         })
         const changes: Changes = {}
-        for (const field of ['name', 'templateKey', 'themeKey'] as const) if (before[field] !== updated[field]) changes[field] = [before[field], updated[field]]
-        for (const field of ['deliveryConfig', 'ruleConfig'] as const)
+        for (const field of ['name', 'templateKey', 'themeKey', 'emailConnectionId'] as const) if (before[field] !== updated[field]) changes[field] = [before[field], updated[field]]
+        for (const field of ['deliveryConfig', 'ruleConfig', 'recipientConfig'] as const)
           if (JSON.stringify(before[field]) !== JSON.stringify(updated[field])) changes[field] = [before[field], updated[field]]
         return { value: updated, changes }
       },
@@ -257,7 +315,12 @@ export class AgentService {
     const actor = await authorize(ctx.user.id, workspaceId, 'agent.manage')
     const agent = await loadAgent(workspaceId, agentId)
     if (agent.status === 'archived') throw conflict('This agent is archived', 'AGENT_ARCHIVED')
-    const problems = typeOf(agent).validate(configOf(agent))
+    const problems = [...recipientProblems(agent), ...typeOf(agent).validate(configOf(agent))]
+    const conn = await agentConnection(agent)
+    if (teamDelivery(agent).destinations.includes('email') && conn.status === 'needs_attention') throw badRequest(`The sender "${conn.displayName}" needs attention. Test or fix the connection in Company → Integrations before publishing.`, 'SENDER_NEEDS_ATTENTION')
+    const audience = effectiveAudience(agent)
+    if (audience && audience.source !== 'WORKSPACE_MEMBERS' && teamDelivery(agent).destinations.includes('email')) unsubscribeBaseUrl()
+    if (audience && audience.source !== 'WORKSPACE_MEMBERS') await contactAudienceWhere(workspaceId, audience)
     if (problems.length) throw badRequest(problems[0]!, 'INVALID_AGENT')
     return this.setStatus(ctx, actor, agent, 'active', 'agent.publish')
   }
@@ -333,27 +396,18 @@ export class AgentService {
   }
 
   private async render(actor: Actor, agent: Agent, test: boolean) {
+    const type = typeOf(agent)
     const spec = teamSpec(agent.typeKey)
-    if (!spec) throw badRequest('This kind of agent is no longer available', 'UNKNOWN_AGENT_TYPE')
-    const report = await buildReport(spec, actor.workspace, teamRules(agent).include ?? [], new Date())
+    const mockEvent = { occurrenceKey: 'preview', scheduledFor: new Date() } as AgentEvent
+    const prepared = await type.prepare({ agent, event: mockEvent, workspace: actor.workspace, now: new Date() })
+    if (!prepared.ok) throw badRequest(prepared.summary, 'PREVIEW_FAILED')
+    const report = spec ? await buildReport(spec, actor.workspace, teamRules(agent).include ?? [], new Date()) : null
     const profile = await db.profile.findUnique({ where: { userId: actor.member.userId }, select: { displayName: true } })
     const name = profile?.displayName?.trim() || 'there'
-    const values = { ...(await baseValues(actor.workspace)), 'member.displayName': name, 'member.firstName': name.split(/\s+/)[0] }
-    const email = renderEmail({
-      subject: report.subject,
-      content: report.content,
-      template: agent.templateKey as EmailTemplateKey,
-      theme: agent.themeKey as EmailThemeKey,
-      values,
-      footer: teamFooter(spec),
-      test,
-    })
-    return {
-      ...email,
-      chat: report.chat.text,
-      sections: report.sections.map((s) => ({ key: s.key, title: s.title, count: s.count })),
-      recipientCount: await memberCount(agent.workspaceId),
-    }
+    const values = { ...(await baseValues(actor.workspace)), 'member.displayName': name, 'member.firstName': name.split(/\s+/)[0], 'contact.name': name, 'contact.firstName': name.split(/\s+/)[0] }
+    const content = prepared.email ?? (report ? { subject: report.subject, content: report.content, footer: teamFooter(spec!) } : null)
+    const email = content ? renderEmail({ subject: content.subject, content: content.content, template: agent.templateKey as EmailTemplateKey, theme: agent.themeKey as EmailThemeKey, values, footer: content.footer, test }) : { subject: agent.name, html: '', text: prepared.chat?.text ?? '' }
+    return { ...email, chat: prepared.chat?.text ?? '', sections: report?.sections.map(s => ({ key: s.key, title: s.title, count: s.count })) ?? [], recipientCount: await recipientCount(agent) }
   }
 
   // ─── activity river ──────────────────────────────────────────────────────────
@@ -371,11 +425,10 @@ export class AgentService {
       },
       orderBy: [{ scheduledFor: 'desc' }, { id: 'desc' }],
       take: limit + 1,
-      include: { deliveries: true, agent: { select: { id: true, name: true, typeKey: true, deliveryConfig: true } } },
+      include: { deliveries: true, agent: true },
     })
-    const members = await memberCount(workspaceId)
     const paged = page(rows, limit, (last) => encodeKeyCursor({ at: last.scheduledFor.toISOString(), id: last.id }))
-    return { data: paged.data.map((e) => toEventSummary(e, e.agent, members)), meta: paged.meta }
+    return { data: await Promise.all(paged.data.map(async e => toEventSummary(e, e.agent, await recipientCount(e.agent)))), meta: paged.meta }
   }
 
   async event(userId: string, workspaceId: string, eventId: string) {
@@ -383,12 +436,12 @@ export class AgentService {
     const event = await db.agentEvent.findFirst({
       where: { id: eventId, workspaceId },
       include: {
-        agent: { select: { id: true, name: true, typeKey: true, deliveryConfig: true } },
+        agent: true,
         deliveries: { include: { targets: { orderBy: { createdAt: 'asc' }, include: { sendAttempts: { orderBy: { number: 'asc' } } } } } },
       },
     })
     if (!event) throw notFound()
-    const members = await memberCount(workspaceId)
+    const members = await recipientCount(event.agent)
     const email = event.deliveries.find((d) => d.destination === 'email')
     const chat = event.deliveries.find((d) => d.destination === 'internal_chat')
     const sample = email?.targets.find((t) => t.html || t.text)

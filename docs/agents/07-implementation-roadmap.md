@@ -66,9 +66,32 @@ Naming: UI word is **Agent**. Tables `Agent*` don't collide (`AgentProposal` is 
 - Types `daily_team_brief` (08:00) and `daily_customer_report` (17:00) in `services/agents/types/team.ts`; sections in `services/agents/reports.ts` (deterministic, windowed on the event's scheduled time). Brief: important activity (ActivityEvent), follow-ups due, Agent failures, low stock. Customer report: new contacts, stage changes (from `contact.update` audit rows — bulk "set stage" is not audited at HEAD, so it doesn't show), follow-ups due, quiet 30 days (any stage but customer/lost, so workspace-defined stages work).
 - Company chat = a second destination in the same runner (`freezeChat`/`sendChat`): one frozen target, posted by the workspace host on the existing activity flow, contact links only (existing link kinds). Not retried; host off → `CHAT_UNAVAILABLE`, visible, email unaffected. The chat UI collapses line breaks, so the post is written as sentences.
 - `AgentService` + 13 operations (catalog, list/get/create/update/delete-or-archive, publish/pause, preview, Send test, river, event detail, cancel). Verbs `agent.read` (everyone) / `agent.manage` (admins). Send test = the caller only, `[Test]`, no event, no chat post.
-- Web: `features/agents/*` — Agents desk (`?desk=agents&agent=&event=&add=1`), catalog, list, editor (destinations, repeat/time, sections with today's counts, template/theme, sender → Company › Integrations, live Email/Company chat preview), river, event detail (failures, attempts, frozen preview, cancel/stop). Sender management stays in the Company desk (other editor's Integrations section).
+- Web: `features/agents/*` — Agents desk (`?desk=agents&agent=&event=&add=1`), catalog, list, editor (destinations, repeat/time, sections with today's counts, template/theme, sender selector with link to Company › Integrations, live Email/Company chat preview), river, event detail (failures, attempts, frozen preview, cancel/stop).
 - Tests: server `agentsTeam.test.ts` 8/8 + `agents.test.ts` 26/26; browser check 24/24 (isolated pair, dev DB).
-- Not yet: calendar section (calendar is device-local), Calendar overlay (S6), AI opener (S7).
+
+**S1.5 — SMTP Own-Mailbox Senders (Pulled Forward & Completed 2026-10-07):**
+- **Server**: `SmtpProvider` (`services/agents/email/smtp.ts`) using Nodemailer transport. STARTTLS (587/25) and Implicit TLS (465) support. Encrypted secrets via AES-GCM (`lib/secrets.ts`). Host safety checks against loopback/internal hosts in production (`smtpHostProblem`). Error classification via `classifySmtpError` (`SMTP_AUTH`, `SMTP_450`, `SMTP_550`, etc.).
+- **API/SDK**: Full CRUD endpoints for `/workspaces/{workspaceId}/email-connections` (create, update, delete, test, make default). Passwords are write-only and never audited or exposed in responses. SDK hooks generated (`useEmailConnections`, `useCreateEmailConnection`, `useUpdateEmailConnection`, `useDeleteEmailConnection`, `useTestEmailConnection`).
+- **Web UI**: `Company → Integrations / Email Senders` form for adding/testing/deleting/defaulting SMTP senders. `AgentEditor` sender dropdown lets agents pick any existing connection or default to workspace sender.
+- **Tests**: `apps/server/src/__tests__/agentsSmtp.test.ts` (7/7 tests passing including real local SMTP auth failure $\rightarrow$ `needs_attention` status $\rightarrow$ credential correction clearing error).
+
+### POC Sending Architecture & Proof Criteria (Resend + SMTP)
+The POC explicitly validates two sender paths through the same `EmailProvider` interface:
+1. **Send with 8080 (Resend Platform)**:
+   - Uses workspace `PLATFORM` connection (created automatically at workspace creation).
+   - Server sends through Resend API.
+   - `From: Workspace Name <notifications@your-verified-domain>`, `Reply-To: client/workspace email`.
+   - Zero customer setup required. Fail-loud if unconfigured (`PLATFORM_NOT_CONFIGURED`).
+2. **Use my own email (SMTP)**:
+   - User inputs host, port, security, username, password, from address, reply-to.
+   - Credentials encrypted at rest. Connection test verifies auth via SMTP `verify()`.
+   - Agent selects sender explicitly or uses workspace default.
+
+**POC Success Criteria**:
+- **Resend test**: Real message delivered $\rightarrow$ provider message ID stored & displayed.
+- **SMTP test**: Real message delivered over SMTP $\rightarrow$ SMTP message ID stored & displayed.
+- **Agent switching**: Same Agent switches between Resend and SMTP with zero code changes.
+- **Fail-loud behavior**: Failed auth sets status to `needs_attention` $\rightarrow$ **no silent fallback** between providers.
 
 ### S2 — Manual customer email (Company announcement)
 - Recipients (Customers / Leads / All) + Send now / choose time. Late binding: resolve → skip no-email → dedupe → render → freeze targets → send.
@@ -86,10 +109,12 @@ Naming: UI word is **Agent**. Tables `Agent*` don't collide (`AgentProposal` is 
 - Editor stat ("41 contacts became customers this month") needs a stage-change record: add `ContactStageChange` rows (recommended) or query Activity.
 - Then: Follow up after a status change; Ask for a review (`company.googleReviewUrl` from CompanyProfile).
 
-### S5 — "Use my own email/domain"
-- One UI entry next to "Send with 8080". Inside it the user picks how to connect; the result is still just a sender ("Sarah · sarah@acme.com") everywhere else.
-- Strategies, in order: `SMTP` (host/port/user/password, TLS; `test()` = authenticated connect + optional self-send) → `GOOGLE` OAuth (`gmail.send`; restricted scope → start Google verification early) and `MICROSOFT` OAuth (Graph `Mail.Send`), token refresh in the provider → `RESEND_DOMAIN` (create domain via Resend API, show DNS records, poll verification).
-- Each strategy = one provider class + one setup step; no Agent changes. Removing an own connection falls Agents back to the workspace default after confirmation.
+### S5 — Additional Own-Mailbox Senders (Future)
+- `SMTP` sender support is **COMPLETED** (S1.5).
+- Future strategies behind the same `EmailConnection` / `EmailProvider` model:
+  - `GOOGLE` OAuth (`gmail.send`; restricted scope $\rightarrow$ start Google verification early)
+  - `MICROSOFT` OAuth (Graph `Mail.Send`)
+  - `RESEND_DOMAIN` (custom domain via Resend API)
 
 ### S6 — Calendar + Contacts entry points
 - `GET` Agent events by range; Calendar overlays them read-only ("Auto-emailing 328 customers"), click → event detail.
@@ -106,6 +131,12 @@ Naming: UI word is **Agent**. Tables `Agent*` don't collide (`AgentProposal` is 
 
 ### S10 — Social (minimal blast radius)
 - Social connections, capability checks, post fields on `AgentMessage`, social types reusing Agent/Message/Event and the same job runner. No second engine.
+
+## Current Roadmap Summary & Architectural Status
+- **UI Foundation**: Mature (Desk, River, Catalog, Editor shell, Event Detail, Company Integrations).
+- **Sender Architecture & SMTP Path**: Implemented & tested end-to-end.
+- **Core Team Agents**: Implemented & live.
+- **Remaining Roadmap**: Primarily feature-specific behaviors and compliance gates (queue management, triggered signals, calendar overlays, AI writing, compliance headers, social transports), requiring no major frontend architectural overhauls.
 
 ## Cross-cutting rules
 - Every mutation through `runAction`; every related row loaded with `workspaceId`; new FK pairs in `workspaceIntegrity.ts`.

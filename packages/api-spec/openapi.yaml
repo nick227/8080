@@ -1503,6 +1503,297 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  /workspaces/{workspaceId}/company-profile/images:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listCompanyImages
+      summary: Gallery images for the company profile
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordImageList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: uploadCompanyImage
+      summary: Upload a company gallery image
+      description: Multipart field `file` (image only). At most 12 images. First image becomes primary.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordImageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+  /workspaces/{workspaceId}/company-profile/images/order:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    patch:
+      operationId: reorderCompanyImages
+      summary: Reorder company gallery images
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReorderRecordImagesInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordImageList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/company-profile/images/{imageId}/primary:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/RecordImageId'
+    patch:
+      operationId: setCompanyImagePrimary
+      summary: Set the primary company gallery image
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecordImageList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/company-profile/images/{imageId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/RecordImageId'
+    delete:
+      operationId: deleteCompanyImage
+      summary: Remove a company gallery image
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/insights:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: getWorkspaceInsights
+      summary: Company desk aggregates (deterministic counts and deep links)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: Insight cards, attention rows, pipeline snapshot, recent activity
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceInsightsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/vocabulary:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: getWorkspaceVocabulary
+      summary: Pipeline stages and inventory categories
+      tags: [workspaces]
+      responses:
+        '200':
+          description: Vocabulary for the Company desk
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceVocabularyResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/pipeline:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    put:
+      operationId: updateWorkspacePipeline
+      summary: Replace the workspace sales pipeline (labels, order, add, archive)
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdatePipelineInput' }
+      responses:
+        '200':
+          description: Active stages after the update
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PipelineStagesResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /workspaces/{workspaceId}/vocabulary/categories:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: createInventoryCategory
+      summary: Add an inventory category to the workspace vocabulary
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              additionalProperties: false
+              properties:
+                name: { type: string, minLength: 1, maxLength: 80 }
+      responses:
+        '201':
+          description: Category created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                additionalProperties: false
+                properties:
+                  data:
+                    type: object
+                    required: [name]
+                    additionalProperties: false
+                    properties:
+                      name: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    patch:
+      operationId: renameInventoryCategory
+      summary: Rename an inventory category across items (empty to clears it)
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from, to]
+              additionalProperties: false
+              properties:
+                from: { type: string, minLength: 1, maxLength: 80 }
+                to: { type: string, maxLength: 80 }
+      responses:
+        '200':
+          description: Rename applied
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                additionalProperties: false
+                properties:
+                  data:
+                    type: object
+                    required: [from, to]
+                    additionalProperties: false
+                    properties:
+                      from: { type: string }
+                      to: { type: [string, 'null'] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: deleteInventoryCategory
+      summary: Remove an inventory category and clear it from items
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              additionalProperties: false
+              properties:
+                name: { type: string, minLength: 1, maxLength: 80 }
+      responses:
+        '200':
+          description: Category removed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                additionalProperties: false
+                properties:
+                  data:
+                    type: object
+                    required: [from, to]
+                    additionalProperties: false
+                    properties:
+                      from: { type: string }
+                      to: { type: [string, 'null'] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/vocabulary/fields:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    put:
+      operationId: updateContactFieldLabels
+      summary: Update contact field labels shown in the workbench
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateContactFieldLabelsInput' }
+      responses:
+        '200':
+          description: Field definitions after the update
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactFieldDefinitionsResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   # ─── agents: email senders (docs/agents/07) ───────────────────────────────
   /workspaces/{workspaceId}/email-connections:
     parameters:
@@ -1523,6 +1814,28 @@ paths:
               schema: { $ref: '#/components/schemas/EmailConnectionListResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createEmailConnection
+      summary: Add an own sender — "Use my own email/domain" (owners/admins)
+      description: |
+        SMTP for now (a mailbox and its app password). The password is stored encrypted and
+        never returned. Not the default unless `makeDefault`. Run the test afterwards.
+      tags: [agents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateEmailConnectionInput' }
+      responses:
+        '201':
+          description: The new sender
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmailConnectionResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /workspaces/{workspaceId}/email-connections/{connectionId}:
     parameters:
@@ -1530,7 +1843,7 @@ paths:
       - $ref: '#/components/parameters/EmailConnectionId'
     patch:
       operationId: updateEmailConnection
-      summary: Change the name people see or the reply-to address (owners/admins)
+      summary: Change a sender's name, reply-to, own-mailbox details, or make it the default (owners/admins)
       tags: [agents]
       requestBody:
         required: true
@@ -1547,6 +1860,20 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteEmailConnection
+      summary: Remove an own sender; agents that used it fall back to the default (owners/admins)
+      tags: [agents]
+      responses:
+        '200':
+          description: Removed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeleteEmailConnectionResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   /workspaces/{workspaceId}/email-connections/{connectionId}/test:
     parameters:
@@ -1569,6 +1896,169 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
 
   # ─── agents (docs/agents; roadmap S1) ──────────────────────────────────────
+  /workspaces/{workspaceId}/agent-business-events:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: recordAgentBusinessEvent
+      summary: Record an outreach, reply, or completed job
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [contactId, kind, sourceKey, occurredAt]
+              properties:
+                contactId: { type: string, minLength: 1, maxLength: 64 }
+                kind: { type: string, enum: [outreach_sent, reply_received, job_completed] }
+                sourceKey: { type: string, minLength: 1, maxLength: 100 }
+                occurredAt: { type: string, format: date-time }
+                jobId: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        '201':
+          description: Recorded once; retries with the same source key return the original event
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [id, kind, contactId, occurredAt]
+                    properties:
+                      id: { type: string }
+                      kind: { type: string }
+                      contactId: { type: string }
+                      occurredAt: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /workspaces/{workspaceId}/agent-suppressions:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listAgentSuppressions
+      summary: List customer email exclusions
+      tags: [workspaces]
+      responses:
+        '200':
+          description: Current exclusions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AgentSuppression' } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createAgentSuppression
+      summary: Exclude an email address from customer Agents
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [address, reason]
+              properties:
+                address: { type: string, format: email, maxLength: 254 }
+                reason: { type: string, enum: [manual, bounce, complaint] }
+      responses:
+        '201':
+          description: Excluded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/AgentSuppression' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /agent-unsubscribe/{token}:
+    parameters:
+      - in: path
+        name: token
+        required: true
+        schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+    get:
+      operationId: agentUnsubscribePage
+      summary: Confirm an email unsubscribe request without changing preferences
+      tags: [workspaces]
+      security: []
+      responses:
+        '200':
+          description: Confirmation page
+          content:
+            text/html:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    post:
+      operationId: agentUnsubscribe
+      summary: Stop customer emails using a message unsubscribe token
+      tags: [workspaces]
+      security: []
+      x-fastify-config:
+        rateLimit: { max: 60, timeWindow: '1 minute' }
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: Unsubscribed (idempotent)
+          content:
+            text/html:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /workspaces/{workspaceId}/agent-audience/preview:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: previewAgentAudience
+      summary: Preview a deterministic contact audience
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecipientConfig' }
+      responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '200':
+          description: Current audience, resolved without sending
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [matchedCount, recipientCount, contacts]
+                    properties:
+                      matchedCount: { type: integer }
+                      recipientCount: { type: integer }
+                      contacts:
+                        type: array
+                        items:
+                          type: object
+                          required: [id, name, email]
+                          properties:
+                            id: { type: string }
+                            name: { type: string }
+                            email: { type: [string, 'null'] }
+
   /workspaces/{workspaceId}/agent-types:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -2014,6 +2504,28 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
 
   # ─── contacts, accounts, tags, notes, links (doc/09 slice 1) ───────────────
+  /workspaces/{workspaceId}/contacts/fields:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listContactFields
+      summary: Contact field definitions for this workspace
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ContactFieldDefinition' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
   /workspaces/{workspaceId}/contacts:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -2021,9 +2533,12 @@ paths:
       operationId: listContacts
       summary: Contacts, by name
       description: |
-        `q` matches the name (contains) or any email/phone/url (prefix). `accountId`: people currently at that account. Defaults to active contacts.
+        `q` matches name, company, contact details, or interests (contains). `accountId`: people currently at that account. Defaults to active contacts.
       tags: [workspaces]
       parameters:
+        - in: query
+          name: audience
+          schema: { type: string, maxLength: 50000 }
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
         - in: query
@@ -2047,13 +2562,25 @@ paths:
         - in: query
           name: focus
           description: Working view over active contacts (due = follow-up today; overdue excludes customer/lost)
-          schema: { type: string, enum: [due, overdue, unassigned] }
+          schema: { type: string, enum: [due, overdue, unassigned, neverContacted, waitingOnUs, needsProposal] }
         - in: query
           name: sort
-          schema: { type: string, enum: [name, followUp, updated, activity], default: name }
+          schema: { type: string, enum: [name, company, owner, stage, followUp, lastContacted, interestedIn, contacted, qualified, proposalSent, won, potentialValue, priority, updated, activity], default: name }
         - in: query
           name: dir
           schema: { type: string, enum: [asc, desc], default: asc }
+        - in: query
+          name: thenSort
+          schema: { type: string, enum: [name, company, owner, stage, followUp, lastContacted, interestedIn, contacted, qualified, proposalSent, won, potentialValue, priority, updated, activity] }
+        - in: query
+          name: thenDir
+          schema: { type: string, enum: [asc, desc] }
+        - in: query
+          name: milestone
+          schema: { type: string, enum: [contacted, qualified, proposalSent, won] }
+        - in: query
+          name: checked
+          schema: { type: boolean }
       responses:
         '200':
           description: OK
@@ -5494,7 +6021,7 @@ components:
 
     CompanyProfile:
       type: object
-      required: [revision, name, location, serviceArea, purpose, brandVoice, facts, updatedAt]
+      required: [revision, name, location, serviceArea, purpose, brandVoice, imageUrl, facts, updatedAt]
       properties:
         revision: { type: integer, description: 0 until the first save }
         name: { type: [string, 'null'] }
@@ -5502,6 +6029,7 @@ components:
         serviceArea: { type: [string, 'null'], enum: [local, regional, national, global, null] }
         purpose: { type: [string, 'null'] }
         brandVoice: { type: [string, 'null'], enum: [professional, friendly, bold, technical, null] }
+        imageUrl: { type: [string, 'null'], description: Primary gallery image URL (denormalized) }
         facts: { type: array, items: { $ref: '#/components/schemas/CompanyFact' } }
         updatedAt: { type: [string, 'null'], format: date-time }
 
@@ -5527,7 +6055,7 @@ components:
 
     EmailConnection:
       type: object
-      required: [id, mode, strategy, label, displayName, fromAddress, replyTo, status, isDefault, lastTestedAt, lastError]
+      required: [id, mode, strategy, label, displayName, fromAddress, replyTo, status, isDefault, lastTestedAt, lastError, smtp]
       properties:
         id: { type: string }
         mode: { type: string, enum: [platform, own], description: 'What the UI offers: "Send with 8080" or "Use my own email/domain"' }
@@ -5540,6 +6068,17 @@ components:
         isDefault: { type: boolean }
         lastTestedAt: { type: [string, 'null'], format: date-time }
         lastError: { type: [string, 'null'] }
+        smtp:
+          description: How an own SMTP sender connects (never the password); null otherwise
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [host, port, security, username]
+              properties:
+                host: { type: string }
+                port: { type: integer }
+                security: { $ref: '#/components/schemas/SmtpSecurity' }
+                username: { type: string }
 
     EmailConnectionResponse:
       type: object
@@ -5553,6 +6092,45 @@ components:
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/EmailConnection' } }
 
+    SmtpSecurity:
+      type: string
+      enum: [starttls, implicit]
+      description: starttls = upgrade after connecting (port 587); implicit = TLS from the start (port 465)
+
+    SmtpSettings:
+      type: object
+      additionalProperties: false
+      required: [host, port, security, username, password]
+      properties:
+        host: { type: string, minLength: 1, maxLength: 253 }
+        port: { type: integer, enum: [25, 465, 587, 2525] }
+        security: { $ref: '#/components/schemas/SmtpSecurity' }
+        username: { type: string, minLength: 1, maxLength: 254 }
+        password: { type: string, minLength: 1, maxLength: 500, writeOnly: true }
+
+    CreateEmailConnectionInput:
+      type: object
+      additionalProperties: false
+      required: [strategy, displayName, fromAddress, smtp]
+      properties:
+        strategy: { type: string, enum: [smtp] }
+        displayName: { type: string, minLength: 1, maxLength: 120 }
+        fromAddress: { type: string, maxLength: 254 }
+        replyTo: { type: [string, 'null'], maxLength: 254 }
+        smtp: { $ref: '#/components/schemas/SmtpSettings' }
+        makeDefault: { type: boolean }
+
+    DeleteEmailConnectionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [removed, agentsMovedToDefault]
+          properties:
+            removed: { type: boolean }
+            agentsMovedToDefault: { type: integer }
+
     UpdateEmailConnectionInput:
       type: object
       additionalProperties: false
@@ -5560,6 +6138,19 @@ components:
       properties:
         displayName: { type: string, minLength: 1, maxLength: 120 }
         replyTo: { type: [string, 'null'], maxLength: 254 }
+        fromAddress: { type: string, maxLength: 254, description: Own senders only }
+        makeDefault: { type: boolean, enum: [true] }
+        smtp:
+          type: object
+          additionalProperties: false
+          minProperties: 1
+          description: Own SMTP senders only; omitted fields keep their value
+          properties:
+            host: { type: string, minLength: 1, maxLength: 253 }
+            port: { type: integer, enum: [25, 465, 587, 2525] }
+            security: { $ref: '#/components/schemas/SmtpSecurity' }
+            username: { type: string, minLength: 1, maxLength: 254 }
+            password: { type: string, minLength: 1, maxLength: 500, writeOnly: true }
 
     EmailConnectionTestResponse:
       type: object
@@ -5650,10 +6241,62 @@ components:
         failureCode: { type: [string, 'null'] }
         failureSummary: { type: [string, 'null'] }
 
+    AgentSuppression:
+      type: object
+      required: [id, workspaceId, address, reason, createdAt]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        address: { type: string }
+        reason: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    AgentTrigger:
+      type: object
+      additionalProperties: false
+      required: [delayDays, noReplyDays]
+      properties:
+        delayDays: { type: integer, minimum: 0, maximum: 365 }
+        noReplyDays: { type: integer, minimum: 1, maximum: 365 }
+        stages: { type: array, minItems: 1, maxItems: 100, items: { type: string, minLength: 1, maxLength: 64 } }
+
+    RecipientConfig:
+      type: object
+      additionalProperties: true
+      required: [source]
+      properties:
+        source: { type: string, enum: [WORKSPACE_MEMBERS, CONTACTS, SELECTED_CONTACTS, TRIGGER_CONTACT] }
+        ids: { type: array, maxItems: 1000, items: { type: string, maxLength: 64 } }
+        filters:
+          type: object
+          additionalProperties: true
+          properties:
+            stages: { type: array, maxItems: 100, items: { type: string, maxLength: 160 } }
+            categories: { type: array, maxItems: 100, items: { type: string, maxLength: 160 } }
+            tags: { type: array, maxItems: 100, items: { type: string, maxLength: 160 } }
+            assignedTo: { type: array, maxItems: 100, items: { type: string, maxLength: 160 } }
+            location: { type: array, maxItems: 100, items: { type: string, maxLength: 160 } }
+            hasEmail: { type: boolean }
+            attributes:
+              type: array
+              maxItems: 30
+              items:
+                type: object
+                additionalProperties: true
+                required: [field, op, value]
+                properties:
+                  field: { type: string, maxLength: 64 }
+                  op: { type: string, enum: [eq, gte, lte, before_days] }
+                  value: { type: [string, number, boolean] }
+
     Agent:
       type: object
-      required: [id, typeKey, typeName, family, name, status, destinations, schedule, include, sections, templateKey, themeKey, sender, recipientCount, nextEvent, lastEvent, problems, publishedAt, createdAt, updatedAt]
+      required: [id, typeKey, typeName, family, name, status, destinations, schedule, include, sections, templateKey, themeKey, sender, recipientCount, recipientConfig, nextEvent, lastEvent, problems, publishedAt, createdAt, updatedAt]
       properties:
+        trigger:
+          oneOf:
+            - $ref: '#/components/schemas/AgentTrigger'
+            - type: 'null'
         id: { type: string }
         typeKey: { type: string }
         typeName: { type: string }
@@ -5678,7 +6321,11 @@ components:
         templateKey: { type: string }
         themeKey: { type: string }
         sender: { $ref: '#/components/schemas/EmailConnection' }
-        recipientCount: { type: integer, description: Team members who will receive the email }
+        recipientCount: { type: integer, description: Unique recipients in the current audience }
+        recipientConfig:
+          oneOf:
+            - $ref: '#/components/schemas/RecipientConfig'
+            - type: 'null'
         nextEvent:
           oneOf:
             - $ref: '#/components/schemas/AgentEventSummary'
@@ -5688,6 +6335,8 @@ components:
             - $ref: '#/components/schemas/AgentEventSummary'
             - type: 'null'
         problems: { type: array, items: { type: string }, description: What blocks publishing (empty = ready) }
+        subject: { type: [string, 'null'], description: Custom email subject line override }
+        customText: { type: [string, 'null'], description: Custom email message text override }
         publishedAt: { type: [string, 'null'], format: date-time }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -5710,18 +6359,27 @@ components:
       required: [typeKey]
       properties:
         typeKey: { type: string, minLength: 1, maxLength: 64 }
+        recipientConfig: { $ref: '#/components/schemas/RecipientConfig' }
 
     UpdateAgentInput:
       type: object
       additionalProperties: false
       minProperties: 1
       properties:
+        trigger: { $ref: '#/components/schemas/AgentTrigger' }
+        recipientConfig:
+          oneOf:
+            - $ref: '#/components/schemas/RecipientConfig'
+            - type: 'null'
         name: { type: string, minLength: 1, maxLength: 160 }
+        subject: { type: [string, 'null'], maxLength: 255 }
+        customText: { type: [string, 'null'], maxLength: 4000 }
         templateKey: { type: string, maxLength: 64 }
         themeKey: { type: string, maxLength: 64 }
         destinations: { type: array, maxItems: 2, items: { $ref: '#/components/schemas/AgentDestination' } }
         schedule: { $ref: '#/components/schemas/AgentSchedule' }
         include: { type: array, maxItems: 20, items: { type: string, maxLength: 64 } }
+        emailConnectionId: { type: [string, 'null'], maxLength: 64, description: 'A sender of this workspace; null = the workspace default' }
 
     DeleteAgentResponse:
       type: object
@@ -6275,7 +6933,190 @@ components:
 
     LeadStatus:
       type: string
-      enum: [new, contacting, connected, qualified, customer, lost]
+      minLength: 1
+      maxLength: 64
+      description: Pipeline stage key for the workspace (defaults match the seeded pipeline)
+
+    PipelineStageKind:
+      type: string
+      enum: [open, won, lost]
+
+    PipelineStage:
+      type: object
+      additionalProperties: false
+      required: [id, key, label, position, kind, archived, system]
+      properties:
+        id: { type: string }
+        key: { type: string, minLength: 1, maxLength: 64 }
+        label: { type: string, minLength: 1, maxLength: 80 }
+        position: { type: integer }
+        kind: { $ref: '#/components/schemas/PipelineStageKind' }
+        archived: { type: boolean }
+        system: { type: boolean }
+
+    UpdatePipelineInput:
+      type: object
+      additionalProperties: false
+      required: [stages]
+      properties:
+        stages:
+          type: array
+          minItems: 1
+          maxItems: 40
+          items:
+            type: object
+            additionalProperties: false
+            required: [label, position, kind]
+            properties:
+              id: { type: string }
+              key: { type: string, minLength: 1, maxLength: 64 }
+              label: { type: string, minLength: 1, maxLength: 80 }
+              position: { type: integer, minimum: 0 }
+              kind: { $ref: '#/components/schemas/PipelineStageKind' }
+              archived: { type: boolean }
+
+    PipelineStagesResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/PipelineStage' }
+
+    InsightLink:
+      type: object
+      additionalProperties: false
+      required: [desk]
+      properties:
+        desk: { type: string }
+        params:
+          type: object
+          additionalProperties: { type: string }
+
+    InsightCard:
+      type: object
+      additionalProperties: false
+      required: [id, label, value, href]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        value: { type: string }
+        href: { $ref: '#/components/schemas/InsightLink' }
+
+    AttentionRow:
+      type: object
+      additionalProperties: false
+      required: [id, label, detail, href]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        detail: { type: string }
+        href: { $ref: '#/components/schemas/InsightLink' }
+
+    StageCount:
+      type: object
+      additionalProperties: false
+      required: [key, label, count, kind, href]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        count: { type: integer }
+        kind: { type: string }
+        href: { $ref: '#/components/schemas/InsightLink' }
+
+    InsightActivityRow:
+      type: object
+      additionalProperties: false
+      required: [id, title, summary, at, href]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        summary: { type: string }
+        at: { type: string, format: date-time }
+        href:
+          type: [object, 'null']
+          additionalProperties: false
+          required: [desk]
+          properties:
+            desk: { type: string }
+            params:
+              type: object
+              additionalProperties: { type: string }
+
+    WorkspaceInsights:
+      type: object
+      additionalProperties: false
+      required: [cards, attention, pipeline, recent, profileCompleteness]
+      properties:
+        cards:
+          type: array
+          items: { $ref: '#/components/schemas/InsightCard' }
+        attention:
+          type: array
+          items: { $ref: '#/components/schemas/AttentionRow' }
+        pipeline:
+          type: array
+          items: { $ref: '#/components/schemas/StageCount' }
+        recent:
+          type: array
+          items: { $ref: '#/components/schemas/InsightActivityRow' }
+        profileCompleteness: { type: integer, minimum: 0, maximum: 100 }
+
+    WorkspaceInsightsResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/WorkspaceInsights' }
+
+    WorkspaceVocabulary:
+      type: object
+      additionalProperties: false
+      required: [stages, categories, fields]
+      properties:
+        stages:
+          type: array
+          items: { $ref: '#/components/schemas/PipelineStage' }
+        categories:
+          type: array
+          items: { type: string }
+        fields:
+          type: array
+          items: { $ref: '#/components/schemas/ContactFieldDefinition' }
+
+    WorkspaceVocabularyResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/WorkspaceVocabulary' }
+
+    UpdateContactFieldLabelsInput:
+      type: object
+      additionalProperties: false
+      required: [fields]
+      properties:
+        fields:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [key, label]
+            properties:
+              key: { type: string, minLength: 1, maxLength: 64 }
+              label: { type: string, minLength: 1, maxLength: 80 }
+              position: { type: integer }
+
+    ContactFieldDefinitionsResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ContactFieldDefinition' }
 
     RecordOrigin:
       type: string
@@ -6477,10 +7318,51 @@ components:
         contextId: { type: string, minLength: 1, maxLength: 64 }
         idempotencyKey: { type: string, minLength: 1, maxLength: 200 }
 
+    ContactFieldDefinition:
+      type: object
+      required: [key, label, type, options, position, archived]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        type: { type: string, enum: [checkbox, select, number, text, date] }
+        options:
+          type: array
+          items:
+            type: object
+            required: [value, label]
+            properties:
+              value: { type: string }
+              label: { type: string }
+        numberConfig:
+          type: object
+          additionalProperties: false
+          properties:
+            minimum: { type: number }
+            maximum: { type: number }
+            precision: { type: integer, minimum: 0, maximum: 10 }
+            unit: { type: string, maxLength: 32 }
+        position: { type: integer }
+        archived: { type: boolean }
+
     Contact:
       type: object
-      required: [version, id, workspaceId, firstName, lastName, displayName, title, status, ownerMemberId, teamId, leadStatus, leadSource, nextFollowUp, primaryEmail, primaryPhone, imageUrl, lastActivityAt, origin, externalProvider, externalId, createdAt, updatedAt, points, accounts, tags]
+      required: [contacted, qualified, proposalSent, won, nextAction, interestedIn, lastContactedAt, priority, waitingOn, potentialValue, fieldValues, version, id, workspaceId, firstName, lastName, displayName, title, status, ownerMemberId, teamId, leadStatus, leadSource, nextFollowUp, primaryEmail, primaryPhone, imageUrl, lastActivityAt, origin, externalProvider, externalId, createdAt, updatedAt, points, accounts, tags]
       properties:
+        contacted: { type: boolean }
+        qualified: { type: boolean }
+        proposalSent: { type: boolean }
+        won: { type: boolean }
+        nextAction: { type: [string, 'null'], maxLength: 255 }
+        interestedIn: { type: [string, 'null'], maxLength: 255 }
+        lastContactedAt: { type: [string, 'null'], format: date-time }
+        priority: { type: string, maxLength: 40 }
+        waitingOn: { type: [string, 'null'], maxLength: 40 }
+        potentialValue: { type: [number, 'null'], minimum: 0, maximum: 9999999999999.99 }
+        fieldValues:
+          type: object
+          maxProperties: 100
+          additionalProperties:
+            type: [string, number, boolean, 'null']
         version: { type: integer, minimum: 1 }
         id: { type: string }
         workspaceId: { type: string }
@@ -6822,6 +7704,21 @@ components:
       additionalProperties: false
       description: Needs a name, an email or a phone (400 EMPTY_CONTACT). displayName defaults to first + last name.
       properties:
+        contacted: { type: boolean }
+        qualified: { type: boolean }
+        proposalSent: { type: boolean }
+        won: { type: boolean }
+        nextAction: { type: [string, 'null'], maxLength: 255 }
+        interestedIn: { type: [string, 'null'], maxLength: 255 }
+        lastContactedAt: { type: [string, 'null'], format: date-time }
+        priority: { type: string, maxLength: 40 }
+        waitingOn: { type: [string, 'null'], maxLength: 40 }
+        potentialValue: { type: [number, 'null'], minimum: 0, maximum: 9999999999999.99 }
+        fieldValues:
+          type: object
+          maxProperties: 100
+          additionalProperties:
+            type: [string, number, boolean, 'null']
         firstName: { type: [string, 'null'], maxLength: 80 }
         lastName: { type: [string, 'null'], maxLength: 80 }
         displayName: { type: [string, 'null'], maxLength: 160 }
@@ -6861,6 +7758,31 @@ components:
       type: object
       additionalProperties: false
       properties:
+        undoLogContact: { type: boolean, description: Retract the last logged outreach while restoring its previous values. }
+        contactLog:
+          type: object
+          additionalProperties: false
+          required: [channel, outcome]
+          properties:
+            channel: { type: string, enum: [email, phone, text, other] }
+            outcome: { type: string, enum: [sent, connected, noAnswer, leftMessage] }
+            note: { type: string, maxLength: 2000 }
+        logContact: { type: boolean, description: 'Record completed external outreach; sets contacted and lastContactedAt atomically.' }
+        contacted: { type: boolean }
+        qualified: { type: boolean }
+        proposalSent: { type: boolean }
+        won: { type: boolean }
+        nextAction: { type: [string, 'null'], maxLength: 255 }
+        interestedIn: { type: [string, 'null'], maxLength: 255 }
+        lastContactedAt: { type: [string, 'null'], format: date-time }
+        priority: { type: string, maxLength: 40 }
+        waitingOn: { type: [string, 'null'], maxLength: 40 }
+        potentialValue: { type: [number, 'null'], minimum: 0, maximum: 9999999999999.99 }
+        fieldValues:
+          type: object
+          maxProperties: 100
+          additionalProperties:
+            type: [string, number, boolean, 'null']
         expectedVersion: { type: integer, minimum: 1 }
         idempotencyKey: { type: string, minLength: 1, maxLength: 120 }
         firstName: { type: [string, 'null'], maxLength: 80 }

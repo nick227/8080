@@ -1,22 +1,30 @@
 // Inbox attention queue and the shared composer (doc/11).
 // Alice owns the workspace, Carol is a member. Items are raised by the server, never by a route.
 import { randomUUID } from 'crypto'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { db } from '@project/db'
-import { buildTestApp, testUserId } from './helpers'
+import { buildTestApp, testUserId, seedBotUser } from './helpers'
 import { caller, carolId, createWorkspace, join, memberId, seedPeople } from './helpers/workspace'
 import { crossWorkspaceViolations } from '../services/workspaceIntegrity'
 import { InboxService } from '../services/InboxService'
 import { notifyConversation } from '../services/inboxAnnounce'
+import { startWorkspaceHost } from '../services/WorkspaceHost'
 
 const app = buildTestApp()
 const call = caller(app)
 const inbox = new InboxService()
+let host: ReturnType<typeof startWorkspaceHost>
+beforeAll(() => { host = startWorkspaceHost() })
+afterAll(() => host.stop())
+beforeEach(async () => {
+  await seedBotUser({ handle: 'chatbot', name: 'chatbot' })
+})
 
 async function setup() {
   const ws = await createWorkspace(app)
   await seedPeople()
   await join(app, ws.id, carolId, 'carol@test.local')
+  await host.idle()
   return { ws, alice: await memberId(ws.id, testUserId), carol: await memberId(ws.id, carolId) }
 }
 

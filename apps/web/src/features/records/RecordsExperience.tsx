@@ -1,5 +1,9 @@
+import { audienceRules, CONTACT_FOCUSES, CONTACT_SORTS, CONTACT_MILESTONES, type ContactSort } from '@project/shared'
+import { ContactTable, ContactUndoBar, type ContactUndo, useContactColumns, readContactPreference, saveContactPreference } from './ContactTable'
+import { ContactViewPicker, ContactColumnPicker, ContactFilterChips } from './ContactTableControls'
+import { InventoryTable } from './InventoryTable'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   getApiClient,
@@ -10,12 +14,14 @@ import {
   useContact,
   useContactCounts,
   useContacts,
+  useSession,
   useInventory,
   useInventoryCounts,
   useInventoryItem,
+  useTags,
+  useWorkspaceVocabulary,
   type Contact,
   type InventoryItem,
-  type LeadStatus,
 } from '@project/sdk'
 import { useCurrentWorkspace } from '../documents/workspace'
 import { Composer } from '../compose/Composer'
@@ -29,6 +35,7 @@ import {
 import { RecordDetail } from './RecordDetail'
 import { CollectionRow } from './CollectionRow'
 import { CollectionToolbar } from './CollectionToolbar'
+import { loadLayout, saveLayout, type CollectionLayout } from './collectionLayout'
 import { STAGES, titleCase } from './labels'
 import { RecordForm } from './RecordForm'
 import { RecordImportFlow } from './RecordImportFlow'
@@ -80,29 +87,67 @@ function RecordWorkspace({
   const container = useRef<HTMLDivElement>(null)
   const narrow = useNarrowRecords(container)
   const location = useLocation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const vocabulary = useWorkspaceVocabulary(workspaceId)
+  const tags = useTags(workspaceId)
+  const stageOptions = (vocabulary.data?.stages ?? [])
+    .filter((s) => !s.archived)
+    .map((s) => ({ key: s.key, label: s.label }))
+  const inventoryCategories = vocabulary.data?.categories ?? []
+  const contactTags = tags.data ?? []
   const q = nav.params.get('q') ?? ''
-  const stage = STAGES.includes(nav.params.get('stage') as LeadStatus)
-    ? (nav.params.get('stage') as LeadStatus)
-    : undefined
+  const stageParam = nav.params.get('stage')
+  const stage = stageParam && /^[a-z][a-z0-9_-]{0,63}$/i.test(stageParam) ? stageParam : undefined
+  const tagId = nav.params.get('tag') || undefined
   const archived = nav.params.get('status') === 'archived'
   const focus = nav.params.get('focus') ?? ''
-  const sort = nav.params.get('sort') ?? 'name'
-  const dir = nav.params.get('dir') === 'desc' ? 'desc' : 'asc'
+  const session = useSession()
+  const preferenceKey = `contacts:${workspaceId}:${session.data?.data.id ?? 'pending'}`
+  const [columns, setColumns] = useContactColumns(preferenceKey)
+  const [undo, setUndo] = useState<ContactUndo | null>(null)
+  const savedSort = readContactPreference<{ sort?: string; dir?: string; thenSort?: string; thenDir?: string }>(`${preferenceKey}:sort`, {})
+  const sort = nav.params.get('sort') ?? (kind === 'contacts' ? savedSort.sort ?? 'followUp' : 'name')
+  const dir = (nav.params.get('dir') ?? (kind === 'contacts' ? savedSort.dir : 'asc')) === 'desc' ? 'desc' : 'asc'
+  const thenSort = nav.params.has('thenSort') ? nav.params.get('thenSort') ?? '' : kind === 'contacts' ? savedSort.thenSort ?? '' : ''
+  const thenDir = (nav.params.get('thenDir') ?? savedSort.thenDir) === 'desc' ? 'desc' : 'asc'
+  const tableParams = new URLSearchParams(nav.params)
+  tableParams.set('sort', sort)
+  tableParams.set('dir', dir)
+  if (thenSort) tableParams.set('thenSort', thenSort)
+  tableParams.set('thenDir', thenDir)
+  let audienceSummary = 'Agent audience rules active'
+  try { const audience = JSON.parse(nav.params.get('audience') || 'null'); audienceSummary = audienceRules(audience).map(r => r.label).join(' AND ') || audienceSummary } catch { /* The API reports malformed audience rules. */ }
   const contactParams = {
+    audience: nav.params.get('audience') || undefined,
     q: q.trim() || undefined,
     leadStatus: stage,
+    tagId,
     status: (archived ? 'archived' : 'active') as 'active' | 'archived',
-    focus: !archived && ['due', 'overdue', 'unassigned'].includes(focus) ? (focus as 'due' | 'overdue' | 'unassigned') : undefined,
-    sort: ['name', 'followUp', 'updated', 'activity'].includes(sort)
-      ? (sort as 'name' | 'followUp' | 'updated' | 'activity')
+    focus: !archived && CONTACT_FOCUSES.includes(focus as typeof CONTACT_FOCUSES[number]) ? focus as typeof CONTACT_FOCUSES[number] : undefined,
+    ownerMemberId: nav.params.get('owner') || undefined,
+    milestone: CONTACT_MILESTONES.includes(nav.params.get('milestone') as typeof CONTACT_MILESTONES[number]) ? nav.params.get('milestone') as typeof CONTACT_MILESTONES[number] : undefined,
+    checked: nav.params.get('checked') === 'true',
+    thenSort: CONTACT_SORTS.includes(thenSort as ContactSort) ? thenSort as ContactSort : undefined,
+    thenDir: thenDir as 'asc' | 'desc',
+    sort: CONTACT_SORTS.includes(sort as ContactSort)
+      ? sort as ContactSort
       : undefined,
     dir: dir as 'asc' | 'desc',
   }
+  const stockParam = nav.params.get('stock')
+  const categoryParam = nav.params.get('category') || undefined
+  const inventoryFocus =
+    !archived && ['offered', 'paused', 'out', 'low'].includes(focus)
+      ? (focus as 'offered' | 'paused' | 'out' | 'low')
+      : !archived && stockParam === 'low'
+        ? ('low' as const)
+        : undefined
   const inventoryParams = {
     q: q.trim() || undefined,
     status: (archived ? 'archived' : 'active') as 'active' | 'archived',
-    focus: !archived && ['offered', 'paused', 'out', 'low'].includes(focus) ? (focus as 'offered' | 'paused' | 'out' | 'low') : undefined,
+    focus: inventoryFocus,
+    category: categoryParam,
     sort: ['name', 'price', 'updated', 'quantity'].includes(sort)
       ? (sort as 'name' | 'price' | 'updated' | 'quantity')
       : undefined,
@@ -121,10 +166,18 @@ function RecordWorkspace({
   const total = list.data?.pages[0]?.meta.total
   const [selected, setSelected] = useState<string[]>([])
   const [bulkError, setBulkError] = useState('')
+  const [layout, setLayout] = useState<CollectionLayout>(() => loadLayout(workspaceId, kind))
+  useEffect(() => {
+    setLayout(loadLayout(workspaceId, kind))
+  }, [workspaceId, kind])
+  const chooseLayout = (next: CollectionLayout) => {
+    setLayout(next)
+    saveLayout(workspaceId, kind, next)
+  }
   useEffect(() => {
     setSelected([])
     setBulkError('')
-  }, [kind, q, stage, archived, focus, sort, dir])
+  }, [kind, q, stage, tagId, categoryParam, archived, focus, sort, dir, thenSort, thenDir, nav.params.get('owner'), nav.params.get('milestone'), nav.params.get('checked')])
   const currentContact = useContact(
     kind === 'contacts' && nav.recordId ? workspaceId : undefined,
     nav.recordId ?? undefined,
@@ -289,12 +342,14 @@ function RecordWorkspace({
       onLoad={() => loadNext(preview)}
     />
   )
-  const filter = (key: string, value: string) => {
-    positions.set(positionKey, browsePosition.current)
-    restored.current = false
-    nav.setFilter(key, value)
-  }
+  const filter = (key: string, value: string) => filters({ [key]: value })
   const filters = (patch: Record<string, string>) => {
+    if (kind === 'contacts') {
+      const sorting = { sort, dir, thenSort, thenDir, ...Object.fromEntries(Object.entries(patch).filter(([key]) => ['sort', 'dir', 'thenSort', 'thenDir'].includes(key))) }
+      saveContactPreference(`${preferenceKey}:sort`, sorting)
+      // Pin remembered sorting into the URL whenever this view changes.
+      patch = { ...sorting, ...patch }
+    }
     positions.set(positionKey, browsePosition.current)
     restored.current = false
     nav.setFilters(patch)
@@ -307,7 +362,7 @@ function RecordWorkspace({
         await bulkContacts.mutateAsync({
           ids: selected,
           action: action as 'archive' | 'restore' | 'setStage',
-          leadStatus: typeof extra.leadStatus === 'string' ? (extra.leadStatus as LeadStatus) : undefined,
+          leadStatus: typeof extra.leadStatus === 'string' ? extra.leadStatus : undefined,
         })
       } else {
         await bulkInventory.mutateAsync({
@@ -360,7 +415,6 @@ function RecordWorkspace({
               workspaceId={workspaceId}
               currency={currency}
               onMessage={setMessageId}
-              onRelated={nav.preview}
               onDeleted={nav.back}
               onOpenRecord={(target, id) => nav.open(id)}
             />
@@ -374,6 +428,8 @@ function RecordWorkspace({
               onNew={() => setAdding(true)}
               onImport={() => setImporting(true)}
             />
+            {kind === 'contacts' && selected.length > 0 && <button type="button" className="agents-button" onClick={() => navigate({ search: new URLSearchParams({ desk: 'agents', add: '1', contactIds: selected.join(',') }).toString() })}>Start Agent with {selected.length} selected contacts</button>}
+            {kind === 'contacts' && nav.params.get('audience') && <div className="audience-chips"><span>{audienceSummary}</span><button type="button" onClick={() => nav.setFilter('audience', '')}>Clear audience</button></div>}
             <CollectionToolbar
               kind={kind}
               archived={archived}
@@ -381,13 +437,51 @@ function RecordWorkspace({
               sort={sort}
               dir={dir}
               stage={stage}
+              stages={stageOptions.length ? stageOptions : undefined}
+              categories={inventoryCategories}
+              category={categoryParam}
+              tags={contactTags}
+              tagId={tagId}
+              layout={layout}
               counts={counts}
               selectedCount={selected.length}
               matchingTotal={typeof total === 'number' ? total : undefined}
               onFilter={filter}
               onFilters={filters}
+              onLayout={chooseLayout}
               onBulk={(action, extra) => void runBulk(action, extra)}
+              contactViewPicker={
+                kind === 'contacts' ? (
+                  <ContactViewPicker
+                    workspaceId={workspaceId}
+                    preferenceKey={preferenceKey}
+                    params={tableParams}
+                    columns={columns}
+                    onColumns={setColumns}
+                    onFilters={filters}
+                    layout={layout}
+                    onLayout={chooseLayout}
+                  />
+                ) : undefined
+              }
+              contactColumnPicker={
+                kind === 'contacts' ? (
+                  <ContactColumnPicker
+                    workspaceId={workspaceId}
+                    columns={columns}
+                    onColumns={setColumns}
+                    layout={layout}
+                    onLayout={chooseLayout}
+                  />
+                ) : undefined
+              }
+              filterChips={
+                kind === 'contacts' ? (
+                  <ContactFilterChips params={tableParams} onFilters={filters} />
+                ) : undefined
+              }
             />
+            {kind === 'contacts' && <ContactUndoBar workspaceId={workspaceId} undo={undo} onDismiss={() => setUndo(null)} />}
             {bulkError && (
               <p role="alert" className="record-error">
                 {bulkError}
@@ -412,15 +506,15 @@ function RecordWorkspace({
             ) : records.length === 0 ? (
               <div className="record-empty">
                 <h2>
-                  {q
+                  {q || focus || stage || tagId || categoryParam || nav.params.get('owner') || nav.params.get('milestone')
                     ? 'No matching records'
                     : archived
                       ? 'Nothing archived'
                       : `Your ${kind === 'contacts' ? 'relationships' : 'catalog'} start here`}
                 </h2>
                 <p>
-                  {q
-                    ? 'Try another name or clear your search.'
+                  {q || focus || stage || tagId || categoryParam || nav.params.get('owner') || nav.params.get('milestone')
+                    ? 'Try another search or clear your filters.'
                     : archived
                       ? 'Archived records will appear here.'
                       : `Add your first ${kind === 'contacts' ? 'contact' : 'item'} to get started.`}
@@ -435,23 +529,41 @@ function RecordWorkspace({
                   )
                 )}
               </div>
+            ) : kind === 'contacts' && layout === 'list' ? (
+              <ContactTable onCommitted={setUndo} workspaceId={workspaceId} currency={currency} records={records as Contact[]} columns={columns} selected={selected}
+                sort={sort} dir={dir} onSort={next => filters({ sort: next, dir: next === sort && dir === 'asc' ? 'desc' : 'asc' })}
+                onSelect={setSelected} onToggle={id => setSelected(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id])}
+                href={nav.href} onOpen={id => nav.open(id, context(id))} previewId={nav.previewId}
+                onPreview={(id, name) => nav.preview({ kind, id, name }, context(id))} />
+            ) : kind === 'inventory' && layout === 'list' ? (
+              <InventoryTable workspaceId={workspaceId} currency={currency} records={records as InventoryItem[]} selected={selected}
+                sort={sort} dir={dir} onSort={next => filters({ sort: next, dir: next === sort && dir === 'asc' ? 'desc' : 'asc' })}
+                onSelect={setSelected} onToggle={id => setSelected(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id])}
+                href={nav.href} onOpen={id => nav.open(id, context(id))} previewId={nav.previewId}
+                onPreview={(id, name) => nav.preview({ kind: 'inventory', id, name }, context(id))} />
             ) : (
               <ul
-                className="record-collection record-list"
+                className={`record-collection record-${layout}`}
                 aria-label={`${title} results`}
                 onKeyDown={(event) => {
                   if (
                     !(event.target instanceof HTMLElement) ||
-                    !event.target.matches('[data-record-link]') ||
-                    !['ArrowDown', 'ArrowUp'].includes(event.key)
+                    !event.target.matches('[data-record-link]')
                   )
                     return
+                  const keys =
+                    layout === 'grid'
+                      ? ['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft']
+                      : ['ArrowDown', 'ArrowUp']
+                  if (!keys.includes(event.key)) return
                   const links = Array.from(
                     event.currentTarget.querySelectorAll<HTMLElement>('[data-record-link]'),
                   )
                   const index = links.indexOf(event.target)
+                  const step =
+                    event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : -1
                   event.preventDefault()
-                  links[index + (event.key === 'ArrowDown' ? 1 : -1)]?.focus()
+                  links[index + step]?.focus()
                 }}
               >
                 {records.map((record) => {
@@ -516,7 +628,6 @@ function RecordWorkspace({
             workspaceId={workspaceId}
             currency={currency}
             onMessage={setMessageId}
-            onRelated={nav.related}
             onDeleted={nav.closePreview}
             onOpenRecord={(target, id) => {
               if (target === kind) nav.open(id)

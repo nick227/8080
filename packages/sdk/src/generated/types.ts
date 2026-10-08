@@ -1084,6 +1084,185 @@ export interface paths {
         patch: operations["updateCompanyProfile"];
         trace?: never;
     };
+    "/workspaces/{workspaceId}/company-profile/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Gallery images for the company profile */
+        get: operations["listCompanyImages"];
+        put?: never;
+        /**
+         * Upload a company gallery image
+         * @description Multipart field `file` (image only). At most 12 images. First image becomes primary.
+         */
+        post: operations["uploadCompanyImage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/company-profile/images/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Reorder company gallery images */
+        patch: operations["reorderCompanyImages"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/company-profile/images/{imageId}/primary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                imageId: components["parameters"]["RecordImageId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set the primary company gallery image */
+        patch: operations["setCompanyImagePrimary"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/company-profile/images/{imageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                imageId: components["parameters"]["RecordImageId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a company gallery image */
+        delete: operations["deleteCompanyImage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Company desk aggregates (deterministic counts and deep links) */
+        get: operations["getWorkspaceInsights"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/vocabulary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Pipeline stages and inventory categories */
+        get: operations["getWorkspaceVocabulary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/pipeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace the workspace sales pipeline (labels, order, add, archive) */
+        put: operations["updateWorkspacePipeline"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/vocabulary/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add an inventory category to the workspace vocabulary */
+        post: operations["createInventoryCategory"];
+        /** Remove an inventory category and clear it from items */
+        delete: operations["deleteInventoryCategory"];
+        options?: never;
+        head?: never;
+        /** Rename an inventory category across items (empty to clears it) */
+        patch: operations["renameInventoryCategory"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/vocabulary/fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Update contact field labels shown in the workbench */
+        put: operations["updateContactFieldLabels"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/email-connections": {
         parameters: {
             query?: never;
@@ -1101,7 +1280,12 @@ export interface paths {
          */
         get: operations["listEmailConnections"];
         put?: never;
-        post?: never;
+        /**
+         * Add an own sender — "Use my own email/domain" (owners/admins)
+         * @description SMTP for now (a mailbox and its app password). The password is stored encrypted and
+         *     never returned. Not the default unless `makeDefault`. Run the test afterwards.
+         */
+        post: operations["createEmailConnection"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1121,10 +1305,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /** Remove an own sender; agents that used it fall back to the default (owners/admins) */
+        delete: operations["deleteEmailConnection"];
         options?: never;
         head?: never;
-        /** Change the name people see or the reply-to address (owners/admins) */
+        /** Change a sender's name, reply-to, own-mailbox details, or make it the default (owners/admins) */
         patch: operations["updateEmailConnection"];
         trace?: never;
     };
@@ -1145,6 +1330,84 @@ export interface paths {
          * @description A failed check is a 200 with `ok` false and the reason; it is also kept on the sender as `lastError`.
          */
         post: operations["testEmailConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/agent-business-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record an outreach, reply, or completed job */
+        post: operations["recordAgentBusinessEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/agent-suppressions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** List customer email exclusions */
+        get: operations["listAgentSuppressions"];
+        put?: never;
+        /** Exclude an email address from customer Agents */
+        post: operations["createAgentSuppression"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent-unsubscribe/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        /** Confirm an email unsubscribe request without changing preferences */
+        get: operations["agentUnsubscribePage"];
+        put?: never;
+        /** Stop customer emails using a message unsubscribe token */
+        post: operations["agentUnsubscribe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/agent-audience/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview a deterministic contact audience */
+        post: operations["previewAgentAudience"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1523,6 +1786,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/contacts/fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Contact field definitions for this workspace */
+        get: operations["listContactFields"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/contacts": {
         parameters: {
             query?: never;
@@ -1534,7 +1816,7 @@ export interface paths {
         };
         /**
          * Contacts, by name
-         * @description `q` matches the name (contains) or any email/phone/url (prefix). `accountId`: people currently at that account. Defaults to active contacts.
+         * @description `q` matches name, company, contact details, or interests (contains). `accountId`: people currently at that account. Defaults to active contacts.
          */
         get: operations["listContacts"];
         put?: never;
@@ -3646,6 +3928,8 @@ export interface components {
             purpose: string | null;
             /** @enum {string|null} */
             brandVoice: "professional" | "friendly" | "bold" | "technical" | null;
+            /** @description Primary gallery image URL (denormalized) */
+            imageUrl: string | null;
             facts: components["schemas"]["CompanyFact"][];
             /** Format: date-time */
             updatedAt: string | null;
@@ -3690,6 +3974,13 @@ export interface components {
             /** Format: date-time */
             lastTestedAt: string | null;
             lastError: string | null;
+            /** @description How an own SMTP sender connects (never the password); null otherwise */
+            smtp: null | {
+                host: string;
+                port: number;
+                security: components["schemas"]["SmtpSecurity"];
+                username: string;
+            };
         };
         EmailConnectionResponse: {
             data: components["schemas"]["EmailConnection"];
@@ -3697,9 +3988,50 @@ export interface components {
         EmailConnectionListResponse: {
             data: components["schemas"]["EmailConnection"][];
         };
+        /**
+         * @description starttls = upgrade after connecting (port 587); implicit = TLS from the start (port 465)
+         * @enum {string}
+         */
+        SmtpSecurity: "starttls" | "implicit";
+        SmtpSettings: {
+            host: string;
+            /** @enum {integer} */
+            port: 25 | 465 | 587 | 2525;
+            security: components["schemas"]["SmtpSecurity"];
+            username: string;
+            password: string;
+        };
+        CreateEmailConnectionInput: {
+            /** @enum {string} */
+            strategy: "smtp";
+            displayName: string;
+            fromAddress: string;
+            replyTo?: string | null;
+            smtp: components["schemas"]["SmtpSettings"];
+            makeDefault?: boolean;
+        };
+        DeleteEmailConnectionResponse: {
+            data: {
+                removed: boolean;
+                agentsMovedToDefault: number;
+            };
+        };
         UpdateEmailConnectionInput: {
             displayName?: string;
             replyTo?: string | null;
+            /** @description Own senders only */
+            fromAddress?: string;
+            /** @enum {boolean} */
+            makeDefault?: true;
+            /** @description Own SMTP senders only; omitted fields keep their value */
+            smtp?: {
+                host?: string;
+                /** @enum {integer} */
+                port?: 25 | 465 | 587 | 2525;
+                security?: components["schemas"]["SmtpSecurity"];
+                username?: string;
+                password?: string;
+            };
         };
         EmailConnectionTestResponse: {
             data: {
@@ -3775,7 +4107,46 @@ export interface components {
             failureCode: string | null;
             failureSummary: string | null;
         };
+        AgentSuppression: {
+            id: string;
+            workspaceId: string;
+            address: string;
+            reason: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AgentTrigger: {
+            delayDays: number;
+            noReplyDays: number;
+            stages?: string[];
+        };
+        RecipientConfig: {
+            /** @enum {string} */
+            source: "WORKSPACE_MEMBERS" | "CONTACTS" | "SELECTED_CONTACTS" | "TRIGGER_CONTACT";
+            ids?: string[];
+            filters?: {
+                stages?: string[];
+                categories?: string[];
+                tags?: string[];
+                assignedTo?: string[];
+                location?: string[];
+                hasEmail?: boolean;
+                attributes?: ({
+                    field: string;
+                    /** @enum {string} */
+                    op: "eq" | "gte" | "lte" | "before_days";
+                    value: string | number | boolean;
+                } & {
+                    [key: string]: unknown;
+                })[];
+            } & {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
         Agent: {
+            trigger?: components["schemas"]["AgentTrigger"] | null;
             id: string;
             typeKey: string;
             typeName: string;
@@ -3796,12 +4167,17 @@ export interface components {
             templateKey: string;
             themeKey: string;
             sender: components["schemas"]["EmailConnection"];
-            /** @description Team members who will receive the email */
+            /** @description Unique recipients in the current audience */
             recipientCount: number;
+            recipientConfig: components["schemas"]["RecipientConfig"] | null;
             nextEvent: components["schemas"]["AgentEventSummary"] | null;
             lastEvent: components["schemas"]["AgentEventSummary"] | null;
             /** @description What blocks publishing (empty = ready) */
             problems: string[];
+            /** @description Custom email subject line override */
+            subject?: string | null;
+            /** @description Custom email message text override */
+            customText?: string | null;
             /** Format: date-time */
             publishedAt: string | null;
             /** Format: date-time */
@@ -3817,14 +4193,21 @@ export interface components {
         };
         CreateAgentInput: {
             typeKey: string;
+            recipientConfig?: components["schemas"]["RecipientConfig"];
         };
         UpdateAgentInput: {
+            trigger?: components["schemas"]["AgentTrigger"];
+            recipientConfig?: components["schemas"]["RecipientConfig"] | null;
             name?: string;
+            subject?: string | null;
+            customText?: string | null;
             templateKey?: string;
             themeKey?: string;
             destinations?: components["schemas"]["AgentDestination"][];
             schedule?: components["schemas"]["AgentSchedule"];
             include?: string[];
+            /** @description A sender of this workspace; null = the workspace default */
+            emailConnectionId?: string | null;
         };
         DeleteAgentResponse: {
             data: {
@@ -4197,8 +4580,98 @@ export interface components {
         };
         /** @enum {string} */
         RecordStatus: "active" | "archived";
+        /** @description Pipeline stage key for the workspace (defaults match the seeded pipeline) */
+        LeadStatus: string;
         /** @enum {string} */
-        LeadStatus: "new" | "contacting" | "connected" | "qualified" | "customer" | "lost";
+        PipelineStageKind: "open" | "won" | "lost";
+        PipelineStage: {
+            id: string;
+            key: string;
+            label: string;
+            position: number;
+            kind: components["schemas"]["PipelineStageKind"];
+            archived: boolean;
+            system: boolean;
+        };
+        UpdatePipelineInput: {
+            stages: {
+                id?: string;
+                key?: string;
+                label: string;
+                position: number;
+                kind: components["schemas"]["PipelineStageKind"];
+                archived?: boolean;
+            }[];
+        };
+        PipelineStagesResponse: {
+            data: components["schemas"]["PipelineStage"][];
+        };
+        InsightLink: {
+            desk: string;
+            params?: {
+                [key: string]: string;
+            };
+        };
+        InsightCard: {
+            id: string;
+            label: string;
+            value: string;
+            href: components["schemas"]["InsightLink"];
+        };
+        AttentionRow: {
+            id: string;
+            label: string;
+            detail: string;
+            href: components["schemas"]["InsightLink"];
+        };
+        StageCount: {
+            key: string;
+            label: string;
+            count: number;
+            kind: string;
+            href: components["schemas"]["InsightLink"];
+        };
+        InsightActivityRow: {
+            id: string;
+            title: string;
+            summary: string;
+            /** Format: date-time */
+            at: string;
+            href: {
+                desk: string;
+                params?: {
+                    [key: string]: string;
+                };
+            } | null;
+        };
+        WorkspaceInsights: {
+            cards: components["schemas"]["InsightCard"][];
+            attention: components["schemas"]["AttentionRow"][];
+            pipeline: components["schemas"]["StageCount"][];
+            recent: components["schemas"]["InsightActivityRow"][];
+            profileCompleteness: number;
+        };
+        WorkspaceInsightsResponse: {
+            data: components["schemas"]["WorkspaceInsights"];
+        };
+        WorkspaceVocabulary: {
+            stages: components["schemas"]["PipelineStage"][];
+            categories: string[];
+            fields: components["schemas"]["ContactFieldDefinition"][];
+        };
+        WorkspaceVocabularyResponse: {
+            data: components["schemas"]["WorkspaceVocabulary"];
+        };
+        UpdateContactFieldLabelsInput: {
+            fields: {
+                key: string;
+                label: string;
+                position?: number;
+            }[];
+        };
+        ContactFieldDefinitionsResponse: {
+            data: components["schemas"]["ContactFieldDefinition"][];
+        };
         /**
          * @description How the record was created (not why the person showed up)
          * @enum {string}
@@ -4334,7 +4807,39 @@ export interface components {
             contextId: string;
             idempotencyKey?: string;
         };
+        ContactFieldDefinition: {
+            key: string;
+            label: string;
+            /** @enum {string} */
+            type: "checkbox" | "select" | "number" | "text" | "date";
+            options: {
+                value: string;
+                label: string;
+            }[];
+            numberConfig?: {
+                minimum?: number;
+                maximum?: number;
+                precision?: number;
+                unit?: string;
+            };
+            position: number;
+            archived: boolean;
+        };
         Contact: {
+            contacted: boolean;
+            qualified: boolean;
+            proposalSent: boolean;
+            won: boolean;
+            nextAction: string | null;
+            interestedIn: string | null;
+            /** Format: date-time */
+            lastContactedAt: string | null;
+            priority: string;
+            waitingOn: string | null;
+            potentialValue: number | null;
+            fieldValues: {
+                [key: string]: string | number | boolean | null;
+            };
             version: number;
             id: string;
             workspaceId: string;
@@ -4557,6 +5062,20 @@ export interface components {
         };
         /** @description Needs a name, an email or a phone (400 EMPTY_CONTACT). displayName defaults to first + last name. */
         CreateContactInput: {
+            contacted?: boolean;
+            qualified?: boolean;
+            proposalSent?: boolean;
+            won?: boolean;
+            nextAction?: string | null;
+            interestedIn?: string | null;
+            /** Format: date-time */
+            lastContactedAt?: string | null;
+            priority?: string;
+            waitingOn?: string | null;
+            potentialValue?: number | null;
+            fieldValues?: {
+                [key: string]: string | number | boolean | null;
+            };
             firstName?: string | null;
             lastName?: string | null;
             displayName?: string | null;
@@ -4579,6 +5098,31 @@ export interface components {
             externalId?: string | null;
         };
         UpdateContactInput: {
+            /** @description Retract the last logged outreach while restoring its previous values. */
+            undoLogContact?: boolean;
+            contactLog?: {
+                /** @enum {string} */
+                channel: "email" | "phone" | "text" | "other";
+                /** @enum {string} */
+                outcome: "sent" | "connected" | "noAnswer" | "leftMessage";
+                note?: string;
+            };
+            /** @description Record completed external outreach; sets contacted and lastContactedAt atomically. */
+            logContact?: boolean;
+            contacted?: boolean;
+            qualified?: boolean;
+            proposalSent?: boolean;
+            won?: boolean;
+            nextAction?: string | null;
+            interestedIn?: string | null;
+            /** Format: date-time */
+            lastContactedAt?: string | null;
+            priority?: string;
+            waitingOn?: string | null;
+            potentialValue?: number | null;
+            fieldValues?: {
+                [key: string]: string | number | boolean | null;
+            };
             expectedVersion?: number;
             idempotencyKey?: string;
             firstName?: string | null;
@@ -7468,6 +8012,372 @@ export interface operations {
             409: components["responses"]["Conflict"];
         };
     };
+    listCompanyImages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordImageList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    uploadCompanyImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordImageResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            415: components["responses"]["UnsupportedMediaType"];
+        };
+    };
+    reorderCompanyImages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReorderRecordImagesInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordImageList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setCompanyImagePrimary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                imageId: components["parameters"]["RecordImageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordImageList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteCompanyImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                imageId: components["parameters"]["RecordImageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getWorkspaceInsights: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Insight cards, attention rows, pipeline snapshot, recent activity */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceInsightsResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getWorkspaceVocabulary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Vocabulary for the Company desk */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceVocabularyResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateWorkspacePipeline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePipelineInput"];
+            };
+        };
+        responses: {
+            /** @description Active stages after the update */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineStagesResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    createInventoryCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Category created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            name: string;
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteInventoryCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Category removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            from: string;
+                            to: string | null;
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    renameInventoryCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    from: string;
+                    to: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Rename applied */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            from: string;
+                            to: string | null;
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateContactFieldLabels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateContactFieldLabelsInput"];
+            };
+        };
+        responses: {
+            /** @description Field definitions after the update */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactFieldDefinitionsResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     listEmailConnections: {
         parameters: {
             query?: never;
@@ -7490,6 +8400,63 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    createEmailConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEmailConnectionInput"];
+            };
+        };
+        responses: {
+            /** @description The new sender */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailConnectionResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteEmailConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                connectionId: components["parameters"]["EmailConnectionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteEmailConnectionResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     updateEmailConnection: {
@@ -7548,6 +8515,200 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    recordAgentBusinessEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    contactId: string;
+                    /** @enum {string} */
+                    kind: "outreach_sent" | "reply_received" | "job_completed";
+                    sourceKey: string;
+                    /** Format: date-time */
+                    occurredAt: string;
+                    jobId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Recorded once; retries with the same source key return the original event */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: string;
+                            kind: string;
+                            contactId: string;
+                            /** Format: date-time */
+                            occurredAt: string;
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listAgentSuppressions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current exclusions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["AgentSuppression"][];
+                    };
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createAgentSuppression: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: email */
+                    address: string;
+                    /** @enum {string} */
+                    reason: "manual" | "bounce" | "complaint";
+                };
+            };
+        };
+        responses: {
+            /** @description Excluded */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["AgentSuppression"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    agentUnsubscribePage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Confirmation page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    agentUnsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/x-www-form-urlencoded": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Unsubscribed (idempotent) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    previewAgentAudience: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipientConfig"];
+            };
+        };
+        responses: {
+            /** @description Current audience, resolved without sending */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            matchedCount: number;
+                            recipientCount: number;
+                            contacts: {
+                                id: string;
+                                name: string;
+                                email: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
         };
     };
     listAgentTypes: {
@@ -8142,9 +9303,36 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    listContactFields: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ContactFieldDefinition"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
     listContacts: {
         parameters: {
             query?: {
+                audience?: string;
                 /** @description Opaque cursor returned by the previous page. */
                 cursor?: components["parameters"]["Cursor"];
                 limit?: components["parameters"]["Limit"];
@@ -8155,9 +9343,13 @@ export interface operations {
                 status?: components["schemas"]["RecordStatus"];
                 leadStatus?: components["schemas"]["LeadStatus"];
                 /** @description Working view over active contacts (due = follow-up today; overdue excludes customer/lost) */
-                focus?: "due" | "overdue" | "unassigned";
-                sort?: "name" | "followUp" | "updated" | "activity";
+                focus?: "due" | "overdue" | "unassigned" | "neverContacted" | "waitingOnUs" | "needsProposal";
+                sort?: "name" | "company" | "owner" | "stage" | "followUp" | "lastContacted" | "interestedIn" | "contacted" | "qualified" | "proposalSent" | "won" | "potentialValue" | "priority" | "updated" | "activity";
                 dir?: "asc" | "desc";
+                thenSort?: "name" | "company" | "owner" | "stage" | "followUp" | "lastContacted" | "interestedIn" | "contacted" | "qualified" | "proposalSent" | "won" | "potentialValue" | "priority" | "updated" | "activity";
+                thenDir?: "asc" | "desc";
+                milestone?: "contacted" | "qualified" | "proposalSent" | "won";
+                checked?: boolean;
             };
             header?: never;
             path: {

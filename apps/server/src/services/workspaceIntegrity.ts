@@ -163,6 +163,14 @@ const CHECKS: { name: string; sql: string }[] = [
     name: 'RecordImage.inventory',
     sql: "SELECT c.id FROM RecordImage c JOIN Inventory p ON p.id = c.subjectId WHERE c.subjectType = 'inventory' AND c.workspaceId <> p.workspaceId",
   },
+  {
+    name: 'RecordImage.company',
+    sql: "SELECT c.id FROM RecordImage c WHERE c.subjectType = 'company' AND c.subjectId <> c.workspaceId",
+  },
+  {
+    name: 'InventoryCategory.workspace',
+    sql: 'SELECT c.id FROM InventoryCategory c LEFT JOIN Workspace p ON p.id = c.workspaceId WHERE p.id IS NULL',
+  },
   { name: 'InboxItem.member', sql: 'SELECT c.id FROM InboxItem c JOIN WorkspaceMember p ON p.id = c.memberId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'Compose.author', sql: 'SELECT c.id FROM Compose c JOIN WorkspaceMember p ON p.id = c.authorMemberId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'Compose.contact', sql: 'SELECT c.id FROM Compose c JOIN Contact p ON p.id = c.contactId WHERE c.workspaceId <> p.workspaceId' },

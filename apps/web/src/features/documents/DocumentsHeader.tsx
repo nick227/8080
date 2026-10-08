@@ -1,7 +1,7 @@
 import { DocMenu } from './DocMenu'
 import { useDocuments } from './store'
 
-// Shown only while a document is open; each list section carries its own New button.
+// Shown only while a document is open; the list has one shared New entry point.
 export function DocumentsHeader() {
   const docs = useDocuments((state) => state.docs)
   const openId = useDocuments((state) => state.openId)

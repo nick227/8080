@@ -30,7 +30,7 @@ export type StreamRow = {
   media: StreamMedia[]
   choice?: ChoiceView
   proposal?: ProposalView
-  links?: { id: string; title: string; kind?: string; onOpen: () => void }[]
+  links?: { id: string; type: string; title: string; kind?: string; onOpen: () => void }[]
   status?: 'sending' | 'failed'
   onReply?: () => void
   onRetry?: () => void
@@ -110,7 +110,7 @@ const Entry = memo(function Entry({ row }: { row: StreamRow }) {
       {row.links && (
         <div className="room-links">
           {row.links.map((link) => (
-            <button key={`${link.kind ?? 'Document'}:${link.id}`} type="button" className="room-link" onClick={link.onOpen}>
+            <button key={`${link.type}:${link.id}`} type="button" className="room-link" onClick={link.onOpen}>
               {link.kind !== '' && <span className="room-link-kind">{link.kind ?? 'Document'}</span>}
               <span className="room-link-title">{link.title}</span>
             </button>

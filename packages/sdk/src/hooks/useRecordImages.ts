@@ -4,7 +4,7 @@ import { ApiError, getApiClient, unwrap } from '../client'
 import type { RecordImage } from '../models'
 import { keys } from './keys'
 
-export type RecordGalleryKind = 'contacts' | 'inventory'
+export type RecordGalleryKind = 'contacts' | 'inventory' | 'company'
 
 function imagesKey(workspaceId: string, kind: RecordGalleryKind, recordId: string) {
   return keys.recordImages(workspaceId, kind, recordId)
@@ -13,6 +13,7 @@ function imagesKey(workspaceId: string, kind: RecordGalleryKind, recordId: strin
 function invalidateGallery(queryClient: ReturnType<typeof useQueryClient>, workspaceId: string, kind: RecordGalleryKind, recordId: string) {
   void queryClient.invalidateQueries({ queryKey: imagesKey(workspaceId, kind, recordId) })
   void queryClient.invalidateQueries({ queryKey: keys.workspace(workspaceId) })
+  if (kind === 'company') void queryClient.invalidateQueries({ queryKey: ['company-profile', workspaceId] })
 }
 
 export function useRecordImages(workspaceId: string | undefined, kind: RecordGalleryKind, recordId: string | undefined) {
@@ -27,9 +28,16 @@ export function useRecordImages(workspaceId: string | undefined, kind: RecordGal
           }),
         ).data
       }
+      if (kind === 'inventory') {
+        return unwrap(
+          await getApiClient().GET('/workspaces/{workspaceId}/inventory/{inventoryId}/images', {
+            params: { path: { workspaceId: workspaceId!, inventoryId: recordId! } },
+          }),
+        ).data
+      }
       return unwrap(
-        await getApiClient().GET('/workspaces/{workspaceId}/inventory/{inventoryId}/images', {
-          params: { path: { workspaceId: workspaceId!, inventoryId: recordId! } },
+        await getApiClient().GET('/workspaces/{workspaceId}/company-profile/images', {
+          params: { path: { workspaceId: workspaceId! } },
         }),
       ).data
     },
@@ -51,9 +59,18 @@ export async function uploadRecordImage(workspaceId: string, kind: RecordGallery
       }),
     ).data
   }
+  if (kind === 'inventory') {
+    return unwrap(
+      await getApiClient().POST('/workspaces/{workspaceId}/inventory/{inventoryId}/images', {
+        params: { path: { workspaceId, inventoryId: recordId } },
+        body: form as never,
+        bodySerializer: (body) => body as unknown as FormData,
+      }),
+    ).data
+  }
   return unwrap(
-    await getApiClient().POST('/workspaces/{workspaceId}/inventory/{inventoryId}/images', {
-      params: { path: { workspaceId, inventoryId: recordId } },
+    await getApiClient().POST('/workspaces/{workspaceId}/company-profile/images', {
+      params: { path: { workspaceId } },
       body: form as never,
       bodySerializer: (body) => body as unknown as FormData,
     }),
@@ -80,9 +97,17 @@ export function useReorderRecordImages(workspaceId: string, kind: RecordGalleryK
           }),
         ).data
       }
+      if (kind === 'inventory') {
+        return unwrap(
+          await getApiClient().PATCH('/workspaces/{workspaceId}/inventory/{inventoryId}/images/order', {
+            params: { path: { workspaceId, inventoryId: recordId } },
+            body: { imageIds },
+          }),
+        ).data
+      }
       return unwrap(
-        await getApiClient().PATCH('/workspaces/{workspaceId}/inventory/{inventoryId}/images/order', {
-          params: { path: { workspaceId, inventoryId: recordId } },
+        await getApiClient().PATCH('/workspaces/{workspaceId}/company-profile/images/order', {
+          params: { path: { workspaceId } },
           body: { imageIds },
         }),
       ).data
@@ -102,9 +127,16 @@ export function useSetRecordImagePrimary(workspaceId: string, kind: RecordGaller
           }),
         ).data
       }
+      if (kind === 'inventory') {
+        return unwrap(
+          await getApiClient().PATCH('/workspaces/{workspaceId}/inventory/{inventoryId}/images/{imageId}/primary', {
+            params: { path: { workspaceId, inventoryId: recordId, imageId } },
+          }),
+        ).data
+      }
       return unwrap(
-        await getApiClient().PATCH('/workspaces/{workspaceId}/inventory/{inventoryId}/images/{imageId}/primary', {
-          params: { path: { workspaceId, inventoryId: recordId, imageId } },
+        await getApiClient().PATCH('/workspaces/{workspaceId}/company-profile/images/{imageId}/primary', {
+          params: { path: { workspaceId, imageId } },
         }),
       ).data
     },
@@ -124,9 +156,17 @@ export function useDeleteRecordImage(workspaceId: string, kind: RecordGalleryKin
         )
         return
       }
+      if (kind === 'inventory') {
+        unwrap(
+          await getApiClient().DELETE('/workspaces/{workspaceId}/inventory/{inventoryId}/images/{imageId}', {
+            params: { path: { workspaceId, inventoryId: recordId, imageId } },
+          }),
+        )
+        return
+      }
       unwrap(
-        await getApiClient().DELETE('/workspaces/{workspaceId}/inventory/{inventoryId}/images/{imageId}', {
-          params: { path: { workspaceId, inventoryId: recordId, imageId } },
+        await getApiClient().DELETE('/workspaces/{workspaceId}/company-profile/images/{imageId}', {
+          params: { path: { workspaceId, imageId } },
         }),
       )
     },

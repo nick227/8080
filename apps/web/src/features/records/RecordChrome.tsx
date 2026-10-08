@@ -175,42 +175,4 @@ export function RecordPreviewPanel({
   )
 }
 
-export function RecordFormDialog({
-  title,
-  children,
-  onClose,
-}: {
-  title: string
-  children: ReactNode
-  onClose: () => void
-}) {
-  const dialog = useRef<HTMLDialogElement>(null)
-  useEffect(() => {
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const node = dialog.current
-    node?.showModal()
-    return () => {
-      node?.close()
-      if (opener?.isConnected) opener.focus({ preventScroll: true })
-    }
-  }, [])
-  return (
-    <dialog
-      className="record-form-dialog"
-      ref={dialog}
-      aria-label={title}
-      onCancel={(event) => {
-        event.preventDefault()
-        onClose()
-      }}
-    >
-      <header>
-        <h2>{title}</h2>
-        <button type="button" onClick={onClose} aria-label="Close form">
-          ✕
-        </button>
-      </header>
-      {children}
-    </dialog>
-  )
-}
+export { FormSlideout as RecordFormDialog } from '../work/FormSlideout'

@@ -179,6 +179,86 @@ Send         [ Once ▾ ]
 
 The controls are plain fields, not sentence-builder prose.
 
+### Sender Selection & Email Routing Mental Model
+
+#### Clean Surface Division
+```text
+Agents
+├── Desk / River
+├── Catalog
+├── Editor
+│   ├── destinations (Email / Company chat)
+│   ├── schedule
+│   ├── sections
+│   ├── sender (lightweight dropdown + link to Company → Integrations)
+│   └── preview (tabbed Email / Company chat)
+└── Event Detail
+
+Company
+└── Integrations
+    └── Email Senders
+        ├── Send with 8080 (Platform Resend)
+        └── Use my own email (SMTP)
+```
+
+#### 1. Company → Integrations → Email Senders (Infrastructure)
+Email authentication and sender setup are workspace infrastructure, managed exclusively under `Company → Integrations`.
+
+```text
+EMAIL SENDERS
+
+Default sender
+[ Send with 8080                  ✓ Ready ]
+  Acme Corp <notifications@8080.app>
+  Replies → owner@acme.com
+                                      [Change default]
+
+Your senders
+[ shop@acme.com                  ✓ Ready ]
+  SMTP · smtp.gmail.com
+                           [Send test] [Remove] [Make default]
+
+[ + Add own email (SMTP) ]
+```
+
+**Connection States**:
+- **`Ready` / `Active`**: Connection authenticated and verified.
+- **`Needs attention`**: Login failed or connection refused; requires updated credentials.
+- **`Testing`**: Connection verification currently in progress.
+- **`Not configured`**: Platform key or mandatory address missing.
+
+**Explicit Routing Rules**:
+- **Workspace default sender**: Used by all Agents unless an Agent specifies an override.
+- **Agent sender override**: An Agent can select a specific `EmailConnection`.
+- **From address**: The display name & address recipients see.
+- **Reply-To**: Where customer replies land.
+- **Provider route**: Resend, SMTP, Google OAuth, Microsoft OAuth (transparent to Agent execution).
+- **No silent fallback**: If a selected sender fails or breaks auth, execution fails visibly (`NEEDS_ATTENTION`), rather than quietly changing sending identity.
+
+#### 2. Agent Editor (Lightweight Sender Choice)
+Inside the Agent Editor, sender selection is provider-agnostic and lightweight.
+
+```text
+Sender
+[ shop@acme.com · SMTP ▾ ]
+  Replies to hello@acme.com
+
+Options:
+  ✓ Send with 8080 (Default)
+    shop@acme.com · SMTP
+    sales@acme.com · Google (Coming soon)
+
+[ Manage senders → Company ]
+```
+
+The Agent surface only allows the user to:
+1. Select an existing `EmailConnection`.
+2. View inline status (`Ready`, `Needs attention`).
+3. Fall back to workspace default when no override is selected.
+4. Jump to `Company → Integrations` to add, test, or re-authenticate senders.
+
+Agents never manage connection credentials or authentication settings directly.
+
 ## 4. Event detail
 
 An execution event should show the frozen facts for that event.

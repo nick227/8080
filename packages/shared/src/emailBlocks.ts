@@ -15,6 +15,16 @@ export type EmailBlock =
 
 export type EmailContent = { version: 1; blocks: EmailBlock[] }
 
+export const Blocks = {
+  heading: (text: string): EmailBlock => ({ type: 'heading', text }),
+  text: (text: string): EmailBlock => ({ type: 'text', text }),
+  button: (label: string, href: string): EmailBlock => ({ type: 'button', label, href }),
+  list: (items: string[]): EmailBlock => ({ type: 'list', items }),
+  divider: (): EmailBlock => ({ type: 'divider' }),
+  image: (url: string, alt?: string, href?: string): EmailBlock => ({ type: 'image', url, alt, href }),
+  section: (title: string, lines: string[], link?: { label: string; href: string }): EmailBlock => ({ type: 'section', title, lines, link }),
+}
+
 export const EMPTY_EMAIL_CONTENT: EmailContent = { version: 1, blocks: [] }
 
 export const MERGE_FIELDS = [
@@ -37,18 +47,47 @@ export const EMAIL_TEMPLATES = [
   { key: 'basic', name: 'Basic' },
   { key: 'bulletin', name: 'Bulletin' },
   { key: 'team_brief', name: 'Team brief' },
+  { key: 'alert', name: 'Alert' },
+  { key: 'transactional', name: 'Transactional' },
+  { key: 'one_touch', name: 'One-touch letter' },
+  { key: 'nudge', name: 'Nudge / Reminder' },
+  { key: 'digest', name: 'Digest' },
+  { key: 'update', name: 'Product update' },
+  { key: 'event_invite', name: 'Event invite' },
+  { key: 'review_request', name: 'Review request' },
+  { key: 'newsletter', name: 'Newsletter' },
+  { key: 'executive_report', name: 'Executive report' },
+  { key: 'onboarding', name: 'Onboarding guide' },
+  { key: 'case_study', name: 'Case study' },
 ] as const
 export type EmailTemplateKey = (typeof EMAIL_TEMPLATES)[number]['key']
 
 export const EMAIL_THEMES = [
   { key: 'company', name: 'Company' },
-  { key: 'mono', name: 'Mono' },
+  { key: 'emerald', name: 'Emerald' },
+  { key: 'midnight', name: 'Midnight' },
   { key: 'warm', name: 'Warm' },
+  { key: 'mono', name: 'Mono' },
+  { key: 'sunset', name: 'Sunset' },
+  { key: 'apple', name: 'Apple Porcelain' },
+  { key: 'discord', name: 'Discord Slate' },
+  { key: 'monokai', name: 'Monokai Synth' },
+  { key: 'brutalist', name: 'Brutalist Concrete' },
+  { key: 'bauhaus', name: 'Bauhaus Primary' },
+  { key: 'zen', name: 'Zen Rice Paper' },
+  { key: 'editorial', name: 'Editorial Oxblood' },
+  { key: 'fjord', name: 'Fjord Glacier' },
+  { key: 'obsidian_gilt', name: 'Obsidian Gilt' },
+  { key: 'retro_terminal', name: 'Retro Terminal' },
 ] as const
 export type EmailThemeKey = (typeof EMAIL_THEMES)[number]['key']
 
-export const isEmailTemplateKey = (key: string): key is EmailTemplateKey => EMAIL_TEMPLATES.some((t) => t.key === key)
-export const isEmailThemeKey = (key: string): key is EmailThemeKey => EMAIL_THEMES.some((t) => t.key === key)
+const MERGE_FIELDS_SET = new Set<string>(MERGE_FIELDS)
+const TEMPLATE_KEYS_SET = new Set<string>(EMAIL_TEMPLATES.map((t) => t.key))
+const THEME_KEYS_SET = new Set<string>(EMAIL_THEMES.map((t) => t.key))
+
+export const isEmailTemplateKey = (key: string): key is EmailTemplateKey => TEMPLATE_KEYS_SET.has(key)
+export const isEmailThemeKey = (key: string): key is EmailThemeKey => THEME_KEYS_SET.has(key)
 
 const LIMITS = { blocks: 60, text: 5000, short: 300, items: 30, url: 2000 }
 
@@ -102,7 +141,7 @@ export function emailContentProblems(value: unknown): string[] {
 
 export function unknownMergeFields(text: string): string[] {
   const unknown = new Set<string>()
-  for (const [, field = ''] of text.matchAll(MERGE_TAG)) if (!(MERGE_FIELDS as readonly string[]).includes(field)) unknown.add(field)
+  for (const [, field = ''] of text.matchAll(MERGE_TAG)) if (!MERGE_FIELDS_SET.has(field)) unknown.add(field)
   return [...unknown]
 }
 

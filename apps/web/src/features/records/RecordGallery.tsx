@@ -115,7 +115,11 @@ export function RecordGallery({
               .toUpperCase() || '·'}
           </span>
           <strong>Add a photo</strong>
-          <small>Products and people both look better with one.</small>
+          <small>
+            {kind === 'company'
+              ? 'Logo, storefront, or team photos.'
+              : 'Products and people both look better with one.'}
+          </small>
         </button>
       )}
       <div className="record-gallery-strip" role="list">

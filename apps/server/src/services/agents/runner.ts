@@ -1,3 +1,5 @@
+import { triggerStillApplies } from './businessTriggers'
+import { createUnsubscribeLink, suppressionFor } from './suppression'
 // The Agents job runner (docs/agents/07 S0). One in-process tick, single instance:
 //   claim due events → prepare once (resolve recipients, dedupe, render, freeze) →
 //   send pending targets → finalize, then schedule the Agent's next occurrence.
@@ -5,6 +7,8 @@
 // every attempt recorded. Permanent and auth errors fail at once; auth fails the
 // rest of that delivery too. While an event waits for a retry it stays `running`
 // with `leaseUntil` = when to look again.
+import { createHash } from 'crypto'
+import { recipientProblems } from './recipientSelection'
 import { db, Prisma, type Agent, type AgentEvent, type EmailConnection } from '@project/db'
 import { postSays } from '../../bots/flows/post'
 import type { MessageLink } from '../../lib/choice'
@@ -55,6 +59,8 @@ async function runEvent(eventId: string, now: Date) {
 
   if (!event.preparedAt) {
     if (event.agent.status !== 'active') return cancelEvent(event, now, `The agent is ${event.agent.status}.`)
+    const obsolete = await triggerStillApplies(event.agent, event)
+    if (obsolete) return cancelEvent(event, now, obsolete)
     const outcome = await prepare(event, event.agent, now)
     if (outcome) return failEvent(eventId, now, outcome.code, outcome.summary)
   }
@@ -68,6 +74,7 @@ async function runEvent(eventId: string, now: Date) {
 async function prepare(event: AgentEvent, agent: Agent, now: Date): Promise<{ code: string; summary: string } | null> {
   const type = getAgentType(agent.typeKey)
   if (!type) return { code: 'UNKNOWN_TYPE', summary: 'This kind of agent is no longer available.' }
+  if (agent.family !== 'team' && recipientProblems(agent).length) return { code: 'MISSING_AUDIENCE', summary: recipientProblems(agent)[0]! }
   const workspace = await db.workspace.findUniqueOrThrow({ where: { id: agent.workspaceId } })
   const prepared = await type.prepare({ agent, event, workspace, now })
   if (!prepared.ok) return { code: prepared.code, summary: prepared.summary }
@@ -99,30 +106,44 @@ async function freezeEmail(tx: Tx, event: AgentEvent, agent: Agent, connection: 
 
   // Duplicate suppression: a live (pending/sent) target with the same slot exists → SKIPPED.
   const slotOf = (key: string | null | undefined) => (key ? `${agent.id}:${key}`.slice(0, 191) : null)
-  const slots = email.recipients.map((r) => slotOf(r.dedupeKey)).filter((s): s is string => !!s)
+  const recipientSlot = (r: PreparedEmail['recipients'][number]) => r.contactId && isEmailAddress(r.address?.trim() ?? '')
+    ? slotOf(`${event.occurrenceKey}:email:${createHash('sha256').update(r.address!.trim().toLowerCase()).digest('hex')}`) : slotOf(r.dedupeKey)
+  const slots = email.recipients.map(recipientSlot).filter((s): s is string => !!s)
   const taken = new Set(
     slots.length ? (await tx.agentEventTarget.findMany({ where: { dedupeSlot: { in: slots } }, select: { dedupeSlot: true } })).map((t) => t.dedupeSlot) : [],
   )
 
   const rows: Prisma.AgentEventTargetCreateManyInput[] = []
+  const contactIds = new Set<string>()
   for (const r of email.recipients) {
     const address = r.address?.trim() ?? ''
-    const slot = slotOf(r.dedupeKey)
+    const slot = recipientSlot(r)
     const base = { workspaceId: agent.workspaceId, deliveryId: delivery.id, agentId: agent.id, contactId: r.contactId ?? null, memberId: r.memberId ?? null, address: address.slice(0, 255), dedupeKey: r.dedupeKey ?? null }
-    if (slot && taken.has(slot)) {
+    if ((r.contactId && contactIds.has(r.contactId)) || (slot && taken.has(slot))) {
       rows.push({ ...base, status: 'skipped', subject: '', html: '', text: '', failureCode: 'DUPLICATE', failureMessage: `Already sent to ${r.label}.` })
       continue
     }
+    if (r.contactId) contactIds.add(r.contactId)
     if (!isEmailAddress(address)) {
       rows.push({ ...base, status: 'failed', subject: '', html: '', text: '', failureCode: 'MISSING_EMAIL', failureMessage: `${r.label} has no valid email address.` })
       continue
     }
     if (slot) taken.add(slot)
+    if (r.contactId && await suppressionFor(tx, agent.workspaceId, address)) {
+      rows.push({ ...base, status: 'skipped', subject: '', html: '', text: '', failureCode: 'SUPPRESSED', failureMessage: `${r.label} is excluded from customer email.` })
+      continue
+    }
+    const unsubscribeUrl = r.contactId ? await createUnsubscribeLink(tx, agent.workspaceId, address) : null
     const rendered = renderEmail({ subject: email.subject, content: email.content, template: email.template, theme: email.theme, values: r.values, footer: email.footer })
+    if (unsubscribeUrl) {
+      rendered.text += `\n\nStop customer emails from this workspace: ${unsubscribeUrl}`
+      if (rendered.html) rendered.html += `<p><a href="${unsubscribeUrl}">Unsubscribe from customer emails</a></p>`
+    }
+    const payload = unsubscribeUrl ? { headers: { 'List-Unsubscribe': `<${unsubscribeUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } } : undefined
     rows.push(
       blocked
         ? { ...base, status: 'failed', subject: rendered.subject.slice(0, 255), html: rendered.html, text: rendered.text, failureCode: 'SENDER_NEEDS_ATTENTION', failureMessage: 'The sender needs attention.' }
-        : { ...base, status: 'pending', dedupeSlot: slot, subject: rendered.subject.slice(0, 255), html: rendered.html, text: rendered.text },
+        : { ...base, payload, status: 'pending', dedupeSlot: slot, subject: rendered.subject.slice(0, 255), html: rendered.html, text: rendered.text },
     )
   }
   if (rows.length) await tx.agentEventTarget.createMany({ data: rows })
@@ -187,10 +208,15 @@ async function sendPending(eventId: string, now: Date) {
       if (!batch.length) break
       await db.agentEvent.update({ where: { id: eventId }, data: { leaseUntil: new Date(now.getTime() + LEASE_MS) } })
       for (const target of batch) {
+        // Consent may change while a frozen delivery waits for a retry. Never refresh its audience.
+        if (target.contactId && await suppressionFor(db, target.workspaceId, target.address)) {
+          await db.agentEventTarget.update({ where: { id: target.id }, data: { status: 'skipped', dedupeSlot: null, failureCode: 'SUPPRESSED', failureMessage: 'This address is excluded from customer email.' } })
+          continue
+        }
         const result: SendResult = !connection
           ? { ok: false, kind: 'auth', code: 'SENDER_MISSING', message: 'The sender was removed.' }
           : await providerFor(connection)
-              .send(connection, { to: target.address, subject: target.subject, html: target.html, text: target.text, idempotencyKey: `agent-target:${target.id}` })
+              .send(connection, { to: target.address, subject: target.subject, html: target.html, text: target.text, headers: (target.payload as { headers?: Record<string, string> } | null)?.headers, idempotencyKey: `agent-target:${target.id}` })
               .catch((err: Error): SendResult => ({ ok: false, kind: 'transient', code: 'PROVIDER_ERROR', message: err.message.slice(0, 300) }))
         await recordAttempt(target.id, target.attempts + 1, result, now)
         if (!result.ok && result.kind === 'auth') {
@@ -345,6 +371,11 @@ export async function scheduleNext(agentId: string, after: Date) {
   const agent = await db.agent.findUnique({ where: { id: agentId }, include: { workspace: { select: { timezone: true } } } })
   const type = agent && getAgentType(agent.typeKey)
   const next = agent?.status === 'active' && type?.schedule ? type.schedule(agent, after, agent.workspace.timezone) : null
+  if (agent?.family === 'followup') {
+    // Business-event occurrences are independent; completing one must not erase the rest.
+    await db.agentEvent.updateMany({ where: { agentId, status: 'scheduled', preparedAt: null, ...(agent.status === 'active' ? { context: { equals: Prisma.DbNull } } : {}) }, data: { status: 'canceled', completedAt: after, failureSummary: agent.status === 'active' ? 'Replaced legacy periodic follow-up with business triggers.' : `The agent is ${agent.status}.` } })
+    return null
+  }
   await db.agentEvent.deleteMany({
     where: { agentId, status: 'scheduled', preparedAt: null, ...(next ? { NOT: { occurrenceKey: next.key } } : {}) },
   })

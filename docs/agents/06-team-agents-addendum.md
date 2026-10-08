@@ -110,17 +110,20 @@ Send to        [ Workspace members ]
 Deliver by     [ ✓ Email ] [ ✓ Company chat ]
 Repeat         [ Daily ▾ ]
 Time           [ 8:00 AM ▾ ]
+Sender         [ Send with 8080 ▾ ]  (or an own-mailbox SMTP connection)
 
 Include
-[ ✓ Today's calendar ]
 [ ✓ Important activity ]
 [ ✓ Agent failures ]
-[ ✓ Inventory alerts ]
+[ ✓ Low stock alerts ]
+[ ✓ Follow-ups due ]
 
 12 team members will receive this
 
 [ Send test ]                         [ Publish ]
 ```
+
+> **Sender Note**: Team Agents can send via the default workspace platform sender ("Send with 8080" via Resend) or an authenticated own-mailbox SMTP connection configured in `Company → Integrations`. Agent execution logic remains completely provider-agnostic.
 
 The available `Include` options must be product-defined.
 

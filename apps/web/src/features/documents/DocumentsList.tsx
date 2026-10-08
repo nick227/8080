@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { PersonName } from '../../components/PersonName'
+import { FormSlideout } from '../work/FormSlideout'
 import { SectionHeader } from '../work/SectionHeader'
 import { DocIcon, kindOf, type DocKind } from './DocIcon'
 import { markOf, whenLabel } from './format'
@@ -35,19 +36,46 @@ const GROUPS: { kind: DocKind; surface: DocumentRecord['surface']; title: string
 
 export function DocumentsList({ owner }: { owner: string }) {
   const docs = useDocuments((state) => state.docs)
+  const add = useDocuments((state) => state.add)
+  const [adding, setAdding] = useState(false)
+  const [surface, setSurface] = useState<DocumentRecord['surface']>('blocks')
 
   return (
     <div className="docs-table-wrap">
+      <SectionHeader title="Documents" level={1} newLabel="document" onNew={() => setAdding(true)} />
+      {adding && (
+        <FormSlideout title="New document" onClose={() => setAdding(false)}>
+          <form className="record-form" onSubmit={(event) => {
+            event.preventDefault()
+            add(blankDoc(surface, owner))
+            setAdding(false)
+          }}>
+            <div className="record-form-fields">
+              <label>
+                <span>Document type</span>
+                <select autoFocus value={surface} onChange={(event) => setSurface(event.target.value as DocumentRecord['surface'])}>
+                  <option value="blocks">Document</option>
+                  <option value="grid">Sheet</option>
+                  <option value="mental_map">Map</option>
+                </select>
+              </label>
+            </div>
+            <footer>
+              <button type="button" onClick={() => setAdding(false)}>Cancel</button>
+              <button type="submit" className="record-primary">Create</button>
+            </footer>
+          </form>
+        </FormSlideout>
+      )}
       {GROUPS.map((group) => (
-        <DocumentsTable key={group.kind} group={group} docs={docs.filter((doc) => group.kinds.includes(kindOf(doc)))} owner={owner} />
+        <DocumentsTable key={group.kind} group={group} docs={docs.filter((doc) => group.kinds.includes(kindOf(doc)))} />
       ))}
     </div>
   )
 }
 
-function DocumentsTable({ group, docs, owner }: { group: typeof GROUPS[number]; docs: DocumentRecord[]; owner: string }) {
+function DocumentsTable({ group, docs }: { group: typeof GROUPS[number]; docs: DocumentRecord[] }) {
   const open = useDocuments((state) => state.open)
-  const add = useDocuments((state) => state.add)
   const [sort, setSort] = useState<Sort>({ key: 'updated', dir: -1 })
 
   // Ties fall back to most recently updated, so the order never jumps.
@@ -64,9 +92,6 @@ function DocumentsTable({ group, docs, owner }: { group: typeof GROUPS[number]; 
       <SectionHeader
         title={group.title}
         titleId={`docs-group-${group.kind}`}
-        newLabel={group.label}
-        onNew={() => add(blankDoc(group.surface, owner))}
-        onImport={() => {}}
       />
       <table className="docs-table" aria-labelledby={`docs-group-${group.kind}`}>
         <thead>
@@ -86,11 +111,12 @@ function DocumentsTable({ group, docs, owner }: { group: typeof GROUPS[number]; 
                 </th>
               )
             })}
+            <th className="docs-col-action"><span className="docs-sort">Preview</span></th>
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <tr className="docs-none"><td colSpan={4}>No {group.title.toLowerCase()} yet. Start one with + New.</td></tr>
+            <tr className="docs-none"><td colSpan={5}>No {group.title.toLowerCase()} yet. Start one with + New.</td></tr>
           ) : rows.map((doc) => {
             const kind = kindOf(doc)
             const external = doc.surface === 'external'
@@ -106,6 +132,11 @@ function DocumentsTable({ group, docs, owner }: { group: typeof GROUPS[number]; 
                 <td className="docs-col-owner"><PersonName name={doc.ownerName} /></td>
                 <td className="docs-col-updated"><time dateTime={new Date(doc.updatedAt).toISOString()}>{whenLabel(doc.updatedAt)}</time></td>
                 <td className="docs-col-type">{markOf(doc)}</td>
+                <td className="docs-col-action" onClick={(event) => event.stopPropagation()}>
+                  <button type="button" className="docs-preview-btn" onClick={() => open(doc.id)}>
+                    Preview ↗
+                  </button>
+                </td>
               </tr>
             )
           })}

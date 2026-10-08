@@ -16,7 +16,7 @@ export type OutboundEmail = {
 /** transient = may succeed on a later attempt; auth = the connection itself is broken. */
 export type SendFailure = { ok: false; kind: 'transient' | 'permanent' | 'auth'; code: string; message: string }
 export type SendResult = { ok: true; providerMessageId: string } | SendFailure
-export type TestResult = { ok: true } | { ok: false; code: string; message: string }
+export type TestResult = { ok: true } | { ok: false; code: string; message: string; kind?: 'transient' | 'permanent' | 'auth' }
 
 export interface EmailProvider {
   readonly name: string

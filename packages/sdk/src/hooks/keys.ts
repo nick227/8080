@@ -27,7 +27,7 @@ export const keys = {
   inventoryItem: (workspaceId: string, inventoryId: string) => ['workspaces', workspaceId, 'inventory', inventoryId] as const,
   inventoryStockMovements: (workspaceId: string, inventoryId: string) =>
     ['workspaces', workspaceId, 'inventory', inventoryId, 'stock-movements'] as const,
-  recordImages: (workspaceId: string, kind: 'contacts' | 'inventory', recordId: string) =>
+  recordImages: (workspaceId: string, kind: 'contacts' | 'inventory' | 'company', recordId: string) =>
     ['workspaces', workspaceId, kind, recordId, 'images'] as const,
   interests: (workspaceId: string, contactId: string) => ['workspaces', workspaceId, 'contacts', contactId, 'interests'] as const,
   itemInterests: (workspaceId: string, inventoryId: string) => ['workspaces', workspaceId, 'inventory', inventoryId, 'interests'] as const,

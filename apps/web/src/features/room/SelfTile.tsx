@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { KindMark, MagicIcon, PersonIcon, ImageIcon } from '../../components/icons'
 import { PersonName } from '../../components/PersonName'
 import { useBackground } from '../../state/background'
@@ -42,7 +42,7 @@ function LivePreview() {
   return <div ref={containerRef} className="room-seat-media" style={{ width: '100%', height: '100%', overflow: 'hidden' }} />
 }
 
-export function SelfTile({ seat }: { seat: Seat }) {
+export function SelfTile({ seat, children }: { seat: Seat; children?: ReactNode }) {
   const kind = useLocalLive((s) => s.kind)
   const starting = useLocalLive((s) => s.starting)
   const error = useLocalLive((s) => s.error)
@@ -117,6 +117,7 @@ export function SelfTile({ seat }: { seat: Seat }) {
       {live ? <LivePreview /> : <Face seat={seat} customImage={customImage} />}
       {live && <PersonName className="room-seat-name" name={seat.name} tag={seat.tag} />}
       {error && !live && <span className="room-live-error" role="status">{error}</span>}
+      {children}
     </div>
   )
 }

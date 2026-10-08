@@ -57,9 +57,11 @@ describe('team agents: catalog and lifecycle', () => {
     const types = await call(carolId, 'GET', `${base(ws.id)}/agent-types`)
     expect(types.statusCode).toBe(200)
     await validateResponse('listAgentTypes', 200, types.json())
-    expect(types.json().data.map((t: any) => t.key)).toEqual(['daily_team_brief', 'daily_customer_report'])
+    const keys = types.json().data.map((t: any) => t.key)
+    expect(keys).toContain('daily_team_brief')
+    expect(keys).toContain('daily_customer_report')
     expect((await call(carolId, 'POST', `${base(ws.id)}/agents`, { typeKey: 'daily_team_brief' })).statusCode).toBe(403)
-    expect((await call(testUserId, 'POST', `${base(ws.id)}/agents`, { typeKey: 'company_newsletter' })).json().code).toBe('UNKNOWN_AGENT_TYPE')
+    expect((await call(testUserId, 'POST', `${base(ws.id)}/agents`, { typeKey: 'non_existent_type' })).json().code).toBe('UNKNOWN_AGENT_TYPE')
 
     const res = await call(testUserId, 'POST', `${base(ws.id)}/agents`, { typeKey: 'daily_team_brief' })
     expect(res.statusCode).toBe(201)

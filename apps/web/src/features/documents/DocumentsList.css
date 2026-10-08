@@ -1,6 +1,6 @@
 /* Documents: the list is a sheet-like table, full bleed, sorted from its header. */
-.docs-table-wrap { flex: 1; min-height: 0; overflow: auto; }
-.docs-table {
+.docs-table-wrap, .contact-table-scroll, .inventory-table-scroll { flex: 1; min-height: 0; overflow: auto; width: 100%; }
+.docs-table, .contact-table, .inventory-table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
@@ -8,8 +8,11 @@
   font-family: var(--sans);
   font-size: var(--text-base);
   color: var(--muted);
+  text-align: left;
 }
-.docs-table th, .docs-table td {
+.docs-table th, .docs-table td,
+.contact-table th, .contact-table td,
+.inventory-table th, .inventory-table td {
   height: var(--table-row-height);
   padding: 0 var(--table-cell-padding-x);
   border-right: var(--line-width) solid var(--line);
@@ -18,21 +21,32 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  vertical-align: middle;
+  box-sizing: border-box;
 }
-.docs-table th:last-child, .docs-table td:last-child { border-right: 0; }
-.docs-table thead th {
+.docs-table th:last-child, .docs-table td:last-child,
+.contact-table th:last-child, .contact-table td:last-child,
+.inventory-table th:last-child, .inventory-table td:last-child { border-right: 0; }
+
+.docs-table thead th,
+.contact-table thead th,
+.inventory-table thead th {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 3;
   height: var(--table-header-height);
   padding: 0;
   background: var(--surface-deep);
   font-weight: var(--weight-normal);
   overflow: visible;
+  border-bottom: var(--line-width) solid var(--line);
 }
-.docs-col-owner { width: 200px; }
-.docs-col-updated { width: 160px; }
-.docs-col-type { width: 130px; }
+.docs-col-title, .table-col-name { width: auto; min-width: 200px; }
+.docs-col-owner { width: 160px; }
+.docs-col-updated { width: 130px; }
+.docs-col-type { width: 110px; }
+.docs-col-action, .contact-col-action, .inventory-col-action { width: 100px; min-width: 100px; text-align: right; }
+
 .docs-table td.docs-col-updated, .docs-table td.docs-col-type {
   font-family: var(--mono);
   font-size: var(--text-label);
@@ -52,14 +66,186 @@
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   color: var(--muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
 }
 .docs-sort:hover, .docs-sort:focus-visible, .docs-sort[data-active] { color: var(--ink); }
 .docs-sort-dir { font-size: var(--text-sm); letter-spacing: 0; opacity: .35; }
 .docs-sort:hover .docs-sort-dir { opacity: .7; }
 .docs-sort[data-active] .docs-sort-dir { opacity: 1; color: var(--signal); }
 
-.docs-table tbody tr { cursor: pointer; }
-.docs-table tbody tr:hover td { background: var(--surface-hover); color: var(--ink); }
+.docs-table tbody tr,
+.contact-table tbody tr,
+.inventory-table tbody tr { cursor: pointer; }
+
+.docs-table tbody tr:hover td, .docs-table tbody tr:hover th,
+.contact-table tbody tr:hover td, .contact-table tbody tr:hover th,
+.inventory-table tbody tr:hover td, .inventory-table tbody tr:hover th {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.docs-table tr[data-selected] td, .docs-table tr[data-selected] th,
+.contact-table tr[data-selected] td, .contact-table tr[data-selected] th,
+.inventory-table tr[data-selected] td, .inventory-table tr[data-selected] th {
+  background: var(--surface-active);
+  color: var(--ink);
+}
+
+/* Avatar-first item cells */
+.contact-name-cell, .inventory-name-cell, .docs-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+.contact-name-cell .record-media, .inventory-name-cell .record-media {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
+  font-size: 11px;
+  flex: none;
+}
+.contact-name-info, .inventory-name-info, .docs-name-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  line-height: 1.25;
+}
+.contact-name-info a, .inventory-name-info a, .docs-name-info a {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.contact-name-info a:hover, .inventory-name-info a:hover, .docs-name-info a:hover {
+  text-decoration: underline;
+}
+.docs-name-sub {
+  font-size: var(--text-xs, 11px);
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: normal;
+}
+
+/* Inline select box for status attributes */
+.table-status-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 4px);
+  padding: 2px 18px 2px 6px;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  cursor: pointer;
+  width: 100%;
+  max-width: 150px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%23888888' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m1 1 4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+}
+.table-status-select:hover {
+  border-color: var(--line);
+  background-color: var(--surface-active);
+}
+.table-status-select:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+  background-color: var(--surface-deep);
+}
+
+/* Consistent Preview ↗ button at end of row */
+.docs-preview-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 3px 8px;
+  font-family: var(--sans);
+  font-size: var(--text-xs, 11px);
+  font-weight: var(--weight-medium);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 4px);
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--motion-fast, 0.15s);
+}
+.docs-preview-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+  background: var(--surface-active);
+}
+
+.contact-last-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.contact-touch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 2px 7px;
+  font-family: var(--sans);
+  font-size: var(--text-xs, 11px);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--surface-deep, transparent);
+  cursor: pointer;
+  white-space: nowrap;
+  flex: none;
+  transition: all var(--motion-fast, 0.15s);
+}
+.contact-touch-btn:hover {
+  background: var(--surface-active);
+  border-color: var(--ink);
+}
+.contact-last-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-sm);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.contact-notes-count-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  font-family: var(--sans);
+  font-size: var(--text-sm);
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.contact-notes-count-btn:hover {
+  border-color: var(--line);
+  background: var(--surface-active);
+}
+
 .docs-name {
   display: flex;
   align-items: center;
@@ -79,3 +265,5 @@
 .docs-table .docs-none td { cursor: default; background: none; color: var(--muted); }
 
 .docs-group + .docs-group { margin-top: var(--space-lg); }
+
+

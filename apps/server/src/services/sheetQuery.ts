@@ -4,9 +4,10 @@
 import { createHash } from 'crypto'
 import { db, type Prisma } from '@project/db'
 import {
-  CONTACT_SHEET_COLUMNS, INVENTORY_SHEET_COLUMNS, LEAD_STATUSES, SHEET_MAX_ROWS,
-  type ContactSheetColumn, type ContactSheetQuery, type GridTable, type InventorySheetColumn, type InventorySheetQuery, type LeadStatusValue, type SheetQuery,
+  CONTACT_SHEET_COLUMNS, INVENTORY_SHEET_COLUMNS, DEFAULT_PIPELINE_STAGES, SHEET_MAX_ROWS,
+  type ContactSheetColumn, type ContactSheetQuery, type GridTable, type InventorySheetColumn, type InventorySheetQuery, type SheetQuery,
 } from '@project/shared'
+import { ensurePipelineStages } from './PipelineService'
 import { minorDigits, sheetAsText, type CellType, type CellValue, type SheetContent } from '@project/shared'
 import { badRequest } from '../lib/errors'
 import { localDayKey, wallTimeToUtc } from '../lib/workspaceDay'
@@ -24,7 +25,8 @@ function text(v: unknown, max: number, what: string) {
   return v.trim()
 }
 
-export const LEAD_LABEL: Record<string, string> = { new: 'New', contacting: 'Contacting', connected: 'Connected', qualified: 'Qualified', customer: 'Customer', lost: 'Lost' }
+export const LEAD_LABEL: Record<string, string> = Object.fromEntries(DEFAULT_PIPELINE_STAGES.map((s) => [s.key, s.label]))
+const STAGE_KEY = /^[a-z][a-z0-9_-]{0,63}$/
 const CONTACT_DATES = new Set<ContactSheetColumn>(['nextFollowUp', 'lastActivity', 'created'])
 const INVENTORY_TYPE: Record<InventorySheetColumn, CellType> = {
   name: 'text', sku: 'text', category: 'text', price: 'money', quantity: 'number', lowStockThreshold: 'number',
@@ -80,8 +82,8 @@ export function validateSheetQuery(raw: unknown): SheetQuery {
     keys(f, ['leadStatus', 'followUp', 'noFollowUp', 'quietSince', 'ownerMemberId', 'q'], 'contact filter')
     const filters: NonNullable<ContactSheetQuery['filters']> = {}
     if (f.leadStatus !== undefined) {
-      if (!Array.isArray(f.leadStatus) || !f.leadStatus.length || f.leadStatus.some((s) => !LEAD_STATUSES.includes(s))) throw invalid('Unknown lead status')
-      filters.leadStatus = [...new Set(f.leadStatus as LeadStatusValue[])]
+      if (!Array.isArray(f.leadStatus) || !f.leadStatus.length || f.leadStatus.some((s) => typeof s !== 'string' || !STAGE_KEY.test(s))) throw invalid('Unknown lead status')
+      filters.leadStatus = [...new Set(f.leadStatus as string[])]
     }
     if (f.followUp !== undefined) filters.followUp = windowOf(f.followUp)
     if (f.noFollowUp !== undefined) { if (f.noFollowUp !== true) throw invalid('noFollowUp is true or absent'); filters.noFollowUp = true }
@@ -176,7 +178,14 @@ async function contactsSheet(ctx: SheetContext, q: ContactSheetQuery, asOf: stri
     const count = new Map(groups.map((g) => [(g as Record<string, unknown>)[field] as string | null, g._count._all]))
     let rows: { key: string; label: string; n: number }[]
     if (q.groupBy === 'leadStatus') {
-      rows = LEAD_STATUSES.filter((s) => !q.filters?.leadStatus || q.filters.leadStatus.includes(s)).map((s) => ({ key: s, label: LEAD_LABEL[s]!, n: count.get(s) ?? 0 }))
+      await ensurePipelineStages(db, ctx.workspaceId)
+      const stages = await db.pipelineStage.findMany({
+        where: { workspaceId: ctx.workspaceId, archived: false },
+        orderBy: [{ position: 'asc' }, { key: 'asc' }],
+      })
+      rows = stages
+        .filter((s) => !q.filters?.leadStatus || q.filters.leadStatus.includes(s.key))
+        .map((s) => ({ key: s.key, label: s.label, n: count.get(s.key) ?? 0 }))
     } else {
       const names = q.groupBy === 'owner' ? await memberNames(ctx.workspaceId, [...count.keys()].filter((k): k is string => !!k)) : null
       rows = [...count].map(([k, n]) => ({ key: k ?? '', label: k === null ? (q.groupBy === 'owner' ? 'Unassigned' : 'Not set') : names?.get(k) ?? k, n }))
@@ -204,6 +213,10 @@ async function contactsSheet(ctx: SheetContext, q: ContactSheetQuery, asOf: stri
     },
   })
   const owners = columns.includes('owner') ? await memberNames(ctx.workspaceId, [...new Set(found.map((c) => c.ownerMemberId).filter((x): x is string => !!x))]) : new Map()
+  await ensurePipelineStages(db, ctx.workspaceId)
+  const stageLabels = new Map(
+    (await db.pipelineStage.findMany({ where: { workspaceId: ctx.workspaceId }, select: { key: true, label: true } })).map((s) => [s.key, s.label]),
+  )
   const tz = ctx.timezone
   const cell = (c: typeof found[number], col: ContactSheetColumn): CellValue => {
     switch (col) {
@@ -212,7 +225,7 @@ async function contactsSheet(ctx: SheetContext, q: ContactSheetQuery, asOf: stri
       case 'title': return c.title
       case 'email': return c.primaryEmail
       case 'phone': return c.primaryPhone
-      case 'leadStatus': return c.leadStatus ? LEAD_LABEL[c.leadStatus]! : null
+      case 'leadStatus': return c.leadStatus ? stageLabels.get(c.leadStatus) ?? LEAD_LABEL[c.leadStatus] ?? c.leadStatus : null
       case 'leadSource': return c.leadSource
       case 'nextFollowUp': return cellDay(c.nextFollowUp, tz)
       case 'lastActivity': return cellDay(c.lastActivityAt, tz)
