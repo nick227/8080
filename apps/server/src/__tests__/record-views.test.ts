@@ -36,8 +36,8 @@ describe('record collection views', () => {
       ownerMemberId: alice,
     })
     await call(testUserId, 'POST', `${base}/contacts`, {
-      displayName: 'Customer overdue ignored',
-      leadStatus: 'customer',
+      displayName: 'Lost overdue ignored',
+      leadStatus: 'not_interested',
       nextFollowUp: yesterday.toISOString(),
       ownerMemberId: alice,
     })
@@ -58,8 +58,8 @@ describe('record collection views', () => {
     expect(named.json().data.map((row: { displayName: string }) => row.displayName)).toEqual([
       'Unassigned person',
       'Overdue lead',
+      'Lost overdue ignored',
       'Due today',
-      'Customer overdue ignored',
     ])
 
     const overdueId = overdue.json().data[0].id
@@ -67,10 +67,10 @@ describe('record collection views', () => {
     const bulk = await call(testUserId, 'POST', `${base}/contacts/bulk`, {
       ids: [overdueId, unassignedId],
       action: 'setStage',
-      leadStatus: 'qualified',
+      leadStatus: 'interested',
     })
     expect(bulk.json().data.updated).toBe(2)
-    expect((await call(testUserId, 'GET', `${base}/contacts/${overdueId}`)).json().data.leadStatus).toBe('qualified')
+    expect((await call(testUserId, 'GET', `${base}/contacts/${overdueId}`)).json().data.leadStatus).toBe('interested')
   })
 
   it('sorts inventory, counts stock views, bulks availability, and lists reverse interests', async () => {

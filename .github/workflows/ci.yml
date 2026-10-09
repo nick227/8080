@@ -62,5 +62,11 @@ jobs:
         env:
           DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
 
-      - name: Test
-        run: pnpm test
+      # Server suite only: the web package's Playwright specs need browsers and running
+      # servers, so they are not part of this gate.
+      - name: Server tests
+        run: pnpm --filter server test
+
+      # What Railway runs for the web service (type-check, then vite build).
+      - name: Web production build
+        run: pnpm --filter web build

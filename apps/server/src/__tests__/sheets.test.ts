@@ -55,7 +55,7 @@ describe('the sheet query is whitelisted', () => {
       { source: 'contacts' },
       { source: 'contacts', columns: ['name', 'revenue'] },
       { source: 'contacts', columns: ['name'], where: 'x' },
-      { source: 'contacts', columns: ['name'], filters: { leadStatus: ['hot'] } },
+      { source: 'contacts', columns: ['name'], filters: { leadStatus: ['Hot leads!'] } },
       { source: 'contacts', columns: ['name'], filters: { followUp: { to: '10/11/2026' } } },
       { source: 'contacts', columns: ['name'], filters: { followUp: { from: '2026-10-09', to: '2026-10-01' } } },
       { source: 'contacts', columns: ['name'], filters: { followUp: { to: '2026-10-09' }, noFollowUp: true } },
@@ -82,10 +82,10 @@ describe('presets → sheets', () => {
   it('"Follow-ups this week": open leads due by Sunday, overdue first, with company and owner', async () => {
     const { ws, base } = await workspace()
     const alice = await memberId(ws.id, testUserId)
-    await contact(ws.id, 'Ann Overdue', { nextFollowUp: noon(addDays(today(), -3)), leadStatus: 'contacting', ownerMemberId: alice, primaryEmail: 'ann@x.test' }, 'Brightside Dental')
-    await contact(ws.id, 'Ben Sunday', { nextFollowUp: noon(sunday()), leadStatus: 'qualified' })
-    await contact(ws.id, 'Cy Nextweek', { nextFollowUp: noon(addDays(sunday(), 1)), leadStatus: 'new' })
-    await contact(ws.id, 'Dee Customer', { nextFollowUp: noon(today()), leadStatus: 'customer' })
+    await contact(ws.id, 'Ann Overdue', { nextFollowUp: noon(addDays(today(), -3)), leadStatus: 'presentation', ownerMemberId: alice, primaryEmail: 'ann@x.test' }, 'Brightside Dental')
+    await contact(ws.id, 'Ben Sunday', { nextFollowUp: noon(sunday()), leadStatus: 'interested' })
+    await contact(ws.id, 'Cy Nextweek', { nextFollowUp: noon(addDays(sunday(), 1)), leadStatus: 'contacted' })
+    await contact(ws.id, 'Dee Customer', { nextFollowUp: noon(today()), leadStatus: 'not_interested' })
     await contact(ws.id, 'Eve Archived', { nextFollowUp: noon(today()), status: 'archived' })
     await contact(ws.id, 'Fay Deleted', { nextFollowUp: noon(today()), deletedAt: new Date() })
 
@@ -99,21 +99,20 @@ describe('presets → sheets', () => {
     expect(doc.workspaceAccess).toBeNull() // a person's own sheet is private
     expect(doc.provenance).toMatchObject({ kind: 'artifact', generator: 'sheet.query', preset: 'follow-ups-week', rowCount: 2, timezone: 'UTC', currency: 'USD', previousId: null })
     expect(doc.provenance.query.filters.followUp).toEqual({ to: sunday() })
-    expect(doc.provenance.summary).toBe(`Contacts · lead status New, Contacting, Connected or Qualified · follow-up on or before ${new Date(`${sunday()}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · columns: Name, Company, Email, Phone, Lead status, Next follow-up, Owner · sorted by next follow-up`)
+    expect(doc.provenance.summary).toBe(`Contacts · lead status Contacted, Presentation or Interested · follow-up on or before ${new Date(`${sunday()}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · columns: Name, Company, Email, Phone, Lead status, Next follow-up, Owner · sorted by next follow-up`)
 
     const t = await rows(base, doc.id)
     expect(t.columns.map((c) => c.label)).toEqual(['Name', 'Company', 'Email', 'Phone', 'Lead status', 'Next follow-up', 'Owner'])
     expect(t.rows.map((r) => r.cells.name)).toEqual(['Ann Overdue', 'Ben Sunday'])
-    expect(t.rows[0]!.cells).toEqual({ name: 'Ann Overdue', company: 'Brightside Dental', email: 'ann@x.test', phone: '', leadStatus: 'Contacting', nextFollowUp: addDays(today(), -3), owner: 'Alice' })
+    expect(t.rows[0]!.cells).toEqual({ name: 'Ann Overdue', company: 'Brightside Dental', email: 'ann@x.test', phone: '', leadStatus: 'Presentation', nextFollowUp: addDays(today(), -3), owner: 'Alice' })
   })
 
   it('"Leads by stage": every stage counted by code, with a total', async () => {
     const { ws, base } = await workspace()
-    for (const [n, s] of [['A A', 'new'], ['B B', 'new'], ['C C', 'qualified'], ['D D', 'lost']] as const) await contact(ws.id, n, { leadStatus: s })
-    await contact(ws.id, 'E E', { leadStatus: null })
+    for (const [n, s] of [['A A', 'contacted'], ['B B', 'contacted'], ['C C', 'interested'], ['D D', 'not_interested']] as const) await contact(ws.id, n, { leadStatus: s })
     const doc = (await sheet(base, { preset: 'leads-by-stage' })).json().data
     const t = await rows(base, doc.id)
-    expect(t.rows.map((r) => [r.cells.group, r.cells.contacts])).toEqual([['New', '2'], ['Contacting', '0'], ['Connected', '0'], ['Qualified', '1'], ['Customer', '0'], ['Lost', '1'], ['Not set', '1'], ['Total', '5']])
+    expect(t.rows.map((r) => [r.cells.group, r.cells.contacts])).toEqual([['Contacted', '2'], ['Presentation', '0'], ['Interested', '1'], ['Not Interested', '1'], ['Total', '4']])
   })
 
   it('inventory: low or out of stock; totals by category; stock value computed and sorted by code', async () => {
@@ -139,7 +138,7 @@ describe('presets → sheets', () => {
 
   it('is retry-safe, private to its maker, and refuses non-members and bad requests', async () => {
     const { ws, base } = await workspace()
-    await contact(ws.id, 'A A', { leadStatus: 'new' })
+    await contact(ws.id, 'A A', { leadStatus: 'contacted' })
     const first = await sheet(base, { preset: 'leads-by-stage', idempotencyKey: 'same' })
     const again = await sheet(base, { preset: 'leads-by-stage', idempotencyKey: 'same' })
     expect(again.json().data.id).toBe(first.json().data.id)
@@ -158,15 +157,15 @@ describe('presets → sheets', () => {
 describe('recipe, stale check and Regenerate', () => {
   it('detects changed data; regenerating makes a related new document and leaves the old one alone', async () => {
     const { ws, base } = await workspace()
-    const ann = await contact(ws.id, 'Ann A', { leadStatus: 'new' })
+    const ann = await contact(ws.id, 'Ann A', { leadStatus: 'contacted' })
     const doc = (await sheet(base, { query: { source: 'contacts', columns: ['name', 'leadStatus'] }, title: 'All contacts' })).json().data
     const fresh = await call(testUserId, 'GET', `${base}/documents/${doc.id}/recipe`)
     expect(fresh.statusCode).toBe(200)
     await validateResponse('getDocumentRecipe', 200, fresh.json())
     expect(fresh.json().data).toMatchObject({ stale: false, dataChanged: false, periodMoved: false, currentRowCount: 1 })
 
-    await db.contact.update({ where: { id: ann.id }, data: { leadStatus: 'qualified' } })
-    await contact(ws.id, 'Bea B', { leadStatus: 'new' })
+    await db.contact.update({ where: { id: ann.id }, data: { leadStatus: 'interested' } })
+    await contact(ws.id, 'Bea B', { leadStatus: 'contacted' })
     expect((await call(testUserId, 'GET', `${base}/documents/${doc.id}/recipe`)).json().data).toMatchObject({ stale: true, dataChanged: true, currentRowCount: 2 })
 
     const res = await call(testUserId, 'POST', `${base}/documents/${doc.id}/regenerate`, { idempotencyKey: 'regen-1' })
@@ -175,8 +174,8 @@ describe('recipe, stale check and Regenerate', () => {
     expect(next.id).not.toBe(doc.id)
     expect(next.title).toMatch(/^All contacts · [A-Z][a-z]{2} \d{1,2}$/)
     expect(next.provenance.previousId).toBe(doc.id)
-    expect((await rows(base, next.id)).rows.map((r) => r.cells.leadStatus).sort()).toEqual(['New', 'Qualified'])
-    expect((await rows(base, doc.id)).rows.map((r) => r.cells.leadStatus)).toEqual(['New']) // the old sheet is untouched
+    expect((await rows(base, next.id)).rows.map((r) => r.cells.leadStatus).sort()).toEqual(['Contacted', 'Interested'])
+    expect((await rows(base, doc.id)).rows.map((r) => r.cells.leadStatus)).toEqual(['Contacted']) // the old sheet is untouched
     expect((await call(testUserId, 'GET', `${base}/documents/${doc.id}/related`)).json().data.map((r: any) => r.document.id)).toEqual([next.id])
     expect((await call(testUserId, 'GET', `${base}/documents/${next.id}/recipe`)).json().data.stale).toBe(false)
 
@@ -196,7 +195,7 @@ class Planner implements AssistantProvider {
 }
 const modelQuery = (over: Record<string, unknown> = {}) => ({
   supported: true, reason: null, title: 'Open leads with no follow-up',
-  query: { source: 'contacts', columns: ['name', 'email', 'leadStatus'], groupBy: null, contactFilters: { leadStatus: ['new', 'contacting'], followUpFrom: null, followUpTo: null, noFollowUp: true, quietSince: null, q: null }, inventoryFilters: null, sort: { field: 'name', direction: 'asc' }, limit: null, ...over },
+  query: { source: 'contacts', columns: ['name', 'email', 'leadStatus'], groupBy: null, contactFilters: { leadStatus: ['contacted', 'presentation'], followUpFrom: null, followUpTo: null, noFollowUp: true, quietSince: null, q: null }, inventoryFilters: null, sort: { field: 'name', direction: 'asc' }, limit: null, ...over },
 })
 
 describe('the channel', () => {
@@ -208,7 +207,7 @@ describe('the channel', () => {
   it('AI off: "Create spreadsheet" offers the presets; a pick creates a workspace-visible sheet in Documents and links it', async () => {
     setAssistantProvider(null)
     const { ws, roomId, base } = await workspace()
-    await contact(ws.id, 'A A', { leadStatus: 'new' })
+    await contact(ws.id, 'A A', { leadStatus: 'contacted' })
     await join(app, ws.id, carolId, 'carol@test.local')
     await say(roomId, 'Create spreadsheet')
     const offer = await said(roomId)
@@ -216,7 +215,7 @@ describe('the channel', () => {
     expect((offer.message.actions as any).options.map((o: any) => o.label)).toEqual(['Follow-ups this week', 'Leads by stage', 'Gone quiet', 'Low or out of stock', 'Stock by category', 'Price list'])
     await choose(offer.id, 'leads-by-stage')
     const done = await said(roomId)
-    expect(done.message.text).toMatch(/^Created “Leads by stage · [A-Z][a-z]{2} \d{1,2}” in Documents: 6 groups\. Includes: Contacts counted by lead status\.$/)
+    expect(done.message.text).toMatch(/^Created “Leads by stage · [A-Z][a-z]{2} \d{1,2}” in Documents: 4 groups\. Includes: Contacts counted by lead status\.$/)
     const link = (done.message.links as any[])[0]
     expect(link).toMatchObject({ type: 'document', workspaceId: ws.id })
     const doc = await db.document.findUniqueOrThrow({ where: { id: link.id } })
@@ -241,12 +240,12 @@ describe('the channel', () => {
     setAssistantProvider(planner)
     const { ws, roomId } = await workspace()
     await item(ws.id, 'Drill', { category: 'Tools' })
-    await contact(ws.id, 'Ann A', { leadStatus: 'new', primaryEmail: 'ann@x.test' })
-    await contact(ws.id, 'Ben B', { leadStatus: 'contacting', nextFollowUp: noon(today()) })
+    await contact(ws.id, 'Ann A', { leadStatus: 'contacted', primaryEmail: 'ann@x.test' })
+    await contact(ws.id, 'Ben B', { leadStatus: 'presentation', nextFollowUp: noon(today()) })
     await say(roomId, 'Create a spreadsheet of open leads with no follow-up')
     expect(planner.inputs[0]).toMatchObject({ request: 'open leads with no follow-up', today: today(), categories: ['Tools'] })
     const done = await said(roomId)
-    expect(done.message.text).toBe('Created “Open leads with no follow-up” in Documents: 1 contact. Includes: Contacts · lead status New or Contacting · no follow-up set · columns: Name, Email, Lead status · sorted by name.')
+    expect(done.message.text).toBe('Created “Open leads with no follow-up” in Documents: 1 contact. Includes: Contacts · lead status Contacted or Presentation · no follow-up set · columns: Name, Email, Lead status · sorted by name.')
     expect(done.message.actions).toBeNull() // nothing to confirm
     const doc = await db.document.findUniqueOrThrow({ where: { id: (done.message.links as any[])[0].id } })
     expect((doc.payload as any).rows.map((r: any) => r.cells.name)).toEqual(['Ann A'])
@@ -353,7 +352,7 @@ describe('typed, editable sheets', () => {
 
   it('readers read, only editors save; dataset views have no sheet content', async () => {
     const { ws, base } = await workspace()
-    await contact(ws.id, 'A A', { leadStatus: 'new' })
+    await contact(ws.id, 'A A', { leadStatus: 'contacted' })
     await join(app, ws.id, carolId, 'carol@test.local')
     const doc = (await sheet(base, { preset: 'leads-by-stage' })).json().data
     await call(testUserId, 'PUT', `${base}/documents/${doc.id}/workspace-access`, { role: 'viewer' })

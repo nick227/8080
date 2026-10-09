@@ -26,7 +26,7 @@ type Contract = {
 export const JOBS: Record<Job, Contract> = {
   'company.extract': { class: 'extract', fields: ['text', 'known'], inputTokens: 2000, outputTokens: 600 },
   'note.read': { class: 'extract', fields: ['note', 'today', 'weekday'], inputTokens: 2000, outputTokens: 500 },
-  'sheet.plan': { class: 'plan', fields: ['request', 'today', 'weekday', 'categories'], records: { count: (i) => i.categories?.length ?? 0, max: 30 }, inputTokens: 1100, outputTokens: 300 },
+  'sheet.plan': { class: 'plan', fields: ['request', 'today', 'weekday', 'categories', 'stages'], records: { count: (i) => (i.categories?.length ?? 0) + (i.stages?.length ?? 0), max: 50 }, inputTokens: 1500, outputTokens: 300 },
   'contact.brief': { class: 'compose', fields: ['contact', 'today', 'evidence'], records: { count: (i) => i.evidence?.length ?? 0, max: 20 }, inputTokens: 6000, outputTokens: 1500 },
   // A3: notes only — the model never sees the amount, the split or any number.
   'budget.notes': { class: 'compose', fields: ['businessType', 'goal', 'priorities', 'channels'], records: { count: (i) => i.channels?.length ?? 0, max: 7 }, inputTokens: 600, outputTokens: 400 },

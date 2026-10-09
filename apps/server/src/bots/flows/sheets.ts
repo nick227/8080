@@ -83,7 +83,10 @@ export async function sheetText(item: { roomId: string; itemId: string; actorId:
   }
   const today = todayIn(actor.workspace.timezone)
   const categories = (await db.inventory.findMany({ where: { workspaceId, status: 'active', category: { not: null } }, distinct: ['category'], select: { category: true }, orderBy: { category: 'asc' }, take: 30 })).map((c) => c.category!)
-  const planned = await planSheet({ workspaceId, runId: null }, { request, today, weekday: WEEKDAY(today), categories })
+  // Stages are workspace vocabulary: the model picks keys from these, never from memory.
+  const stages = (await db.pipelineStage.findMany({ where: { workspaceId, archived: false }, orderBy: [{ position: 'asc' }, { key: 'asc' }], take: 20 }))
+    .map((s) => ({ key: s.key, label: s.label, open: s.kind === 'open' }))
+  const planned = await planSheet({ workspaceId, runId: null }, { request, today, weekday: WEEKDAY(today), categories, stages })
   if (!planned) return preset ? make(item.actorId, workspaceId, { preset }, key) : [presetOffer('I couldn’t read that request. These spreadsheets are available:', item.actorId)]
   if (!planned.plan.supported || !planned.plan.query) {
     return [presetOffer(`I can’t create that spreadsheet${planned.plan.reason ? `: ${planned.plan.reason.replace(/\.$/, '')}` : ''}. I can use Contacts and Inventory. These are available:`, item.actorId)]

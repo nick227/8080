@@ -91,7 +91,8 @@ describe('workspace access', () => {
 // A minimal valid body per input schema, so the 404 comes from policy, not validation.
 function sampleBody(op: any) {
   const ref: string = op.requestBody.content['application/json'].schema.$ref ?? ''
-  const name = ref.split('/').pop()
+  // Inline request schemas have no name: key those by operationId.
+  const name = ref.split('/').pop() || op.operationId
   const samples: Record<string, object> = {
     CreateDocumentInput: { title: 'x', descriptor: { surface: 'blocks', source: { kind: 'native', schemaVersion: 1 } }, idempotencyKey: 'x' },
     ImportDocumentCsvInput: { title: 'x', csv: 'Header\nValue', filename: 'x.csv', idempotencyKey: 'x' },
@@ -149,6 +150,14 @@ function sampleBody(op: any) {
     ImportWorkLogsInput: { entries: [{ summary: 'x', day: '2026-10-09' }] },
     UpdateTaskBoardInput: { wipLimits: {} },
     BlockTaskInput: { reason: 'x' },
+    UpdatePipelineInput: { stages: [{ label: 'x', position: 0, kind: 'open' }] },
+    UpdateContactFieldLabelsInput: { fields: [{ key: 'x', label: 'x' }] },
+    RecipientConfig: { source: 'WORKSPACE_MEMBERS' },
+    createInventoryCategory: { name: 'x' },
+    renameInventoryCategory: { from: 'x', to: 'y' },
+    deleteInventoryCategory: { name: 'x' },
+    recordAgentBusinessEvent: { contactId: 'x', kind: 'outreach_sent', sourceKey: 'x', occurredAt: '2026-10-09T00:00:00.000Z' },
+    createAgentSuppression: { address: 'x@test.local', reason: 'manual' },
   }
   return samples[name ?? ''] ?? {}
 }

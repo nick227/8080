@@ -155,22 +155,22 @@ describe('inventory', () => {
 })
 
 describe('lead tracking on contacts', () => {
-  it('starts as new, moves through the pipeline and keeps source and follow-up', async () => {
+  it('starts at the first open stage, moves through the pipeline and keeps source and follow-up', async () => {
     const { base } = await setup()
     const created = await call(testUserId, 'POST', `${base}/contacts`, { displayName: 'Lee Park', leadSource: 'Referral' })
     await validateResponse('createContact', 201, created.json())
     const lead = created.json().data
-    expect(lead).toMatchObject({ leadStatus: 'new', leadSource: 'Referral', nextFollowUp: null })
+    expect(lead).toMatchObject({ leadStatus: 'contacted', leadSource: 'Referral', nextFollowUp: null })
 
     const when = '2030-01-15T09:00:00.000Z'
-    const moved = await call(testUserId, 'PATCH', `${base}/contacts/${lead.id}`, { leadStatus: 'qualified', nextFollowUp: when })
+    const moved = await call(testUserId, 'PATCH', `${base}/contacts/${lead.id}`, { leadStatus: 'interested', nextFollowUp: when })
     expect(moved.statusCode).toBe(200)
     await validateResponse('updateContact', 200, moved.json())
-    expect(moved.json().data).toMatchObject({ leadStatus: 'qualified', leadSource: 'Referral' })
+    expect(moved.json().data).toMatchObject({ leadStatus: 'interested', leadSource: 'Referral' })
     expect(new Date(moved.json().data.nextFollowUp).toISOString()).toBe(when)
 
     const cleared = await call(testUserId, 'PATCH', `${base}/contacts/${lead.id}`, { nextFollowUp: null })
-    expect(cleared.json().data).toMatchObject({ leadStatus: 'qualified', nextFollowUp: null })
+    expect(cleared.json().data).toMatchObject({ leadStatus: 'interested', nextFollowUp: null })
     expect((await call(testUserId, 'PATCH', `${base}/contacts/${lead.id}`, { leadStatus: 'bogus' })).statusCode).toBe(400)
   })
 })

@@ -180,8 +180,9 @@ The in-lobby River (playing posts and replies inline) was retired: the Lobby onl
 
 ## Local Environment
 
-- MySQL 8 local; databases `voice_chat_dev` / `voice_chat_test`, user `voice_chat` (creds in root `.env`, gitignored). `packages/db/.env` is a **symlink** to it for the Prisma CLI.
+- Local DB is **MariaDB 10.11** (CI uses MySQL 8; raw SQL results can differ in type, e.g. GET_LOCK is BIGINT on MySQL); databases `voice_chat_dev` / `voice_chat_test`, user `voice_chat` (creds in root `.env`, gitignored). `packages/db/.env` is a **symlink** to it for the Prisma CLI.
 - Push schema to test DB: `set -a; . ./.env; set +a; DATABASE_URL=$TEST_DATABASE_URL pnpm db:push`
+- **Release gate (2026-10-09):** CI = typecheck, lint, SDK drift, server tests on MySQL 8, web production build. Railway waits for CI (`checkSuites`) before deploying; a red CI blocks the deploy. Keep the server suite at zero failures: no "known failures".
 - **Type-check = `pnpm typecheck`** (root; runs each package's `typecheck`, for web `tsc -p tsconfig.app.json --noEmit`; CI runs the same). `vite build` alone never type-checks; `pnpm --filter web build` does it first.
 
 ## Phase Completed

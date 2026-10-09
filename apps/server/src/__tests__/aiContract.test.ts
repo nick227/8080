@@ -24,22 +24,23 @@ describe('the contract', () => {
       expect(c.outputTokens).toBeGreaterThan(0)
       expect(estimateTokens(PROMPT_CHARS[job])).toBeLessThan(c.inputTokens * 0.9)
     }
-    expect(JOBS['sheet.plan']).toMatchObject({ class: 'plan', inputTokens: 1100, outputTokens: 300 })
+    // 1500: the workspace's pipeline stages (up to 20) travel with the request.
+    expect(JOBS['sheet.plan']).toMatchObject({ class: 'plan', inputTokens: 1500, outputTokens: 300 })
   })
 
   it('refuses extra fields, our ids, too many records and oversized input', () => {
-    const plan = { request: 'open leads', today: '2026-10-06', weekday: 'Tuesday', categories: ['Tools'] }
+    const plan = { request: 'open leads', today: '2026-10-06', weekday: 'Tuesday', categories: ['Tools'], stages: [{ key: 'contacted', label: 'Contacted', open: true }] }
     fits('sheet.plan', plan)
     expect(contractViolation('sheet.plan', { ...plan, contacts: [] }, PROMPT_CHARS['sheet.plan'])).toMatch(/fields not allowed/)
     expect(contractViolation('sheet.plan', { ...plan, request: 'rows for cmux93q0800b9jn001vqiio8k' }, PROMPT_CHARS['sheet.plan'])).toMatch(/database id/)
-    expect(contractViolation('sheet.plan', { ...plan, categories: Array.from({ length: 31 }, (_, i) => `C${i}`) }, PROMPT_CHARS['sheet.plan'])).toMatch(/31 records/)
+    expect(contractViolation('sheet.plan', { ...plan, categories: Array.from({ length: 31 }, (_, i) => `C${i}`), stages: Array.from({ length: 20 }, (_, i) => ({ key: `stage_${i}`, label: `Stage name ${i}`, open: i < 15 })) }, PROMPT_CHARS['sheet.plan'])).toMatch(/51 records/)
     expect(contractViolation('note.read', { note: 'x '.repeat(4000), today: '2026-10-06', weekday: 'Tuesday' }, PROMPT_CHARS['note.read'])).toMatch(/input tokens/)
     expect(containsId('6f1c2a9e-1b2c-4d5e-8f90-123456789abc')).toBe(true)
     expect(containsId('Brightside Dental, E3, 2026-10-06, $8,000')).toBe(false)
   })
 
   it('worst-case inputs the workflows can build still fit', () => {
-    fits('sheet.plan', { request: 'x'.repeat(300), today: '2026-10-06', weekday: 'Wednesday', categories: Array.from({ length: 30 }, (_, i) => `Category name ${i}`) })
+    fits('sheet.plan', { request: 'x'.repeat(300), today: '2026-10-06', weekday: 'Wednesday', categories: Array.from({ length: 30 }, (_, i) => `Category name ${i}`), stages: Array.from({ length: 20 }, (_, i) => ({ key: `stage_${i}`, label: `Stage name ${i}`, open: i < 15 })) })
     fits('note.read', { note: 'Met Sarah Lee from Brightside Dental. '.repeat(100), today: '2026-10-06', weekday: 'Tuesday' })
   })
 
@@ -48,7 +49,7 @@ describe('the contract', () => {
     let reached = false
     setAssistantProvider({ name: 'fake', model: 'fake-1', extract: async () => { throw new Error('unused') }, draft: async () => { throw new Error('unused') }, planSheet: async () => { reached = true; throw new Error('unused') } } as AssistantProvider)
     const ws = await createWorkspace(app)
-    const out = await planSheet({ workspaceId: ws.id, runId: null }, { request: `rows for ${ws.id}`, today: '2026-10-06', weekday: 'Tuesday', categories: [] })
+    const out = await planSheet({ workspaceId: ws.id, runId: null }, { request: `rows for ${ws.id}`, today: '2026-10-06', weekday: 'Tuesday', categories: [], stages: [] })
     expect(out).toBeNull()
     expect(reached).toBe(false)
     expect((await db.assistantCall.findFirstOrThrow({ where: { workspaceId: ws.id } })).error).toBe('contract: database id in the input for sheet.plan')

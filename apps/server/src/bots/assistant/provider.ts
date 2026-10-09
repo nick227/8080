@@ -57,7 +57,7 @@ export type BriefInput = { contact: string; today: string; evidence: Evidence[] 
 export type Usage = { promptTokens: number; completionTokens: number }
 /** A spreadsheet request read into the whitelisted sheet query (doc/13 §12, A1).
  *  `query` is raw: the caller validates it like any other input. */
-export type SheetPlanInput = { request: string; today: string; weekday: string; categories: string[] }
+export type SheetPlanInput = { request: string; today: string; weekday: string; categories: string[]; stages: { key: string; label: string; open: boolean }[] }
 /** A3: one plain note per channel of a marketing budget. No amounts are given or wanted. */
 export type BudgetNotesInput = { businessType: string | null; goal: string; priorities: string[]; channels: { key: string; label: string }[] }
 export type BudgetNotes = { notes: { channel: string; text: string }[] }
@@ -192,7 +192,7 @@ const SHEET_SCHEMA = {
         groupBy: nul({ type: 'string', enum: ['leadStatus', 'leadSource', 'owner', 'category'] }),
         contactFilters: nul({
           type: 'object', additionalProperties: false, required: ['leadStatus', 'followUpFrom', 'followUpTo', 'noFollowUp', 'quietSince', 'q'],
-          properties: { leadStatus: nul({ type: 'array', items: { type: 'string', enum: ['new', 'contacting', 'connected', 'qualified', 'customer', 'lost'] } }), followUpFrom: str, followUpTo: str, noFollowUp: nul({ type: 'boolean' }), quietSince: str, q: str },
+          properties: { leadStatus: nul({ type: 'array', items: { type: 'string' } }), followUpFrom: str, followUpTo: str, noFollowUp: nul({ type: 'boolean' }), quietSince: str, q: str },
         }),
         inventoryFilters: nul({
           type: 'object', additionalProperties: false, required: ['q', 'category', 'stock', 'available', 'priceMin', 'priceMax', 'includeArchived'],
@@ -206,7 +206,7 @@ const SHEET_SCHEMA = {
 }
 const SHEET_SYSTEM = [
   'Turn a spreadsheet request into a query over Contacts or Inventory (the schema lists the fields). You never see the data; code runs the query.',
-  'Contacts: "open leads" = new, contacting, connected, qualified; followUpFrom/To = next follow-up, inclusive days; noFollowUp = none set; quietSince = no activity since that day; q = name contains; group by leadStatus, leadSource or owner for counts.',
+  'Contacts: leadStatus uses keys from `stages` (match the label, send the key); "open leads" = every stage with open true; followUpFrom/To = next follow-up, inclusive days; noFollowUp = none set; quietSince = no activity since that day; q = name contains; group by leadStatus, leadSource or owner for counts.',
   'Inventory: stockValue = price × quantity; category must be one of `categories`; stock low | out | low-or-out; group by category for totals.',
   'Dates are YYYY-MM-DD from `today` and `weekday`; "this week" ends Sunday. limit only for "top N". Grouped: columns [] and sort null. Listing: the 3–7 columns that answer it. Fill only the chosen source\'s filters.',
   'Needs other data (deals, revenue, orders, emails, tasks) or not a sheet request: supported false, query null, reason = one plain sentence. title = a short plain name.',

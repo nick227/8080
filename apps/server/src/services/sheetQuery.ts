@@ -363,23 +363,26 @@ export async function describeSheetQuery(ctx: SheetContext, q: SheetQuery) {
 
 // ─── presets ──────────────────────────────────────────────────────────────────
 
-export type SheetPreset = { key: string; label: string; description: string; build: (today: string) => SheetQuery }
-const OPEN: ContactSheetQuery['filters'] = { leadStatus: ['new', 'contacting', 'connected', 'qualified'] }
+/** What a preset needs from the workspace: today, and its open pipeline stages
+ *  (stages are workspace vocabulary; never hard-code their keys). */
+export type PresetContext = { today: string; openStages: string[] }
+export type SheetPreset = { key: string; label: string; description: string; build: (ctx: PresetContext) => SheetQuery }
+const open = (ctx: PresetContext): ContactSheetQuery['filters'] => (ctx.openStages.length ? { leadStatus: ctx.openStages } : {})
 
 /** The common asks, one button each. Relative dates resolve against the workspace's
  *  today when the sheet is made (and again when it is regenerated). */
 export const SHEET_PRESETS: SheetPreset[] = [
   {
     key: 'follow-ups-week', label: 'Follow-ups this week', description: 'Open leads with a follow-up due by Sunday, overdue ones first.',
-    build: (today) => {
-      const weekday = new Date(`${today}T12:00:00Z`).getUTCDay() // 0 = Sunday
-      return { source: 'contacts', columns: ['name', 'company', 'email', 'phone', 'leadStatus', 'nextFollowUp', 'owner'], filters: { ...OPEN, followUp: { to: addDays(today, (7 - weekday) % 7) } }, sort: { field: 'nextFollowUp', direction: 'asc' } }
+    build: (ctx) => {
+      const weekday = new Date(`${ctx.today}T12:00:00Z`).getUTCDay() // 0 = Sunday
+      return { source: 'contacts', columns: ['name', 'company', 'email', 'phone', 'leadStatus', 'nextFollowUp', 'owner'], filters: { ...open(ctx), followUp: { to: addDays(ctx.today, (7 - weekday) % 7) } }, sort: { field: 'nextFollowUp', direction: 'asc' } }
     },
   },
   { key: 'leads-by-stage', label: 'Leads by stage', description: 'How many contacts are at each lead status.', build: () => ({ source: 'contacts', groupBy: 'leadStatus' }) },
   {
     key: 'gone-quiet', label: 'Gone quiet', description: 'Open leads with no activity in the last 30 days.',
-    build: (today) => ({ source: 'contacts', columns: ['name', 'company', 'email', 'leadStatus', 'lastActivity', 'owner'], filters: { ...OPEN, quietSince: addDays(today, -30) }, sort: { field: 'lastActivity', direction: 'asc' } }),
+    build: (ctx) => ({ source: 'contacts', columns: ['name', 'company', 'email', 'leadStatus', 'lastActivity', 'owner'], filters: { ...open(ctx), quietSince: addDays(ctx.today, -30) }, sort: { field: 'lastActivity', direction: 'asc' } }),
   },
   { key: 'low-stock', label: 'Low or out of stock', description: 'Active items at or under their low-stock level, or at zero.', build: () => ({ source: 'inventory', columns: ['name', 'sku', 'category', 'quantity', 'lowStockThreshold', 'location'], filters: { stock: 'low-or-out' }, sort: { field: 'quantity', direction: 'asc' } }) },
   { key: 'stock-by-category', label: 'Stock by category', description: 'Items, units and stock value per category, with totals.', build: () => ({ source: 'inventory', groupBy: 'category' }) },

@@ -5,11 +5,15 @@ import { afterAll, afterEach, beforeAll } from 'vitest'
 // mid-seed shows up as botId/userId FK errors and SSE timeouts).
 const TEST_LOCK = 'voice_chat_test'
 beforeAll(async () => {
-  const rows = await db.$queryRawUnsafe<Array<{ ok: number | null }>>(`SELECT GET_LOCK(?, 180) AS ok`, TEST_LOCK)
-  if (rows[0]?.ok !== 1) throw new Error('could not acquire test database lock (is another vitest using TEST_DATABASE_URL?)')
+  // MySQL 8 returns GET_LOCK as BIGINT (1n), MariaDB as a number: compare as a number.
+  const rows = await db.$queryRawUnsafe<Array<{ ok: number | bigint | null }>>(`SELECT GET_LOCK(?, 180) AS ok`, TEST_LOCK)
+  if (Number(rows[0]?.ok) !== 1) throw new Error('could not acquire test database lock (is another vitest using TEST_DATABASE_URL?)')
 })
 afterAll(async () => {
   await db.$queryRawUnsafe(`SELECT RELEASE_LOCK(?)`, TEST_LOCK)
+  // A lock belongs to one connection and the release may run on another pooled one;
+  // closing the client frees it either way, so the next file never waits on it.
+  await db.$disconnect()
 })
 
 // Clean between tests — children before parents for FK constraints.

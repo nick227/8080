@@ -10,6 +10,7 @@ import { authorize, permit } from './workspacePolicy'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
 import { DocumentService } from './DocumentService'
 import { runAction } from './actions'
+import { pipelineService } from './PipelineService'
 import { SHEET_PRESETS, describeSheetQuery, presetFor, runSheetQuery, shortDay, todayIn, validateSheetQuery, type SheetContext } from './sheetQuery'
 
 const documents = new DocumentService()
@@ -38,13 +39,13 @@ async function readerOf(userId: string, workspaceId: string) {
 }
 
 /** A preset or a query → the resolved query and its default title. */
-export function resolveSheet(input: { preset?: string; query?: unknown; title?: string }, timezone: string, now = new Date()) {
+export function resolveSheet(input: { preset?: string; query?: unknown; title?: string }, timezone: string, openStages: string[], now = new Date()) {
   if (!!input.preset === (input.query !== undefined)) throw badRequest('Give a preset or a query', 'INVALID_SHEET_REQUEST')
   const today = todayIn(timezone, now)
   if (input.preset) {
     const preset = presetFor(input.preset)
     if (!preset) throw badRequest('Unknown sheet preset', 'UNKNOWN_SHEET_PRESET')
-    return { preset: preset.key, query: validateSheetQuery(preset.build(today)), title: input.title?.trim() || `${preset.label} · ${shortDay(today)}` }
+    return { preset: preset.key, query: validateSheetQuery(preset.build({ today, openStages })), title: input.title?.trim() || `${preset.label} · ${shortDay(today)}` }
   }
   const query = validateSheetQuery(input.query)
   return { preset: null, query, title: input.title?.trim() || `${query.source === 'contacts' ? 'Contacts' : 'Inventory'} · ${shortDay(today)}` }
@@ -65,7 +66,7 @@ export class SheetArtifactService {
   async create(wctx: WorkspaceCtx, workspaceId: string, input: SheetRequest) {
     const { actor, ctx } = await readerOf(wctx.user.id, workspaceId)
     permit(actor, 'document.create'); permit(actor, 'dataset.export')
-    const resolved = resolveSheet(input, ctx.timezone)
+    const resolved = resolveSheet(input, ctx.timezone, await pipelineService.openKeys(workspaceId))
     if (resolved.title.length > 200) throw badRequest('Title must contain 1–200 characters', 'INVALID_TITLE')
     const summary = await describeSheetQuery(ctx, resolved.query)
     const documentId = await runAction({
@@ -119,7 +120,8 @@ export class SheetArtifactService {
       stale = true
     }
     // A preset's relative dates (e.g. "this week") move on with the calendar.
-    const presetMoved = !!recipe.preset && JSON.stringify(resolveSheet({ preset: recipe.preset }, recipe.timezone, now).query) !== JSON.stringify(recipe.query)
+    // So do its stages, when the workspace renames or adds open stages.
+    const presetMoved = !!recipe.preset && JSON.stringify(resolveSheet({ preset: recipe.preset }, recipe.timezone, await pipelineService.openKeys(workspaceId), now).query) !== JSON.stringify(recipe.query)
     return { recipe, stale: stale || presetMoved, dataChanged: stale, periodMoved: presetMoved, currentRowCount, checkedAt: now.toISOString() }
   }
 
