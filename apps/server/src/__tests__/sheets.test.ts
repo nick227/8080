@@ -129,7 +129,8 @@ describe('presets → sheets', () => {
     const byCat = (await sheet(base, { preset: 'stock-by-category' })).json().data
     const t = await rows(base, byCat.id)
     expect(t.columns.map((c) => c.label)).toEqual(['Category', 'Items', 'Units in stock', 'Stock value (USD)'])
-    expect(t.rows.map((r) => Object.values(r.cells))).toEqual([['Hardware', '2', '3', '0.75'], ['Services', '1', '0', '0.00'], ['Tools', '1', '4', '358.00'], ['Total', '4', '7', '358.75']])
+    // Read cells by column (stored JSON doesn't keep key order on MySQL).
+    expect(t.rows.map((r) => t.columns.map((c) => (r.cells as Record<string, string>)[c.id]))).toEqual([['Hardware', '2', '3', '0.75'], ['Services', '1', '0', '0.00'], ['Tools', '1', '4', '358.00'], ['Total', '4', '7', '358.75']])
 
     const top = (await sheet(base, { query: { source: 'inventory', columns: ['name', 'price', 'quantity', 'stockValue'], sort: { field: 'stockValue', direction: 'desc' }, limit: 2 }, title: 'Top stock' })).json().data
     expect(top.title).toBe('Top stock')

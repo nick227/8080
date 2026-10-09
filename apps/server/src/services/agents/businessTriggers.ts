@@ -1,4 +1,5 @@
 import { db, Prisma, type Agent, type AgentEvent } from '@project/db'
+import { canonicalJson } from '../../lib/canonical'
 import { badRequest, conflict } from '../../lib/errors'
 
 export const BUSINESS_KINDS = ['became_customer', 'stage_changed', 'outreach_sent', 'reply_received', 'job_completed'] as const
@@ -27,7 +28,7 @@ export async function produceBusinessEvent(tx: Prisma.TransactionClient, workspa
   if (!contact) throw badRequest('Choose an active contact in this workspace', 'INVALID_CONTACT')
   const existing = await tx.agentBusinessEvent.findUnique({ where: { workspaceId_sourceKey: { workspaceId, sourceKey: input.sourceKey } } })
   if (existing) {
-    if (existing.contactId !== input.contactId || existing.kind !== input.kind || existing.occurredAt.getTime() !== input.occurredAt.getTime() || JSON.stringify(existing.facts) !== JSON.stringify(input.facts ?? {})) throw conflict('This business event key is already in use', 'BUSINESS_EVENT_KEY_REUSED')
+    if (existing.contactId !== input.contactId || existing.kind !== input.kind || existing.occurredAt.getTime() !== input.occurredAt.getTime() || canonicalJson(existing.facts) !== canonicalJson(input.facts ?? {})) throw conflict('This business event key is already in use', 'BUSINESS_EVENT_KEY_REUSED')
     return existing
   }
   const signal = await tx.agentBusinessEvent.create({ data: { workspaceId, ...input, facts: input.facts ?? {} } })

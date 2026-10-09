@@ -3,6 +3,7 @@
 // as the change, plus the Activity rows (people-facing timeline) it produces, which
 // always point back at it. Rejections and failures are recorded too, outside the
 // rolled-back transaction. There is no `agent` actor (doc/08 §4.9).
+import { canonicalJson } from '../lib/canonical'
 import { db, Prisma, type ActionExecution, type ActionOrigin } from '@project/db'
 import { conflict } from '../lib/errors'
 import { deliverActivities, type AfterCommit } from './activityFeed'
@@ -172,7 +173,7 @@ function priorExecution(req: ActionRequest) {
 }
 
 async function replayed<T>(req: ActionRequest, previous: ActionExecution, replay?: (previous: ActionExecution) => Promise<T>) {
-  const sameInput = JSON.stringify(previous.input) === JSON.stringify(json(req.input))
+  const sameInput = canonicalJson(previous.input) === canonicalJson(json(req.input))
   if (previous.actorUserId !== (req.actor.kind === 'member' ? req.actor.userId : null) || previous.targetId !== (req.target?.id ?? previous.targetId) || previous.action !== req.action || !sameInput) {
     throw conflict('This idempotency key was already used for a different request', 'IDEMPOTENCY_KEY_REUSED')
   }

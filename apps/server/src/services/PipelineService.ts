@@ -80,7 +80,8 @@ export class PipelineService {
 
   async openKeys(workspaceId: string): Promise<string[]> {
     await ensurePipelineStages(db, workspaceId)
-    return (await db.pipelineStage.findMany({ where: { workspaceId, archived: false, kind: 'open' }, select: { key: true } })).map((r) => r.key)
+    // In pipeline order: callers show and send these as a list.
+    return (await db.pipelineStage.findMany({ where: { workspaceId, archived: false, kind: 'open' }, select: { key: true }, orderBy: [{ position: 'asc' }, { key: 'asc' }] })).map((r) => r.key)
   }
 
   async assertActiveKey(workspaceId: string, key: string | null | undefined) {
