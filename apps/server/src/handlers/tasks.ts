@@ -79,3 +79,18 @@ export async function getTaskBoard(request: any, reply: any) {
 export async function updateTaskBoard(request: any, reply: any) {
   return reply.send({ data: await workLogs.setBoard(ctx(request), request.params.workspaceId, request.body) })
 }
+
+export async function blockTask(request: any, reply: any) {
+  const { workspaceId, taskId } = request.params
+  return reply.send({ data: await tasks.block(ctx(request), workspaceId, taskId, request.body) })
+}
+
+export async function unblockTask(request: any, reply: any) {
+  const { workspaceId, taskId } = request.params
+  return reply.send({ data: await tasks.unblock(ctx(request), workspaceId, taskId) })
+}
+
+export async function listTaskActivity(request: any, reply: any) {
+  const { workspaceId, taskId } = request.params
+  return reply.send(await tasks.activity(request.user.id, workspaceId, taskId))
+}

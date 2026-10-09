@@ -188,6 +188,9 @@ const CHECKS: { name: string; sql: string }[] = [
   // Calendar / Boards tasks
   { name: 'WorkTask.assignee', sql: 'SELECT c.id FROM WorkTask c JOIN WorkspaceMember p ON p.id = c.assigneeMemberId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'WorkTask.createdBy', sql: 'SELECT c.id FROM WorkTask c JOIN WorkspaceMember p ON p.id = c.createdByMemberId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'WorkTask.blockedBy', sql: 'SELECT c.id FROM WorkTask c JOIN WorkspaceMember p ON p.id = c.blockedByMemberId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'Activity.task', sql: 'SELECT c.id FROM Activity c JOIN WorkTask p ON p.id = c.taskId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'InboxItem.task', sql: "SELECT c.id FROM InboxItem c JOIN WorkTask p ON p.id = c.sourceId WHERE c.sourceType = 'task' AND c.workspaceId <> p.workspaceId" },
   { name: 'WorkLog.member', sql: 'SELECT c.id FROM WorkLog c JOIN WorkspaceMember p ON p.id = c.memberId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'WorkLog.author', sql: 'SELECT c.id FROM WorkLog c JOIN WorkspaceMember p ON p.id = c.authorMemberId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'WorkLog.task', sql: 'SELECT c.id FROM WorkLog c JOIN WorkTask p ON p.id = c.taskId WHERE c.workspaceId <> p.workspaceId' },

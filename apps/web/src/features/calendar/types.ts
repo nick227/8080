@@ -37,6 +37,8 @@ export type CalTask = {
   version: number
   commentCount: number
   resolvedAt?: string | null
+  /** Waiting on something (a flag on top of the status). */
+  blocked?: { since: string; reason: string; byName: string | null } | null
   updatedAt?: string
   /** True until the server has confirmed the create. */
   pending?: boolean

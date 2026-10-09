@@ -2365,6 +2365,10 @@ paths:
         - in: query
           name: starred
           schema: { type: boolean }
+        - in: query
+          name: sourceType
+          description: Only items about this kind of source (e.g. task)
+          schema: { type: string, minLength: 1, maxLength: 32 }
       responses:
         '200':
           description: OK
@@ -5485,6 +5489,67 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/tasks/{taskId}/block:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/TaskId'
+    post:
+      operationId: blockTask
+      summary: Mark a task blocked, with what it is waiting on
+      description: The flag sits on top of the status. Blocking again changes the reason and keeps the start time.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BlockTaskInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/tasks/{taskId}/unblock:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/TaskId'
+    post:
+      operationId: unblockTask
+      summary: Clear the blocked flag
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/tasks/{taskId}/activity:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      operationId: listTaskActivity
+      summary: The task's history, oldest first
+      description: Every recorded event about the task (created, moved, assigned, edited, blocked, commented, work logged). At most 500.
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskActivityList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /workspaces/{workspaceId}/tasks/{taskId}/comments:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -7188,7 +7253,7 @@ components:
 
     Activity:
       type: object
-      required: [id, type, occurredAt, actorMemberId, actor, noteId, roomId, itemId, subjects, summary]
+      required: [id, type, occurredAt, actorMemberId, actor, noteId, roomId, itemId, taskId, subjects, summary]
       properties:
         id: { type: string }
         type: { type: string, description: 'Namespaced event, e.g. member.joined, team.created' }
@@ -7201,6 +7266,7 @@ components:
         noteId: { type: [string, 'null'], description: The note this event is about }
         roomId: { type: [string, 'null'], description: "The conversation this event is about; null when the caller can't see it" }
         itemId: { type: [string, 'null'] }
+        taskId: { type: [string, 'null'], description: The task this event is about (its history) }
         subjects:
           type: array
           items: { type: string }
@@ -7778,7 +7844,7 @@ components:
         avatarUrl: { type: [string, 'null'] }
     Task:
       type: object
-      required: [id, workspaceId, taskKey, number, title, description, status, issueType, area, priority, storyPoints, scheduledDate, scheduledTime, dueDate, assigneeMemberId, assignee, createdByMemberId, rank, version, commentCount, source, resolvedAt, createdAt, updatedAt]
+      required: [id, workspaceId, taskKey, number, title, description, status, issueType, area, priority, storyPoints, scheduledDate, scheduledTime, dueDate, assigneeMemberId, assignee, createdByMemberId, rank, version, commentCount, source, resolvedAt, blocked, createdAt, updatedAt]
       properties:
         id: { type: string }
         workspaceId: { type: string }
@@ -7805,8 +7871,33 @@ components:
         commentCount: { type: integer, minimum: 0 }
         source: { type: [string, 'null'] }
         resolvedAt: { type: [string, 'null'], format: date-time, description: When it last moved to done }
+        blocked:
+          oneOf:
+            - $ref: '#/components/schemas/TaskBlocked'
+            - type: 'null'
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    TaskBlocked:
+      type: object
+      required: [since, reason, byMemberId, byName]
+      properties:
+        since: { type: string, format: date-time }
+        reason: { type: string }
+        byMemberId: { type: [string, 'null'] }
+        byName: { type: [string, 'null'] }
+    BlockTaskInput:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 280, description: What the task is waiting on }
+    TaskActivityList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Activity' }
     TaskResponse:
       type: object
       required: [data]

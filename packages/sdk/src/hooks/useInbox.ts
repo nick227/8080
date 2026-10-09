@@ -12,7 +12,7 @@ function useWorkspaceWrite<V, R>(workspaceId: string, fn: (vars: V) => Promise<R
   })
 }
 
-export type InboxListParams = { archived?: boolean; unread?: boolean; starred?: boolean }
+export type InboxListParams = { archived?: boolean; unread?: boolean; starred?: boolean; sourceType?: string }
 
 export function useInboxItems(workspaceId: string | undefined, params: InboxListParams = {}) {
   return useInfiniteQuery({

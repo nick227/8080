@@ -72,7 +72,7 @@ export class InboxService {
     return view
   }
 
-  async list(userId: string, workspaceId: string, query: { cursor?: string; limit?: number; archived?: unknown; unread?: unknown; starred?: unknown }) {
+  async list(userId: string, workspaceId: string, query: { cursor?: string; limit?: number; archived?: unknown; unread?: unknown; starred?: unknown; sourceType?: string }) {
     const actor = await authorize(userId, workspaceId, 'inbox.read')
     const limit = normalizeLimit(query.limit)
     const cursor = decodeCursor(query.cursor)
@@ -87,6 +87,7 @@ export class InboxService {
     }
     if (unread !== undefined) where.unread = unread
     if (starred !== undefined) where.starred = starred
+    if (query.sourceType) where.sourceType = query.sourceType
     if (cursor) {
       const at = new Date(cursor.createdAt)
       where.OR = [{ createdAt: { lt: at } }, { createdAt: at, id: { lt: cursor.id } }]

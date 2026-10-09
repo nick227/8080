@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useAddTaskComment, useTaskComments } from '@project/sdk'
 import { useCurrentWorkspace } from '../documents/workspace'
 import { useCalendar } from './store'
 import { useTeam } from './sync'
+import { BlockedControl, TaskActivity } from './TaskActivity'
 import { AREAS, STATUSES, type CalTask, type TaskPriority, type TaskStatus, type TaskType } from './types'
 
 const TYPE_LABEL: Record<TaskType, string> = { feature: 'Feature', story: 'Story', bug: 'Bug', task: 'Task', epic: 'Epic' }
@@ -50,13 +50,10 @@ function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBac
   const remove = useCalendar((state) => state.remove)
   const accomplishments = useCalendar((state) => state.accomplishments)
   const pending = !!task.pending
-  const comments = useTaskComments(workspace?.id, pending ? undefined : task.id)
-  const addComment = useAddTaskComment(workspace?.id ?? '', task.id)
 
   // Text fields save on blur; everything else saves on change.
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description ?? '')
-  const [commentText, setCommentText] = useState('')
   const [copied, setCopied] = useState(false)
   useEffect(() => setTitle(task.title), [task.title])
   useEffect(() => setDescription(task.description ?? ''), [task.description])
@@ -70,13 +67,6 @@ function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBac
   }
   const saveDescription = () => {
     if ((description.trim() || null) !== (task.description ?? null)) save({ description: description.trim() || null })
-  }
-
-  const postComment = (e: React.FormEvent) => {
-    e.preventDefault()
-    const text = commentText.trim()
-    if (!text || pending) return
-    addComment.mutate(text, { onSuccess: () => setCommentText('') })
   }
 
   const copyLink = () => {
@@ -95,7 +85,6 @@ function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBac
   const relatedWorkLogs = accomplishments.filter(
     (a) => a.taskId === task.id || a.taskKey?.toUpperCase() === task.taskKey.toUpperCase(),
   )
-  const thread = comments.data ?? []
 
   return (
     <div className="ticket-page-view" data-variant={variant} role={variant === 'panel' ? 'dialog' : 'main'} aria-label={`Task ${task.taskKey}`}>
@@ -132,6 +121,8 @@ function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBac
             />
           </div>
 
+          <BlockedControl key={task.blocked?.reason ?? 'clear'} task={task} />
+
           <div className="ticket-section">
             <h3 className="ticket-section-heading">Description</h3>
             <textarea
@@ -165,36 +156,7 @@ function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBac
             </div>
           )}
 
-          <div className="ticket-section">
-            <h3 className="ticket-section-heading">Comments ({pending ? 0 : comments.data ? thread.length : task.commentCount})</h3>
-            <form className="ticket-comment-composer" onSubmit={postComment}>
-              <input
-                className="ticket-comment-input"
-                aria-label="Comment"
-                placeholder={pending ? 'Saving the task…' : 'Write a comment…'}
-                value={commentText}
-                disabled={pending}
-                onChange={(e) => setCommentText(e.target.value)}
-              />
-              <button type="submit" className="cal-btn" data-primary="" disabled={!commentText.trim() || addComment.isPending || pending}>
-                {addComment.isPending ? 'Posting…' : 'Comment'}
-              </button>
-            </form>
-            {addComment.isError && <p className="ticket-no-comments" role="alert">Couldn't post the comment. Try again.</p>}
-            <div className="ticket-comments-thread">
-              {comments.isLoading ? <p className="ticket-no-comments">Loading comments…</p>
-                : thread.length ? thread.map((comment) => (
-                  <div key={comment.id} className="ticket-comment-bubble">
-                    <div className="ticket-comment-header">
-                      <strong className="ticket-comment-author">{comment.authorName}</strong>
-                      <time className="ticket-comment-time" dateTime={comment.createdAt}>{when(comment.createdAt)}</time>
-                    </div>
-                    <p className="ticket-comment-text">{comment.text}</p>
-                  </div>
-                ))
-                : <p className="ticket-no-comments">No comments yet.</p>}
-            </div>
-          </div>
+          <TaskActivity task={task} />
         </div>
 
         <aside className="ticket-sidebar-col">

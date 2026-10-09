@@ -5,6 +5,7 @@
 // rolled-back transaction. There is no `agent` actor (doc/08 §4.9).
 import { db, Prisma, type ActionExecution, type ActionOrigin } from '@project/db'
 import { conflict } from '../lib/errors'
+import { deliverActivities, type AfterCommit } from './activityFeed'
 
 type Tx = Prisma.TransactionClient
 
@@ -17,7 +18,9 @@ export type Changes = Record<string, [unknown, unknown]>
 // A CRM record an activity is about (doc/09 §3 "subject"). Exactly one id.
 export type SubjectRef = { contactId: string } | { accountId: string } | { inventoryId: string }
 // What the activity refers to (at most one; itemId comes with its roomId).
-export type ActivityObject = { noteId: string } | { roomId: string; itemId?: string | null }
+// What a record can be linked to (notes, conversations).
+export type LinkObject = { noteId: string } | { roomId: string; itemId?: string | null }
+export type ActivityObject = LinkObject | { taskId: string }
 
 export type ActivityDraft = {
   type: string
@@ -96,8 +99,11 @@ export async function runAction<T>(
     if (previous) return replayed(req, previous, replay)
   }
 
+  // Effects of the recorded activities that must wait for the commit (live pushes).
+  let afterCommit: AfterCommit[] = []
   try {
-    return await db.$transaction(async (tx) => {
+    const value = await db.$transaction(async (tx) => {
+      afterCommit = []
       const outcome = await perform(tx)
       const workspaceId = outcome.workspaceId ?? req.workspaceId
       if (!workspaceId) throw new Error(`${req.action}: no workspace to record against`)
@@ -119,6 +125,7 @@ export async function runAction<T>(
           finishedAt: new Date(),
         },
       })
+      const recorded = []
       for (const activity of outcome.activities ?? []) {
         const created = await tx.activity.create({
           data: {
@@ -132,9 +139,17 @@ export async function runAction<T>(
           },
         })
         if (activity.subjects?.length) await addSubjects(tx, workspaceId, [created], activity.subjects)
+        recorded.push(created)
       }
+      // One event model: notifications (and later live updates, reports) derive
+      // from these rows, written in the same transaction as the change.
+      if (recorded.length) afterCommit = await deliverActivities(tx, recorded)
       return outcome.value
     })
+    for (const effect of afterCommit) {
+      try { effect() } catch { /* a push must never fail the action */ }
+    }
+    return value
   } catch (err) {
     // A concurrent duplicate lost the race for the key: answer like a repeat.
     if (req.idempotencyKey && req.workspaceId && isKeyConflict(err)) {

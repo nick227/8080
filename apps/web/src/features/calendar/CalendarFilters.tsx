@@ -19,6 +19,7 @@ export const CalendarFilters = forwardRef<HTMLInputElement, { count: number; tot
   const clear = useCalendar((s) => s.clearFilters)
   const { team: members, meId } = useTeam()
   const tasks = useCalendar((s) => s.tasks)
+  const blockedCount = tasks.filter((t) => t.blocked && t.status !== 'done').length
   // People assigned work but missing from the member list (left, or just joined).
   const team = [...members]
   for (const t of tasks) {
@@ -58,6 +59,9 @@ export const CalendarFilters = forwardRef<HTMLInputElement, { count: number; tot
           Only my tasks
         </button>
       )}
+      <button type="button" className="cal-btn cal-blocked-toggle" aria-pressed={filters.blocked} onClick={() => setFilters({ blocked: !filters.blocked })}>
+        Blocked{blockedCount ? ` · ${blockedCount}` : ''}
+      </button>
 
       <Pick label="Type" chosen={filters.types} options={TASK_TYPES.map((t) => ({ id: t, label: TYPE_LABEL[t]! }))} onToggle={(v) => toggle('types', v as Filters['types'][number])} />
       <Pick label="Area" chosen={filters.areas} options={AREAS.map((a) => ({ id: a, label: a }))} onToggle={(v) => toggle('areas', v)} />

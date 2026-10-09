@@ -12,6 +12,7 @@ import { BacklogView } from './BacklogView'
 import { NewTaskSlideout } from './NewTaskSlideout'
 import { LogAccomplishmentModal } from './LogAccomplishmentModal'
 import { TicketPage } from './TicketPage'
+import { ForYou } from './ForYou'
 import { CalendarFilters } from './CalendarFilters'
 import { applyFilters, filtersActive, NO_FILTERS, useCalendar, type Filters, type View } from './store'
 import { useLocalTasks, useTaskSync } from './sync'
@@ -37,6 +38,7 @@ function readUrl(search: string): { view?: View; filters: Filters } {
     if (raw) (filters[key] as string[]) = raw.split(',').filter(Boolean)
   }
   filters.search = params.get('q') ?? ''
+  filters.blocked = params.get('blocked') === '1'
   const view = params.get('view') as View | null
   return { view: view && VIEWS.some((v) => v.id === view) ? view : undefined, filters }
 }
@@ -49,6 +51,8 @@ function writeUrl(search: string, view: View, filters: Filters) {
     if (list.length) params.set(param, list.join(','))
     else params.delete(param)
   }
+  if (filters.blocked) params.set('blocked', '1')
+  else params.delete('blocked')
   if (filters.search.trim()) params.set('q', filters.search)
   else params.delete('q')
   return params.toString()
@@ -67,10 +71,10 @@ export function CalendarExperience() {
       </div>
     )
   }
-  return <Calendar key={workspace.id} />
+  return <Calendar key={workspace.id} workspaceId={workspace.id} />
 }
 
-function Calendar() {
+function Calendar({ workspaceId }: { workspaceId: string }) {
   const location = useLocation()
   const navigate = useNavigate()
   const ticketParam = new URLSearchParams(location.search).get('ticket')
@@ -156,6 +160,13 @@ function Calendar() {
     navigate({ search: next.toString() })
   }, [location.search, navigate])
 
+  const openTicketKey = useCallback((taskKey: string) => {
+    const next = new URLSearchParams(location.search)
+    next.set('desk', 'calendar')
+    next.set('ticket', taskKey)
+    navigate({ search: next.toString() })
+  }, [location.search, navigate])
+
   const closeTicket = useCallback(() => {
     const next = new URLSearchParams(location.search)
     next.delete('ticket')
@@ -201,6 +212,7 @@ function Calendar() {
         onImport={() => setImporting(true)}
       >
         {datedView && <button type="button" className="section-add-btn" onClick={() => setLoggingAcc(true)}>Log work</button>}
+        <ForYou workspaceId={workspaceId} onOpenTask={openTicketKey} />
       </SectionHeader>
 
       {local.count + local.logCount > 0 && (

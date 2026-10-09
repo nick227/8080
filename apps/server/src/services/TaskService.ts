@@ -3,7 +3,7 @@
 // Deleting is soft so the board can offer Undo (restore).
 import { db, Prisma } from '@project/db'
 import { badRequest, conflict, notFound } from '../lib/errors'
-import { toAuthor } from '../lib/serialize'
+import { activityInclude, toActivity, toAuthor } from '../lib/serialize'
 import { runAction, diff, type ActivityDraft } from './actions'
 import { authorize, permit, type Actor } from './workspacePolicy'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
@@ -42,6 +42,7 @@ export type Placement = { afterTaskId?: string | null; beforeTaskId?: string | n
 
 const taskInclude = {
   assignee: { include: { user: { include: { profile: true } } } },
+  blockedBy: { include: { user: { include: { profile: true } } } },
   _count: { select: { comments: true } },
 } satisfies Prisma.WorkTaskInclude
 type TaskRow = Prisma.WorkTaskGetPayload<{ include: typeof taskInclude }>
@@ -73,6 +74,9 @@ export function toTask(t: TaskRow) {
     commentCount: t._count.comments,
     source: t.source,
     resolvedAt: t.resolvedAt,
+    blocked: t.blockedAt
+      ? { since: t.blockedAt, reason: t.blockedReason ?? '', byMemberId: t.blockedByMemberId, byName: t.blockedBy ? toAuthor(t.blockedBy.user).name : null }
+      : null,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   }
@@ -182,12 +186,51 @@ const statusChange = (before: string, after: string) => (before === after ? {} :
 
 const TRACKED = ['title', 'description', 'status', 'issueType', 'area', 'priority', 'storyPoints', 'scheduledDate', 'scheduledTime', 'dueDate', 'assigneeMemberId'] as const
 
+const nameOf = (m: TaskRow['assignee']) => (m ? toAuthor(m.user).name : null)
+const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null)
+
+// Field edits worth a line in the history. Description shows as "changed", not its text.
+const EDITED = ['title', 'description', 'issueType', 'area', 'priority', 'storyPoints', 'scheduledDate', 'scheduledTime', 'dueDate'] as const
+
+/** History lines for one change (every task activity carries taskId: the task's timeline). */
 function activitiesFor(before: TaskRow, after: TaskRow): ActivityDraft[] {
+  const object = { taskId: after.id }
   const summary = { taskId: after.id, taskKey: after.taskKey, title: after.title }
   const out: ActivityDraft[] = []
-  if (before.status !== after.status) out.push({ type: 'task.moved', summary: { ...summary, from: before.status, to: after.status } })
-  if (before.assigneeMemberId !== after.assigneeMemberId) out.push({ type: 'task.assigned', summary: { ...summary, from: before.assigneeMemberId, to: after.assigneeMemberId } })
+  if (before.status !== after.status) out.push({ type: 'task.moved', object, summary: { ...summary, from: before.status, to: after.status } })
+  if (before.assigneeMemberId !== after.assigneeMemberId) {
+    out.push({ type: 'task.assigned', object, summary: { ...summary, from: before.assigneeMemberId, to: after.assigneeMemberId, fromName: nameOf(before.assignee), toName: nameOf(after.assignee) } })
+  }
+  const changes: Record<string, [unknown, unknown]> = {}
+  for (const field of EDITED) {
+    const was = field === 'dueDate' ? iso(before.dueDate) : before[field]
+    const now = field === 'dueDate' ? iso(after.dueDate) : after[field]
+    if (was !== now) changes[field] = field === 'description' ? [null, null] : [was ?? null, now ?? null]
+  }
+  if (Object.keys(changes).length) out.push({ type: 'task.updated', object, summary: { ...summary, changes } })
   return out
+}
+
+/** Members named with @ in a comment: "@Ana" or "@Ana Lopez" (longest name wins). */
+export function mentionedIn(text: string, members: { id: string; name: string }[]) {
+  const lower = ` ${text.toLowerCase()}`
+  const found = new Set<string>()
+  const byLength = [...members].filter((m) => m.name.trim()).sort((x, y) => y.name.length - x.name.length)
+  const firsts = new Map<string, number>()
+  for (const m of byLength) {
+    const first = m.name.trim().toLowerCase().split(/\s+/)[0]!
+    firsts.set(first, (firsts.get(first) ?? 0) + 1)
+  }
+  for (const m of byLength) {
+    const full = m.name.trim().toLowerCase()
+    const first = full.split(/\s+/)[0]!
+    // A first name alone only counts when nobody else shares it.
+    for (const token of firsts.get(first) === 1 ? [full, first] : [full]) {
+      const re = new RegExp(`(^|[^\\w@])@${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w])`)
+      if (re.test(lower)) { found.add(m.id); break }
+    }
+  }
+  return [...found]
 }
 
 export class TaskService {
@@ -222,7 +265,11 @@ export class TaskService {
           return {
             value,
             targetId: created.id,
-            activities: [{ type: 'task.created', summary: { taskId: created.id, taskKey: created.taskKey, title: created.title, status } }],
+            activities: [{
+              type: 'task.created',
+              object: { taskId: created.id },
+              summary: { taskId: created.id, taskKey: created.taskKey, title: created.title, status, assigneeMemberId: created.assigneeMemberId, assigneeName: nameOf(created.assignee) },
+            }],
           }
         },
       ),
@@ -298,7 +345,7 @@ export class TaskService {
       { action: 'task.delete', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: {}, target: { type: 'task', id: taskId } },
       async (tx) => {
         await tx.workTask.update({ where: { id: taskId }, data: { deletedAt: new Date(), version: { increment: 1 } } })
-        return { value: null, activities: [{ type: 'task.deleted', summary: { taskId, taskKey: task.taskKey, title: task.title } }] }
+        return { value: null, activities: [{ type: 'task.deleted', object: { taskId }, summary: { taskId, taskKey: task.taskKey, title: task.title } }] }
       },
     )
   }
@@ -312,7 +359,7 @@ export class TaskService {
       { action: 'task.restore', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: {}, target: { type: 'task', id: taskId } },
       async (tx) => {
         const restored = await tx.workTask.update({ where: { id: taskId }, data: { deletedAt: null, version: { increment: 1 } }, include: taskInclude })
-        const activities = task.deletedAt ? [{ type: 'task.restored', summary: { taskId, taskKey: restored.taskKey, title: restored.title } }] : []
+        const activities = task.deletedAt ? [{ type: 'task.restored', object: { taskId }, summary: { taskId, taskKey: restored.taskKey, title: restored.title } }] : []
         return { value: toTask(restored), activities }
       },
     )
@@ -358,6 +405,58 @@ export class TaskService {
     )
   }
 
+  /** Blocked is a flag with a reason, on top of the status. Re-blocking updates the reason. */
+  async block(ctx: WorkspaceCtx, workspaceId: string, taskId: string, input: { reason: string }) {
+    const actor = await authorize(ctx.user.id, workspaceId, 'task.write')
+    const reason = input.reason?.trim()
+    if (!reason) throw badRequest('Say what it is waiting on', 'INVALID_REASON')
+    const before = await liveTask(db, workspaceId, taskId)
+    if (before.blockedAt && before.blockedReason === reason.slice(0, 280)) return toTask(before)
+    return runAction(
+      { action: 'task.block', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { taskId, reason }, target: { type: 'task', id: taskId } },
+      async (tx) => {
+        await tx.workTask.update({
+          where: { id: taskId },
+          data: { blockedAt: before.blockedAt ?? new Date(), blockedReason: reason.slice(0, 280), blockedByMemberId: actor.member.id, version: { increment: 1 } },
+        })
+        const after = await liveTask(tx, workspaceId, taskId)
+        return {
+          value: toTask(after),
+          changes: { blockedReason: [before.blockedReason, after.blockedReason] },
+          activities: [{ type: 'task.blocked', object: { taskId }, summary: { taskId, taskKey: after.taskKey, title: after.title, reason: after.blockedReason, previous: before.blockedReason } }],
+        }
+      },
+    )
+  }
+
+  async unblock(ctx: WorkspaceCtx, workspaceId: string, taskId: string) {
+    const actor = await authorize(ctx.user.id, workspaceId, 'task.write')
+    const before = await liveTask(db, workspaceId, taskId)
+    if (!before.blockedAt) return toTask(before)
+    return runAction(
+      { action: 'task.unblock', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { taskId }, target: { type: 'task', id: taskId } },
+      async (tx) => {
+        await tx.workTask.update({ where: { id: taskId }, data: { blockedAt: null, blockedReason: null, blockedByMemberId: null, version: { increment: 1 } } })
+        const after = await liveTask(tx, workspaceId, taskId)
+        const blockedForMs = Date.now() - before.blockedAt!.getTime()
+        return {
+          value: toTask(after),
+          changes: { blockedReason: [before.blockedReason, null] },
+          activities: [{ type: 'task.unblocked', object: { taskId }, summary: { taskId, taskKey: after.taskKey, title: after.title, reason: before.blockedReason, blockedForMs } }],
+        }
+      },
+    )
+  }
+
+  /** The task's history: every recorded event about it, oldest first. */
+  async activity(userId: string, workspaceId: string, taskId: string) {
+    await authorize(userId, workspaceId, 'task.read')
+    const task = await db.workTask.findFirst({ where: { id: taskId, workspaceId }, select: { id: true } })
+    if (!task) throw notFound('Task not found')
+    const rows = await db.activity.findMany({ where: { workspaceId, taskId }, include: activityInclude, orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }], take: 500 })
+    return { data: rows.map(toActivity) }
+  }
+
   async listComments(userId: string, workspaceId: string, taskId: string) {
     await authorize(userId, workspaceId, 'task.read')
     await liveTask(db, workspaceId, taskId)
@@ -381,7 +480,12 @@ export class TaskService {
           data: { taskId, authorMemberId: actor.member.id, authorName: (await authorName(tx, actor)).slice(0, 120), text },
           include: { author: { include: { user: { include: { profile: true } } } } },
         })
-        return { value: toComment(created), activities: [{ type: 'task.commented', summary: { taskId, taskKey: task.taskKey, title: task.title } }] }
+        const members = await tx.workspaceMember.findMany({ where: { workspaceId, status: 'active' }, select: { id: true, user: { select: { profile: { select: { displayName: true } } } } } })
+        const mentions = mentionedIn(text, members.map((m) => ({ id: m.id, name: m.user.profile?.displayName ?? '' }))).filter((id) => id !== actor.member.id)
+        return {
+          value: toComment(created),
+          activities: [{ type: 'task.commented', object: { taskId }, summary: { taskId, taskKey: task.taskKey, title: task.title, commentId: created.id, excerpt: text.slice(0, 140), mentions } }],
+        }
       },
     )
   }

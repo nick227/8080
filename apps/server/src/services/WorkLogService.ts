@@ -120,10 +120,15 @@ export class WorkLogService {
       { action: 'worklog.create', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { ...input }, target: { type: 'worklog' } },
       async (tx) => {
         const created = await tx.workLog.create({ data: createData(workspaceId, actor, author, input, task), include: logInclude })
-        const activities: ActivityDraft[] = [{ type: 'worklog.created', summary: { workLogId: created.id, summary: created.summary, taskKey: created.taskKey } }]
+        const object = task ? { taskId: task.id } : undefined
+        const activities: ActivityDraft[] = [{
+          type: 'worklog.created',
+          object,
+          summary: { workLogId: created.id, summary: created.summary, taskKey: created.taskKey, hoursSpent: created.hoursSpent, completeTask: !!input.completeTask },
+        }]
         if (input.completeTask && task) {
           const closed = await closeTask(tx, task.id)
-          if (closed) activities.push({ type: 'task.moved', summary: { taskId: task.id, taskKey: closed.taskKey, title: closed.title, from: closed.from, to: 'done' } })
+          if (closed) activities.push({ type: 'task.moved', object, summary: { taskId: task.id, taskKey: closed.taskKey, title: closed.title, from: closed.from, to: 'done' } })
         }
         return { value: toWorkLog(created), targetId: created.id, activities }
       },

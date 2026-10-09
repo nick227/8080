@@ -24,6 +24,20 @@ export const tasksApi = {
   },
   restore: async (workspaceId: string, taskId: string) =>
     unwrap(await getApiClient().POST('/workspaces/{workspaceId}/tasks/{taskId}/restore', taskPath(workspaceId, taskId))).data,
+  block: async (workspaceId: string, taskId: string, reason: string) =>
+    unwrap(await getApiClient().POST('/workspaces/{workspaceId}/tasks/{taskId}/block', { ...taskPath(workspaceId, taskId), body: { reason } })).data,
+  unblock: async (workspaceId: string, taskId: string) =>
+    unwrap(await getApiClient().POST('/workspaces/{workspaceId}/tasks/{taskId}/unblock', taskPath(workspaceId, taskId))).data,
+}
+
+/** A task's history (recorded events, oldest first). */
+export function useTaskActivity(workspaceId: string | undefined, taskId: string | undefined) {
+  return useQuery({
+    queryKey: keys.taskActivity(workspaceId ?? '', taskId ?? ''),
+    enabled: !!workspaceId && !!taskId,
+    queryFn: async () =>
+      unwrap(await getApiClient().GET('/workspaces/{workspaceId}/tasks/{taskId}/activity', taskPath(workspaceId!, taskId!))).data,
+  })
 }
 
 export function useTasks(workspaceId: string | undefined, opts: { refetchInterval?: number | false } = {}) {

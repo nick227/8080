@@ -230,4 +230,96 @@ describe('tasks', () => {
     expect(read.json().data.wipLimits).toEqual({ in_progress: 3 })
     expect((await call(testUserId, 'PUT', board, { wipLimits: { in_progress: 0 } })).statusCode).toBe(400)
   })
+
+  it('history: every change to a task is one recorded line, with names kept at the time', async () => {
+    const { base, carol } = await setup()
+    const task = await create(base, { title: 'Plan' })
+    await call(testUserId, 'PATCH', `${base}/${task.id}`, { assigneeMemberId: carol, priority: 'high', description: 'secret details' })
+    await call(testUserId, 'POST', `${base}/${task.id}/move`, { status: 'in_progress' })
+    await call(carolId, 'POST', `${base}/${task.id}/block`, { reason: 'Waiting on legal' })
+    await call(carolId, 'POST', `${base}/${task.id}/unblock`)
+    await call(carolId, 'POST', `${base}/${task.id}/comments`, { text: 'Done with legal' })
+    const res = await call(carolId, 'GET', `${base}/${task.id}/activity`)
+    await validateResponse('listTaskActivity', 200, res.json())
+    const lines = res.json().data
+    expect(lines.map((a: any) => a.type)).toEqual(['task.created', 'task.assigned', 'task.updated', 'task.moved', 'task.blocked', 'task.unblocked', 'task.commented'])
+    expect(lines.every((a: any) => a.taskId === task.id)).toBe(true)
+    expect(lines[1].summary).toMatchObject({ toName: 'Carol', to: carol })
+    expect(lines[2].summary.changes).toEqual({ description: [null, null], priority: ['medium', 'high'] })
+    expect(lines[3].summary).toMatchObject({ from: 'open', to: 'in_progress' })
+    expect(lines[4].actor.name).toBe('Carol')
+    expect(lines[5].summary.reason).toBe('Waiting on legal')
+  })
+
+  it('blocked is a flag with a reason on top of the status', async () => {
+    const { base } = await setup()
+    const task = await create(base, { title: 'Ship', status: 'in_progress' })
+    expect((await call(testUserId, 'POST', `${base}/${task.id}/block`, { reason: '  ' })).statusCode).toBe(400)
+    const blocked = await call(testUserId, 'POST', `${base}/${task.id}/block`, { reason: 'Vendor API down' })
+    await validateResponse('blockTask', 200, blocked.json())
+    expect(blocked.json().data).toMatchObject({ status: 'in_progress', blocked: { reason: 'Vendor API down', byName: 'Alice' } })
+    const since = blocked.json().data.blocked.since
+    const again = await call(testUserId, 'POST', `${base}/${task.id}/block`, { reason: 'Vendor still down' })
+    expect(again.json().data.blocked).toMatchObject({ reason: 'Vendor still down', since })
+    // Moving keeps the flag; unblocking clears it.
+    expect((await call(testUserId, 'POST', `${base}/${task.id}/move`, { status: 'in_review' })).json().data.blocked.reason).toBe('Vendor still down')
+    const cleared = await call(testUserId, 'POST', `${base}/${task.id}/unblock`)
+    await validateResponse('unblockTask', 200, cleared.json())
+    expect(cleared.json().data.blocked).toBeNull()
+    expect((await call(testUserId, 'POST', `${base}/${task.id}/unblock`)).json().data.blocked).toBeNull()
+  })
+
+  it('notifications go to the people a task concerns, never to the actor, from the same events', async () => {
+    const { ws, base, carol } = await setup()
+    const dave = await join(app, ws.id, daveId, 'dave@test.local')
+    const inbox = async (userId: string) => (await call(userId, 'GET', `/workspaces/${ws.id}/inbox`)).json().data.filter((i: any) => i.sourceType === 'task')
+
+    // Alice creates for Carol: Carol hears, Alice doesn't.
+    const task = await create(base, { title: 'Draft contract', assigneeMemberId: carol })
+    let carolInbox = await inbox(carolId)
+    expect(carolInbox).toHaveLength(1)
+    expect(carolInbox[0]).toMatchObject({ type: 'task', sourceId: task.id, title: `Alice assigned you ${task.taskKey}`, summary: 'Draft contract', unread: true })
+    expect(await inbox(testUserId)).toEqual([])
+
+    // Carol blocks it: Alice (creator) hears with the reason.
+    await call(carolId, 'POST', `${base}/${task.id}/block`, { reason: 'Need the signed NDA' })
+    const alice1 = await inbox(testUserId)
+    expect(alice1[0]).toMatchObject({ title: `Carol marked ${task.taskKey} blocked`, summary: 'Draft contract: Need the signed NDA' })
+
+    // Alice mentions Dave: Dave gets "mentioned you", Carol gets "commented on".
+    await call(testUserId, 'POST', `${base}/${task.id}/comments`, { text: '@Dave can you chase the NDA?' })
+    expect((await inbox(daveId))[0].title).toBe(`Alice mentioned you on ${task.taskKey}`)
+    expect((await inbox(carolId))[0].title).toBe(`Alice commented on ${task.taskKey}`)
+
+    // Dave comments: he is now a participant; moves to review notify creator + assignee.
+    await call(daveId, 'POST', `${base}/${task.id}/comments`, { text: 'On it' })
+    await call(carolId, 'POST', `${base}/${task.id}/move`, { status: 'in_review' })
+    expect((await inbox(testUserId))[0].title).toBe(`Carol moved ${task.taskKey} to In review`)
+    // A plain move to In progress tells nobody.
+    const before = (await inbox(testUserId)).length
+    await call(carolId, 'POST', `${base}/${task.id}/move`, { status: 'in_progress' })
+    expect((await inbox(testUserId)).length).toBe(before)
+
+    // Reassigning to Dave notifies Dave only.
+    const daveBefore = (await inbox(daveId)).length
+    await call(testUserId, 'PATCH', `${base}/${task.id}`, { assigneeMemberId: dave })
+    const daveInbox = await inbox(daveId)
+    expect(daveInbox.length).toBe(daveBefore + 1)
+    expect(daveInbox[0].title).toBe(`Alice assigned you ${task.taskKey}`)
+    // The inbox can be narrowed to task notifications server-side.
+    const only = await call(daveId, 'GET', `/workspaces/${ws.id}/inbox?sourceType=task`)
+    await validateResponse('listInboxItems', 200, only.json())
+    expect(only.json().data.every((i: any) => i.sourceType === 'task')).toBe(true)
+    expect(only.json().data.length).toBe(daveInbox.length)
+    expect(await crossWorkspaceViolations()).toEqual({})
+  })
+
+  it('mentions: full names, unique first names, and no false matches', async () => {
+    const { mentionedIn } = await import('../services/TaskService')
+    const people = [{ id: 'a', name: 'Ana Lopez' }, { id: 'b', name: 'Ana Ruiz' }, { id: 'c', name: 'Bo' }]
+    expect(mentionedIn('@ana lopez please', people)).toEqual(['a'])
+    expect(mentionedIn('@Ana please', people)).toEqual([]) // two Anas: ambiguous
+    expect(mentionedIn('ping @Bo.', people)).toEqual(['c'])
+    expect(mentionedIn('mail bo@x.com and @Bob', people)).toEqual([])
+  })
 })

@@ -259,6 +259,7 @@ export function toActivity(activity: ActivityRow) {
     noteId: activity.noteId,
     roomId: activity.roomId,
     itemId: activity.itemId,
+    taskId: activity.taskId,
     subjects: activity.subjects.map((s) => s.subjectKey),
     summary: (activity.summary ?? {}) as Record<string, unknown>,
   }

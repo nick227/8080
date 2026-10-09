@@ -20,10 +20,12 @@ export type Filters = {
   types: TaskType[]
   areas: string[]
   priorities: TaskPriority[]
+  /** Only blocked tasks. */
+  blocked: boolean
   search: string
 }
 
-export const NO_FILTERS: Filters = { members: [], types: [], areas: [], priorities: [], search: '' }
+export const NO_FILTERS: Filters = { members: [], types: [], areas: [], priorities: [], blocked: false, search: '' }
 
 export type Notice = { id: number; text: string; undo?: () => void }
 
@@ -92,6 +94,8 @@ type State = {
   updateTaskStatus: (id: string, status: TaskStatus) => void
   moveTask: (id: string, status: TaskStatus, place: Placement) => void
   updateTask: (id: string, patch: Partial<CalTask>) => void
+  block: (id: string, reason: string) => void
+  unblock: (id: string) => void
 
   addAccomplishment: (input: NewWorkLog) => void
   removeAccomplishment: (id: string) => void
@@ -128,6 +132,7 @@ export function fromServer(t: Task): CalTask {
     version: t.version,
     commentCount: t.commentCount,
     resolvedAt: t.resolvedAt,
+    blocked: t.blocked ? { since: t.blocked.since, reason: t.blocked.reason, byName: t.blocked.byName } : null,
     updatedAt: t.updatedAt,
   }
 }
@@ -188,13 +193,14 @@ export function applyFilters(tasks: CalTask[], f: Filters): CalTask[] {
     if (f.types.length && !f.types.includes(t.category ?? 'task')) return false
     if (f.areas.length && !f.areas.includes(t.area ?? '')) return false
     if (f.priorities.length && !f.priorities.includes(t.priority ?? 'medium')) return false
+    if (f.blocked && !t.blocked) return false
     if (needle && !t.title.toLowerCase().includes(needle) && !t.taskKey.toLowerCase().includes(needle)) return false
     return true
   })
 }
 
 export const filtersActive = (f: Filters) =>
-  f.members.length + f.types.length + f.areas.length + f.priorities.length > 0 || f.search.trim() !== ''
+  f.members.length + f.types.length + f.areas.length + f.priorities.length > 0 || f.blocked || f.search.trim() !== ''
 
 export const workIcon = (category: string) => WORK_CATEGORIES.find((c) => c.id === category)?.icon ?? '✨'
 
@@ -388,6 +394,21 @@ export const useCalendar = create<State>((set, get) => {
       const moved = patch.status && patch.status !== task.status ? { rank: rankBetween(get().tasks, patch.status, {}, id) } : {}
       patchLocal(id, { ...patch, ...moved, ...(patch.day === null ? { time: null } : {}) })
       send('save the task', async (ws) => tasksApi.update(ws, await realId(id), body))
+    },
+
+    block(id, reason) {
+      const task = get().tasks.find((t) => t.id === id)
+      const clean = reason.trim()
+      if (!task || !clean) return
+      patchLocal(id, { blocked: { since: task.blocked?.since ?? new Date().toISOString(), reason: clean.slice(0, 280), byName: task.blocked?.byName ?? null } })
+      send('mark the task blocked', async (ws) => tasksApi.block(ws, await realId(id), clean))
+    },
+
+    unblock(id) {
+      const task = get().tasks.find((t) => t.id === id)
+      if (!task?.blocked) return
+      patchLocal(id, { blocked: null })
+      send('unblock the task', async (ws) => tasksApi.unblock(ws, await realId(id)))
     },
 
     addAccomplishment(input) {

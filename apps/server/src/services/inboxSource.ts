@@ -1,5 +1,5 @@
 // One source pointer on an inbox item or a follow-up (doc/11). Types with a
-// table must exist in this workspace. system and calendar have no table yet:
+// table (contact, document, conversation, task) must exist in this workspace. system and calendar have no table yet:
 // the id is the producer's, and an unknown type is refused.
 import { db, Prisma } from '@project/db'
 import { badRequest } from '../lib/errors'
@@ -24,6 +24,11 @@ export async function assertSource(client: Client, workspaceId: string, sourceTy
   }
   if (sourceType === 'conversation') {
     const row = await client.room.findFirst({ where: { id: sourceId, deletedAt: null } })
+    if (!row) throw badRequest('Unknown source', 'INVALID_SOURCE')
+    return
+  }
+  if (sourceType === 'task') {
+    const row = await client.workTask.findFirst({ where: { id: sourceId, workspaceId, deletedAt: null } })
     if (!row) throw badRequest('Unknown source', 'INVALID_SOURCE')
     return
   }

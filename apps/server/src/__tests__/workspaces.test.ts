@@ -148,6 +148,7 @@ function sampleBody(op: any) {
     CreateWorkLogInput: { summary: 'x', day: '2026-10-09' },
     ImportWorkLogsInput: { entries: [{ summary: 'x', day: '2026-10-09' }] },
     UpdateTaskBoardInput: { wipLimits: {} },
+    BlockTaskInput: { reason: 'x' },
   }
   return samples[name ?? ''] ?? {}
 }

@@ -248,6 +248,7 @@ function Column({
   const { setNodeRef, isOver } = useDroppable({ id: status })
   const cards = ids.map((id) => byId.get(id)).filter((t): t is CalTask => !!t)
   const points = cards.reduce((sum, t) => sum + (t.storyPoints ?? 0), 0)
+  const blocked = cards.filter((t) => t.blocked).length
   const [editing, setEditing] = useState(false)
   const wip = limit == null ? undefined : total > limit ? 'over' : total === limit ? 'at' : 'under'
 
@@ -266,6 +267,7 @@ function Column({
             ? <span className="cal-kanban-count cal-wip" title={`WIP limit ${limit}: ${total} in this column${total !== cards.length ? `, ${cards.length} shown` : ''}`}>{total}/{limit}</span>
             : <span className="cal-kanban-count">{cards.length}</span>}
           {points > 0 && <span className="cal-kanban-points">{points} pts</span>}
+          {blocked > 0 && status !== 'done' && <span className="cal-kanban-blocked">{blocked} blocked</span>}
         </div>
         <div className="cal-kanban-tools">
           {canManage && (
@@ -378,9 +380,10 @@ function SortableCard({ task, onOpen }: { task: CalTask; onOpen: () => void }) {
         {...listeners}
         className="cal-kanban-card"
         aria-roledescription="Draggable task"
-        aria-label={`${task.taskKey} ${task.title}`}
+        aria-label={`${task.taskKey} ${task.title}${task.blocked ? `, blocked: ${task.blocked.reason}` : ''}`}
         data-done={task.status === 'done' || undefined}
         data-pending={task.pending || undefined}
+        data-blocked={(task.blocked && task.status !== 'done') || undefined}
         onClick={onOpen}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && e.target === e.currentTarget) {
@@ -409,6 +412,11 @@ function CardBody({ task, overlay }: { task: CalTask; overlay?: boolean }) {
         {task.area && <span className="cal-area-chip">{task.area}</span>}
       </div>
       <h4 className="cal-card-title">{task.title}</h4>
+      {task.blocked && task.status !== 'done' && (
+        <p className="cal-card-blocked" title={`Blocked ${since(task.blocked.since)}${task.blocked.byName ? ` by ${task.blocked.byName}` : ''}`}>
+          <strong>Blocked</strong> {task.blocked.reason}
+        </p>
+      )}
       <div className="cal-card-bottom-row">
         {task.priority && task.priority !== 'medium' && (
           <span className="cal-priority-mark" data-priority={task.priority} title={`Priority: ${task.priority}`} aria-label={`Priority ${task.priority}`}>
@@ -434,6 +442,15 @@ export function Avatar({ name, url }: { name: string | null; url: string | null 
     : <span className="cal-avatar" title={name} aria-label={name}>{initials(name)}</span>
 }
 
+/** "2d", "3h", "just now": how long something has been true. */
+export function since(iso: string) {
+  const mins = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000))
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m`
+  if (mins < 1440) return `${Math.round(mins / 60)}h`
+  return `${Math.round(mins / 1440)}d`
+}
+
 export const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')
 
 function shortDate(day: string) {
@@ -449,11 +466,19 @@ function CardMenu({ task }: { task: CalTask }) {
   const updateTask = useCalendar((s) => s.updateTask)
   const remove = useCalendar((s) => s.remove)
   const say = useCalendar((s) => s.say)
+  const block = useCalendar((s) => s.block)
+  const unblock = useCalendar((s) => s.unblock)
+  const [blocking, setBlocking] = useState(false)
+  const [reason, setReason] = useState('')
   const { team, meId } = useTeam()
   const me = team.find((m) => m.id === meId)
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      setBlocking(false)
+      setReason('')
+      return
+    }
     const away = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); ref.current?.querySelector('button')?.focus() } }
     document.addEventListener('pointerdown', away)
@@ -484,7 +509,23 @@ function CardMenu({ task }: { task: CalTask }) {
       >
         ⋯
       </button>
-      {open && (
+      {open && blocking && (
+        <form
+          className="cal-menu cal-block-form"
+          aria-label={`Mark ${task.taskKey} blocked`}
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!reason.trim()) return
+            block(task.id, reason)
+            setOpen(false)
+          }}
+        >
+          <label className="cal-menu-heading" htmlFor={`block-${task.id}`}>What is it waiting on?</label>
+          <input id={`block-${task.id}`} autoFocus maxLength={280} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Waiting on legal sign-off" />
+          <button type="submit" className="cal-btn" data-primary="" disabled={!reason.trim()}>Mark blocked</button>
+        </form>
+      )}
+      {open && !blocking && (
         <div className="cal-menu" role="menu" aria-label={`Actions for ${task.taskKey}`} onKeyDown={(e) => menuKeys(e)}>
           <span className="cal-menu-heading">Move to</span>
           {STATUSES.filter((s) => s.id !== task.status).map((s) => (
@@ -493,6 +534,9 @@ function CardMenu({ task }: { task: CalTask }) {
           {first && first.id !== task.id && <button type="button" role="menuitem" onClick={run(() => moveTask(task.id, task.status, { beforeTaskId: first.id }))}>Top of column</button>}
           {last && last.id !== task.id && <button type="button" role="menuitem" onClick={run(() => moveTask(task.id, task.status, { afterTaskId: last.id }))}>Bottom of column</button>}
           <hr />
+          {task.blocked
+            ? <button type="button" role="menuitem" onClick={run(() => unblock(task.id))}>Unblock</button>
+            : <button type="button" role="menuitem" onClick={() => setBlocking(true)}>Mark blocked…</button>}
           {me && task.assigneeId !== me.id && (
             <button type="button" role="menuitem" onClick={run(() => updateTask(task.id, { assigneeId: me.id, assigneeName: me.name, assigneeAvatar: me.avatarUrl ?? null }))}>Assign to me</button>
           )}

@@ -3636,6 +3636,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/tasks/{taskId}/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a task blocked, with what it is waiting on
+         * @description The flag sits on top of the status. Blocking again changes the reason and keeps the start time.
+         */
+        post: operations["blockTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/tasks/{taskId}/unblock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear the blocked flag */
+        post: operations["unblockTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/tasks/{taskId}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The task's history, oldest first
+         * @description Every recorded event about the task (created, moved, assigned, edited, blocked, commented, work logged). At most 500.
+         */
+        get: operations["listTaskActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/tasks/{taskId}/comments": {
         parameters: {
             query?: never;
@@ -4766,6 +4832,8 @@ export interface components {
             /** @description The conversation this event is about; null when the caller can't see it */
             roomId: string | null;
             itemId: string | null;
+            /** @description The task this event is about (its history) */
+            taskId: string | null;
             /** @description Records this event is about, e.g. contact:<id> */
             subjects: string[];
             /** @description Display snapshot for this event type (names at the time it happened) */
@@ -5158,10 +5226,25 @@ export interface components {
              * @description When it last moved to done
              */
             resolvedAt: string | null;
+            blocked: components["schemas"]["TaskBlocked"] | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        TaskBlocked: {
+            /** Format: date-time */
+            since: string;
+            reason: string;
+            byMemberId: string | null;
+            byName: string | null;
+        };
+        BlockTaskInput: {
+            /** @description What the task is waiting on */
+            reason: string;
+        };
+        TaskActivityList: {
+            data: components["schemas"]["Activity"][];
         };
         TaskResponse: {
             data: components["schemas"]["Task"];
@@ -9570,6 +9653,8 @@ export interface operations {
                 archived?: boolean;
                 unread?: boolean;
                 starred?: boolean;
+                /** @description Only items about this kind of source (e.g. task) */
+                sourceType?: string;
             };
             header?: never;
             path: {
@@ -13216,6 +13301,91 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaskResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    blockTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlockTaskInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    unblockTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listTaskActivity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskActivityList"];
                 };
             };
             400: components["responses"]["BadRequest"];

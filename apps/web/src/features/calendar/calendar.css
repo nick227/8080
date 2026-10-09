@@ -2026,3 +2026,61 @@
   .cal-wip-btn { opacity: 0; transition: opacity 0.12s; }
   .cal-kanban-column:hover .cal-wip-btn, .cal-wip-btn:focus-visible, .cal-wip-btn[aria-expanded="true"] { opacity: 1; }
 }
+
+/* Blocked: a flag on top of the status */
+.cal-kanban-card[data-blocked] { border-left: 3px solid var(--danger); }
+.cal-card-blocked { margin: 0; font-size: var(--text-label); line-height: 1.35; color: var(--danger); overflow-wrap: anywhere; }
+.cal-card-blocked strong { text-transform: uppercase; letter-spacing: 0.04em; margin-right: 4px; }
+.cal-kanban-blocked { font-family: var(--mono); font-size: var(--text-label); color: var(--danger); }
+.cal-blocked-toggle[aria-pressed="true"] { border-color: var(--danger); color: var(--danger); }
+.cal-block-form { gap: var(--space-xs); min-width: 15rem; }
+.cal-block-form input { height: var(--button-height-sm); padding: 0 var(--space-sm); border: var(--line-width) solid var(--ink); border-radius: var(--input-radius); background: var(--surface-deep); color: var(--ink); font: inherit; font-size: var(--text-sm); }
+
+/* Task panel: blocked flag and activity */
+.ticket-block-btn { align-self: flex-start; }
+.ticket-blocked {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: var(--line-width) solid var(--danger);
+  border-left-width: 3px;
+  border-radius: var(--input-radius);
+  font-size: var(--text-sm);
+}
+.ticket-blocked > strong { color: var(--danger); text-transform: uppercase; letter-spacing: 0.06em; font-size: var(--text-label); }
+.ticket-blocked-reason { flex: 1; min-width: 10rem; overflow-wrap: anywhere; }
+.ticket-blocked-meta { font-family: var(--mono); font-size: var(--text-label); color: var(--muted); }
+.ticket-blocked[data-editing] label { color: var(--muted); }
+.ticket-blocked input { flex: 1; min-width: 12rem; height: var(--button-height-sm); padding: 0 var(--space-sm); border: var(--line-width) solid var(--ink); border-radius: var(--input-radius); background: var(--surface-deep); color: var(--ink); font: inherit; }
+.ticket-activity-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); flex-wrap: wrap; }
+.ticket-activity-tabs { display: flex; gap: 2px; }
+.ticket-activity-tabs button { padding: 2px var(--space-sm); border: var(--line-width) solid transparent; border-radius: var(--input-radius); background: transparent; color: var(--muted); font: inherit; font-size: var(--text-label); cursor: pointer; }
+.ticket-activity-tabs button[aria-pressed="true"] { color: var(--ink); border-color: var(--line); background: var(--surface-highlight); }
+.ticket-activity-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm); }
+.ticket-history-line { display: flex; justify-content: space-between; gap: var(--space-md); padding: 2px 0; font-size: var(--text-sm); color: var(--muted); }
+.ticket-history-line strong { color: var(--ink); font-weight: var(--weight-medium); }
+.ticket-history-line[data-type="task.blocked"] span { color: var(--danger); }
+.ticket-history-line time { flex: none; font-family: var(--mono); font-size: var(--text-label); }
+.ticket-composer-field { position: relative; flex: 1; }
+.ticket-composer-field textarea { width: 100%; height: auto; min-height: 2.5rem; resize: vertical; padding: var(--space-sm); font: inherit; }
+.ticket-mentions { left: 0; right: auto; top: calc(100% + 2px); list-style: none; }
+.ticket-mentions li[aria-selected="true"] button { background: var(--surface-highlight); }
+.ticket-comment-composer { align-items: flex-start; flex-wrap: wrap; }
+
+/* For you: the viewer's notifications */
+.cal-foryou { position: relative; display: inline-flex; }
+.cal-foryou-count { display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.25rem; margin-left: 6px; padding: 0 4px; border-radius: 999px; background: var(--danger); color: var(--surface-deep); font-family: var(--mono); font-size: 10px; font-weight: var(--weight-bold); }
+.cal-foryou-menu { left: 0; right: auto; width: min(24rem, calc(100vw - 32px)); max-height: 60vh; overflow-y: auto; }
+.cal-foryou-head { display: flex; align-items: center; justify-content: space-between; padding-right: var(--space-sm); }
+.cal-foryou-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.cal-menu .cal-foryou-item { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 0 var(--space-sm); width: 100%; min-height: auto; padding: var(--space-sm); align-items: start; }
+.cal-foryou-item[data-unread] { box-shadow: inset 3px 0 0 var(--ink); }
+.cal-foryou-title { font-weight: var(--weight-medium); }
+.cal-foryou-item:not([data-unread]) .cal-foryou-title { color: var(--muted); font-weight: normal; }
+.cal-foryou-summary { grid-column: 1; font-size: var(--text-label); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-foryou-item time { grid-row: 1; grid-column: 2; font-family: var(--mono); font-size: var(--text-label); color: var(--muted); }
+.cal-foryou-empty { margin: 0; padding: var(--space-sm); font-size: var(--text-sm); color: var(--muted); }
+.cal-kanban-title-group { flex-wrap: wrap; row-gap: 0; }
+.cal-kanban-title { white-space: nowrap; }

@@ -608,6 +608,7 @@ model WorkspaceMember {
   proposalsDecided AgentProposal[] @relation("ProposalDecider")
   assignedWorkTasks WorkTask[] @relation("WorkTaskAssignee")
   createdWorkTasks  WorkTask[] @relation("WorkTaskCreator")
+  blockedWorkTasks  WorkTask[] @relation("WorkTaskBlocker")
   workComments      WorkComment[]
   workLogs          WorkLog[] @relation("WorkLogAuthor")
   workLogsDone      WorkLog[] @relation("WorkLogMember")
@@ -746,6 +747,8 @@ model Activity {
   noteId            String?
   roomId            String?
   itemId            String?
+  // The task this event is about (Calendar/Boards): its history is these rows.
+  taskId            String?
   summary           Json
 
   workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -754,6 +757,7 @@ model Activity {
   note            Note?             @relation(fields: [noteId], references: [id], onDelete: SetNull)
   room            Room?             @relation(fields: [roomId], references: [id], onDelete: SetNull)
   item            Item?             @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  task            WorkTask?         @relation(fields: [taskId], references: [id], onDelete: SetNull)
   subjects        ActivitySubject[]
 
   @@index([workspaceId, occurredAt, id])
@@ -762,6 +766,7 @@ model Activity {
   @@index([noteId])
   @@index([roomId])
   @@index([itemId])
+  @@index([taskId, occurredAt])
 }
 
 // Which records an activity is about: one row per subject, so one email about a
@@ -2199,6 +2204,10 @@ model WorkTask {
   rank              Float            @default(0)
   version           Int              @default(1)
   resolvedAt        DateTime?
+  // Blocked is task state (not a column): when, why and by whom.
+  blockedAt         DateTime?
+  blockedReason     String?          @db.VarChar(280)
+  blockedByMemberId String?
   deletedAt         DateTime?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
@@ -2207,7 +2216,9 @@ model WorkTask {
   sprint    Sprint?          @relation(fields: [sprintId], references: [id], onDelete: SetNull)
   assignee  WorkspaceMember? @relation("WorkTaskAssignee", fields: [assigneeMemberId], references: [id], onDelete: SetNull)
   createdBy WorkspaceMember? @relation("WorkTaskCreator", fields: [createdByMemberId], references: [id], onDelete: SetNull)
+  blockedBy WorkspaceMember? @relation("WorkTaskBlocker", fields: [blockedByMemberId], references: [id], onDelete: SetNull)
   comments  WorkComment[]
+  activities Activity[]
   workLogs  WorkLog[]
 
   @@unique([workspaceId, taskKey])

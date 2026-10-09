@@ -7,7 +7,7 @@
 import { db, Prisma } from '@project/db'
 import { badRequest, conflict, notFound } from '../lib/errors'
 import { recordLinkInclude, toRecordLink } from '../lib/serialize'
-import { addSubjects, runAction, subjectKey, type ActivityObject, type SubjectRef } from './actions'
+import { addSubjects, runAction, subjectKey, type LinkObject, type SubjectRef } from './actions'
 import { liveAccount, liveContact, liveInventory, visibleRoomIds } from './records'
 import { RoomService } from './RoomService'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
@@ -26,16 +26,16 @@ function subjectOf(input: LinkInput): SubjectRef {
   return { inventoryId: input.inventoryId! }
 }
 
-function objectOf(input: LinkInput): ActivityObject {
+function objectOf(input: LinkInput): LinkObject {
   if (!!input.noteId === !!input.roomId) throw badRequest('Give exactly one of noteId or roomId', 'ONE_OBJECT')
   if (input.itemId && !input.roomId) throw badRequest('itemId needs its roomId', 'ONE_OBJECT')
   return input.noteId ? { noteId: input.noteId } : { roomId: input.roomId!, itemId: input.itemId ?? null }
 }
 
-const objectKey = (o: ActivityObject) => ('noteId' in o ? `note:${o.noteId}` : o.itemId ? `item:${o.itemId}` : `room:${o.roomId}`)
+const objectKey = (o: LinkObject) => ('noteId' in o ? `note:${o.noteId}` : o.itemId ? `item:${o.itemId}` : `room:${o.roomId}`)
 
 // The activities that stand for an object on a timeline.
-function objectActivities(tx: Tx, workspaceId: string, o: ActivityObject) {
+function objectActivities(tx: Tx, workspaceId: string, o: LinkObject) {
   return tx.activity.findMany({
     where: 'noteId' in o ? { workspaceId, noteId: o.noteId } : { workspaceId, type: 'conversation.linked', roomId: o.roomId, itemId: o.itemId ?? null },
     select: { id: true, occurredAt: true },
@@ -93,7 +93,7 @@ export class LinkService {
       : link.accountId
         ? { accountId: link.accountId }
         : { inventoryId: link.inventoryId! }
-    const object: ActivityObject = link.noteId ? { noteId: link.noteId } : { roomId: link.roomId!, itemId: link.itemId }
+    const object: LinkObject = link.noteId ? { noteId: link.noteId } : { roomId: link.roomId!, itemId: link.itemId }
 
     await runAction(
       { action: 'link.delete', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: {}, target: { type: 'link', id: linkId } },
