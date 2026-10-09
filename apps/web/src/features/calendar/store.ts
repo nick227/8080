@@ -1,51 +1,82 @@
 import { create } from 'zustand'
+import { tasksApi, type CreateTaskInput, type ImportTaskRow, type Task, type UpdateTaskInput } from '@project/sdk'
 import { todayKey, shiftMonthKey } from './dates'
-import type { CalTask, CalAccomplishment, CalComment } from './types'
+import type { CalAccomplishment, CalTask, TaskPriority, TaskStatus, TaskType } from './types'
 
-const TASKS_KEY = 'vc-tasks'
+// Tasks belong to the workspace (server). This store keeps the copy every view
+// reads, so a move or edit shows at once; the server answer then replaces it.
+// `useTaskSync` (sync.ts) feeds it from the SDK query and registers `refresh`.
+
 const ACCOMPLISHMENTS_KEY = 'vc-accomplishments'
+/** Tasks saved in this browser before tasks lived on the server. */
+export const LOCAL_TASKS_KEY = 'vc-tasks'
+const RANK_STEP = 1024
+
+export type View = 'month' | 'day' | 'list' | 'board' | 'backlog'
+
+export type Filters = {
+  /** WorkspaceMember ids; 'unassigned' matches tasks without one. */
+  members: string[]
+  types: TaskType[]
+  areas: string[]
+  priorities: TaskPriority[]
+  search: string
+}
+
+export const NO_FILTERS: Filters = { members: [], types: [], areas: [], priorities: [], search: '' }
+
+export type Notice = { id: number; text: string; undo?: () => void }
+
+export type NewTask = {
+  title: string
+  description?: string | null
+  day?: string | null
+  time?: string | null
+  status?: TaskStatus
+  source?: string | null
+  assigneeId?: string | null
+  assigneeName?: string | null
+  assigneeAvatar?: string | null
+  priority?: TaskPriority
+  category?: TaskType
+  area?: string | null
+  storyPoints?: number | null
+  dueDate?: string | null
+  afterTaskId?: string | null
+  beforeTaskId?: string | null
+}
+
+type Placement = { afterTaskId?: string | null; beforeTaskId?: string | null }
 
 type State = {
+  workspaceId: string | null
   tasks: CalTask[]
+  loaded: boolean
+  syncing: boolean
+  notice: Notice | null
+  refresh: (() => void) | null
   accomplishments: CalAccomplishment[]
   cursor: string
-  view: 'month' | 'day' | 'list' | 'board' | 'backlog'
-  activeUserId: string | 'all'
-  sprintFilter: string | 'all'
-  categoryFilter: string | 'all'
-  priorityFilter: string | 'all'
+  view: View
+  filters: Filters
 
+  hydrate: (workspaceId: string, tasks: Task[], refresh: () => void) => void
   showMonth: () => void
   showDay: (day: string) => void
   showList: () => void
-  setView: (view: 'month' | 'day' | 'list' | 'board' | 'backlog') => void
-  setActiveUser: (userId: string | 'all') => void
-  setSprintFilter: (sprint: string | 'all') => void
-  setCategoryFilter: (category: string | 'all') => void
-  setPriorityFilter: (priority: string | 'all') => void
+  setView: (view: View) => void
+  setFilters: (patch: Partial<Filters>) => void
+  clearFilters: () => void
+  say: (text: string, undo?: () => void) => void
+  dismiss: () => void
 
   goToday: () => void
   shiftMonth: (delta: number) => void
 
-  add: (input: {
-    title: string
-    description?: string | null
-    day: string
-    time?: string | null
-    source?: string | null
-    assigneeId?: string | null
-    assigneeName?: string | null
-    assigneeAvatar?: string | null
-    priority?: 'low' | 'medium' | 'high' | 'highest'
-    category?: 'feature' | 'bug' | 'task' | 'story' | 'epic'
-    storyPoints?: number
-    sprint?: string
-    taskKey?: string
-  }) => CalTask
-
-  updateTaskStatus: (id: string, status: 'open' | 'in_progress' | 'in_review' | 'done') => void
+  add: (input: NewTask) => CalTask | null
+  updateTaskStatus: (id: string, status: TaskStatus) => void
+  moveTask: (id: string, status: TaskStatus, place: Placement) => void
   updateTask: (id: string, patch: Partial<CalTask>) => void
-  addComment: (taskId: string, text: string, authorName: string) => void
 
   addAccomplishment: (input: {
     title: string
@@ -59,228 +90,114 @@ type State = {
   }) => void
 
   addMany: (titles: string[], day: string, source: string) => number
-  importTasks: (rows: { title: string; day: string; time: string | null; status: CalTask['status'] }[]) => number
+  importTasks: (rows: { title: string; day: string; time: string | null; status: TaskStatus }[]) => number
   toggle: (id: string) => void
   remove: (id: string) => void
+  restore: (task: CalTask) => void
   closeMatching: (query: string, day: string) => string | null
   findTaskByNumber: (query: string) => CalTask | null
   settleTaskByNumber: (query: string) => CalTask | null
 }
 
-function generateTaskKey(tasks: CalTask[]): string {
-  const nums = tasks
-    .map((t) => {
-      const match = t.taskKey?.match(/\d+/)
-      return match ? parseInt(match[0], 10) : 0
-    })
-    .filter((n) => !isNaN(n))
-
-  const max = nums.length > 0 ? Math.max(...nums) : 100
-  return `VC-${max + 1}`
-}
-
-function getInitialTasks(): CalTask[] {
-  const today = todayKey()
-  const d = new Date()
-  const yesterday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1).toISOString().slice(0, 10)
-  const tomorrow = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).toISOString().slice(0, 10)
-
-  return [
-    {
-      id: 'task-1',
-      taskKey: 'VC-101',
-      title: 'Review System Architecture & Database Indexes',
-      description: 'Perform complete query optimization and check Postgres pool sizes for peak traffic loads.',
-      day: today,
-      time: '09:00',
-      status: 'in_progress',
-      source: 'team',
-      assigneeId: 'user-1',
-      assigneeName: 'Alex River',
-      priority: 'high',
-      category: 'feature',
-      storyPoints: 5,
-      sprint: undefined,
-      comments: [
-        {
-          id: 'c-1',
-          authorName: 'Sarah Chen',
-          text: 'Make sure to check connection latency on read replica nodes as well.',
-          createdAt: '2 hours ago',
-        },
-      ],
-    },
-    {
-      id: 'task-2',
-      taskKey: 'VC-102',
-      title: 'Backlog review & leadership sync',
-      description: 'Prepare Q4 deliverables roadmap and align with product lead on upcoming design milestones.',
-      day: today,
-      time: '11:00',
-      status: 'open',
-      source: 'team',
-      assigneeId: 'user-2',
-      assigneeName: 'Sarah Chen',
-      priority: 'medium',
-      category: 'story',
-      storyPoints: 3,
-      sprint: undefined,
-      comments: [],
-    },
-    {
-      id: 'task-3',
-      taskKey: 'VC-103',
-      title: 'Design System & Navigation Component Review',
-      description: 'Audit dark mode tokens and ensure WCAG AA color contrast compliance on all button surfaces.',
-      day: today,
-      time: '14:00',
-      status: 'done',
-      source: 'team',
-      assigneeId: 'user-3',
-      assigneeName: 'Marcus Vance',
-      priority: 'highest',
-      category: 'bug',
-      storyPoints: 2,
-      sprint: undefined,
-      comments: [
-        {
-          id: 'c-2',
-          authorName: 'Marcus Vance',
-          text: 'Tokens verified and updated across all component stylesheets!',
-          createdAt: 'Yesterday',
-        },
-      ],
-    },
-    {
-      id: 'task-4',
-      taskKey: 'VC-104',
-      title: 'Q4 Infrastructure Security Audit',
-      description: 'Verify OAuth2 token validation timeouts and test rate limiting rules on API endpoints.',
-      day: tomorrow,
-      time: '10:00',
-      status: 'open',
-      source: 'team',
-      assigneeId: 'user-4',
-      assigneeName: 'Jordan Taylor',
-      priority: 'high',
-      category: 'task',
-      storyPoints: 8,
-      sprint: undefined,
-      comments: [],
-    },
-    {
-      id: 'task-5',
-      taskKey: 'VC-105',
-      title: 'Enterprise Customer Onboarding Strategy',
-      description: 'Draft step-by-step migration playbook for AcroCorp enterprise team onboarding.',
-      day: tomorrow,
-      time: '15:30',
-      status: 'open',
-      source: 'team',
-      assigneeId: 'user-5',
-      assigneeName: 'Elena Rostova',
-      priority: 'medium',
-      category: 'epic',
-      storyPoints: 5,
-      sprint: undefined,
-      comments: [],
-    },
-    {
-      id: 'task-6',
-      taskKey: 'VC-106',
-      title: 'Finalize SLA Agreement & Compliance Docs',
-      description: 'Cross-check data privacy clause and export compliance report for legal sign-off.',
-      day: yesterday,
-      time: '16:00',
-      status: 'done',
-      source: 'team',
-      assigneeId: 'user-2',
-      assigneeName: 'Sarah Chen',
-      priority: 'high',
-      category: 'story',
-      storyPoints: 3,
-      sprint: undefined,
-      comments: [],
-    },
-  ]
-}
-
-function getInitialAccomplishments(): CalAccomplishment[] {
-  const today = todayKey()
-  const d = new Date()
-  const yesterday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1).toISOString().slice(0, 10)
-
-  return [
-    {
-      id: 'acc-1',
-      taskKey: 'VC-105',
-      title: 'Closed Enterprise Tier Contract with AcroCorp ($120k ARR)',
-      day: today,
-      time: '10:30',
-      category: 'deal',
-      assigneeId: 'user-5',
-      assigneeName: 'Elena Rostova',
-      icon: '🎉',
-    },
-    {
-      id: 'acc-2',
-      taskKey: 'VC-101',
-      title: 'Released Voice Chat Engine v2.4 to Production',
-      day: today,
-      time: '13:15',
-      category: 'release',
-      assigneeId: 'user-1',
-      assigneeName: 'Alex River',
-      icon: '🚀',
-    },
-    {
-      id: 'acc-3',
-      taskKey: 'VC-104',
-      title: 'Achieved 99.99% Uptime SLA Benchmark for Q3',
-      day: yesterday,
-      time: '17:00',
-      category: 'milestone',
-      assigneeId: 'user-4',
-      assigneeName: 'Jordan Taylor',
-      icon: '🏆',
-    },
-  ]
-}
-
-function loadTasks(): CalTask[] {
-  try {
-    const raw = localStorage.getItem(TASKS_KEY)
-    if (!raw) return getInitialTasks()
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed) || parsed.length === 0) return getInitialTasks()
-    return parsed.map((t: CalTask, index) => ({
-      ...t,
-      taskKey: t.taskKey || `VC-${101 + index}`,
-      priority: t.priority || 'medium',
-      category: t.category || 'task',
-      storyPoints: t.storyPoints,
-      sprint: t.sprint,
-      comments: t.comments || [],
-    }))
-  } catch {
-    return getInitialTasks()
+export function fromServer(t: Task): CalTask {
+  return {
+    id: t.id,
+    taskKey: t.taskKey,
+    title: t.title,
+    description: t.description,
+    day: t.scheduledDate,
+    time: t.scheduledTime,
+    dueDate: t.dueDate,
+    status: t.status,
+    source: t.source,
+    assigneeId: t.assigneeMemberId,
+    assigneeName: t.assignee?.name ?? null,
+    assigneeAvatar: t.assignee?.avatarUrl ?? null,
+    priority: t.priority,
+    category: t.issueType,
+    area: t.area,
+    storyPoints: t.storyPoints,
+    rank: t.rank,
+    version: t.version,
+    commentCount: t.commentCount,
+    resolvedAt: t.resolvedAt,
+    updatedAt: t.updatedAt,
   }
 }
+
+/** The fields of a local edit the server understands. */
+function toUpdate(patch: Partial<CalTask>): UpdateTaskInput {
+  const out: UpdateTaskInput = {}
+  if ('title' in patch && patch.title !== undefined) out.title = patch.title
+  if ('description' in patch) out.description = patch.description ?? null
+  if ('status' in patch && patch.status) out.status = patch.status
+  if ('category' in patch && patch.category) out.issueType = patch.category
+  if ('area' in patch) out.area = patch.area ?? null
+  if ('priority' in patch && patch.priority) out.priority = patch.priority
+  if ('storyPoints' in patch) out.storyPoints = patch.storyPoints ?? null
+  if ('day' in patch) out.scheduledDate = patch.day || null
+  if ('time' in patch) out.scheduledTime = patch.time || null
+  if ('dueDate' in patch) out.dueDate = patch.dueDate || null
+  if ('assigneeId' in patch) out.assigneeMemberId = patch.assigneeId || null
+  return out
+}
+
+function toRow(t: NewTask): ImportTaskRow {
+  return {
+    title: t.title,
+    description: t.description ?? null,
+    status: t.status ?? 'open',
+    issueType: t.category ?? 'task',
+    area: t.area ?? null,
+    priority: t.priority ?? 'medium',
+    storyPoints: t.storyPoints ?? null,
+    scheduledDate: t.day ?? null,
+    scheduledTime: t.day ? t.time ?? null : null,
+    dueDate: t.dueDate ?? null,
+    assigneeMemberId: t.assigneeId ?? null,
+    source: t.source ?? null,
+  }
+}
+
+export function columnOf(tasks: CalTask[], status: TaskStatus, exceptId?: string) {
+  return tasks.filter((t) => t.status === status && t.id !== exceptId).sort((a, b) => a.rank - b.rank)
+}
+
+/** The rank a card gets between its neighbours (mirrors the server; the server's answer wins). */
+function rankBetween(tasks: CalTask[], status: TaskStatus, place: Placement, movingId?: string) {
+  const column = columnOf(tasks, status, movingId)
+  const above = place.afterTaskId ? column.find((t) => t.id === place.afterTaskId)?.rank ?? null : null
+  const below = place.beforeTaskId ? column.find((t) => t.id === place.beforeTaskId)?.rank ?? null : null
+  if (above === null && below === null) return (column.at(-1)?.rank ?? 0) + RANK_STEP
+  if (above === null) return below! - RANK_STEP
+  if (below === null) return above + RANK_STEP
+  return (above + below) / 2
+}
+
+export function applyFilters(tasks: CalTask[], f: Filters): CalTask[] {
+  const needle = f.search.trim().toLowerCase()
+  return tasks.filter((t) => {
+    if (f.members.length && !f.members.includes(t.assigneeId ?? 'unassigned')) return false
+    if (f.types.length && !f.types.includes(t.category ?? 'task')) return false
+    if (f.areas.length && !f.areas.includes(t.area ?? '')) return false
+    if (f.priorities.length && !f.priorities.includes(t.priority ?? 'medium')) return false
+    if (needle && !t.title.toLowerCase().includes(needle) && !t.taskKey.toLowerCase().includes(needle)) return false
+    return true
+  })
+}
+
+export const filtersActive = (f: Filters) =>
+  f.members.length + f.types.length + f.areas.length + f.priorities.length > 0 || f.search.trim() !== ''
 
 function loadAccomplishments(): CalAccomplishment[] {
   try {
     const raw = localStorage.getItem(ACCOMPLISHMENTS_KEY)
-    if (!raw) return getInitialAccomplishments()
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed) || parsed.length === 0) return getInitialAccomplishments()
-    return parsed as CalAccomplishment[]
+    const parsed: unknown = raw ? JSON.parse(raw) : []
+    // The old demo entries (acc-1…3) named people who don't exist.
+    return Array.isArray(parsed) ? (parsed as CalAccomplishment[]).filter((a) => !/^acc-\d$/.test(a.id)) : []
   } catch {
-    return getInitialAccomplishments()
+    return []
   }
-}
-
-function saveTasks(tasks: CalTask[]) {
-  try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)) } catch { /* ignore */ }
 }
 
 function saveAccomplishments(accs: CalAccomplishment[]) {
@@ -300,240 +217,283 @@ export function orderTasks(tasks: CalTask[]): CalTask[] {
   })
 }
 
-export const useCalendar = create<State>((set, get) => ({
-  tasks: loadTasks(),
-  accomplishments: loadAccomplishments(),
-  cursor: todayKey(),
-  view: 'month',
-  activeUserId: 'all',
-  sprintFilter: 'all',
-  categoryFilter: 'all',
-  priorityFilter: 'all',
+// Writes in flight. While any are, server snapshots are ignored (they'd undo
+// what the person just did); when the last settles, the list is refetched.
+let inFlight = 0
+// A card created moments ago has a temporary id until the server answers.
+const creating = new Map<string, Promise<string>>()
+let noticeId = 0
 
-  showMonth() {
-    set({ view: 'month' })
-  },
-  showDay(day) {
-    set({ cursor: day, view: 'day' })
-  },
-  showList() {
-    set({ view: 'list' })
-  },
-  setView(view) {
-    set({ view })
-  },
-  setActiveUser(userId) {
-    set({ activeUserId: userId })
-  },
-  setSprintFilter(sprint) {
-    set({ sprintFilter: sprint })
-  },
-  setCategoryFilter(category) {
-    set({ categoryFilter: category })
-  },
-  setPriorityFilter(priority) {
-    set({ priorityFilter: priority })
-  },
+const message = (err: unknown) => (err instanceof Error ? err.message : 'Something went wrong')
 
-  goToday() {
-    set({ cursor: todayKey() })
-  },
-  shiftMonth(delta) {
-    set({ cursor: shiftMonthKey(get().cursor, delta) })
-  },
+export const useCalendar = create<State>((set, get) => {
+  const replaceTask = (id: string, next: CalTask | null) =>
+    set({ tasks: next ? get().tasks.map((t) => (t.id === id ? next : t)) : get().tasks.filter((t) => t.id !== id) })
 
-  add(input) {
-    const title = input.title.trim()
-    const taskKey = input.taskKey || generateTaskKey(get().tasks)
-    const task: CalTask = {
-      id: crypto.randomUUID(),
-      taskKey,
-      title,
-      description: input.description || null,
-      day: input.day,
-      time: input.time ?? null,
-      status: 'open',
-      source: input.source ?? null,
-      assigneeId: input.assigneeId ?? null,
-      assigneeName: input.assigneeName ?? null,
-      assigneeAvatar: input.assigneeAvatar ?? null,
-      priority: input.priority || 'medium',
-      category: input.category || 'task',
-      storyPoints: input.storyPoints,
-      sprint: input.sprint,
-      comments: [],
+  const realId = (id: string) => creating.get(id) ?? Promise.resolve(id)
+
+  /** Runs a server write; on failure says why and lets the refetch restore the truth. */
+  function send<T>(what: string, run: (workspaceId: string) => Promise<T>, onDone?: (value: T) => void, onFail?: (err: unknown) => void) {
+    const workspaceId = get().workspaceId
+    if (!workspaceId) {
+      onFail?.(new Error('no workspace'))
+      get().say('Tasks are still loading. Try again in a moment.')
+      return
     }
-    const tasks = [...get().tasks, task]
-    saveTasks(tasks)
-    set({ tasks })
-    return task
-  },
+    inFlight++
+    set({ syncing: true })
+    run(workspaceId)
+      .then((value) => onDone?.(value))
+      .catch((err) => {
+        onFail?.(err)
+        get().say(`Couldn't ${what}: ${message(err)}`)
+      })
+      .finally(() => {
+        inFlight--
+        if (!inFlight) {
+          set({ syncing: false })
+          get().refresh?.()
+        }
+      })
+  }
 
-  updateTaskStatus(id, status) {
-    const tasks = get().tasks.map((task) =>
-      task.id === id ? { ...task, status } : task
-    )
-    saveTasks(tasks)
-    set({ tasks })
-  },
+  const patchLocal = (id: string, patch: Partial<CalTask>) =>
+    set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)) })
 
-  updateTask(id, patch) {
-    const tasks = get().tasks.map((task) =>
-      task.id === id ? { ...task, ...patch } : task
-    )
-    saveTasks(tasks)
-    set({ tasks })
-  },
+  const importRows = (rows: NewTask[], what: string) => {
+    if (!rows.length) return 0
+    const temps: CalTask[] = rows.map((row, i) => ({
+      ...draft(row),
+      rank: rankBetween(get().tasks, row.status ?? 'open', {}) + i * RANK_STEP,
+    }))
+    set({ tasks: [...get().tasks, ...temps] })
+    send(what, (ws) => tasksApi.import(ws, { tasks: rows.map(toRow) }), (created) => {
+      const ids = new Set(temps.map((t) => t.id))
+      set({ tasks: [...get().tasks.filter((t) => !ids.has(t.id)), ...created.map(fromServer)] })
+    }, () => {
+      const ids = new Set(temps.map((t) => t.id))
+      set({ tasks: get().tasks.filter((t) => !ids.has(t.id)) })
+    })
+    return rows.length
+  }
 
-  addComment(taskId, text, authorName) {
-    const clean = text.trim()
-    if (!clean) return
-    const comment: CalComment = {
-      id: crypto.randomUUID(),
-      authorName,
-      text: clean,
-      createdAt: 'Just now',
-    }
-    const tasks = get().tasks.map((task) =>
-      task.id === taskId
-        ? { ...task, comments: [...(task.comments || []), comment] }
-        : task
-    )
-    saveTasks(tasks)
-    set({ tasks })
-  },
+  return {
+    workspaceId: null,
+    tasks: [],
+    loaded: false,
+    syncing: false,
+    notice: null,
+    refresh: null,
+    accomplishments: loadAccomplishments(),
+    cursor: todayKey(),
+    view: 'month',
+    filters: NO_FILTERS,
 
-  addAccomplishment(input) {
-    const title = input.title.trim()
-    if (!title) return
-    const acc: CalAccomplishment = {
-      id: crypto.randomUUID(),
-      taskKey: input.taskKey ?? null,
-      title,
-      day: input.day,
-      time: input.time ?? null,
-      category: input.category ?? 'milestone',
-      assigneeId: input.assigneeId ?? null,
-      assigneeName: input.assigneeName ?? null,
-      icon: input.icon ?? '✨',
-    }
-    const accomplishments = [acc, ...get().accomplishments]
-    saveAccomplishments(accomplishments)
-    set({ accomplishments })
-  },
+    hydrate(workspaceId, tasks, refresh) {
+      if (get().workspaceId !== workspaceId) set({ workspaceId, tasks: [], loaded: false })
+      set({ refresh })
+      if (inFlight) return
+      // Cards still being created stay until the server has them.
+      const waiting = get().tasks.filter((t) => t.pending)
+      set({ tasks: [...tasks.map(fromServer), ...waiting], loaded: true })
+    },
 
-  importTasks(rows) {
-    const existing = new Set(get().tasks.map((task) => `${task.day}\0${task.title.toLowerCase()}`))
-    const next: CalTask[] = []
-    let currentTasks = get().tasks
-    for (const row of rows) {
-      const title = row.title.trim()
-      const key = `${row.day}\0${title.toLowerCase()}`
-      if (!title || existing.has(key)) continue
-      existing.add(key)
-      const taskKey = generateTaskKey(currentTasks)
-      const newTask: CalTask = {
+    showMonth() { set({ view: 'month' }) },
+    showDay(day) { set({ cursor: day, view: 'day' }) },
+    showList() { set({ view: 'list' }) },
+    setView(view) { set({ view }) },
+    setFilters(patch) { set({ filters: { ...get().filters, ...patch } }) },
+    clearFilters() { set({ filters: NO_FILTERS }) },
+    say(text, undo) { set({ notice: { id: ++noticeId, text, undo } }) },
+    dismiss() { set({ notice: null }) },
+
+    goToday() { set({ cursor: todayKey() }) },
+    shiftMonth(delta) { set({ cursor: shiftMonthKey(get().cursor, delta) }) },
+
+    add(input) {
+      const title = input.title.trim()
+      if (!title) return null
+      const status = input.status ?? 'open'
+      const temp: CalTask = { ...draft({ ...input, title }), rank: rankBetween(get().tasks, status, input) }
+      set({ tasks: [...get().tasks, temp] })
+      let resolve!: (id: string) => void
+      let reject!: (err: unknown) => void
+      const real = new Promise<string>((res, rej) => { resolve = res; reject = rej })
+      real.catch(() => { /* the create reports its own failure */ })
+      creating.set(temp.id, real)
+      const body: CreateTaskInput = { ...toRow({ ...input, title }), afterTaskId: input.afterTaskId ?? null, beforeTaskId: input.beforeTaskId ?? null }
+      delete (body as { source?: unknown }).source
+      send('add the task', async (ws) => {
+        // Neighbours that are still being created themselves: place by their real ids.
+        body.afterTaskId = body.afterTaskId ? await realId(body.afterTaskId) : null
+        body.beforeTaskId = body.beforeTaskId ? await realId(body.beforeTaskId) : null
+        return tasksApi.create(ws, body)
+      }, (task) => {
+        // Keep any edit made while it was being created.
+        const local = get().tasks.find((t) => t.id === temp.id)
+        replaceTask(temp.id, local ? { ...fromServer(task), status: local.status, rank: local.rank } : fromServer(task))
+        resolve(task.id)
+        creating.delete(temp.id)
+      }, (err) => {
+        // Writes queued behind this card fail with it.
+        replaceTask(temp.id, null)
+        reject(err)
+        creating.delete(temp.id)
+      })
+      return temp
+    },
+
+    updateTaskStatus(id, status) {
+      get().moveTask(id, status, {})
+    },
+
+    moveTask(id, status, place) {
+      const task = get().tasks.find((t) => t.id === id)
+      if (!task) return
+      const rank = rankBetween(get().tasks, status, place, id)
+      if (task.status === status && task.rank === rank) return
+      patchLocal(id, { status, rank, resolvedAt: status === 'done' ? task.resolvedAt ?? new Date().toISOString() : null })
+      send('move the task', async (ws) =>
+        tasksApi.move(ws, await realId(id), {
+          status,
+          afterTaskId: place.afterTaskId ? await realId(place.afterTaskId) : null,
+          beforeTaskId: place.beforeTaskId ? await realId(place.beforeTaskId) : null,
+        }),
+      )
+    },
+
+    updateTask(id, patch) {
+      const task = get().tasks.find((t) => t.id === id)
+      if (!task) return
+      const body = toUpdate(patch)
+      if (!Object.keys(body).length) return
+      // A new column through the editor = bottom of that column (as the server does).
+      const moved = patch.status && patch.status !== task.status ? { rank: rankBetween(get().tasks, patch.status, {}, id) } : {}
+      patchLocal(id, { ...patch, ...moved, ...(patch.day === null ? { time: null } : {}) })
+      send('save the task', async (ws) => tasksApi.update(ws, await realId(id), body))
+    },
+
+    addAccomplishment(input) {
+      const title = input.title.trim()
+      if (!title) return
+      const acc: CalAccomplishment = {
         id: crypto.randomUUID(),
-        taskKey,
+        taskKey: input.taskKey ?? null,
         title,
-        day: row.day,
-        time: row.time,
-        status: row.status,
-        source: 'import',
-        priority: 'medium',
-        category: 'task',
-        storyPoints: 3,
-        sprint: undefined,
-        comments: [],
+        day: input.day,
+        time: input.time ?? null,
+        category: input.category ?? 'milestone',
+        assigneeId: input.assigneeId ?? null,
+        assigneeName: input.assigneeName ?? null,
+        icon: input.icon ?? '✨',
       }
-      next.push(newTask)
-      currentTasks = [...currentTasks, newTask]
-    }
-    if (!next.length) return 0
-    saveTasks(currentTasks)
-    set({ tasks: currentTasks })
-    return next.length
-  },
+      const accomplishments = [acc, ...get().accomplishments]
+      saveAccomplishments(accomplishments)
+      set({ accomplishments })
+    },
 
-  addMany(titles, day, source) {
-    const existing = new Set(get().tasks.filter((task) => task.day === day).map((task) => task.title.toLowerCase()))
-    const next: CalTask[] = []
-    let currentTasks = get().tasks
-    for (const title of titles) {
-      const clean = title.trim()
-      if (!clean || existing.has(clean.toLowerCase())) continue
-      existing.add(clean.toLowerCase())
-      const taskKey = generateTaskKey(currentTasks)
-      const newTask: CalTask = {
-        id: crypto.randomUUID(),
-        taskKey,
-        title: clean,
-        day,
-        time: null,
-        status: 'open',
-        source,
-        priority: 'medium',
-        category: 'task',
-        storyPoints: 3,
-        sprint: undefined,
-        comments: [],
+    importTasks(rows) {
+      const existing = new Set(get().tasks.map((task) => `${task.day}\0${task.title.toLowerCase()}`))
+      const fresh: NewTask[] = []
+      for (const row of rows) {
+        const title = row.title.trim()
+        const key = `${row.day}\0${title.toLowerCase()}`
+        if (!title || existing.has(key)) continue
+        existing.add(key)
+        fresh.push({ title, day: row.day, time: row.time, status: row.status, source: 'import' })
       }
-      next.push(newTask)
-      currentTasks = [...currentTasks, newTask]
-    }
-    if (!next.length) return 0
-    saveTasks(currentTasks)
-    set({ tasks: currentTasks })
-    return next.length
-  },
+      return importRows(fresh, 'import the tasks')
+    },
 
-  toggle(id) {
-    const tasks = get().tasks.map((task) =>
-      task.id === id
-        ? { ...task, status: (task.status === 'done' ? 'open' : 'done') as 'open' | 'done' }
-        : task
-    )
-    saveTasks(tasks)
-    set({ tasks })
-  },
+    addMany(titles, day, source) {
+      const existing = new Set(get().tasks.filter((task) => task.day === day).map((task) => task.title.toLowerCase()))
+      const fresh: NewTask[] = []
+      for (const title of titles) {
+        const clean = title.trim()
+        if (!clean || existing.has(clean.toLowerCase())) continue
+        existing.add(clean.toLowerCase())
+        fresh.push({ title: clean, day, source })
+      }
+      return importRows(fresh, 'add the tasks')
+    },
 
-  remove(id) {
-    const tasks = get().tasks.filter((task) => task.id !== id)
-    saveTasks(tasks)
-    set({ tasks })
-  },
+    toggle(id) {
+      const task = get().tasks.find((t) => t.id === id)
+      if (task) get().moveTask(id, task.status === 'done' ? 'open' : 'done', {})
+    },
 
-  closeMatching(query, day) {
-    const needle = query.trim().toLowerCase()
-    if (!needle) return null
-    const open = get().tasks.filter((task) => task.status !== 'done')
-    const match =
-      open.find((task) => task.day === day && (task.title.toLowerCase().includes(needle) || task.taskKey.toLowerCase().includes(needle))) ??
-      open.find((task) => task.title.toLowerCase().includes(needle) || task.taskKey.toLowerCase().includes(needle))
-    if (!match) return null
-    get().toggle(match.id)
-    return match.title
-  },
+    remove(id) {
+      const task = get().tasks.find((t) => t.id === id)
+      if (!task) return
+      replaceTask(id, null)
+      send('delete the task', async (ws) => tasksApi.remove(ws, await realId(id)))
+      get().say(`Deleted ${task.taskKey}`, () => get().restore(task))
+    },
 
-  findTaskByNumber(query) {
-    const clean = query.trim().toUpperCase()
-    if (!clean) return null
-    const tasks = get().tasks
-    return (
-      tasks.find((t) => t.taskKey.toUpperCase() === clean) ||
-      tasks.find((t) => t.taskKey.toUpperCase().replace(/\D/g, '') === clean.replace(/\D/g, '') && clean.replace(/\D/g, '').length > 0) ||
-      tasks.find((t) => t.id === query.trim()) ||
-      null
-    )
-  },
+    restore(task) {
+      if (!get().tasks.some((t) => t.id === task.id)) set({ tasks: [...get().tasks, task] })
+      get().dismiss()
+      send('restore the task', async (ws) => tasksApi.restore(ws, await realId(task.id)))
+    },
 
-  settleTaskByNumber(query) {
-    const task = get().findTaskByNumber(query)
-    if (!task) return null
-    get().updateTaskStatus(task.id, 'done')
-    return task
-  },
-}))
+    closeMatching(query, day) {
+      const needle = query.trim().toLowerCase()
+      if (!needle) return null
+      const open = get().tasks.filter((task) => task.status !== 'done')
+      const match =
+        open.find((task) => task.day === day && (task.title.toLowerCase().includes(needle) || task.taskKey.toLowerCase().includes(needle))) ??
+        open.find((task) => task.title.toLowerCase().includes(needle) || task.taskKey.toLowerCase().includes(needle))
+      if (!match) return null
+      get().toggle(match.id)
+      return match.title
+    },
+
+    findTaskByNumber(query) {
+      const clean = query.trim().toUpperCase()
+      if (!clean) return null
+      const tasks = get().tasks
+      const digits = clean.replace(/\D/g, '')
+      return (
+        tasks.find((t) => t.taskKey.toUpperCase() === clean) ||
+        tasks.find((t) => digits.length > 0 && t.taskKey.toUpperCase().replace(/\D/g, '') === digits) ||
+        tasks.find((t) => t.id === query.trim()) ||
+        null
+      )
+    },
+
+    settleTaskByNumber(query) {
+      const task = get().findTaskByNumber(query)
+      if (!task) return null
+      get().updateTaskStatus(task.id, 'done')
+      return task
+    },
+  }
+})
+
+function draft(input: NewTask): CalTask {
+  return {
+    id: `tmp-${crypto.randomUUID()}`,
+    taskKey: '…',
+    title: input.title.trim(),
+    description: input.description ?? null,
+    day: input.day ?? null,
+    time: input.day ? input.time ?? null : null,
+    dueDate: input.dueDate ?? null,
+    status: input.status ?? 'open',
+    source: input.source ?? null,
+    assigneeId: input.assigneeId ?? null,
+    assigneeName: input.assigneeName ?? null,
+    assigneeAvatar: input.assigneeAvatar ?? null,
+    priority: input.priority ?? 'medium',
+    category: input.category ?? 'task',
+    area: input.area ?? null,
+    storyPoints: input.storyPoints ?? null,
+    rank: 0,
+    version: 1,
+    commentCount: 0,
+    pending: true,
+  }
+}
 
 export function targetDay(): string {
   const { view, cursor } = useCalendar.getState()

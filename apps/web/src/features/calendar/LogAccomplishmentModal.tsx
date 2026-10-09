@@ -1,8 +1,6 @@
 import { useState } from 'react'
-import { useCurrentWorkspace } from '../documents/workspace'
-import { useWorkspaceMembers } from '@project/sdk'
 import { useCalendar } from './store'
-import { DEFAULT_TEAM } from './UserAvatarBar'
+import { useTeam } from './sync'
 import { todayKey } from './dates'
 
 export function LogAccomplishmentModal({
@@ -12,22 +10,13 @@ export function LogAccomplishmentModal({
   initialDay: string
   onClose: () => void
 }) {
-  const { workspace } = useCurrentWorkspace()
-  const membersQuery = useWorkspaceMembers(workspace?.id)
-  const activeUserId = useCalendar((state) => state.activeUserId)
-  const addAccomplishment = useCalendar((state) => state.addAccomplishment)
+  const { team: teamMembers, meId } = useTeam()
+  const members = useCalendar((state) => state.filters.members)
   const findTaskByNumber = useCalendar((state) => state.findTaskByNumber)
+  const addAccomplishment = useCalendar((state) => state.addAccomplishment)
   const updateTaskStatus = useCalendar((state) => state.updateTaskStatus)
 
-  const serverMembers = (membersQuery.data ?? [])
-    .filter((m) => m.status === 'active')
-    .map((m) => ({ id: m.id, name: m.user.name }))
-
-  const teamMembers = serverMembers.length > 0
-    ? serverMembers
-    : DEFAULT_TEAM.map((m) => ({ id: m.id, name: m.name }))
-
-  const defaultAssigneeId = activeUserId !== 'all' ? activeUserId : (teamMembers[0]?.id ?? '')
+  const defaultAssigneeId = members.length === 1 && members[0] !== 'unassigned' ? members[0] : (meId ?? '')
 
   const [taskNumber, setTaskNumber] = useState('')
   const [title, setTitle] = useState('')

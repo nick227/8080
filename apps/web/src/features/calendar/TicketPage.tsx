@@ -1,229 +1,153 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useAddTaskComment, useTaskComments } from '@project/sdk'
 import { useCurrentWorkspace } from '../documents/workspace'
-import { useWorkspaceMembers } from '@project/sdk'
 import { useCalendar } from './store'
-import { DEFAULT_TEAM } from './UserAvatarBar'
-import type { CalTask } from './types'
+import { useTeam } from './sync'
+import { AREAS, STATUSES, type CalTask, type TaskPriority, type TaskStatus, type TaskType } from './types'
 
+const TYPE_LABEL: Record<TaskType, string> = { feature: 'Feature', story: 'Story', bug: 'Bug', task: 'Task', epic: 'Epic' }
+const PRIORITY_LABEL: Record<TaskPriority, string> = { low: 'Low', medium: 'Medium', high: 'High', highest: 'Highest' }
+
+/** One task, full detail. `variant="panel"` sits beside the board instead of replacing it. */
 export function TicketPage({
   taskKey,
   onBack,
+  variant = 'page',
 }: {
   taskKey: string
   onBack: () => void
+  variant?: 'page' | 'panel'
 }) {
-  const { workspace } = useCurrentWorkspace()
-  const membersQuery = useWorkspaceMembers(workspace?.id)
-  const findTaskByNumber = useCalendar((state) => state.findTaskByNumber)
-  const updateTask = useCalendar((state) => state.updateTask)
-  const updateTaskStatus = useCalendar((state) => state.updateTaskStatus)
-  const addComment = useCalendar((state) => state.addComment)
-  const remove = useCalendar((state) => state.remove)
-  const accomplishments = useCalendar((state) => state.accomplishments)
-
-  const task = findTaskByNumber(taskKey)
-
-  const serverMembers = (membersQuery.data ?? [])
-    .filter((m) => m.status === 'active')
-    .map((m) => ({ id: m.id, name: m.user.name }))
-
-  const teamMembers = serverMembers.length > 0
-    ? serverMembers
-    : DEFAULT_TEAM.map((m) => ({ id: m.id, name: m.name }))
-
-  const [title, setTitle] = useState(task?.title || '')
-  const [description, setDescription] = useState(task?.description || '')
-  const [status, setStatus] = useState<CalTask['status']>(task?.status || 'open')
-  const [assigneeId, setAssigneeId] = useState(task?.assigneeId || '')
-  const [priority, setPriority] = useState(task?.priority || 'medium')
-  const [category, setCategory] = useState(task?.category || 'task')
-  const [area, setArea] = useState(task?.area || 'Engineering')
-  const [storyPoints, setStoryPoints] = useState(task?.storyPoints || 3)
-  const [sprint, setSprint] = useState(task?.sprint || 'Sprint 24')
-  const [day, setDay] = useState(task?.day || '')
-  const [time, setTime] = useState(task?.time || '')
-  const [dueDate, setDueDate] = useState(task?.dueDate || '')
-  const [commentText, setCommentText] = useState('')
-  const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    if (task) {
-      setTitle(task.title)
-      setDescription(task.description || '')
-      setStatus(task.status)
-      setAssigneeId(task.assigneeId || '')
-      setPriority(task.priority || 'medium')
-      setCategory(task.category || 'task')
-      setArea(task.area || 'Engineering')
-      setStoryPoints(task.storyPoints || 3)
-      setSprint(task.sprint || 'Sprint 24')
-      setDay(task.day)
-      setTime(task.time || '')
-      setDueDate(task.dueDate || '')
-    }
-  }, [task])
+  const task = useCalendar((state) => state.findTaskByNumber(taskKey))
+  const loaded = useCalendar((state) => state.loaded)
+  const backLabel = variant === 'panel' ? 'Close' : '← Back'
 
   if (!task) {
     return (
-      <div className="ticket-page-missing">
+      <div className="ticket-page-missing" data-variant={variant}>
         <header className="ticket-page-nav-bar">
-          <button type="button" className="cal-btn" onClick={onBack}>
-            ← Back to Calendar
-          </button>
+          <button type="button" className="cal-btn" onClick={onBack}>{backLabel}</button>
         </header>
         <div className="ticket-missing-body">
-          <h2>Ticket Not Found</h2>
-          <p>The requested ticket key "{taskKey}" could not be found or has been removed.</p>
-          <button type="button" className="cal-btn" data-primary="" onClick={onBack}>
-            Return to Calendar & Tasks
-          </button>
+          {loaded ? (
+            <>
+              <h2>Task not found</h2>
+              <p>"{taskKey}" doesn't exist in this workspace, or it was deleted.</p>
+            </>
+          ) : <p role="status">Loading task…</p>}
         </div>
       </div>
     )
   }
+  return <TicketBody key={task.id} task={task} onBack={onBack} variant={variant} backLabel={backLabel} />
+}
 
-  const categoryIcons: Record<string, string> = {
-    feature: '⚡',
-    bug: '🐛',
-    task: '📌',
-    story: '🟢',
-    epic: '🟣',
+function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBack: () => void; variant: 'page' | 'panel'; backLabel: string }) {
+  const { workspace } = useCurrentWorkspace()
+  const { team } = useTeam()
+  const updateTask = useCalendar((state) => state.updateTask)
+  const moveTask = useCalendar((state) => state.updateTaskStatus)
+  const remove = useCalendar((state) => state.remove)
+  const accomplishments = useCalendar((state) => state.accomplishments)
+  const pending = !!task.pending
+  const comments = useTaskComments(workspace?.id, pending ? undefined : task.id)
+  const addComment = useAddTaskComment(workspace?.id ?? '', task.id)
+
+  // Text fields save on blur; everything else saves on change.
+  const [title, setTitle] = useState(task.title)
+  const [description, setDescription] = useState(task.description ?? '')
+  const [commentText, setCommentText] = useState('')
+  const [copied, setCopied] = useState(false)
+  useEffect(() => setTitle(task.title), [task.title])
+  useEffect(() => setDescription(task.description ?? ''), [task.description])
+
+  const save = (patch: Partial<CalTask>) => updateTask(task.id, patch)
+
+  const saveTitle = () => {
+    const clean = title.trim()
+    if (!clean) setTitle(task.title)
+    else if (clean !== task.title) save({ title: clean })
+  }
+  const saveDescription = () => {
+    if ((description.trim() || null) !== (task.description ?? null)) save({ description: description.trim() || null })
   }
 
-  const priorityColors: Record<string, string> = {
-    low: '#3b82f6',
-    medium: '#eab308',
-    high: '#f97316',
-    highest: '#ef4444',
-  }
-
-  const handleStatusChange = (newStatus: CalTask['status']) => {
-    setStatus(newStatus)
-    updateTaskStatus(task.id, newStatus)
-  }
-
-  const handleSave = () => {
-    const selectedMember = teamMembers.find((m) => m.id === assigneeId)
-    updateTask(task.id, {
-      title: title.trim() || task.title,
-      description: description.trim() || null,
-      status,
-      assigneeId: selectedMember?.id || null,
-      assigneeName: selectedMember?.name || null,
-      priority,
-      category,
-      area: area as any,
-      storyPoints: Number(storyPoints) || 1,
-      sprint,
-      day,
-      time: time || null,
-      dueDate: dueDate || null,
-    })
-  }
-
-  const handlePostComment = (e: React.FormEvent) => {
+  const postComment = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!commentText.trim()) return
-    addComment(task.id, commentText.trim(), 'Leadership User')
-    setCommentText('')
+    const text = commentText.trim()
+    if (!text || pending) return
+    addComment.mutate(text, { onSuccess: () => setCommentText('') })
   }
 
-  const handleCopyLink = () => {
+  const copyLink = () => {
     const url = `${window.location.origin}${window.location.pathname}?desk=calendar&ticket=${task.taskKey}`
-    navigator.clipboard.writeText(url).then(() => {
+    void navigator.clipboard.writeText(url).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
   }
 
-  const handleDelete = () => {
-    if (window.confirm(`Delete ticket ${task.taskKey}? This action cannot be undone.`)) {
-      remove(task.id)
-      onBack()
-    }
+  const assign = (memberId: string) => {
+    const member = team.find((m) => m.id === memberId)
+    save({ assigneeId: member?.id ?? null, assigneeName: member?.name ?? null, assigneeAvatar: member?.avatarUrl ?? null })
   }
 
   const relatedWorkLogs = accomplishments.filter(
-    (a) => a.taskKey?.toUpperCase() === task.taskKey.toUpperCase() || a.title.includes(task.taskKey)
+    (a) => a.taskKey?.toUpperCase() === task.taskKey.toUpperCase() || a.title.includes(task.taskKey),
   )
+  const thread = comments.data ?? []
 
   return (
-    <div className="ticket-page-view" role="main" aria-label={`Ticket ${task.taskKey}`}>
-      {/* Top Header Navigation Bar */}
+    <div className="ticket-page-view" data-variant={variant} role={variant === 'panel' ? 'dialog' : 'main'} aria-label={`Task ${task.taskKey}`}>
       <header className="ticket-page-nav-bar">
         <div className="ticket-nav-left">
-          <button type="button" className="cal-btn" onClick={onBack} title="Back to Calendar & Tasks">
-            ← Back to Calendar
-          </button>
-
+          <button type="button" className="cal-btn" onClick={onBack}>{backLabel}</button>
           <span className="ticket-page-key-badge">{task.taskKey}</span>
-
-          <button
-            type="button"
-            className="cal-btn ticket-copy-btn"
-            onClick={handleCopyLink}
-            title="Copy unique URL link for this ticket"
-          >
-            {copied ? '✓ Link Copied!' : '🔗 Copy Ticket Link'}
+          <button type="button" className="cal-btn ticket-copy-btn" onClick={copyLink} disabled={pending}>
+            {copied ? 'Link copied' : 'Copy link'}
           </button>
         </div>
-
         <div className="ticket-nav-right">
-          <label className="ticket-status-label">Status:</label>
-          <select
-            className="cal-status-select"
-            data-status={status}
-            value={status}
-            onChange={(e) => handleStatusChange(e.target.value as any)}
-          >
-            <option value="open">⚪ Open / To Do</option>
-            <option value="in_progress">🔵 In Progress</option>
-            <option value="in_review">🟡 In Review</option>
-            <option value="done">✅ Done</option>
+          <label className="ticket-status-label" htmlFor={`status-${task.id}`}>Status</label>
+          <select id={`status-${task.id}`} className="cal-status-select" data-status={task.status} value={task.status} onChange={(e) => moveTask(task.id, e.target.value as TaskStatus)}>
+            {STATUSES.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
           </select>
-
-          <button type="button" className="cal-btn" onClick={handleSave} data-primary="">
-            Save Ticket
-          </button>
-
-          <button type="button" className="cal-btn ticket-delete-btn" onClick={handleDelete}>
+          <button type="button" className="cal-btn ticket-delete-btn" onClick={() => { remove(task.id); onBack() }}>
             Delete
           </button>
         </div>
       </header>
 
-      {/* Main Ticket Page 2-Column Content Layout */}
       <div className="ticket-page-container">
-        {/* Left / Main Column */}
         <div className="ticket-main-col">
-          {/* Editable Title */}
           <div className="ticket-title-wrap">
             <input
               className="ticket-title-input"
+              aria-label="Title"
               value={title}
-              placeholder="Ticket summary..."
+              placeholder="Task summary…"
               onChange={(e) => setTitle(e.target.value)}
-              onBlur={handleSave}
+              onBlur={saveTitle}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
             />
           </div>
 
-          {/* Description & Acceptance Criteria */}
           <div className="ticket-section">
-            <h3 className="ticket-section-heading">Description & Acceptance Criteria</h3>
+            <h3 className="ticket-section-heading">Description</h3>
             <textarea
               className="ticket-description-textarea"
+              aria-label="Description"
               rows={6}
-              placeholder="Add comprehensive details, acceptance criteria, technical design notes, or bug reproduction steps..."
+              placeholder="Details, acceptance criteria, steps to reproduce…"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              onBlur={handleSave}
+              onBlur={saveDescription}
             />
           </div>
 
-          {/* Linked Work Logs / Accomplishments */}
           {relatedWorkLogs.length > 0 && (
             <div className="ticket-section">
-              <h3 className="ticket-section-heading">📝 Work Logs & Activity History ({relatedWorkLogs.length})</h3>
+              <h3 className="ticket-section-heading">Work logged ({relatedWorkLogs.length})</h3>
               <div className="ticket-work-logs-list">
                 {relatedWorkLogs.map((log) => (
                   <div key={log.id} className="ticket-work-log-card">
@@ -231,7 +155,7 @@ export function TicketPage({
                     <div className="ticket-log-info">
                       <strong>{log.title}</strong>
                       <span className="ticket-log-meta">
-                        {log.assigneeName ? `@${log.assigneeName} · ` : ''}
+                        {log.assigneeName ? `${log.assigneeName} · ` : ''}
                         {log.day} {log.time ? `at ${log.time}` : ''}
                       </span>
                     </div>
@@ -241,184 +165,102 @@ export function TicketPage({
             </div>
           )}
 
-          {/* Comments & Activity Discussion Thread */}
           <div className="ticket-section">
-            <h3 className="ticket-section-heading">💬 Activity & Discussion ({task.comments?.length || 0})</h3>
-
-            <form className="ticket-comment-composer" onSubmit={handlePostComment}>
+            <h3 className="ticket-section-heading">Comments ({pending ? 0 : comments.data ? thread.length : task.commentCount})</h3>
+            <form className="ticket-comment-composer" onSubmit={postComment}>
               <input
                 className="ticket-comment-input"
-                placeholder="Write a comment or post an update..."
+                aria-label="Comment"
+                placeholder={pending ? 'Saving the task…' : 'Write a comment…'}
                 value={commentText}
+                disabled={pending}
                 onChange={(e) => setCommentText(e.target.value)}
               />
-              <button type="submit" className="cal-btn" data-primary="" disabled={!commentText.trim()}>
-                Post Comment
+              <button type="submit" className="cal-btn" data-primary="" disabled={!commentText.trim() || addComment.isPending || pending}>
+                {addComment.isPending ? 'Posting…' : 'Comment'}
               </button>
             </form>
-
+            {addComment.isError && <p className="ticket-no-comments" role="alert">Couldn't post the comment. Try again.</p>}
             <div className="ticket-comments-thread">
-              {(task.comments ?? []).length > 0 ? (
-                task.comments!.map((comment) => (
+              {comments.isLoading ? <p className="ticket-no-comments">Loading comments…</p>
+                : thread.length ? thread.map((comment) => (
                   <div key={comment.id} className="ticket-comment-bubble">
                     <div className="ticket-comment-header">
-                      <strong className="ticket-comment-author">👤 {comment.authorName}</strong>
-                      <time className="ticket-comment-time">{comment.createdAt}</time>
+                      <strong className="ticket-comment-author">{comment.authorName}</strong>
+                      <time className="ticket-comment-time" dateTime={comment.createdAt}>{when(comment.createdAt)}</time>
                     </div>
                     <p className="ticket-comment-text">{comment.text}</p>
                   </div>
                 ))
-              ) : (
-                <p className="ticket-no-comments">No comments on this ticket yet. Start the discussion above.</p>
-              )}
+                : <p className="ticket-no-comments">No comments yet.</p>}
             </div>
           </div>
         </div>
 
-        {/* Right Sidebar Column */}
         <aside className="ticket-sidebar-col">
           <div className="ticket-meta-box">
-            <h3 className="ticket-meta-box-title">Ticket Details</h3>
-
-            <div className="ticket-meta-field">
-              <label>Assignee</label>
-              <select
-                value={assigneeId}
-                onChange={(e) => {
-                  setAssigneeId(e.target.value)
-                  handleSave()
-                }}
-              >
+            <h3 className="ticket-meta-box-title">Details</h3>
+            <Field label="Assignee">
+              <select value={task.assigneeId ?? ''} onChange={(e) => assign(e.target.value)}>
                 <option value="">Unassigned</option>
-                {teamMembers.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
+                {team.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                {task.assigneeId && !team.some((m) => m.id === task.assigneeId) && <option value={task.assigneeId}>{task.assigneeName ?? 'Former member'}</option>}
               </select>
-            </div>
-
-            <div className="ticket-meta-field">
-              <label>Issue Type</label>
-              <select
-                value={category}
-                onChange={(e) => {
-                  setCategory(e.target.value as any)
-                  handleSave()
-                }}
-              >
-                <option value="feature">⚡ Feature</option>
-                <option value="story">🟢 Story</option>
-                <option value="bug">🐛 Bug Fix</option>
-                <option value="task">📌 Task</option>
-                <option value="epic">🟣 Epic</option>
+            </Field>
+            <Field label="Type">
+              <select value={task.category ?? 'task'} onChange={(e) => save({ category: e.target.value as TaskType })}>
+                {(Object.keys(TYPE_LABEL) as TaskType[]).map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
               </select>
-            </div>
-
-            <div className="ticket-meta-field">
-              <label>Workspace Area</label>
-              <select
-                value={area}
-                onChange={(e) => {
-                  setArea(e.target.value as any)
-                  handleSave()
-                }}
-              >
-                <option value="Engineering">🛠️ Engineering</option>
-                <option value="Marketing">📣 Marketing</option>
-                <option value="Operations">⚙️ Operations</option>
-                <option value="Design">🎨 Design</option>
-                <option value="Product">🎯 Product</option>
-                <option value="Sales">💼 Sales</option>
+            </Field>
+            <Field label="Area">
+              <select value={task.area ?? ''} onChange={(e) => save({ area: e.target.value || null })}>
+                <option value="">None</option>
+                {AREAS.map((a) => <option key={a} value={a}>{a}</option>)}
+                {task.area && !(AREAS as readonly string[]).includes(task.area) && <option value={task.area}>{task.area}</option>}
               </select>
-            </div>
-
-            <div className="ticket-meta-field">
-              <label>Priority</label>
-              <select
-                value={priority}
-                onChange={(e) => {
-                  setPriority(e.target.value as any)
-                  handleSave()
-                }}
-              >
-                <option value="low">🔵 Low</option>
-                <option value="medium">🟡 Medium</option>
-                <option value="high">🟠 High</option>
-                <option value="highest">🔴 Highest</option>
+            </Field>
+            <Field label="Priority">
+              <select value={task.priority ?? 'medium'} onChange={(e) => save({ priority: e.target.value as TaskPriority })}>
+                {(Object.keys(PRIORITY_LABEL) as TaskPriority[]).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
               </select>
-            </div>
-
-            <div className="ticket-meta-field">
-              <label>Story Points</label>
-              <select
-                value={storyPoints}
-                onChange={(e) => {
-                  setStoryPoints(Number(e.target.value))
-                  handleSave()
-                }}
-              >
-                <option value={1}>1 Point (Small)</option>
-                <option value={2}>2 Points (Minor)</option>
-                <option value={3}>3 Points (Medium)</option>
-                <option value={5}>5 Points (Large)</option>
-                <option value={8}>8 Points (Epic / Complex)</option>
+            </Field>
+            <Field label="Story points">
+              <select value={task.storyPoints ?? ''} onChange={(e) => save({ storyPoints: e.target.value === '' ? null : Number(e.target.value) })}>
+                <option value="">None</option>
+                {[1, 2, 3, 5, 8, 13].map((n) => <option key={n} value={n}>{n}</option>)}
+                {task.storyPoints != null && ![1, 2, 3, 5, 8, 13].includes(task.storyPoints) && <option value={task.storyPoints}>{task.storyPoints}</option>}
               </select>
-            </div>
-
-            <div className="ticket-meta-field">
-              <label>Sprint</label>
-              <select
-                value={sprint}
-                onChange={(e) => {
-                  setSprint(e.target.value)
-                  handleSave()
-                }}
-              >
-                <option value="Sprint 24">🏃 Sprint 24 (Active)</option>
-                <option value="Sprint 25">🏃 Sprint 25 (Next)</option>
-                <option value="Backlog">📋 Product Backlog</option>
-              </select>
-            </div>
-
-            <div className="ticket-meta-field">
-              <label>Due Date</label>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => {
-                  setDueDate(e.target.value)
-                  handleSave()
-                }}
-              />
-            </div>
-
-            <div className="ticket-meta-field">
-              <label>Scheduled Date</label>
-              <input
-                type="date"
-                value={day}
-                onChange={(e) => {
-                  setDay(e.target.value)
-                  handleSave()
-                }}
-              />
-            </div>
-
-            <div className="ticket-meta-field">
-              <label>Time Slot</label>
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => {
-                  setTime(e.target.value)
-                  handleSave()
-                }}
-              />
-            </div>
+            </Field>
+            <Field label="Due date">
+              <input type="date" value={task.dueDate ?? ''} onChange={(e) => save({ dueDate: e.target.value || null })} />
+            </Field>
+            <Field label="Calendar day">
+              <input type="date" value={task.day ?? ''} onChange={(e) => save({ day: e.target.value || null })} />
+            </Field>
+            <Field label="Time">
+              <input type="time" value={task.time ?? ''} disabled={!task.day} title={task.day ? undefined : 'Pick a calendar day first'} onChange={(e) => save({ time: e.target.value || null })} />
+            </Field>
           </div>
         </aside>
       </div>
     </div>
   )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="ticket-meta-field">
+      <span>{label}</span>
+      {children}
+    </label>
+  )
+}
+
+function when(iso: string) {
+  const d = new Date(iso)
+  const mins = Math.round((Date.now() - d.getTime()) / 60_000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins} min ago`
+  if (mins < 24 * 60) return `${Math.round(mins / 60)} h ago`
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }

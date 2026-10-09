@@ -142,6 +142,14 @@ The in-lobby River (playing posts and replies inline) was retired: the Lobby onl
 - Platform email env (server service on Railway): `RESEND_API_KEY`, `EMAIL_PLATFORM_FROM` (`Name <address>` ok). Production always uses Resend and fails visibly without them; tests always use the dev outbox; local dev sends for real only with `EMAIL_TRANSPORT=resend`.
 - Team Agents ship to production first; customer bulk email stays behind the S8 compliance gate. Templates/themes are their own email system (`presentation.ts`), not Documents blocks.
 
+## Tasks: Calendar + Boards (2026-10-09)
+
+- Tasks are workspace data (`WorkTask`): one list behind every Calendar view and the Board, shared by all members. `/workspaces/{id}/tasks` (list, create, patch, move, delete, restore, import, comments) via `TaskService` + `runAction`; verbs `task.read/write/delete` (everyone in V1).
+- Board order = `rank` (float inside a status column; the server renumbers the column when a gap runs out). `POST …/move { status, afterTaskId, beforeTaskId }`. Delete is soft; Undo = `restore`. Import is idempotent by key.
+- Web: `features/calendar/store.ts` holds the optimistic copy (server snapshots are ignored while writes are in flight; one refetch after the last settles; temp `tmp-…` ids resolve before follow-up writes). `sync.ts` `useTaskSync` polls every 15 s (no SSE yet). Filters (members incl. `unassigned`, types, areas, priorities, search) and the view live in the URL (`who`, `type`, `area`, `priority`, `q`, `view`). A task opens as a side panel over any view (`?ticket=VC-…`).
+- Board UX (`BoardView.tsx`, dnd-kit): drag between and within columns; keyboard Space · arrows · Space; Enter opens; card ⋯ menu (move, top/bottom, assign to me, copy link, delete); per-column quick create (assigns to the single filtered member); done cards older than 14 days fold away; shortcuts `c` and `/`.
+- No scheduled date = board only. Tasks saved in the browser (`vc-tasks`) are offered once for import (old demo tickets ignored). "Log work" accomplishments are still browser-local. Sprints/backlog: later.
+
 ## Key Design Decisions
 
 - Items numbered per room: `Room.itemCount` incremented inside the createItem transaction; `@@unique([roomId, number])`.

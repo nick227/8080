@@ -1,7 +1,7 @@
 import { cleanTime, NOON, parseDayKey } from './dates'
-import type { CalTask } from './types'
+import type { TaskStatus } from './types'
 
-export type ImportedTask = Pick<CalTask, 'title' | 'day' | 'time' | 'status'>
+export type ImportedTask = { title: string; day: string; time: string | null; status: TaskStatus }
 
 const TITLE = /^(task|title|note|name)$/i
 const DATE = /^(date|day)$/i

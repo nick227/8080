@@ -1,15 +1,106 @@
-import { useCalendar } from './store'
-import type { CalTask } from './types'
+import { forwardRef, useEffect, useRef, useState } from 'react'
+import { Avatar } from './BoardView'
+import { filtersActive, useCalendar, type Filters } from './store'
+import { useTeam } from './sync'
+import { AREAS, TASK_TYPES, type TaskPriority } from './types'
 
-/** All filters apply to the dataset displayed by the selected view. */
-export function CalendarFilters({ tasks, count }: { tasks: CalTask[]; count: number }) {
-  const state = useCalendar()
-  const people = [...new Map(tasks.filter(t => t.assigneeId).map(t => [t.assigneeId!, t.assigneeName || 'Assigned member'])).entries()]
-  return <div className="cal-filters" aria-label="Filter current view">
-    <label>Assignee<select aria-label="Assignee" value={state.activeUserId} onChange={e => state.setActiveUser(e.target.value)}><option value="all">Everyone</option>{people.map(([id, name]) => <option key={id} value={id}>{name}</option>)}{state.activeUserId !== 'all' && !people.some(([id]) => id === state.activeUserId) && <option value={state.activeUserId}>Selected member (no tasks here)</option>}</select></label>
-    <label>Type<select aria-label="Task type" value={state.categoryFilter} onChange={e => state.setCategoryFilter(e.target.value)}><option value="all">All types</option>{['task', 'feature', 'bug', 'story', 'epic'].map(v => <option key={v} value={v}>{v.charAt(0).toUpperCase() + v.slice(1)}</option>)}</select></label>
-    <label>Priority<select aria-label="Task priority" value={state.priorityFilter} onChange={e => state.setPriorityFilter(e.target.value)}><option value="all">All priorities</option><option value="high">High and highest</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
-    <span className="cal-view-count" aria-live="polite">{count} tasks in this view</span>
-    {(state.activeUserId !== 'all' || state.categoryFilter !== 'all' || state.priorityFilter !== 'all') && <button className="cal-btn" type="button" onClick={() => { state.setActiveUser('all'); state.setCategoryFilter('all'); state.setPriorityFilter('all') }}>Clear filters</button>}
-  </div>
+const TYPE_LABEL: Record<string, string> = { task: 'Task', feature: 'Feature', bug: 'Bug', story: 'Story', epic: 'Epic' }
+const PRIORITIES: { id: TaskPriority; label: string }[] = [
+  { id: 'highest', label: 'Highest' },
+  { id: 'high', label: 'High' },
+  { id: 'medium', label: 'Medium' },
+  { id: 'low', label: 'Low' },
+]
+
+/** Filters apply to whatever the selected view shows. They live in the URL too. */
+export const CalendarFilters = forwardRef<HTMLInputElement, { count: number; total: number }>(function CalendarFilters({ count, total }, searchRef) {
+  const filters = useCalendar((s) => s.filters)
+  const setFilters = useCalendar((s) => s.setFilters)
+  const clear = useCalendar((s) => s.clearFilters)
+  const { team: members, meId } = useTeam()
+  const tasks = useCalendar((s) => s.tasks)
+  // People assigned work but missing from the member list (left, or just joined).
+  const team = [...members]
+  for (const t of tasks) {
+    if (t.assigneeId && t.assigneeName && !team.some((m) => m.id === t.assigneeId)) team.push({ id: t.assigneeId, name: t.assigneeName, avatarUrl: t.assigneeAvatar ?? null })
+  }
+  const toggle = <K extends 'members' | 'types' | 'areas' | 'priorities'>(key: K, value: Filters[K][number]) => {
+    const list = filters[key] as string[]
+    setFilters({ [key]: list.includes(value) ? list.filter((v) => v !== value) : [...list, value] } as Partial<Filters>)
+  }
+  const onlyMine = !!meId && filters.members.length === 1 && filters.members[0] === meId
+
+  return (
+    <div className="cal-filters" role="search" aria-label="Filter tasks">
+      <input
+        ref={searchRef}
+        type="search"
+        className="cal-search"
+        aria-label="Search tasks"
+        placeholder="Search tasks  /"
+        value={filters.search}
+        onChange={(e) => setFilters({ search: e.target.value })}
+        onKeyDown={(e) => { if (e.key === 'Escape') { setFilters({ search: '' }); e.currentTarget.blur() } }}
+      />
+
+      <div className="cal-member-filter" role="group" aria-label="Filter by assignee">
+        {team.map((m) => (
+          <button key={m.id} type="button" className="cal-member-toggle" aria-pressed={filters.members.includes(m.id)} title={m.name} aria-label={m.name} onClick={() => toggle('members', m.id)}>
+            <Avatar name={m.name} url={m.avatarUrl ?? null} />
+          </button>
+        ))}
+        <button type="button" className="cal-member-toggle" aria-pressed={filters.members.includes('unassigned')} title="Unassigned" aria-label="Unassigned" onClick={() => toggle('members', 'unassigned')}>
+          <Avatar name={null} url={null} />
+        </button>
+      </div>
+      {meId && (
+        <button type="button" className="cal-btn" aria-pressed={onlyMine} onClick={() => setFilters({ members: onlyMine ? [] : [meId] })}>
+          Only my tasks
+        </button>
+      )}
+
+      <Pick label="Type" chosen={filters.types} options={TASK_TYPES.map((t) => ({ id: t, label: TYPE_LABEL[t]! }))} onToggle={(v) => toggle('types', v as Filters['types'][number])} />
+      <Pick label="Area" chosen={filters.areas} options={AREAS.map((a) => ({ id: a, label: a }))} onToggle={(v) => toggle('areas', v)} />
+      <Pick label="Priority" chosen={filters.priorities} options={PRIORITIES} onToggle={(v) => toggle('priorities', v as TaskPriority)} />
+
+      <span className="cal-view-count" aria-live="polite">{count === total ? `${count} tasks` : `${count} of ${total} tasks`}</span>
+      {filtersActive(filters) && <button className="cal-btn" type="button" onClick={clear}>Clear filters</button>}
+    </div>
+  )
+})
+
+/** A small multi-select: a button that opens a checklist. */
+function Pick({ label, chosen, options, onToggle }: { label: string; chosen: string[]; options: { id: string; label: string }[]; onToggle: (id: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const away = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); ref.current?.querySelector('button')?.focus() } }
+    document.addEventListener('pointerdown', away)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('pointerdown', away)
+      document.removeEventListener('keydown', esc)
+    }
+  }, [open])
+  const summary = chosen.length === 0 ? 'All' : chosen.length === 1 ? options.find((o) => o.id === chosen[0])?.label ?? chosen[0] : `${chosen.length} selected`
+  return (
+    <div className="cal-pick" ref={ref}>
+      <button type="button" className="cal-btn" aria-expanded={open} aria-pressed={chosen.length > 0} onClick={() => setOpen((v) => !v)}>
+        {label}: {summary}
+      </button>
+      {open && (
+        <fieldset className="cal-menu cal-pick-menu">
+          <legend className="cal-menu-heading">{label}</legend>
+          {options.map((o) => (
+            <label key={o.id}>
+              <input type="checkbox" checked={chosen.includes(o.id)} onChange={() => onToggle(o.id)} />
+              {o.label}
+            </label>
+          ))}
+        </fieldset>
+      )}
+    </div>
+  )
 }

@@ -24,6 +24,7 @@ export function ListView({
   const cells = monthCells(cursor).filter((c) => c.inMonth)
   const byDayTasks = new Map<string, CalTask[]>()
   for (const task of tasks) {
+    if (!task.day) continue
     const list = byDayTasks.get(task.day)
     if (list) list.push(task)
     else byDayTasks.set(task.day, [task])

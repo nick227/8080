@@ -1,9 +1,7 @@
 import { useState } from 'react'
 import { FormSlideout } from '../work/FormSlideout'
-import { useCurrentWorkspace } from '../documents/workspace'
-import { useWorkspaceMembers } from '@project/sdk'
 import { useCalendar } from './store'
-import { DEFAULT_TEAM } from './UserAvatarBar'
+import { useTeam } from './sync'
 
 export function NewTaskSlideout({
   initialDay,
@@ -12,20 +10,12 @@ export function NewTaskSlideout({
   initialDay: string
   onClose: () => void
 }) {
-  const { workspace } = useCurrentWorkspace()
-  const membersQuery = useWorkspaceMembers(workspace?.id)
-  const activeUserId = useCalendar((state) => state.activeUserId)
+  const { team: teamMembers, meId } = useTeam()
+  const members = useCalendar((state) => state.filters.members)
   const add = useCalendar((state) => state.add)
 
-  const serverMembers = (membersQuery.data ?? [])
-    .filter((m) => m.status === 'active')
-    .map((m) => ({ id: m.id, name: m.user.name }))
-
-  const teamMembers = serverMembers.length > 0
-    ? serverMembers
-    : DEFAULT_TEAM.map((m) => ({ id: m.id, name: m.name }))
-
-  const defaultAssigneeId = activeUserId !== 'all' ? activeUserId : (teamMembers[0]?.id ?? '')
+  // Filtering by one person suggests them; otherwise the creator.
+  const defaultAssigneeId = members.length === 1 && members[0] !== 'unassigned' ? members[0] : (meId ?? '')
 
   const [title, setTitle] = useState('')
   const [day, setDay] = useState(initialDay)
@@ -38,26 +28,27 @@ export function NewTaskSlideout({
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
-    if (!title.trim() || !day) return
+    if (!title.trim()) return
 
     const selectedMember = teamMembers.find((m) => m.id === assigneeId)
 
     add({
       title,
-      day,
-      time: time || null,
+      day: day || null,
+      time: day ? time || null : null,
       assigneeId: selectedMember?.id ?? null,
       assigneeName: selectedMember?.name ?? null,
+      assigneeAvatar: selectedMember?.avatarUrl ?? null,
     })
     onClose()
   }
 
   return (
-    <FormSlideout title="New Task" onClose={close}>
+    <FormSlideout title="New task" onClose={close}>
       <form className="record-form" onSubmit={handleSubmit}>
         <div className="record-form-fields">
           <label>
-            <span>Task Title</span>
+            <span>Title</span>
             <input
               autoFocus
               required
@@ -81,10 +72,9 @@ export function NewTaskSlideout({
             </select>
           </label>
           <label>
-            <span>Date</span>
+            <span>Date (optional; without one it lives on the board)</span>
             <input
               type="date"
-              required
               value={day}
               onChange={(event) => setDay(event.target.value)}
             />
@@ -94,14 +84,15 @@ export function NewTaskSlideout({
             <input
               type="time"
               value={time}
+              disabled={!day}
               onChange={(event) => setTime(event.target.value)}
             />
           </label>
         </div>
         <footer>
           <button type="button" onClick={close}>Cancel</button>
-          <button type="submit" className="record-primary" disabled={!title.trim() || !day}>
-            Assign & Create Task
+          <button type="submit" className="record-primary" disabled={!title.trim()}>
+            Create task
           </button>
         </footer>
       </form>
