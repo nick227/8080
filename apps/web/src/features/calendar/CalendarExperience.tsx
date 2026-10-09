@@ -203,16 +203,17 @@ function Calendar() {
         {datedView && <button type="button" className="section-add-btn" onClick={() => setLoggingAcc(true)}>Log work</button>}
       </SectionHeader>
 
-      {local.count > 0 && (
+      {local.count + local.logCount > 0 && (
         <div className="cal-banner" role="status">
           <span>
-            {local.count} {local.count === 1 ? 'task is' : 'tasks are'} saved only in this browser.
+            {[local.count && `${local.count} ${local.count === 1 ? 'task' : 'tasks'}`, local.logCount && `${local.logCount} work ${local.logCount === 1 ? 'entry' : 'entries'}`].filter(Boolean).join(' and ')}{' '}
+            {local.count + local.logCount === 1 ? 'is' : 'are'} saved only in this browser.
             {local.state === 'failed' && ' Moving them failed; try again.'}
           </span>
           <button type="button" className="cal-btn" data-primary="" disabled={local.state === 'moving'} onClick={() => void local.move()}>
             {local.state === 'moving' ? 'Moving…' : 'Move to workspace'}
           </button>
-          <button type="button" className="cal-btn" disabled={local.state === 'moving'} onClick={() => { if (window.confirm('Discard the tasks saved in this browser?')) local.discard() }}>
+          <button type="button" className="cal-btn" disabled={local.state === 'moving'} onClick={() => { if (window.confirm('Discard what is saved in this browser?')) local.discard() }}>
             Discard
           </button>
         </div>

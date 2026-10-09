@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { monthCells, dayTitle, parseDay, HOURS, hourLabel } from './dates'
 import type { CalTask, CalAccomplishment } from './types'
+import { WorkEntryChip } from './WorkEntryChip'
 
 export function ListView({
   cursor,
@@ -160,15 +161,7 @@ function DayListSection({
       {accomplishments.length > 0 && (
         <div className="cal-list-accomplishments">
           {accomplishments.map((acc) => (
-            <div key={acc.id} className="cal-acc-chip">
-              <span className="cal-acc-icon">{acc.icon || '✨'}</span>
-              {acc.taskKey && <span className="cal-acc-key">[{acc.taskKey}]</span>}
-              <span className="cal-acc-title">{acc.title}</span>
-              {acc.assigneeName && (
-                <span className="cal-acc-assignee">@{acc.assigneeName}</span>
-              )}
-              {acc.time && <time className="cal-acc-time">{hourLabel(acc.time)}</time>}
-            </div>
+            <WorkEntryChip key={acc.id} entry={acc} />
           ))}
         </div>
       )}

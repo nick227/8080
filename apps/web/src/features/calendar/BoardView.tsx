@@ -16,6 +16,8 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { useTaskBoard, useUpdateTaskBoard, type WipLimits } from '@project/sdk'
+import { useCurrentWorkspace } from '../documents/workspace'
 import { todayKey } from './dates'
 import { columnOf, useCalendar } from './store'
 import { useTeam } from './sync'
@@ -47,6 +49,29 @@ export function BoardView({
   onCreateHandled: () => void
 }) {
   const moveTask = useCalendar((s) => s.moveTask)
+  const allTasks = useCalendar((s) => s.tasks)
+  const say = useCalendar((s) => s.say)
+  const { workspace } = useCurrentWorkspace()
+  const board = useTaskBoard(workspace?.id)
+  const limits: WipLimits = board.data?.wipLimits ?? {}
+  const canManage = workspace?.role === 'owner' || workspace?.role === 'admin'
+  // WIP counts every card in the column, whatever the filters show.
+  const totals = useMemo(() => {
+    const out = { open: 0, in_progress: 0, in_review: 0, done: 0 } as Record<TaskStatus, number>
+    for (const t of allTasks) out[t.status]++
+    return out
+  }, [allTasks])
+  // Say so when a column goes over its limit (by anyone's move); limits are soft.
+  const prevTotals = useRef<Record<TaskStatus, number> | null>(null)
+  useEffect(() => {
+    const prev = prevTotals.current
+    prevTotals.current = totals
+    if (!prev) return
+    for (const { id, title } of STATUSES) {
+      const limit = limits[id]
+      if (limit && totals[id] > limit && prev[id] <= limit) say(`${title} is over its WIP limit (${totals[id]} of ${limit})`)
+    }
+  }, [totals, limits, say])
   const [showOldDone, setShowOldDone] = useState(false)
   const [creating, setCreating] = useState<TaskStatus | null>(null)
 
@@ -168,6 +193,11 @@ export function BoardView({
               creating={creating === col.id}
               onCreating={(on) => setCreating(on ? col.id : null)}
               onSelectTask={onSelectTask}
+              total={totals[col.id]}
+              limit={limits[col.id] ?? null}
+              canManage={canManage}
+              workspaceId={workspace?.id ?? ''}
+              limits={limits}
               footer={col.id === 'done' && oldDone.length > 0 ? (
                 <button type="button" className="cal-link-btn cal-kanban-more" onClick={() => setShowOldDone((v) => !v)}>
                   {showOldDone ? `Hide ${oldDone.length} done over ${DONE_FRESH_DAYS} days ago` : `Show ${oldDone.length} older done`}
@@ -194,6 +224,11 @@ function Column({
   creating,
   onCreating,
   onSelectTask,
+  total,
+  limit,
+  canManage,
+  workspaceId,
+  limits,
   footer,
 }: {
   status: TaskStatus
@@ -203,22 +238,43 @@ function Column({
   creating: boolean
   onCreating: (on: boolean) => void
   onSelectTask: (task: CalTask) => void
+  total: number
+  limit: number | null
+  canManage: boolean
+  workspaceId: string
+  limits: WipLimits
   footer: React.ReactNode
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
   const cards = ids.map((id) => byId.get(id)).filter((t): t is CalTask => !!t)
   const points = cards.reduce((sum, t) => sum + (t.storyPoints ?? 0), 0)
+  const [editing, setEditing] = useState(false)
+  const wip = limit == null ? undefined : total > limit ? 'over' : total === limit ? 'at' : 'under'
 
   return (
-    <section className="cal-kanban-column" data-status={status} data-over={isOver || undefined} aria-label={`${title}, ${cards.length} tasks`}>
+    <section
+      className="cal-kanban-column"
+      data-status={status}
+      data-over={isOver || undefined}
+      data-wip={wip}
+      aria-label={`${title}, ${cards.length} tasks${limit != null ? `, WIP limit ${limit}${wip === 'over' ? ', over the limit' : ''}` : ''}`}
+    >
       <header className="cal-kanban-header">
         <div className="cal-kanban-title-group">
           <h3 className="cal-kanban-title">{title}</h3>
-          <span className="cal-kanban-count">{cards.length}</span>
+          {limit != null
+            ? <span className="cal-kanban-count cal-wip" title={`WIP limit ${limit}: ${total} in this column${total !== cards.length ? `, ${cards.length} shown` : ''}`}>{total}/{limit}</span>
+            : <span className="cal-kanban-count">{cards.length}</span>}
           {points > 0 && <span className="cal-kanban-points">{points} pts</span>}
         </div>
-        <button type="button" className="cal-icon-btn" aria-label={`Create a task in ${title}`} title={`Create in ${title}`} onClick={() => onCreating(true)}>+</button>
+        <div className="cal-kanban-tools">
+          {canManage && (
+            <button type="button" className="cal-icon-btn cal-wip-btn" aria-label={`WIP limit for ${title}`} aria-expanded={editing} title="Set WIP limit" onClick={() => setEditing((v) => !v)}>⚑</button>
+          )}
+          <button type="button" className="cal-icon-btn" aria-label={`Create a task in ${title}`} title={`Create in ${title}`} onClick={() => onCreating(true)}>+</button>
+        </div>
       </header>
+      {editing && <WipEditor status={status} title={title} limit={limit} limits={limits} workspaceId={workspaceId} onDone={() => setEditing(false)} />}
 
       <SortableContext id={status} items={ids} strategy={verticalListSortingStrategy}>
         <ol ref={setNodeRef} className="cal-kanban-cards">
@@ -231,6 +287,32 @@ function Column({
         : <button type="button" className="cal-kanban-create" onClick={() => onCreating(true)}>+ Create</button>}
       {footer}
     </section>
+  )
+}
+
+function WipEditor({ status, title, limit, limits, workspaceId, onDone }: { status: TaskStatus; title: string; limit: number | null; limits: WipLimits; workspaceId: string; onDone: () => void }) {
+  const update = useUpdateTaskBoard(workspaceId)
+  const [value, setValue] = useState(limit != null ? String(limit) : '')
+  const save = (next: number | null) => {
+    const wipLimits: WipLimits = { ...limits, [status]: next }
+    for (const key of Object.keys(wipLimits) as (keyof WipLimits)[]) if (wipLimits[key] == null) delete wipLimits[key]
+    update.mutate({ wipLimits }, { onSuccess: onDone })
+  }
+  const parsed = Number(value)
+  const valid = value.trim() !== '' && Number.isInteger(parsed) && parsed >= 1 && parsed <= 999
+  return (
+    <form className="cal-wip-editor" onSubmit={(e) => { e.preventDefault(); if (valid) save(parsed) }}>
+      <label>
+        <span>Max cards in {title}</span>
+        <input type="number" min={1} max={999} step={1} autoFocus value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') onDone() }} />
+      </label>
+      <div className="cal-wip-actions">
+        <button type="submit" className="cal-btn" data-primary="" disabled={!valid || update.isPending}>Save</button>
+        {limit != null && <button type="button" className="cal-btn" disabled={update.isPending} onClick={() => save(null)}>No limit</button>}
+        <button type="button" className="cal-link-btn" onClick={onDone}>Cancel</button>
+      </div>
+      {update.isError && <p role="alert">Couldn't save the limit: {(update.error as Error).message}</p>}
+    </form>
   )
 }
 

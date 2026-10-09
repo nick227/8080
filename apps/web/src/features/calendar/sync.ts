@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { keys, tasksApi, useSession, useTasks, useWorkspaceMembers, type ImportTaskRow } from '@project/sdk'
+import { keys, tasksApi, useSession, useTasks, useWorkLogs, useWorkspaceMembers, workLogsApi, type ImportTaskRow, type ImportWorkLogRow } from '@project/sdk'
 import { useCurrentWorkspace } from '../documents/workspace'
-import { LOCAL_TASKS_KEY, useCalendar } from './store'
-import type { TeamMember } from './types'
+import { LOCAL_LOGS_KEY, LOCAL_TASKS_KEY, useCalendar } from './store'
+import type { CalAccomplishment, TeamMember } from './types'
 
 // Teammates' changes arrive on the next poll (and on window focus).
 const POLL_MS = 15_000
@@ -13,13 +13,31 @@ export function useTaskSync() {
   const { workspace } = useCurrentWorkspace()
   const workspaceId = workspace?.id
   const query = useTasks(workspaceId, { refetchInterval: POLL_MS })
+  const logs = useWorkLogs(workspaceId, { refetchInterval: POLL_MS })
   const queryClient = useQueryClient()
   const hydrate = useCalendar((s) => s.hydrate)
+  const hydrateLogs = useCalendar((s) => s.hydrateLogs)
   useEffect(() => {
     if (!workspaceId || !query.data) return
-    hydrate(workspaceId, query.data, () => void queryClient.invalidateQueries({ queryKey: keys.tasks(workspaceId) }))
+    hydrate(workspaceId, query.data, () => {
+      void queryClient.invalidateQueries({ queryKey: keys.tasks(workspaceId) })
+      void queryClient.invalidateQueries({ queryKey: keys.workLogs(workspaceId) })
+    })
   }, [workspaceId, query.data, hydrate, queryClient])
+  // After hydrate: the logs belong to the workspace the store has switched to.
+  const tasksReady = !!query.data
+  useEffect(() => {
+    if (workspaceId && logs.data && tasksReady) hydrateLogs(workspaceId, logs.data)
+  }, [workspaceId, logs.data, tasksReady, hydrateLogs])
   return { error: query.isError ? (query.error as Error).message : null, retry: () => void query.refetch() }
+}
+
+/** Whether the viewer may delete a work entry (mirrors the server: admins, its author, its member). */
+export function useCanDeleteLog() {
+  const { workspace } = useCurrentWorkspace()
+  const { meId } = useTeam()
+  const admin = workspace?.role === 'owner' || workspace?.role === 'admin'
+  return (entry: CalAccomplishment) => !entry.pending && (admin || (!!meId && (entry.authorMemberId === meId || entry.assigneeId === meId)))
 }
 
 /** Active workspace members, for assignee pickers and the member filter. */
@@ -77,6 +95,29 @@ function readLocal(): LocalTask[] {
   }
 }
 
+type LocalLog = { id: string; title?: string; day?: string; time?: string | null; taskKey?: string | null; category?: string }
+const LOG_CATEGORIES = ['work', 'milestone', 'release', 'deal', 'meeting']
+
+function readLocalLogs(): LocalLog[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(LOCAL_LOGS_KEY) ?? '[]')
+    // The old demo entries (acc-1…3) aren't the person's work.
+    return Array.isArray(parsed) ? (parsed as LocalLog[]).filter((a) => a && !/^acc-\d$/.test(a.id) && a.title?.trim() && a.day && DAY.test(a.day)) : []
+  } catch {
+    return []
+  }
+}
+
+function toLogRow(a: LocalLog): ImportWorkLogRow {
+  return {
+    summary: a.title!.trim().slice(0, 500),
+    day: a.day!,
+    time: a.time && CLOCK.test(a.time) ? a.time : null,
+    category: (LOG_CATEGORIES.includes(a.category ?? '') ? a.category : 'work') as ImportWorkLogRow['category'],
+    taskKey: a.taskKey?.slice(0, 32) ?? null,
+  }
+}
+
 function toRow(t: LocalTask): ImportTaskRow {
   const day = t.day && DAY.test(t.day) ? t.day : null
   return {
@@ -94,26 +135,36 @@ function toRow(t: LocalTask): ImportTaskRow {
   }
 }
 
-/** Offers to move tasks saved only in this browser into the workspace, once. */
+/** Offers to move tasks and work entries saved only in this browser into the workspace, once. */
 export function useLocalTasks() {
   const workspaceId = useCalendar((s) => s.workspaceId)
   const refresh = useCalendar((s) => s.refresh)
   const [local, setLocal] = useState(readLocal)
+  const [logs, setLogs] = useState(readLocalLogs)
   const [state, setState] = useState<'idle' | 'moving' | 'failed'>('idle')
 
   const forget = () => {
-    try { localStorage.removeItem(LOCAL_TASKS_KEY) } catch { /* ignore */ }
+    try {
+      localStorage.removeItem(LOCAL_TASKS_KEY)
+      localStorage.removeItem(LOCAL_LOGS_KEY)
+    } catch { /* ignore */ }
     setLocal([])
+    setLogs([])
   }
 
   const move = async () => {
-    if (!workspaceId || !local.length) return
+    if (!workspaceId || (!local.length && !logs.length)) return
     setState('moving')
     try {
-      // One key per set of local tasks: a retry after a lost answer adds nothing twice.
+      // One key per set of local items: a retry after a lost answer adds nothing twice.
       const key = `local-tasks:${hash(local.map((t) => t.id).sort().join(','))}`
       for (let i = 0; i < local.length; i += 500) {
         await tasksApi.import(workspaceId, { tasks: local.slice(i, i + 500).map(toRow), idempotencyKey: `${key}:${i}` })
+      }
+      // Moved tasks get new keys, so entries keep their old key as history.
+      const logKey = `local-logs:${hash(logs.map((a) => a.id).sort().join(','))}`
+      for (let i = 0; i < logs.length; i += 500) {
+        await workLogsApi.import(workspaceId, { entries: logs.slice(i, i + 500).map(toLogRow), idempotencyKey: `${logKey}:${i}` })
       }
       forget()
       setState('idle')
@@ -123,5 +174,5 @@ export function useLocalTasks() {
     }
   }
 
-  return { count: local.length, state, move, discard: forget }
+  return { count: local.length, logCount: logs.length, state, move, discard: forget }
 }

@@ -148,7 +148,10 @@ The in-lobby River (playing posts and replies inline) was retired: the Lobby onl
 - Board order = `rank` (float inside a status column; the server renumbers the column when a gap runs out). `POST …/move { status, afterTaskId, beforeTaskId }`. Delete is soft; Undo = `restore`. Import is idempotent by key.
 - Web: `features/calendar/store.ts` holds the optimistic copy (server snapshots are ignored while writes are in flight; one refetch after the last settles; temp `tmp-…` ids resolve before follow-up writes). `sync.ts` `useTaskSync` polls every 15 s (no SSE yet). Filters (members incl. `unassigned`, types, areas, priorities, search) and the view live in the URL (`who`, `type`, `area`, `priority`, `q`, `view`). A task opens as a side panel over any view (`?ticket=VC-…`).
 - Board UX (`BoardView.tsx`, dnd-kit): drag between and within columns; keyboard Space · arrows · Space; Enter opens; card ⋯ menu (move, top/bottom, assign to me, copy link, delete); per-column quick create (assigns to the single filtered member); done cards older than 14 days fold away; shortcuts `c` and `/`.
-- No scheduled date = board only. Tasks saved in the browser (`vc-tasks`) are offered once for import (old demo tickets ignored). "Log work" accomplishments are still browser-local. Sprints/backlog: later.
+- **Log work** = `WorkLog` (`/workspaces/{id}/work-logs`: list, create, delete, import; `WorkLogService`). `memberId` = who did it (null = whole team), `authorMemberId` = who wrote it; `completeTask` closes the linked task in the same transaction. Delete: admins, the author, the credited member (`worklog.delete`). Category + optional hours.
+- **WIP limits** (soft, Jira-style): `TaskBoardSettings.wipLimits` per workspace, `GET/PUT /workspaces/{id}/task-board`, admins set them (`task.board.manage`). Counted over all cards in the column, not the filtered view; over = red column + one notice when a move crosses it.
+- Nothing calendar-related is browser-only any more: tasks (`vc-tasks`) and entries (`vc-accomplishments`) saved in a browser are offered once for import (old demo rows ignored), then removed. Sprints/backlog: later.
+- Deploys run `prisma db push` without `--accept-data-loss`: keep schema changes additive (a new unique index on an existing table blocks the deploy even when the table is empty).
 
 ## Key Design Decisions
 

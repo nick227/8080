@@ -5522,6 +5522,122 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/work-logs:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listWorkLogs
+      summary: Logged work, newest day first
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkLogList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createWorkLog
+      summary: Log work (optionally against a task, optionally closing it)
+      description: completeTask moves the task to done in the same change; it needs taskId.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateWorkLogInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkLogResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/work-logs/import:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: importWorkLogs
+      summary: Add many entries at once (entries saved in a browser)
+      description: At most 500. taskKey links to a live task when one matches. Repeat with the same idempotencyKey to get the first result back.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ImportWorkLogsInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkLogList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/work-logs/{workLogId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/WorkLogId'
+    delete:
+      operationId: deleteWorkLog
+      summary: Delete an entry (its author, the member it credits, or an admin)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/task-board:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: getTaskBoard
+      summary: Board settings (WIP limits)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskBoardResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateTaskBoard
+      summary: Set WIP limits (admins)
+      description: Replaces every limit. Leave a column out (or null) for no limit.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateTaskBoardInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskBoardResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 components:
   securitySchemes:
     bearerAuth:
@@ -5614,6 +5730,11 @@ components:
     TaskId:
       in: path
       name: taskId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    WorkLogId:
+      in: path
+      name: workLogId
       required: true
       schema: { type: string, minLength: 1, maxLength: 64 }
     InventoryId:
@@ -7796,6 +7917,103 @@ components:
       required: [text]
       properties:
         text: { type: string, minLength: 1, maxLength: 10000 }
+
+    WorkLogCategory:
+      type: string
+      enum: [work, milestone, release, deal, meeting]
+    WorkLog:
+      type: object
+      required: [id, workspaceId, taskId, taskKey, summary, category, day, time, hoursSpent, memberId, member, authorMemberId, authorName, createdAt]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        taskId: { type: [string, 'null'] }
+        taskKey: { type: [string, 'null'] }
+        summary: { type: string }
+        category: { $ref: '#/components/schemas/WorkLogCategory' }
+        day: { type: string, format: date }
+        time: { type: [string, 'null'] }
+        hoursSpent: { type: [number, 'null'] }
+        memberId: { type: [string, 'null'] }
+        member:
+          oneOf:
+            - $ref: '#/components/schemas/TaskAssignee'
+            - type: 'null'
+        authorMemberId: { type: [string, 'null'] }
+        authorName: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+    WorkLogResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/WorkLog' }
+    WorkLogList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/WorkLog' }
+    CreateWorkLogInput:
+      type: object
+      additionalProperties: false
+      required: [summary, day]
+      properties:
+        summary: { type: string, minLength: 1, maxLength: 500 }
+        day: { type: string, format: date }
+        time: { type: [string, 'null'], pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        category: { $ref: '#/components/schemas/WorkLogCategory' }
+        memberId: { type: [string, 'null'], maxLength: 64, description: Who did the work; null = the whole team }
+        hoursSpent: { type: [number, 'null'], minimum: 0, maximum: 24 }
+        taskId: { type: [string, 'null'], maxLength: 64 }
+        completeTask: { type: boolean }
+    ImportWorkLogRow:
+      type: object
+      additionalProperties: false
+      required: [summary, day]
+      properties:
+        summary: { type: string, minLength: 1, maxLength: 500 }
+        day: { type: string, format: date }
+        time: { type: [string, 'null'], pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        category: { $ref: '#/components/schemas/WorkLogCategory' }
+        memberId: { type: [string, 'null'], maxLength: 64, description: Who did the work; null = the whole team }
+        hoursSpent: { type: [number, 'null'], minimum: 0, maximum: 24 }
+        taskKey: { type: [string, 'null'], maxLength: 32 }
+    ImportWorkLogsInput:
+      type: object
+      additionalProperties: false
+      required: [entries]
+      properties:
+        idempotencyKey: { type: string, minLength: 1, maxLength: 128 }
+        entries:
+          type: array
+          maxItems: 500
+          items: { $ref: '#/components/schemas/ImportWorkLogRow' }
+    WipLimits:
+      type: object
+      additionalProperties: false
+      description: Soft limit of cards per column; a missing column has none
+      properties:
+        open: { type: [integer, 'null'], minimum: 1, maximum: 999 }
+        in_progress: { type: [integer, 'null'], minimum: 1, maximum: 999 }
+        in_review: { type: [integer, 'null'], minimum: 1, maximum: 999 }
+        done: { type: [integer, 'null'], minimum: 1, maximum: 999 }
+    TaskBoard:
+      type: object
+      required: [wipLimits]
+      properties:
+        wipLimits: { $ref: '#/components/schemas/WipLimits' }
+    TaskBoardResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/TaskBoard' }
+    UpdateTaskBoardInput:
+      type: object
+      additionalProperties: false
+      required: [wipLimits]
+      properties:
+        wipLimits: { $ref: '#/components/schemas/WipLimits' }
 
     InventoryItem:
       type: object

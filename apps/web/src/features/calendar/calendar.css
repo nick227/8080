@@ -2005,3 +2005,24 @@
   .cal-search { width: 9rem; }
   .cal-pick-menu { position: fixed; top: auto; left: 16px; right: 16px; }
 }
+
+/* Work entries */
+.cal-acc-chip[data-pending] { opacity: 0.6; }
+.cal-acc-delete { width: 1.5rem; height: 1.5rem; margin-left: auto; }
+
+/* WIP limits (soft): at the limit = emphasis, over it = danger */
+.cal-kanban-tools { display: flex; align-items: center; gap: 2px; }
+.cal-wip { font-variant-numeric: tabular-nums; }
+.cal-kanban-column[data-wip="at"] .cal-wip { color: var(--ink); }
+.cal-kanban-column[data-wip="over"] { border-color: var(--danger); }
+.cal-kanban-column[data-wip="over"] .cal-kanban-header { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.cal-kanban-column[data-wip="over"] .cal-wip { color: var(--danger); font-weight: var(--weight-bold); }
+.cal-wip-editor { display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-bottom: var(--line-width) solid var(--line); font-size: var(--text-sm); }
+.cal-wip-editor label { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); color: var(--muted); }
+.cal-wip-editor input { width: 4.5rem; height: var(--button-height-sm); padding: 0 var(--space-sm); border: var(--line-width) solid var(--ink); border-radius: var(--input-radius); background: var(--surface-deep); color: var(--ink); font: inherit; }
+.cal-wip-actions { display: flex; align-items: center; gap: var(--space-sm); }
+.cal-wip-editor p { margin: 0; color: var(--danger); }
+@media (hover: hover) {
+  .cal-wip-btn { opacity: 0; transition: opacity 0.12s; }
+  .cal-kanban-column:hover .cal-wip-btn, .cal-wip-btn:focus-visible, .cal-wip-btn[aria-expanded="true"] { opacity: 1; }
+}

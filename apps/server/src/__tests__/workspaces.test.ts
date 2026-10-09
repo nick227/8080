@@ -145,6 +145,9 @@ function sampleBody(op: any) {
     ImportTasksInput: { tasks: [{ title: 'x' }] },
     MoveTaskInput: { status: 'done' },
     AddTaskCommentInput: { text: 'x' },
+    CreateWorkLogInput: { summary: 'x', day: '2026-10-09' },
+    ImportWorkLogsInput: { entries: [{ summary: 'x', day: '2026-10-09' }] },
+    UpdateTaskBoardInput: { wipLimits: {} },
   }
   return samples[name ?? ''] ?? {}
 }

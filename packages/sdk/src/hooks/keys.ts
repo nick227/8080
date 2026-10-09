@@ -41,4 +41,6 @@ export const keys = {
   inbox: (workspaceId: string, params?: object) => ['workspaces', workspaceId, 'inbox', params ?? {}] as const,
   tasks: (workspaceId: string) => ['workspaces', workspaceId, 'tasks'] as const,
   taskComments: (workspaceId: string, taskId: string) => ['workspaces', workspaceId, 'tasks', taskId, 'comments'] as const,
+  workLogs: (workspaceId: string) => ['workspaces', workspaceId, 'work-logs'] as const,
+  taskBoard: (workspaceId: string) => ['workspaces', workspaceId, 'task-board'] as const,
 }

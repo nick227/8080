@@ -52,6 +52,10 @@ export type WorkspaceVerb =
   | 'task.read'
   | 'task.write'
   | 'task.delete'
+  // Logged work: everyone logs; deleting is for admins, the author and the member it credits.
+  | 'worklog.delete'
+  // Board settings (WIP limits): admins.
+  | 'task.board.manage'
 
 const OWNERS: readonly WorkspaceRole[] = ['owner']
 const ADMINS: readonly WorkspaceRole[] = ['owner', 'admin']
@@ -97,6 +101,8 @@ const ROLES: Record<WorkspaceVerb, readonly WorkspaceRole[]> = {
   'task.read': EVERYONE,
   'task.write': EVERYONE,
   'task.delete': EVERYONE,
+  'worklog.delete': ADMINS, // + the entry's author and member (below)
+  'task.board.manage': ADMINS,
 }
 
 // What a verb is applied to, when the answer depends on it.
@@ -106,6 +112,7 @@ export type PolicyTarget =
   | { kind: 'team'; leadMemberIds: readonly string[] }
   | { kind: 'record'; ownerMemberId: string | null }
   | { kind: 'note'; authorMemberId: string }
+  | { kind: 'worklog'; memberIds: readonly (string | null)[] }
   // `workspaceAccess`: what every active member gets (null = private to owner + grants).
   | { kind: 'document'; ownerMemberId: string; grants: { memberId: string; role: 'viewer' | 'editor' }[]; workspaceAccess: 'viewer' | 'editor' | null }
 
@@ -124,6 +131,7 @@ export function can(member: Pick<WorkspaceMember, 'id' | 'role' | 'status'>, ver
   if (verb === 'team.members.manage' && target?.kind === 'team' && target.leadMemberIds.includes(member.id)) return true
   if (verb === 'record.delete' && target?.kind === 'record' && target.ownerMemberId === member.id) return true
   if (verb === 'note.delete' && target?.kind === 'note' && target.authorMemberId === member.id) return true
+  if (verb === 'worklog.delete' && target?.kind === 'worklog' && target.memberIds.includes(member.id)) return true
   if (!ROLES[verb].includes(member.role)) return false
   // Only owners touch owners, or make someone an owner.
   if (verb === 'member.manage' && target?.kind === 'member' && member.role !== 'owner') {

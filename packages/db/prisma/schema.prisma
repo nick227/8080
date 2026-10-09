@@ -558,6 +558,7 @@ model Workspace {
   sprints          Sprint[]
   workTasks        WorkTask[]
   workLogs         WorkLog[]
+  taskBoard        TaskBoardSettings?
 
   @@index([createdById])
 }
@@ -608,7 +609,8 @@ model WorkspaceMember {
   assignedWorkTasks WorkTask[] @relation("WorkTaskAssignee")
   createdWorkTasks  WorkTask[] @relation("WorkTaskCreator")
   workComments      WorkComment[]
-  workLogs          WorkLog[]
+  workLogs          WorkLog[] @relation("WorkLogAuthor")
+  workLogsDone      WorkLog[] @relation("WorkLogMember")
 
   @@unique([workspaceId, userId])
   @@index([userId, status])
@@ -2209,7 +2211,6 @@ model WorkTask {
   workLogs  WorkLog[]
 
   @@unique([workspaceId, taskKey])
-  @@unique([workspaceId, taskNumber])
   @@index([workspaceId, status, rank])
   @@index([workspaceId, scheduledDate])
   @@index([workspaceId, sprintId])
@@ -2229,14 +2230,18 @@ model WorkComment {
   @@index([taskId, createdAt])
 }
 
+// "Log work" on the calendar: what got done, by whom (member; null = the whole
+// team), optionally against a task. authorMember = who wrote the entry.
 model WorkLog {
   id             String           @id @default(cuid())
   workspaceId    String
   taskId         String?
   taskKey        String?          @db.VarChar(32)
   summary        String           @db.VarChar(500)
+  category       String           @default("work") @db.VarChar(32)
   day            String           @db.VarChar(10)
   time           String?          @db.VarChar(5)
+  memberId       String?
   authorMemberId String?
   authorName     String?          @db.VarChar(120)
   hoursSpent     Float?
@@ -2244,8 +2249,18 @@ model WorkLog {
 
   workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   task      WorkTask?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
-  author    WorkspaceMember? @relation(fields: [authorMemberId], references: [id], onDelete: SetNull)
+  member    WorkspaceMember? @relation("WorkLogMember", fields: [memberId], references: [id], onDelete: SetNull)
+  author    WorkspaceMember? @relation("WorkLogAuthor", fields: [authorMemberId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, day])
   @@index([taskId])
+}
+
+// Board settings per workspace. wipLimits: { [status]: max cards } (soft limits).
+model TaskBoardSettings {
+  workspaceId String   @id
+  wipLimits   Json
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }

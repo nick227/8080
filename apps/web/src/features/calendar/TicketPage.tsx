@@ -93,7 +93,7 @@ function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBac
   }
 
   const relatedWorkLogs = accomplishments.filter(
-    (a) => a.taskKey?.toUpperCase() === task.taskKey.toUpperCase() || a.title.includes(task.taskKey),
+    (a) => a.taskId === task.id || a.taskKey?.toUpperCase() === task.taskKey.toUpperCase(),
   )
   const thread = comments.data ?? []
 

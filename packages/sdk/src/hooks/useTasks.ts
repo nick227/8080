@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getApiClient, unwrap } from '../client'
-import type { CreateTaskInput, ImportTasksInput, MoveTaskInput, UpdateTaskInput } from '../models'
+import type { CreateTaskInput, CreateWorkLogInput, ImportTasksInput, ImportWorkLogsInput, MoveTaskInput, UpdateTaskBoardInput, UpdateTaskInput } from '../models'
 import { keys } from './keys'
 
 // Calendar / Boards tasks. The web keeps an optimistic copy for drag-and-drop,
@@ -53,5 +53,44 @@ export function useAddTaskComment(workspaceId: string, taskId: string) {
       void queryClient.invalidateQueries({ queryKey: keys.taskComments(workspaceId, taskId) })
       void queryClient.invalidateQueries({ queryKey: keys.tasks(workspaceId) })
     },
+  })
+}
+
+// Logged work ("Log work" on the calendar).
+export const workLogsApi = {
+  list: async (workspaceId: string) => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/work-logs', path(workspaceId))).data,
+  create: async (workspaceId: string, body: CreateWorkLogInput) =>
+    unwrap(await getApiClient().POST('/workspaces/{workspaceId}/work-logs', { ...path(workspaceId), body })).data,
+  import: async (workspaceId: string, body: ImportWorkLogsInput) =>
+    unwrap(await getApiClient().POST('/workspaces/{workspaceId}/work-logs/import', { ...path(workspaceId), body })).data,
+  remove: async (workspaceId: string, workLogId: string) => {
+    unwrap(await getApiClient().DELETE('/workspaces/{workspaceId}/work-logs/{workLogId}', { params: { path: { workspaceId, workLogId } } }))
+  },
+}
+
+export function useWorkLogs(workspaceId: string | undefined, opts: { refetchInterval?: number | false } = {}) {
+  return useQuery({
+    queryKey: keys.workLogs(workspaceId ?? ''),
+    enabled: !!workspaceId,
+    queryFn: () => workLogsApi.list(workspaceId!),
+    refetchInterval: opts.refetchInterval,
+  })
+}
+
+/** Board settings: WIP limits per column. */
+export function useTaskBoard(workspaceId: string | undefined) {
+  return useQuery({
+    queryKey: keys.taskBoard(workspaceId ?? ''),
+    enabled: !!workspaceId,
+    queryFn: async () => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/task-board', path(workspaceId!))).data,
+  })
+}
+
+export function useUpdateTaskBoard(workspaceId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: UpdateTaskBoardInput) =>
+      unwrap(await getApiClient().PUT('/workspaces/{workspaceId}/task-board', { ...path(workspaceId), body })).data,
+    onSuccess: (data) => queryClient.setQueryData(keys.taskBoard(workspaceId), data),
   })
 }

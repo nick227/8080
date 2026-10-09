@@ -3657,6 +3657,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/work-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Logged work, newest day first */
+        get: operations["listWorkLogs"];
+        put?: never;
+        /**
+         * Log work (optionally against a task, optionally closing it)
+         * @description completeTask moves the task to done in the same change; it needs taskId.
+         */
+        post: operations["createWorkLog"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/work-logs/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add many entries at once (entries saved in a browser)
+         * @description At most 500. taskKey links to a live task when one matches. Repeat with the same idempotencyKey to get the first result back.
+         */
+        post: operations["importWorkLogs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/work-logs/{workLogId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                workLogId: components["parameters"]["WorkLogId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete an entry (its author, the member it credits, or an admin) */
+        delete: operations["deleteWorkLog"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/task-board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Board settings (WIP limits) */
+        get: operations["getTaskBoard"];
+        /**
+         * Set WIP limits (admins)
+         * @description Replaces every limit. Leave a column out (or null) for no limit.
+         */
+        put: operations["updateTaskBoard"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5169,6 +5257,75 @@ export interface components {
         AddTaskCommentInput: {
             text: string;
         };
+        /** @enum {string} */
+        WorkLogCategory: "work" | "milestone" | "release" | "deal" | "meeting";
+        WorkLog: {
+            id: string;
+            workspaceId: string;
+            taskId: string | null;
+            taskKey: string | null;
+            summary: string;
+            category: components["schemas"]["WorkLogCategory"];
+            /** Format: date */
+            day: string;
+            time: string | null;
+            hoursSpent: number | null;
+            memberId: string | null;
+            member: components["schemas"]["TaskAssignee"] | null;
+            authorMemberId: string | null;
+            authorName: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        WorkLogResponse: {
+            data: components["schemas"]["WorkLog"];
+        };
+        WorkLogList: {
+            data: components["schemas"]["WorkLog"][];
+        };
+        CreateWorkLogInput: {
+            summary: string;
+            /** Format: date */
+            day: string;
+            time?: string | null;
+            category?: components["schemas"]["WorkLogCategory"];
+            /** @description Who did the work; null = the whole team */
+            memberId?: string | null;
+            hoursSpent?: number | null;
+            taskId?: string | null;
+            completeTask?: boolean;
+        };
+        ImportWorkLogRow: {
+            summary: string;
+            /** Format: date */
+            day: string;
+            time?: string | null;
+            category?: components["schemas"]["WorkLogCategory"];
+            /** @description Who did the work; null = the whole team */
+            memberId?: string | null;
+            hoursSpent?: number | null;
+            taskKey?: string | null;
+        };
+        ImportWorkLogsInput: {
+            idempotencyKey?: string;
+            entries: components["schemas"]["ImportWorkLogRow"][];
+        };
+        /** @description Soft limit of cards per column; a missing column has none */
+        WipLimits: {
+            open?: number | null;
+            in_progress?: number | null;
+            in_review?: number | null;
+            done?: number | null;
+        };
+        TaskBoard: {
+            wipLimits: components["schemas"]["WipLimits"];
+        };
+        TaskBoardResponse: {
+            data: components["schemas"]["TaskBoard"];
+        };
+        UpdateTaskBoardInput: {
+            wipLimits: components["schemas"]["WipLimits"];
+        };
         InventoryItem: {
             id: string;
             /** @description Bumped by every update; send it back as expectedVersion */
@@ -6355,6 +6512,7 @@ export interface components {
         TeamId: string;
         ContactId: string;
         TaskId: string;
+        WorkLogId: string;
         InventoryId: string;
         RecordImageId: string;
         AccountId: string;
@@ -13116,6 +13274,176 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaskCommentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listWorkLogs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkLogList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createWorkLog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateWorkLogInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkLogResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    importWorkLogs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportWorkLogsInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkLogList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteWorkLog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                workLogId: components["parameters"]["WorkLogId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getTaskBoard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskBoardResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateTaskBoard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTaskBoardInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskBoardResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];

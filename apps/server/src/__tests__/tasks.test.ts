@@ -171,4 +171,63 @@ describe('tasks', () => {
     expect((await call(testUserId, 'POST', `/workspaces/${other.id}/tasks/${task.id}/move`, { status: 'done' })).statusCode).toBe(404)
     expect(await crossWorkspaceViolations()).toEqual({})
   })
+
+  it('logs work, credits a member, closes the task in the same change, and deletes by rule', async () => {
+    const { ws, base, carol } = await setup()
+    const logs = `/workspaces/${ws.id}/work-logs`
+    const task = await create(base, { title: 'Ship', status: 'in_progress' })
+    const res = await call(carolId, 'POST', logs, { summary: ' Shipped it ', day: '2026-10-09', time: '15:00', memberId: carol, taskId: task.id, completeTask: true, hoursSpent: 2.5 })
+    expect(res.statusCode).toBe(201)
+    await validateResponse('createWorkLog', 201, res.json())
+    expect(res.json().data).toMatchObject({ summary: 'Shipped it', taskKey: task.taskKey, member: { memberId: carol, name: 'Carol' }, category: 'work', hoursSpent: 2.5 })
+    const closed = (await call(testUserId, 'GET', `${base}/${task.id}`)).json().data
+    expect(closed.status).toBe('done')
+    expect(closed.resolvedAt).not.toBeNull()
+
+    const team = await call(testUserId, 'POST', logs, { summary: 'Offsite', day: '2026-10-08', category: 'meeting' })
+    expect(team.json().data.memberId).toBeNull()
+    const list = await call(carolId, 'GET', logs)
+    await validateResponse('listWorkLogs', 200, list.json())
+    expect(list.json().data.map((l: any) => l.summary)).toEqual(['Shipped it', 'Offsite'])
+
+    expect((await call(testUserId, 'POST', logs, { summary: 'x', day: '2026-10-09', completeTask: true })).json().code).toBe('INVALID_TASK')
+    expect((await call(testUserId, 'POST', logs, { summary: 'x', day: '2026-13-01' })).statusCode).toBe(400)
+    expect((await call(testUserId, 'POST', logs, { summary: 'x', day: '2026-10-09', memberId: 'nobody' })).json().code).toBe('INVALID_MEMBER')
+
+    // Carol (a member) can't delete Alice's team entry; Alice (owner) can delete anything; Carol can delete her own.
+    expect((await call(carolId, 'DELETE', `${logs}/${team.json().data.id}`)).statusCode).toBe(403)
+    expect((await call(carolId, 'DELETE', `${logs}/${res.json().data.id}`)).statusCode).toBe(200)
+    expect((await call(testUserId, 'DELETE', `${logs}/${team.json().data.id}`)).statusCode).toBe(200)
+    expect((await call(testUserId, 'GET', logs)).json().data).toEqual([])
+    expect(await crossWorkspaceViolations()).toEqual({})
+  })
+
+  it('imports browser entries once, linking task keys that exist', async () => {
+    const { ws, base } = await setup()
+    const task = await create(base, { title: 'Known' })
+    const body = { idempotencyKey: 'local-logs-1', entries: [{ summary: 'Did known', day: '2026-10-01', taskKey: task.taskKey.toLowerCase() }, { summary: 'Old key', day: '2026-10-02', taskKey: 'XX-9', memberId: 'user-1' }] }
+    const res = await call(testUserId, 'POST', `/workspaces/${ws.id}/work-logs/import`, body)
+    expect(res.statusCode).toBe(201)
+    await validateResponse('importWorkLogs', 201, res.json())
+    expect(res.json().data.map((l: any) => [l.summary, l.taskId, l.taskKey, l.memberId])).toEqual([
+      ['Did known', task.id, task.taskKey, null],
+      ['Old key', null, 'XX-9', null],
+    ])
+    const again = await call(testUserId, 'POST', `/workspaces/${ws.id}/work-logs/import`, body)
+    expect(again.json().data.map((l: any) => l.id)).toEqual(res.json().data.map((l: any) => l.id))
+  })
+
+  it('WIP limits: everyone reads them, admins set them', async () => {
+    const { ws } = await setup()
+    const board = `/workspaces/${ws.id}/task-board`
+    expect((await call(carolId, 'GET', board)).json().data).toEqual({ wipLimits: {} })
+    expect((await call(carolId, 'PUT', board, { wipLimits: { in_progress: 3 } })).statusCode).toBe(403)
+    const set = await call(testUserId, 'PUT', board, { wipLimits: { in_progress: 3, in_review: null } })
+    await validateResponse('updateTaskBoard', 200, set.json())
+    expect(set.json().data).toEqual({ wipLimits: { in_progress: 3 } })
+    const read = await call(carolId, 'GET', board)
+    await validateResponse('getTaskBoard', 200, read.json())
+    expect(read.json().data.wipLimits).toEqual({ in_progress: 3 })
+    expect((await call(testUserId, 'PUT', board, { wipLimits: { in_progress: 0 } })).statusCode).toBe(400)
+  })
 })

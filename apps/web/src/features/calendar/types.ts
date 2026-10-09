@@ -42,17 +42,32 @@ export type CalTask = {
   pending?: boolean
 }
 
+export type WorkCategory = 'work' | 'milestone' | 'release' | 'deal' | 'meeting'
+
+/** A "Log work" entry (server WorkLog). assigneeId = the member credited; null = whole team. */
 export type CalAccomplishment = {
   id: string
+  taskId?: string | null
   taskKey?: string | null
   title: string
   day: string
   time: string | null
-  category: string
+  category: WorkCategory
+  hoursSpent?: number | null
   assigneeId?: string | null
   assigneeName?: string | null
+  authorMemberId?: string | null
   icon?: string
+  pending?: boolean
 }
+
+export const WORK_CATEGORIES: { id: WorkCategory; label: string; icon: string }[] = [
+  { id: 'work', label: 'Work', icon: '✅' },
+  { id: 'milestone', label: 'Milestone', icon: '🏆' },
+  { id: 'release', label: 'Release', icon: '🚀' },
+  { id: 'deal', label: 'Deal', icon: '🎉' },
+  { id: 'meeting', label: 'Meeting', icon: '🗓' },
+]
 
 export type TeamMember = {
   id: string
