@@ -19,14 +19,6 @@ export function ForYou({ workspaceId, onOpenTask }: { workspaceId: string; onOpe
   const items = list.data?.pages.flatMap((p) => p.data) ?? []
   const unread = items.filter((i) => i.unread)
 
-  // A new task notice means a task changed: refresh the board now rather than at the next poll.
-  const refresh = useCalendar((s) => s.refresh)
-  const newest = items[0]?.id
-  const seen = useRef<string | undefined>(undefined)
-  useEffect(() => {
-    if (newest && seen.current && newest !== seen.current) refresh?.()
-    seen.current = newest
-  }, [newest, refresh])
 
   useEffect(() => {
     if (!open) return

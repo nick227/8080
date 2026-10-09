@@ -5370,6 +5370,35 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/tasks/stream:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: streamTasks
+      summary: Server-Sent Events for live board updates
+      description: |
+        `text/event-stream`. Frames: `ready` (first; `replayed: false` means fetch the task
+        list once to reconcile), `task.changed` (the task's current snapshot with its
+        `version`, or `task: null` when deleted), `worklogs.changed`, `board.updated`
+        (WIP limits) and `reset` (reconcile). Every frame has an `id`; reconnect with
+        Last-Event-ID (the browser does this) or `after` to replay what was missed.
+        A `ping` comment keeps proxies from closing the connection.
+      tags: [workspaces]
+      parameters:
+        - in: query
+          name: after
+          description: The last frame id seen (same as the Last-Event-ID header)
+          schema: { type: string, maxLength: 64 }
+      responses:
+        '200':
+          description: Event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE frames; each data payload is a JSON TaskStreamEvent
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /workspaces/{workspaceId}/tasks/import:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -7877,6 +7906,24 @@ components:
             - type: 'null'
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    TaskStreamEvent:
+      type: object
+      description: SDK-only typing for the streamTasks SSE payloads.
+      required: [event]
+      properties:
+        event: { type: string, enum: [ready, task.changed, worklogs.changed, board.updated, reset] }
+        replayed: { type: boolean }
+        activityId: { type: string }
+        type: { type: string }
+        actorMemberId: { type: [string, 'null'] }
+        occurredAt: { type: string, format: date-time }
+        taskId: { type: string }
+        task:
+          oneOf:
+            - $ref: '#/components/schemas/Task'
+            - type: 'null'
+        wipLimits: { $ref: '#/components/schemas/WipLimits' }
+        reason: { type: string }
     TaskBlocked:
       type: object
       required: [since, reason, byMemberId, byName]

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { isUrgencyKey } from '@project/shared'
 import { useCurrentWorkspace } from '../documents/workspace'
 import { SectionHeader } from '../work/SectionHeader'
 import { DayView } from './DayView'
@@ -38,7 +39,9 @@ function readUrl(search: string): { view?: View; filters: Filters } {
     if (raw) (filters[key] as string[]) = raw.split(',').filter(Boolean)
   }
   filters.search = params.get('q') ?? ''
-  filters.blocked = params.get('blocked') === '1'
+  filters.urgency = (params.get('attention') ?? '').split(',').filter(isUrgencyKey)
+  // Older links used blocked=1.
+  if (params.get('blocked') === '1' && !filters.urgency.includes('blocked')) filters.urgency.push('blocked')
   const view = params.get('view') as View | null
   return { view: view && VIEWS.some((v) => v.id === view) ? view : undefined, filters }
 }
@@ -51,8 +54,9 @@ function writeUrl(search: string, view: View, filters: Filters) {
     if (list.length) params.set(param, list.join(','))
     else params.delete(param)
   }
-  if (filters.blocked) params.set('blocked', '1')
-  else params.delete('blocked')
+  params.delete('blocked')
+  if (filters.urgency.length) params.set('attention', filters.urgency.join(','))
+  else params.delete('attention')
   if (filters.search.trim()) params.set('q', filters.search)
   else params.delete('q')
   return params.toString()
@@ -239,6 +243,9 @@ function Calendar({ workspaceId }: { workspaceId: string }) {
             <h2 className="cal-period">{title}</h2>
             <button type="button" className="cal-btn" aria-pressed={onToday} onClick={goToday}>Today</button>
           </div> : <h2 className="cal-period">{view === 'backlog' ? 'Open tasks · all dates' : 'Board · all tasks'}</h2>}
+          <span className="cal-live" data-state={sync.live} role="status" title={sync.live === 'live' ? 'Changes from teammates appear as they happen' : 'Reconnecting; changes appear when the connection is back'}>
+            {sync.live === 'live' ? 'Live' : sync.live === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}
+          </span>
           <div className="cal-tools">
             <div className="cal-view-toggle" role="group" aria-label="Calendar view">
               {VIEWS.map((v) => (
@@ -247,7 +254,7 @@ function Calendar({ workspaceId }: { workspaceId: string }) {
             </div>
           </div>
         </header>
-        <CalendarFilters ref={searchRef} count={filteredTasks.length} total={scopedTasks.length} />
+        <CalendarFilters ref={searchRef} count={filteredTasks.length} total={scopedTasks.length} scoped={scopedTasks} />
 
         {sync.error && !loaded ? (
           <p className="cal-board-note" role="alert">

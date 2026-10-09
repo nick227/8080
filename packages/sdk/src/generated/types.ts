@@ -3546,6 +3546,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/tasks/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Server-Sent Events for live board updates
+         * @description `text/event-stream`. Frames: `ready` (first; `replayed: false` means fetch the task
+         *     list once to reconcile), `task.changed` (the task's current snapshot with its
+         *     `version`, or `task: null` when deleted), `worklogs.changed`, `board.updated`
+         *     (WIP limits) and `reset` (reconcile). Every frame has an `id`; reconnect with
+         *     Last-Event-ID (the browser does this) or `after` to replay what was missed.
+         *     A `ping` comment keeps proxies from closing the connection.
+         */
+        get: operations["streamTasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/tasks/import": {
         parameters: {
             query?: never;
@@ -5231,6 +5258,21 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        /** @description SDK-only typing for the streamTasks SSE payloads. */
+        TaskStreamEvent: {
+            /** @enum {string} */
+            event: "ready" | "task.changed" | "worklogs.changed" | "board.updated" | "reset";
+            replayed?: boolean;
+            activityId?: string;
+            type?: string;
+            actorMemberId?: string | null;
+            /** Format: date-time */
+            occurredAt?: string;
+            taskId?: string;
+            task?: components["schemas"]["Task"] | null;
+            wipLimits?: components["schemas"]["WipLimits"];
+            reason?: string;
         };
         TaskBlocked: {
             /** Format: date-time */
@@ -13131,6 +13173,33 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    streamTasks: {
+        parameters: {
+            query?: {
+                /** @description The last frame id seen (same as the Last-Event-ID header) */
+                after?: string;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Event stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
         };
     };

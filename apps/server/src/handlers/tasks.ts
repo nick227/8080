@@ -2,6 +2,8 @@
 import { workspaceCtx as ctx } from '../lib/session'
 import { TaskService } from '../services/TaskService'
 import { WorkLogService } from '../services/WorkLogService'
+import { joinTaskStream, type TaskFrame } from '../services/taskStream'
+import { authorize } from '../services/workspacePolicy'
 
 const tasks = new TaskService()
 
@@ -93,4 +95,39 @@ export async function unblockTask(request: any, reply: any) {
 export async function listTaskActivity(request: any, reply: any) {
   const { workspaceId, taskId } = request.params
   return reply.send(await tasks.activity(request.user.id, workspaceId, taskId))
+}
+
+/**
+ * Live board updates (SSE). Frames carry `id:` so the browser's automatic reconnect
+ * sends Last-Event-ID; `?after=` does the same for a client that reopens the stream.
+ * First frame: `ready` with `replayed` (false = reconcile with one list fetch).
+ */
+export async function streamTasks(request: any, reply: any) {
+  const { workspaceId } = request.params
+  await authorize(request.user.id, workspaceId, 'task.read')
+  const lastEventId = (request.headers['last-event-id'] as string | undefined) ?? (request.query?.after as string | undefined) ?? null
+  reply.hijack()
+  reply.raw.writeHead(200, {
+    ...reply.getHeaders(),
+    'content-type': 'text/event-stream; charset=utf-8',
+    'cache-control': 'no-cache, no-transform',
+    connection: 'keep-alive',
+    'x-accel-buffering': 'no',
+  })
+  let closed = false
+  const write = (chunk: string) => {
+    if (closed) return
+    if (!reply.raw.write(chunk)) request.raw.destroy()
+  }
+  const frame = (f: TaskFrame) => write(`id: ${f.id}\nevent: ${f.event}\ndata: ${JSON.stringify({ event: f.event, ...f.data })}\n\n`)
+  const joined = joinTaskStream(workspaceId, lastEventId, frame)
+  write('retry: 2000\n\n')
+  write(`id: ${joined.current}\nevent: ready\ndata: ${JSON.stringify({ event: 'ready', replayed: joined.replay !== null })}\n\n`)
+  for (const f of joined.replay ?? []) frame(f)
+  const heartbeat = setInterval(() => write(': ping\n\n'), 25_000)
+  request.raw.on('close', () => {
+    closed = true
+    clearInterval(heartbeat)
+    joined.leave()
+  })
 }

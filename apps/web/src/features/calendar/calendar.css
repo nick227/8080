@@ -2084,3 +2084,19 @@
 .cal-foryou-empty { margin: 0; padding: var(--space-sm); font-size: var(--text-sm); color: var(--muted); }
 .cal-kanban-title-group { flex-wrap: wrap; row-gap: 0; }
 .cal-kanban-title { white-space: nowrap; }
+
+/* Live sync state */
+.cal-live { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: var(--text-label); color: var(--muted); }
+.cal-live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.cal-live[data-state="live"]::before { background: var(--ink); }
+.cal-live[data-state="reconnecting"] { color: var(--danger); }
+.cal-live[data-state="reconnecting"]::before { background: var(--danger); }
+
+/* Needs attention: shared urgency filters */
+.cal-urgency { display: flex; align-items: center; gap: 4px; }
+.cal-urgency-chip { display: inline-flex; align-items: center; gap: 6px; height: var(--button-height-sm); padding: 0 var(--space-sm); border: var(--line-width) solid var(--line); border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: var(--text-label); cursor: pointer; white-space: nowrap; }
+.cal-urgency-chip:hover { color: var(--ink); }
+.cal-urgency-chip[aria-pressed="true"] { color: var(--ink); border-color: var(--ink); background: var(--surface-highlight); }
+.cal-urgency-chip[data-key="overdue"][aria-pressed="true"], .cal-urgency-chip[data-key="blocked"][aria-pressed="true"] { color: var(--danger); border-color: var(--danger); }
+.cal-urgency-count { font-family: var(--mono); font-size: 10px; }
+.cal-urgency-chip[data-key="overdue"] .cal-urgency-count, .cal-urgency-chip[data-key="blocked"] .cal-urgency-count { color: var(--danger); }

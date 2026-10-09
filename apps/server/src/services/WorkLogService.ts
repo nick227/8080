@@ -203,7 +203,7 @@ export class WorkLogService {
       async (tx) => {
         const before = await tx.taskBoardSettings.findUnique({ where: { workspaceId } })
         await tx.taskBoardSettings.upsert({ where: { workspaceId }, create: { workspaceId, wipLimits: limits }, update: { wipLimits: limits } })
-        return { value: { wipLimits: limits }, changes: { wipLimits: [before?.wipLimits ?? {}, limits] } }
+        return { value: { wipLimits: limits }, changes: { wipLimits: [before?.wipLimits ?? {}, limits] }, activities: [{ type: 'task.board.updated', summary: { wipLimits: limits } }] }
       },
     )
   }

@@ -1,26 +1,68 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { keys, tasksApi, useSession, useTasks, useWorkLogs, useWorkspaceMembers, workLogsApi, type ImportTaskRow, type ImportWorkLogRow } from '@project/sdk'
+import { getApiBaseUrl, keys, tasksApi, useSession, useTasks, useWorkLogs, useWorkspaceMembers, workLogsApi, type ImportTaskRow, type ImportWorkLogRow, type TaskStreamEvent } from '@project/sdk'
 import { useCurrentWorkspace } from '../documents/workspace'
 import { LOCAL_LOGS_KEY, LOCAL_TASKS_KEY, useCalendar } from './store'
 import type { CalAccomplishment, TeamMember } from './types'
 
-// Teammates' changes arrive on the next poll (and on window focus).
-const POLL_MS = 15_000
+// Teammates' changes arrive over the task stream. The full list is still fetched
+// now and then (and on window focus) to reconcile: rarely while the stream is up,
+// more often when it is down.
+const POLL_LIVE_MS = 60_000
+const POLL_OFFLINE_MS = 15_000
+
+export type LiveState = 'connecting' | 'live' | 'reconnecting'
 
 /** Keeps the calendar store fed with the workspace's tasks while a task surface is open. */
 export function useTaskSync() {
   const { workspace } = useCurrentWorkspace()
   const workspaceId = workspace?.id
-  const query = useTasks(workspaceId, { refetchInterval: POLL_MS })
-  const logs = useWorkLogs(workspaceId, { refetchInterval: POLL_MS })
+  const [live, setLive] = useState<LiveState>('connecting')
+  const poll = live === 'live' ? POLL_LIVE_MS : POLL_OFFLINE_MS
+  const query = useTasks(workspaceId, { refetchInterval: poll })
+  const logs = useWorkLogs(workspaceId, { refetchInterval: poll })
   const queryClient = useQueryClient()
+  const applyServer = useCalendar((s) => s.applyServer)
+
+  // The live stream: each change patches one card; `reset` (or a reconnect that
+  // couldn't replay) reconciles with one list fetch. The browser reconnects by
+  // itself and sends the last frame id, so short drops replay instead.
+  useEffect(() => {
+    if (!workspaceId || typeof EventSource === 'undefined') return
+    const source = new EventSource(`${getApiBaseUrl()}/workspaces/${workspaceId}/tasks/stream`, { withCredentials: true })
+    const read = (e: Event) => JSON.parse((e as MessageEvent).data) as TaskStreamEvent
+    const reconcile = () => {
+      void queryClient.invalidateQueries({ queryKey: keys.tasks(workspaceId), exact: true })
+      void queryClient.invalidateQueries({ queryKey: keys.workLogs(workspaceId) })
+      void queryClient.invalidateQueries({ queryKey: keys.taskBoard(workspaceId) })
+    }
+    source.addEventListener('ready', (e) => {
+      setLive('live')
+      if (!read(e).replayed) reconcile()
+    })
+    source.addEventListener('task.changed', (e) => {
+      const d = read(e)
+      if (!d.taskId) return
+      applyServer(d.taskId, d.task ?? null)
+      // An open panel's comments and history for that task.
+      void queryClient.invalidateQueries({ queryKey: [...keys.tasks(workspaceId), d.taskId] })
+    })
+    source.addEventListener('worklogs.changed', () => void queryClient.invalidateQueries({ queryKey: keys.workLogs(workspaceId) }))
+    source.addEventListener('board.updated', (e) => queryClient.setQueryData(keys.taskBoard(workspaceId), { wipLimits: read(e).wipLimits ?? {} }))
+    source.addEventListener('reset', reconcile)
+    source.onerror = () => setLive('reconnecting')
+    return () => {
+      source.close()
+      setLive('connecting')
+    }
+  }, [workspaceId, queryClient, applyServer])
+
   const hydrate = useCalendar((s) => s.hydrate)
   const hydrateLogs = useCalendar((s) => s.hydrateLogs)
   useEffect(() => {
     if (!workspaceId || !query.data) return
     hydrate(workspaceId, query.data, () => {
-      void queryClient.invalidateQueries({ queryKey: keys.tasks(workspaceId) })
+      void queryClient.invalidateQueries({ queryKey: keys.tasks(workspaceId), exact: true })
       void queryClient.invalidateQueries({ queryKey: keys.workLogs(workspaceId) })
     })
   }, [workspaceId, query.data, hydrate, queryClient])
@@ -29,7 +71,7 @@ export function useTaskSync() {
   useEffect(() => {
     if (workspaceId && logs.data && tasksReady) hydrateLogs(workspaceId, logs.data)
   }, [workspaceId, logs.data, tasksReady, hydrateLogs])
-  return { error: query.isError ? (query.error as Error).message : null, retry: () => void query.refetch() }
+  return { live, error: query.isError ? (query.error as Error).message : null, retry: () => void query.refetch() }
 }
 
 /** Whether the viewer may delete a work entry (mirrors the server: admins, its author, its member). */

@@ -40,7 +40,7 @@ export type TaskInput = {
 // the card below (`beforeTaskId`). Neither = bottom of the column.
 export type Placement = { afterTaskId?: string | null; beforeTaskId?: string | null }
 
-const taskInclude = {
+export const taskInclude = {
   assignee: { include: { user: { include: { profile: true } } } },
   blockedBy: { include: { user: { include: { profile: true } } } },
   _count: { select: { comments: true } },
@@ -133,9 +133,15 @@ async function rankFor(tx: Tx, workspaceId: string, status: string, place: Place
   return rankFor(tx, workspaceId, status, place, movingId)
 }
 
+// Transactions that renumbered a column: their action records it, so live boards
+// (whose ranks for those cards are now stale) reconcile.
+const renumbered = new WeakSet<Tx>()
+const renumberActivity = (tx: Tx, status: string): ActivityDraft[] => (renumbered.has(tx) ? [{ type: 'task.column.renumbered', summary: { status } }] : [])
+
 async function renumber(tx: Tx, workspaceId: string, status: string) {
+  renumbered.add(tx)
   const rows = await tx.workTask.findMany({ where: { workspaceId, status, deletedAt: null }, orderBy: [{ rank: 'asc' }, { createdAt: 'asc' }], select: { id: true } })
-  for (const [i, row] of rows.entries()) await tx.workTask.update({ where: { id: row.id }, data: { rank: (i + 1) * RANK_STEP } })
+  for (const [i, row] of rows.entries()) await tx.workTask.update({ where: { id: row.id }, data: { rank: (i + 1) * RANK_STEP, version: { increment: 1 } } })
 }
 
 async function nextNumber(tx: Tx, workspaceId: string) {
@@ -265,7 +271,7 @@ export class TaskService {
           return {
             value,
             targetId: created.id,
-            activities: [{
+            activities: [...renumberActivity(tx, status), {
               type: 'task.created',
               object: { taskId: created.id },
               summary: { taskId: created.id, taskKey: created.taskKey, title: created.title, status, assigneeMemberId: created.assigneeMemberId, assigneeName: nameOf(created.assignee) },
@@ -332,7 +338,7 @@ export class TaskService {
           data: { status: input.status, rank, version: { increment: 1 }, ...statusChange(before.status, input.status) },
         })
         const after = await liveTask(tx, workspaceId, taskId)
-        return { value: toTask(after), changes: diff(before, after, ['status', 'rank'] as const), activities: activitiesFor(before, after) }
+        return { value: toTask(after), changes: diff(before, after, ['status', 'rank'] as const), activities: [...renumberActivity(tx, input.status), ...activitiesFor(before, after)] }
       },
     )
   }

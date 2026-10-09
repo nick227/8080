@@ -2,7 +2,9 @@ import { forwardRef, useEffect, useRef, useState } from 'react'
 import { Avatar } from './BoardView'
 import { filtersActive, useCalendar, type Filters } from './store'
 import { useTeam } from './sync'
-import { AREAS, TASK_TYPES, type TaskPriority } from './types'
+import { URGENCY, isUrgent } from '@project/shared'
+import { todayKey } from './dates'
+import { AREAS, TASK_TYPES, type CalTask, type TaskPriority } from './types'
 
 const TYPE_LABEL: Record<string, string> = { task: 'Task', feature: 'Feature', bug: 'Bug', story: 'Story', epic: 'Epic' }
 const PRIORITIES: { id: TaskPriority; label: string }[] = [
@@ -13,19 +15,19 @@ const PRIORITIES: { id: TaskPriority; label: string }[] = [
 ]
 
 /** Filters apply to whatever the selected view shows. They live in the URL too. */
-export const CalendarFilters = forwardRef<HTMLInputElement, { count: number; total: number }>(function CalendarFilters({ count, total }, searchRef) {
+export const CalendarFilters = forwardRef<HTMLInputElement, { count: number; total: number; scoped: CalTask[] }>(function CalendarFilters({ count, total, scoped }, searchRef) {
   const filters = useCalendar((s) => s.filters)
   const setFilters = useCalendar((s) => s.setFilters)
   const clear = useCalendar((s) => s.clearFilters)
   const { team: members, meId } = useTeam()
   const tasks = useCalendar((s) => s.tasks)
-  const blockedCount = tasks.filter((t) => t.blocked && t.status !== 'done').length
+  const ctx = { today: todayKey(), now: Date.now() }
   // People assigned work but missing from the member list (left, or just joined).
   const team = [...members]
   for (const t of tasks) {
     if (t.assigneeId && t.assigneeName && !team.some((m) => m.id === t.assigneeId)) team.push({ id: t.assigneeId, name: t.assigneeName, avatarUrl: t.assigneeAvatar ?? null })
   }
-  const toggle = <K extends 'members' | 'types' | 'areas' | 'priorities'>(key: K, value: Filters[K][number]) => {
+  const toggle = <K extends 'members' | 'types' | 'areas' | 'priorities' | 'urgency'>(key: K, value: Filters[K][number]) => {
     const list = filters[key] as string[]
     setFilters({ [key]: list.includes(value) ? list.filter((v) => v !== value) : [...list, value] } as Partial<Filters>)
   }
@@ -59,9 +61,16 @@ export const CalendarFilters = forwardRef<HTMLInputElement, { count: number; tot
           Only my tasks
         </button>
       )}
-      <button type="button" className="cal-btn cal-blocked-toggle" aria-pressed={filters.blocked} onClick={() => setFilters({ blocked: !filters.blocked })}>
-        Blocked{blockedCount ? ` · ${blockedCount}` : ''}
-      </button>
+<div className="cal-urgency" role="group" aria-label="Needs attention">
+        {URGENCY.map((u) => {
+          const n = scoped.filter((t) => isUrgent(t, u.key, ctx)).length
+          return (
+            <button key={u.key} type="button" className="cal-urgency-chip" data-key={u.key} aria-pressed={filters.urgency.includes(u.key)} title={u.hint} onClick={() => toggle('urgency', u.key)}>
+              {u.label}{n ? <span className="cal-urgency-count">{n}</span> : null}
+            </button>
+          )
+        })}
+      </div>
 
       <Pick label="Type" chosen={filters.types} options={TASK_TYPES.map((t) => ({ id: t, label: TYPE_LABEL[t]! }))} onToggle={(v) => toggle('types', v as Filters['types'][number])} />
       <Pick label="Area" chosen={filters.areas} options={AREAS.map((a) => ({ id: a, label: a }))} onToggle={(v) => toggle('areas', v)} />

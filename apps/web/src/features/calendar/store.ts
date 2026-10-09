@@ -1,11 +1,18 @@
 import { create } from 'zustand'
 import { tasksApi, workLogsApi, type CreateTaskInput, type ImportTaskRow, type Task, type UpdateTaskInput, type WorkLog } from '@project/sdk'
+import { matchesUrgency, type UrgencyKey } from '@project/shared'
 import { todayKey, shiftMonthKey } from './dates'
 import { WORK_CATEGORIES, type CalAccomplishment, type CalTask, type TaskPriority, type TaskStatus, type TaskType, type WorkCategory } from './types'
 
 // Tasks belong to the workspace (server). This store keeps the copy every view
 // reads, so a move or edit shows at once; the server answer then replaces it.
-// `useTaskSync` (sync.ts) feeds it from the SDK query and registers `refresh`.
+// `useTaskSync` (sync.ts) feeds it: live snapshots from the task stream
+// (`applyServer`), and full lists for reconciliation (`hydrate`).
+//
+// Conflict rules: a server snapshot replaces the local card only if its version is
+// at least the local one (late or reordered answers never win over newer state).
+// While a card has its own writes in flight, snapshots for it are held (newest
+// wins) and applied when those writes settle.
 
 /** Tasks and work entries saved in this browser before they lived on the server. */
 export const LOCAL_TASKS_KEY = 'vc-tasks'
@@ -20,12 +27,12 @@ export type Filters = {
   types: TaskType[]
   areas: string[]
   priorities: TaskPriority[]
-  /** Only blocked tasks. */
-  blocked: boolean
+  /** Needs attention (shared definitions in @project/shared taskUrgency): any of these. */
+  urgency: UrgencyKey[]
   search: string
 }
 
-export const NO_FILTERS: Filters = { members: [], types: [], areas: [], priorities: [], blocked: false, search: '' }
+export const NO_FILTERS: Filters = { members: [], types: [], areas: [], priorities: [], urgency: [], search: '' }
 
 export type Notice = { id: number; text: string; undo?: () => void }
 
@@ -77,6 +84,8 @@ type State = {
   filters: Filters
 
   hydrate: (workspaceId: string, tasks: Task[], refresh: () => void) => void
+  /** One task's server state from the live stream (null = deleted). */
+  applyServer: (taskId: string, task: Task | null) => void
   hydrateLogs: (workspaceId: string, logs: WorkLog[]) => void
   showMonth: () => void
   showDay: (day: string) => void
@@ -186,21 +195,21 @@ function rankBetween(tasks: CalTask[], status: TaskStatus, place: Placement, mov
   return (above + below) / 2
 }
 
-export function applyFilters(tasks: CalTask[], f: Filters): CalTask[] {
+export function applyFilters(tasks: CalTask[], f: Filters, ctx = { today: todayKey(), now: Date.now() }): CalTask[] {
   const needle = f.search.trim().toLowerCase()
   return tasks.filter((t) => {
     if (f.members.length && !f.members.includes(t.assigneeId ?? 'unassigned')) return false
     if (f.types.length && !f.types.includes(t.category ?? 'task')) return false
     if (f.areas.length && !f.areas.includes(t.area ?? '')) return false
     if (f.priorities.length && !f.priorities.includes(t.priority ?? 'medium')) return false
-    if (f.blocked && !t.blocked) return false
+    if (!matchesUrgency(t, f.urgency, ctx)) return false
     if (needle && !t.title.toLowerCase().includes(needle) && !t.taskKey.toLowerCase().includes(needle)) return false
     return true
   })
 }
 
 export const filtersActive = (f: Filters) =>
-  f.members.length + f.types.length + f.areas.length + f.priorities.length > 0 || f.blocked || f.search.trim() !== ''
+  f.members.length + f.types.length + f.areas.length + f.priorities.length + f.urgency.length > 0 || f.search.trim() !== ''
 
 export const workIcon = (category: string) => WORK_CATEGORIES.find((c) => c.id === category)?.icon ?? '✨'
 
@@ -234,9 +243,19 @@ export function orderTasks(tasks: CalTask[]): CalTask[] {
   })
 }
 
-// Writes in flight. While any are, server snapshots are ignored (they'd undo
-// what the person just did); when the last settles, the list is refetched.
-let inFlight = 0
+// Writes in flight per card (by its current id), and the newest server snapshot
+// that arrived meanwhile. A temporary id is aliased to the real one once created.
+const writing = new Map<string, number>()
+const held = new Map<string, Task | null>()
+const aliases = new Map<string, string>()
+// Creates/imports in flight: a snapshot for an unknown id may be our own new card,
+// and a full list can't be merged safely until they land.
+let creates = 0
+let reconcileAfter = false
+// Cards the server confirmed recently: a list fetched before that may not have them.
+const confirmedAt = new Map<string, number>()
+const CONFIRM_GRACE_MS = 15_000
+let logWrites = 0
 // A card created moments ago has a temporary id until the server answers.
 const creating = new Map<string, Promise<string>>()
 let noticeId = 0
@@ -249,29 +268,74 @@ export const useCalendar = create<State>((set, get) => {
 
   const realId = (id: string) => creating.get(id) ?? Promise.resolve(id)
 
-  /** Runs a server write; on failure says why and lets the refetch restore the truth. */
-  function send<T>(what: string, run: (workspaceId: string) => Promise<T>, onDone?: (value: T) => void, onFail?: (err: unknown) => void) {
+  const keyOf = (id: string) => aliases.get(id) ?? id
+
+  /** Keep the newest snapshot for a card that is busy (null = deleted; a later task means restored). */
+  const hold = (id: string, task: Task | null) => {
+    const prev = held.get(id)
+    if (task === null || prev === undefined || prev === null || task.version >= prev.version) held.set(id, task)
+  }
+
+  const flush = (id: string) => {
+    if (!held.has(id)) return
+    const task = held.get(id)!
+    held.delete(id)
+    get().applyServer(id, task)
+  }
+
+  /**
+   * Runs a server write. `taskId` marks the card busy until it settles; `snapshot`
+   * picks the server's answer for that card. On failure, says why and reconciles.
+   */
+  function send<T>(
+    what: string,
+    run: (workspaceId: string) => Promise<T>,
+    opts: { taskId?: string; snapshot?: (value: T) => Task | null; onDone?: (value: T) => void; onFail?: (err: unknown) => void; logs?: boolean } = {},
+  ) {
     const workspaceId = get().workspaceId
     if (!workspaceId) {
-      onFail?.(new Error('no workspace'))
+      opts.onFail?.(new Error('no workspace'))
       get().say('Tasks are still loading. Try again in a moment.')
       return
     }
-    inFlight++
+    if (opts.taskId) writing.set(keyOf(opts.taskId), (writing.get(keyOf(opts.taskId)) ?? 0) + 1)
+    if (opts.logs) logWrites++
     set({ syncing: true })
     run(workspaceId)
-      .then((value) => onDone?.(value))
+      .then((value) => {
+        opts.onDone?.(value)
+        if (opts.taskId && opts.snapshot) hold(keyOf(opts.taskId), opts.snapshot(value))
+      })
       .catch((err) => {
-        onFail?.(err)
+        opts.onFail?.(err)
         get().say(`Couldn't ${what}: ${message(err)}`)
+        // The server's state wins after a refused or failed write.
+        get().refresh?.()
       })
       .finally(() => {
-        inFlight--
-        if (!inFlight) {
-          set({ syncing: false })
-          get().refresh?.()
+        if (opts.logs) logWrites--
+        if (opts.taskId) {
+          const key = keyOf(opts.taskId)
+          const left = (writing.get(key) ?? 1) - 1
+          if (left > 0) writing.set(key, left)
+          else {
+            writing.delete(key)
+            flush(key)
+          }
         }
+        if (!writing.size && !creates && !logWrites) set({ syncing: false })
       })
+  }
+
+  /** A create or import has landed: apply what waited on it. */
+  const createSettled = () => {
+    creates--
+    if (creates) return
+    for (const id of [...held.keys()]) if (!writing.has(id)) flush(id)
+    if (reconcileAfter) {
+      reconcileAfter = false
+      get().refresh?.()
+    }
   }
 
   const patchLocal = (id: string, patch: Partial<CalTask>) =>
@@ -284,12 +348,16 @@ export const useCalendar = create<State>((set, get) => {
       rank: rankBetween(get().tasks, row.status ?? 'open', {}) + i * RANK_STEP,
     }))
     set({ tasks: [...get().tasks, ...temps] })
-    send(what, (ws) => tasksApi.import(ws, { tasks: rows.map(toRow) }), (created) => {
-      const ids = new Set(temps.map((t) => t.id))
-      set({ tasks: [...get().tasks.filter((t) => !ids.has(t.id)), ...created.map(fromServer)] })
-    }, () => {
-      const ids = new Set(temps.map((t) => t.id))
-      set({ tasks: get().tasks.filter((t) => !ids.has(t.id)) })
+    creates++
+    const ids = new Set(temps.map((t) => t.id))
+    send(what, (ws) => tasksApi.import(ws, { tasks: rows.map(toRow) }).finally(createSettled), {
+      onDone: (created) => {
+        const real = new Set(created.map((t) => t.id))
+        const now = Date.now()
+        real.forEach((id) => confirmedAt.set(id, now))
+        set({ tasks: [...get().tasks.filter((t) => !ids.has(t.id) && !real.has(t.id)), ...created.map(fromServer)] })
+      },
+      onFail: () => set({ tasks: get().tasks.filter((t) => !ids.has(t.id)) }),
     })
     return rows.length
   }
@@ -309,14 +377,62 @@ export const useCalendar = create<State>((set, get) => {
     hydrate(workspaceId, tasks, refresh) {
       if (get().workspaceId !== workspaceId) set({ workspaceId, tasks: [], loaded: false })
       set({ refresh })
-      if (inFlight) return
-      // Cards still being created stay until the server has them.
-      const waiting = get().tasks.filter((t) => t.pending)
-      set({ tasks: [...tasks.map(fromServer), ...waiting], loaded: true })
+      if (!get().loaded) {
+        set({ tasks: tasks.map(fromServer), loaded: true })
+        return
+      }
+      // A full list can't tell our in-flight new cards from others: merge after they land.
+      if (creates) {
+        reconcileAfter = true
+        return
+      }
+      const server = new Map(tasks.map((t) => [t.id, t]))
+      const now = Date.now()
+      const next: CalTask[] = []
+      for (const local of get().tasks) {
+        const remote = server.get(local.id)
+        server.delete(local.id)
+        if (writing.has(local.id)) {
+          // Busy card: keep what the person sees; the list's view waits its turn.
+          hold(local.id, remote ?? null)
+          next.push(local)
+        } else if (remote) {
+          next.push(remote.version >= local.version ? fromServer(remote) : local)
+        } else if (local.pending || now - (confirmedAt.get(local.id) ?? 0) < CONFIRM_GRACE_MS) {
+          next.push(local)
+        }
+        // else: deleted elsewhere.
+      }
+      for (const remote of server.values()) {
+        if (writing.has(remote.id)) hold(remote.id, remote) // e.g. our own delete in flight
+        else next.push(fromServer(remote))
+      }
+      set({ tasks: next })
+    },
+
+    applyServer(taskId, task) {
+      const id = keyOf(taskId)
+      if (writing.has(id)) {
+        hold(id, task)
+        return
+      }
+      const local = get().tasks.find((t) => t.id === id)
+      if (!local) {
+        if (task === null) return
+        // Maybe our own new card, still under its temporary id: wait for it.
+        if (creates) {
+          hold(id, task)
+          return
+        }
+        set({ tasks: [...get().tasks, fromServer(task)] })
+        return
+      }
+      if (task === null) replaceTask(id, null)
+      else if (task.version >= local.version) replaceTask(id, fromServer(task))
     },
 
     hydrateLogs(workspaceId, logs) {
-      if (inFlight || get().workspaceId !== workspaceId) return
+      if (logWrites || get().workspaceId !== workspaceId) return
       const waiting = get().accomplishments.filter((a) => a.pending)
       set({ accomplishments: [...waiting, ...logs.map(logFromServer)] })
     },
@@ -346,22 +462,36 @@ export const useCalendar = create<State>((set, get) => {
       creating.set(temp.id, real)
       const body: CreateTaskInput = { ...toRow({ ...input, title }), afterTaskId: input.afterTaskId ?? null, beforeTaskId: input.beforeTaskId ?? null }
       delete (body as { source?: unknown }).source
+      creates++
       send('add the task', async (ws) => {
         // Neighbours that are still being created themselves: place by their real ids.
         body.afterTaskId = body.afterTaskId ? await realId(body.afterTaskId) : null
         body.beforeTaskId = body.beforeTaskId ? await realId(body.beforeTaskId) : null
         return tasksApi.create(ws, body)
-      }, (task) => {
-        // Keep any edit made while it was being created.
-        const local = get().tasks.find((t) => t.id === temp.id)
-        replaceTask(temp.id, local ? { ...fromServer(task), status: local.status, rank: local.rank } : fromServer(task))
-        resolve(task.id)
-        creating.delete(temp.id)
-      }, (err) => {
-        // Writes queued behind this card fail with it.
-        replaceTask(temp.id, null)
-        reject(err)
-        creating.delete(temp.id)
+      }, {
+        onDone: (task) => {
+          // Writes queued on the temporary id now belong to the real one.
+          aliases.set(temp.id, task.id)
+          if (writing.has(temp.id)) {
+            writing.set(task.id, writing.get(temp.id)!)
+            writing.delete(temp.id)
+          }
+          confirmedAt.set(task.id, Date.now())
+          // Keep any move made while it was being created (its write follows).
+          const local = get().tasks.find((t) => t.id === temp.id)
+          set({ tasks: get().tasks.filter((t) => t.id !== task.id) }) // a stream copy that beat the answer
+          replaceTask(temp.id, local ? { ...fromServer(task), status: local.status, rank: local.rank } : fromServer(task))
+          resolve(task.id)
+          creating.delete(temp.id)
+          createSettled()
+        },
+        onFail: (err) => {
+          // Writes queued behind this card fail with it.
+          replaceTask(temp.id, null)
+          reject(err)
+          creating.delete(temp.id)
+          createSettled()
+        },
       })
       return temp
     },
@@ -382,6 +512,7 @@ export const useCalendar = create<State>((set, get) => {
           afterTaskId: place.afterTaskId ? await realId(place.afterTaskId) : null,
           beforeTaskId: place.beforeTaskId ? await realId(place.beforeTaskId) : null,
         }),
+        { taskId: id, snapshot: (t) => t },
       )
     },
 
@@ -393,7 +524,7 @@ export const useCalendar = create<State>((set, get) => {
       // A new column through the editor = bottom of that column (as the server does).
       const moved = patch.status && patch.status !== task.status ? { rank: rankBetween(get().tasks, patch.status, {}, id) } : {}
       patchLocal(id, { ...patch, ...moved, ...(patch.day === null ? { time: null } : {}) })
-      send('save the task', async (ws) => tasksApi.update(ws, await realId(id), body))
+      send('save the task', async (ws) => tasksApi.update(ws, await realId(id), body), { taskId: id, snapshot: (t) => t })
     },
 
     block(id, reason) {
@@ -401,14 +532,14 @@ export const useCalendar = create<State>((set, get) => {
       const clean = reason.trim()
       if (!task || !clean) return
       patchLocal(id, { blocked: { since: task.blocked?.since ?? new Date().toISOString(), reason: clean.slice(0, 280), byName: task.blocked?.byName ?? null } })
-      send('mark the task blocked', async (ws) => tasksApi.block(ws, await realId(id), clean))
+      send('mark the task blocked', async (ws) => tasksApi.block(ws, await realId(id), clean), { taskId: id, snapshot: (t) => t })
     },
 
     unblock(id) {
       const task = get().tasks.find((t) => t.id === id)
       if (!task?.blocked) return
       patchLocal(id, { blocked: null })
-      send('unblock the task', async (ws) => tasksApi.unblock(ws, await realId(id)))
+      send('unblock the task', async (ws) => tasksApi.unblock(ws, await realId(id)), { taskId: id, snapshot: (t) => t })
     },
 
     addAccomplishment(input) {
@@ -443,14 +574,18 @@ export const useCalendar = create<State>((set, get) => {
         memberId: input.assigneeId ?? null,
         taskId: input.taskId ? await realId(input.taskId) : null,
         completeTask: !!task,
-      }), (log) => set({ accomplishments: get().accomplishments.map((a) => (a.id === temp.id ? logFromServer(log) : a)) }), drop)
+      }), {
+        logs: true,
+        onDone: (log) => set({ accomplishments: get().accomplishments.map((a) => (a.id === temp.id ? logFromServer(log) : a)) }),
+        onFail: drop,
+      })
     },
 
     removeAccomplishment(id) {
       const entry = get().accomplishments.find((a) => a.id === id)
       if (!entry || entry.pending) return
       set({ accomplishments: get().accomplishments.filter((a) => a.id !== id) })
-      send('delete the entry', (ws) => workLogsApi.remove(ws, id))
+      send('delete the entry', (ws) => workLogsApi.remove(ws, id), { logs: true })
       get().say('Deleted the work entry', () => {
         get().dismiss()
         get().addAccomplishment({ title: entry.title, day: entry.day, time: entry.time, category: entry.category, hoursSpent: entry.hoursSpent, taskId: entry.taskId, assigneeId: entry.assigneeId, assigneeName: entry.assigneeName })
@@ -491,14 +626,14 @@ export const useCalendar = create<State>((set, get) => {
       const task = get().tasks.find((t) => t.id === id)
       if (!task) return
       replaceTask(id, null)
-      send('delete the task', async (ws) => tasksApi.remove(ws, await realId(id)))
+      send('delete the task', async (ws) => tasksApi.remove(ws, await realId(id)), { taskId: id, snapshot: () => null })
       get().say(`Deleted ${task.taskKey}`, () => get().restore(task))
     },
 
     restore(task) {
       if (!get().tasks.some((t) => t.id === task.id)) set({ tasks: [...get().tasks, task] })
       get().dismiss()
-      send('restore the task', async (ws) => tasksApi.restore(ws, await realId(task.id)))
+      send('restore the task', async (ws) => tasksApi.restore(ws, await realId(task.id)), { taskId: task.id, snapshot: (t) => t })
     },
 
     closeMatching(query, day) {
