@@ -33,15 +33,19 @@ export async function createRvmSource(): Promise<MaskSource> {
     const src = new ort.Tensor('float32', toChw(input, 1 / 255, 0), [1, 3, height, width])
     const out = await session.run({ src, r1i: state[0]!, r2i: state[1]!, r3i: state[2]!, r4i: state[3]!, downsample_ratio: ratio })
     src.dispose()
+    state.forEach(tensor => tensor.dispose())
     state = [out.r1o!, out.r2o!, out.r3o!, out.r4o!]
     out.fgr?.dispose()
-    return { data: Float32Array.from(out.pha!.data as Float32Array), width, height }
+    const data = Float32Array.from(out.pha!.data as Float32Array)
+    out.pha!.dispose()
+    return { data, width, height }
   }
 
   const probe = document.createElement('canvas')
   Object.assign(probe, size(16, 9))
   await warmMs(() => infer(probe), 2)
+  state.forEach(tensor => tensor.dispose())
   state = [zero(), zero(), zero(), zero()] // don't carry the probe's state into real frames
 
-  return { backend: 'rvm-dev/webgpu', sync: false, inputSize: size, run: (input) => infer(input) }
+  return { dispose: async () => { state.forEach(t => t.dispose()); ratio.dispose(); await session.release() }, backend: 'rvm-dev/webgpu', model: 'rvm-mobilenetv3-fp32-dev', sync: false, inputSize: size, run: (input) => infer(input) }
 }

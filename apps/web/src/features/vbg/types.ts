@@ -7,13 +7,21 @@ export type MaskFrame = { data: Float32Array; width: number; height: number }
 export interface MaskSource {
   /** Which engine and execution backend produced the masks, e.g. 'modnet/webgpu'. */
   readonly backend: string
+  /** Model identity supplied by its loader, independent of execution provider. */
+  readonly model?: string
+  /** Explicitly known output transfers only; omitted means unmeasured. */
+  readonly gpuReadbacksPerMask?: number
   /** Inference runs on the main thread (counts against the frame budget). */
   readonly sync: boolean
   /** The input size this source wants for a camera frame of frameW×frameH. */
   inputSize(frameW: number, frameH: number): { width: number; height: number }
-  /** Segments `input` (already resized to inputSize). */
+  /** Optional synchronous segmenter call for CPU sources to enable same-frame mask application. */
+  runSync?(input: HTMLCanvasElement, timestampMs: number): MaskFrame | null
+  /** Segments input (already resized to inputSize). */
   run(input: HTMLCanvasElement, timestampMs: number): Promise<MaskFrame | null>
   /** Per-source stabilizer tuning (each engine's noise is different). */
+  dispose?(): void | Promise<void>
+  diagnostics?(): string
   readonly stabilizer?: Partial<StabilizerTuning>
 }
 

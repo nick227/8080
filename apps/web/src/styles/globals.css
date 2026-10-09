@@ -389,4 +389,9 @@ body:has(.reply-instrument.is-active) .feed { transform: translateX(-60px); }
 .record-button:disabled { opacity: var(--opacity-disabled); cursor: progress; }
 /* TEMPORARY virtual-background tuning readout (VbgReadout.tsx). */
 .cam-preview { position: relative; }
-.vbg-readout { position: absolute; left: 8px; top: 8px; margin: 0; padding: var(--space-1) var(--space-sm); background: var(--debug-overlay); color: var(--debug-ink); font: var(--text-xs)/1.35 var(--mono); pointer-events: none; white-space: pre; z-index: 2; }
+.vbg-readout-wrap { position: fixed; left: 12px; top: 100px; z-index: 99999; display: flex; flex-direction: column; gap: var(--space-1); pointer-events: auto; max-width: min(520px, calc(100vw - 24px)); }
+.vbg-readout { margin: 0; padding: var(--space-1) var(--space-sm); background: var(--debug-overlay); color: var(--debug-ink); font: var(--text-xs)/1.35 var(--mono); pointer-events: none; white-space: pre; overflow-x: auto; max-height: 40vh; }
+.vbg-diagnostic-controls { display: flex; gap: var(--space-sm); align-items: center; padding: 6px 10px; background: rgba(0, 0, 0, 0.85); color: #fff; font: var(--text-xs)/1.35 var(--mono); border-radius: 4px; pointer-events: auto; }
+.vbg-diagnostic-controls button { font: inherit; font-weight: 600; padding: 6px 12px; background: #2563eb; color: #ffffff; border: 1px solid #3b82f6; border-radius: 4px; cursor: pointer; pointer-events: auto; }
+.vbg-diagnostic-controls button:hover { background: #1d4ed8; }
+.vbg-diagnostic-controls button:disabled { opacity: 0.5; cursor: not-allowed; }

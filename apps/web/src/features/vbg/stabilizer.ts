@@ -45,9 +45,14 @@ export function createStabilizer(initial: Partial<StabilizerTuning> = {}) {
   let flickerN = 0
   let masks = 0
 
+  let smoothTop = 0
+  let smoothBottom = 0
+
   const resize = (mask: MaskFrame) => {
     w = mask.width
     h = mask.height
+    smoothTop = 0
+    smoothBottom = 0
     const seed = lastMask && lastMask.w === w && lastMask.h === h && performance.now() - lastMask.at < 1000 ? lastMask.data : null
     smooth = seed ? Float32Array.from(seed) : Float32Array.from(mask.data)
     shaped = new Float32Array(w * h)
@@ -70,40 +75,48 @@ export function createStabilizer(initial: Partial<StabilizerTuning> = {}) {
     const raw = mask.data
     const now = performance.now()
     const dt = at ? Math.max(1, now - at) : 1000 / 30
-    // Derive headroom from the actual previous silhouette, not a fixed camera crop.
-    let top = h, bottom = 0
+    // Derive headroom from both held pixels and raw input so flickering head pixels never collapse top downwards.
+    let rawTop = h, rawBottom = 0
     for (let y = 0; y < h; y++) {
       let count = 0
-      for (let x = 0; x < w; x++) if (hd[y * w + x]) count++
-      if (count >= Math.max(2, w * 0.025)) { top = Math.min(top, y); bottom = y }
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x
+        if (hd[i] || raw[i]! >= 0.15) count++
+      }
+      if (count >= Math.max(2, w * 0.02)) { rawTop = Math.min(rawTop, y); rawBottom = y }
     }
-    const headBottom = top + Math.max(1, (bottom - top + 1) * 0.4)
+    if (rawTop < h && rawBottom > 0) {
+      smoothTop = smoothTop === 0 ? rawTop : Math.min(rawTop, smoothTop + 1)
+      smoothBottom = smoothBottom === 0 ? rawBottom : Math.max(rawBottom, smoothBottom - 1)
+    } else {
+      smoothTop = rawTop
+      smoothBottom = rawBottom
+    }
+    const headBottom = smoothTop + Math.max(1, (smoothBottom - smoothTop + 1) * 0.45)
     let headBefore = 0, headAfter = 0
     headWeakMs = 0
     for (let i = 0; i < s.length; i++) {
       const next = Number.isFinite(raw[i]) ? Math.max(0, Math.min(1, raw[i]!)) : s[i]!
       const previous = s[i]!
-      const inHead = Math.floor(i / w) >= top && Math.floor(i / w) < headBottom
+      const inHead = Math.floor(i / w) >= smoothTop && Math.floor(i / w) < headBottom
       const wasHeld = hd[i] === 1
       if (inHead && wasHeld) headBefore++
-      // Dual thresholds: uncertain evidence preserves classification but cannot
-      // repeatedly reset the grace period during a sustained confidence collapse.
       weakMs![i] = wasHeld && next < 0.35 ? weakMs![i]! + dt : 0
       const weak = weakMs![i]!
-      const grace = inHead ? 260 : 100
       if (next >= previous) {
         const change = next - previous
         const keep = change > tuning.threshold ? 0 : tuning.keep * Math.max(tuning.floor, Math.abs(previous - 0.5) * 2)
         s[i] = next * (1 - keep) + previous * keep
-      } else if (wasHeld && (next >= 0.35 || weak <= grace)) {
-        s[i] = Math.max(0.65, previous)
+      } else if (inHead && wasHeld && next >= 0.10) {
+        // Retain head/hair pixels with faint raw confidence (>= 0.10) so the head never collapses down to the chin
+        s[i] = Math.max(0.55, previous * 0.96)
       } else {
-        const tau = wasHeld ? (inHead ? 140 : 90) : 65
+        // Clear background (next < 0.10) fast (tau=40ms) to prevent ghosting
+        const tau = next < 0.10 ? 40 : 100
         s[i] = next + (previous - next) * Math.exp(-dt / tau)
       }
-      if (next >= 0.65) hd[i] = 1
-      else if (next < 0.35 && weak > grace && s[i]! < 0.35) hd[i] = 0
-      sh[i] = hd[i] ? smoothstep(0.2, 0.65, s[i]!) : smoothstep(0.35, 0.8, s[i]!)
+      hd[i] = s[i] >= 0.25 ? 1 : 0
+      sh[i] = smoothstep(0.15, 0.65, s[i]!)
       if (inHead && wasHeld) {
         if (sh[i]! >= 0.5) headAfter++
         headWeakMs = Math.max(headWeakMs, weak)

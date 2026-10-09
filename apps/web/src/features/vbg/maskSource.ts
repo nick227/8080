@@ -34,7 +34,25 @@ export function subscribeMaskSource(listener: (source: MaskSource) => void) {
 }
 
 function wanted(): string {
-  try { return localStorage.getItem('8080.vbg-source') ?? 'auto' } catch { return 'auto' }
+  try {
+    const params = new URLSearchParams(window.location.search)
+    const param = params.get('vbg-source') ?? params.get('vbg')
+    if (param) {
+      localStorage.setItem('8080.vbg-source', param)
+      return param
+    }
+    return localStorage.getItem('8080.vbg-source') ?? 'auto'
+  } catch {
+    return 'auto'
+  }
+}
+
+if (typeof window !== 'undefined') {
+  ;(window as unknown as Record<string, unknown>).setVbgSource = (source: string) => {
+    localStorage.setItem('8080.vbg-source', source)
+    console.log('[vbg] Updated 8080.vbg-source to:', source)
+    location.reload()
+  }
 }
 
 const reason = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, 80)
@@ -51,9 +69,14 @@ async function first(tries: Array<[string, () => Promise<MaskSource>]>) {
 }
 
 function upgradeToModnet() {
+  if (wanted() !== 'auto') return
   useMaskUpgrade.setState({ state: 'loading', pct: 0 })
   createModnetSource((pct) => useMaskUpgrade.setState({ pct })).then(
     (modnet) => {
+      if (wanted() !== 'auto') {
+        void modnet.dispose?.()
+        return
+      }
       current = modnet
       useMaskUpgrade.setState({ state: 'ready', pct: 100 })
       listeners.forEach((listener) => listener(modnet))
@@ -69,14 +92,20 @@ function upgradeToModnet() {
 export function loadMaskSource(): Promise<MaskSource> {
   chosen ??= (async () => {
     const want = wanted()
+    console.log('[vbg] Loading mask source. Requested mode:', want)
     let source: MaskSource
-    if (import.meta.env.DEV && want === 'rvm') {
+    if (want === 'auto' || want === 'multiclass') {
+      source = await first([
+        ['mediapipe/multiclass-gpu', async () => (await import('./mediapipeMulticlassSource')).createMediapipeMulticlassSource(true)],
+        ['mediapipe/multiclass-cpu', async () => (await import('./mediapipeMulticlassSource')).createMediapipeMulticlassSource(false)],
+        ['mediapipe/cpu', createMediapipeSource],
+      ])
+    } else if (import.meta.env.DEV && want === 'rvm') {
       source = await first([['rvm-dev', async () => (await import('./rvmSourceDevOnly')).createRvmSource()], ['mediapipe/cpu', createMediapipeSource]])
     } else if (want === 'modnet') {
       source = await first([['modnet/webgpu', () => createModnetSource()], ['mediapipe/cpu', createMediapipeSource]])
     } else {
       source = await first([['mediapipe/cpu', createMediapipeSource]])
-      if (want !== 'mediapipe') upgradeToModnet()
     }
     current = source
     return source

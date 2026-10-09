@@ -1,15 +1,15 @@
 import { create } from 'zustand'
-import { tasksApi, type CreateTaskInput, type ImportTaskRow, type Task, type UpdateTaskInput } from '@project/sdk'
+import { tasksApi, workLogsApi, type CreateTaskInput, type ImportTaskRow, type Task, type UpdateTaskInput, type WorkLog } from '@project/sdk'
 import { todayKey, shiftMonthKey } from './dates'
-import type { CalAccomplishment, CalTask, TaskPriority, TaskStatus, TaskType } from './types'
+import { WORK_CATEGORIES, type CalAccomplishment, type CalTask, type TaskPriority, type TaskStatus, type TaskType, type WorkCategory } from './types'
 
 // Tasks belong to the workspace (server). This store keeps the copy every view
 // reads, so a move or edit shows at once; the server answer then replaces it.
 // `useTaskSync` (sync.ts) feeds it from the SDK query and registers `refresh`.
 
-const ACCOMPLISHMENTS_KEY = 'vc-accomplishments'
-/** Tasks saved in this browser before tasks lived on the server. */
+/** Tasks and work entries saved in this browser before they lived on the server. */
 export const LOCAL_TASKS_KEY = 'vc-tasks'
+export const LOCAL_LOGS_KEY = 'vc-accomplishments'
 const RANK_STEP = 1024
 
 export type View = 'month' | 'day' | 'list' | 'board' | 'backlog'
@@ -26,6 +26,20 @@ export type Filters = {
 export const NO_FILTERS: Filters = { members: [], types: [], areas: [], priorities: [], search: '' }
 
 export type Notice = { id: number; text: string; undo?: () => void }
+
+export type NewWorkLog = {
+  title: string
+  taskKey?: string | null
+  day: string
+  time?: string | null
+  category?: WorkCategory
+  hoursSpent?: number | null
+  taskId?: string | null
+  /** Move the task to done in the same change. */
+  completeTask?: boolean
+  assigneeId?: string | null
+  assigneeName?: string | null
+}
 
 export type NewTask = {
   title: string
@@ -61,6 +75,7 @@ type State = {
   filters: Filters
 
   hydrate: (workspaceId: string, tasks: Task[], refresh: () => void) => void
+  hydrateLogs: (workspaceId: string, logs: WorkLog[]) => void
   showMonth: () => void
   showDay: (day: string) => void
   showList: () => void
@@ -78,16 +93,8 @@ type State = {
   moveTask: (id: string, status: TaskStatus, place: Placement) => void
   updateTask: (id: string, patch: Partial<CalTask>) => void
 
-  addAccomplishment: (input: {
-    title: string
-    day: string
-    time?: string | null
-    category?: string
-    taskKey?: string | null
-    assigneeId?: string | null
-    assigneeName?: string | null
-    icon?: string
-  }) => void
+  addAccomplishment: (input: NewWorkLog) => void
+  removeAccomplishment: (id: string) => void
 
   addMany: (titles: string[], day: string, source: string) => number
   importTasks: (rows: { title: string; day: string; time: string | null; status: TaskStatus }[]) => number
@@ -189,19 +196,23 @@ export function applyFilters(tasks: CalTask[], f: Filters): CalTask[] {
 export const filtersActive = (f: Filters) =>
   f.members.length + f.types.length + f.areas.length + f.priorities.length > 0 || f.search.trim() !== ''
 
-function loadAccomplishments(): CalAccomplishment[] {
-  try {
-    const raw = localStorage.getItem(ACCOMPLISHMENTS_KEY)
-    const parsed: unknown = raw ? JSON.parse(raw) : []
-    // The old demo entries (acc-1…3) named people who don't exist.
-    return Array.isArray(parsed) ? (parsed as CalAccomplishment[]).filter((a) => !/^acc-\d$/.test(a.id)) : []
-  } catch {
-    return []
-  }
-}
+export const workIcon = (category: string) => WORK_CATEGORIES.find((c) => c.id === category)?.icon ?? '✨'
 
-function saveAccomplishments(accs: CalAccomplishment[]) {
-  try { localStorage.setItem(ACCOMPLISHMENTS_KEY, JSON.stringify(accs)) } catch { /* ignore */ }
+export function logFromServer(l: WorkLog): CalAccomplishment {
+  return {
+    id: l.id,
+    taskId: l.taskId,
+    taskKey: l.taskKey,
+    title: l.summary,
+    day: l.day,
+    time: l.time,
+    category: l.category,
+    hoursSpent: l.hoursSpent,
+    assigneeId: l.memberId,
+    assigneeName: l.member?.name ?? null,
+    authorMemberId: l.authorMemberId,
+    icon: workIcon(l.category),
+  }
 }
 
 export function orderTasks(tasks: CalTask[]): CalTask[] {
@@ -284,7 +295,7 @@ export const useCalendar = create<State>((set, get) => {
     syncing: false,
     notice: null,
     refresh: null,
-    accomplishments: loadAccomplishments(),
+    accomplishments: [],
     cursor: todayKey(),
     view: 'month',
     filters: NO_FILTERS,
@@ -296,6 +307,12 @@ export const useCalendar = create<State>((set, get) => {
       // Cards still being created stay until the server has them.
       const waiting = get().tasks.filter((t) => t.pending)
       set({ tasks: [...tasks.map(fromServer), ...waiting], loaded: true })
+    },
+
+    hydrateLogs(workspaceId, logs) {
+      if (inFlight || get().workspaceId !== workspaceId) return
+      const waiting = get().accomplishments.filter((a) => a.pending)
+      set({ accomplishments: [...waiting, ...logs.map(logFromServer)] })
     },
 
     showMonth() { set({ view: 'month' }) },
@@ -376,20 +393,47 @@ export const useCalendar = create<State>((set, get) => {
     addAccomplishment(input) {
       const title = input.title.trim()
       if (!title) return
-      const acc: CalAccomplishment = {
-        id: crypto.randomUUID(),
-        taskKey: input.taskKey ?? null,
+      const temp: CalAccomplishment = {
+        id: `tmp-${crypto.randomUUID()}`,
+        taskId: input.taskId ?? null,
+        taskKey: input.taskId ? get().tasks.find((t) => t.id === input.taskId)?.taskKey ?? null : null,
         title,
         day: input.day,
         time: input.time ?? null,
-        category: input.category ?? 'milestone',
+        category: input.category ?? 'work',
+        hoursSpent: input.hoursSpent ?? null,
         assigneeId: input.assigneeId ?? null,
         assigneeName: input.assigneeName ?? null,
-        icon: input.icon ?? '✨',
+        icon: workIcon(input.category ?? 'work'),
+        pending: true,
       }
-      const accomplishments = [acc, ...get().accomplishments]
-      saveAccomplishments(accomplishments)
-      set({ accomplishments })
+      set({ accomplishments: [temp, ...get().accomplishments] })
+      const task = input.completeTask && input.taskId ? get().tasks.find((t) => t.id === input.taskId) : null
+      if (task && task.status !== 'done') {
+        patchLocal(task.id, { status: 'done', rank: rankBetween(get().tasks, 'done', {}, task.id), resolvedAt: new Date().toISOString() })
+      }
+      const drop = () => set({ accomplishments: get().accomplishments.filter((a) => a.id !== temp.id) })
+      send('log the work', async (ws) => workLogsApi.create(ws, {
+        summary: title,
+        day: input.day,
+        time: input.time || null,
+        category: input.category ?? 'work',
+        hoursSpent: input.hoursSpent ?? null,
+        memberId: input.assigneeId ?? null,
+        taskId: input.taskId ? await realId(input.taskId) : null,
+        completeTask: !!task,
+      }), (log) => set({ accomplishments: get().accomplishments.map((a) => (a.id === temp.id ? logFromServer(log) : a)) }), drop)
+    },
+
+    removeAccomplishment(id) {
+      const entry = get().accomplishments.find((a) => a.id === id)
+      if (!entry || entry.pending) return
+      set({ accomplishments: get().accomplishments.filter((a) => a.id !== id) })
+      send('delete the entry', (ws) => workLogsApi.remove(ws, id))
+      get().say('Deleted the work entry', () => {
+        get().dismiss()
+        get().addAccomplishment({ title: entry.title, day: entry.day, time: entry.time, category: entry.category, hoursSpent: entry.hoursSpent, taskId: entry.taskId, assigneeId: entry.assigneeId, assigneeName: entry.assigneeName })
+      })
     },
 
     importTasks(rows) {

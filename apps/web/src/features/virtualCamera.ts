@@ -1,7 +1,9 @@
+import { exportDiagnostic, takeVbgDiagnosticRequest } from './vbg/diagnostics'
+import { createEdgeRefiner } from './vbg/edgeRefiner'
 import { useBackground, type BackgroundMode } from '../state/background'
 import { currentMaskSource, fallbacks, loadMaskSource, subscribeMaskSource } from './vbg/maskSource'
 import { createStabilizer } from './vbg/stabilizer'
-import type { MaskSource } from './vbg/types'
+import type { MaskFrame, MaskSource } from './vbg/types'
 
 // Virtual background (doc/07-virtual-background-plan.md). Four replaceable stages:
 // camera frame → mask source (vbg/maskSource.ts) → temporal stabilizer (vbg/stabilizer.ts)
@@ -38,6 +40,12 @@ export function effectiveMode(): BackgroundMode {
 }
 
 // ─── compositor ───────────────────────────────────────────────────────────────
+export type StageCapture = {
+  frameId: number; timestampMs: number; backend: string; backendChanged: boolean; inferenceMs: number
+  original: HTMLCanvasElement; raw: MaskFrame; stabilized: HTMLCanvasElement
+  refined: HTMLCanvasElement; refinementApplied: boolean; final: HTMLCanvasElement
+}
+export type EvaluationOptions = { onFrame: (frame: StageCapture) => void }
 export type CompositorOptions = { mode: 'blur' | 'photo'; photoUrl: string | null; mirror: boolean; /** recording: never resize mid-take */ fixedSize?: boolean }
 
 export type Compositor = {
@@ -47,6 +55,7 @@ export type Compositor = {
   preview: HTMLCanvasElement
   setOptions: (options: Partial<CompositorOptions>) => void
   stop: () => void
+  evaluateFrame: (image: HTMLCanvasElement, timestampMs: number) => Promise<void>
 }
 
 const MAX_W = 1920 // never downscale a 720p/1080p camera; the canvas is the camera's size
@@ -66,9 +75,9 @@ function readTune(): Tune {
 
 /** Live numbers for the developer readout (features/room/VbgReadout.tsx), per backend. */
 export type VbgStats = {
-  backend: string; camera: string; canvas: string; maskInput: string; mask: string
+  backend: string; renderer: string; model: string; outputLocation: string; gpuReadbacksPerFrame: number | null; maskAgeMs: number | null; camera: string; canvas: string; maskInput: string; mask: string
   inferMs: number; maskFps: number; mainSegMs: number; drawMs: number; fps: number; tier: number
-  fg: number; flicker: number; areaDelta: number; headRetained: number; headWeakMs: number; polish: boolean; blur: string; fallbacks: string; failed: boolean
+  refinement: string; refineMs: number; inferenceDetail: string; fg: number; flicker: number; areaDelta: number; headRetained: number; headWeakMs: number; polish: boolean; blur: string; fallbacks: string; failed: boolean
 }
 export let vbgStats: VbgStats | null = null
 export let vbgRecording: { mime: string; videoBitsPerSecond: number } | null = null
@@ -114,12 +123,12 @@ export function compositorOutputSize(width: number, height: number) {
   return { width: Math.round(width * scale), height: Math.round(height * scale) }
 }
 
-export function startCompositor(initialSource: MaskSource, camera: MediaStream, initial: CompositorOptions, onUnavailable: (message: string) => void): Compositor {
+export function startCompositor(initialSource: MaskSource, camera: MediaStream, initial: CompositorOptions, onUnavailable: (message: string) => void, evaluation?: EvaluationOptions): Compositor {
   let source = initialSource
   let options = { ...initial }
   const tune = readTune()
-  let polish = tune.polish && learned.polish
-  let maxW = learned.maxW
+  let polish = evaluation ? true : tune.polish && learned.polish
+  let maxW = evaluation ? MAX_W : learned.maxW
   let blurHalf = tune.blurRes === 'half' && learned.blurHalf
   let trial: Step | null = null
   let calm = 0 // consecutive windows with headroom
@@ -140,8 +149,7 @@ export function startCompositor(initialSource: MaskSource, camera: MediaStream, 
   const video = document.createElement('video')
   video.muted = true
   video.playsInline = true
-  video.srcObject = camera
-  void video.play().catch(() => undefined)
+  if (!evaluation) { video.srcObject = camera; void video.play().catch(() => undefined) }
 
   const out = canvas()
   const preview = canvas()
@@ -149,9 +157,17 @@ export function startCompositor(initialSource: MaskSource, camera: MediaStream, 
   const previewCtx = ctx2d(preview)
   const person = canvas()
   const personCtx = ctx2d(person)
+  let diagnosticBackground: HTMLCanvasElement | null = null
   const segIn = canvas() // the frame resized to the mask source's input size
   const segCtx = ctx2d(segIn)
   const stabilizer = createStabilizer(initialSource.stabilizer)
+  const refiner = createEdgeRefiner()
+  const guide = canvas() // snapshot paired with the inference, never a later camera frame
+  const guideCtx = ctx2d(guide)
+  const refinedMask = canvas()
+  const refinedCtx = ctx2d(refinedMask)
+  let refinedReady = false
+  let refineMs = 0
   const maskCanvas = stabilizer.alpha
   const ringCanvas = stabilizer.ring
   // Blur background: built from the raw camera only, opaque, redrawn every frame.
@@ -322,17 +338,25 @@ export function startCompositor(initialSource: MaskSource, camera: MediaStream, 
     onUnavailable(message)
   }
 
-  const judge = (now: number) => {
-    if (now - windowStart < WINDOW_MS) return
-    const fps = (windowFrames * 1000) / (now - windowStart)
-    const masksPerSec = (windowMasks * 1000) / (now - windowStart)
-    const inferMs = windowMasks ? windowInferMs / windowMasks : 0
-    // Main-thread cost per frame from inference (all of it for a sync source).
-    const segMs = windowFrames ? windowMainSegMs / Math.max(1, windowMasks) : 0
+  const updateStats = (now: number) => {
     const { fg, flicker, areaDelta, headRetained, headWeakMs } = stabilizer.takeStats()
     const mask = stabilizer.size()
+    const elapsed = Math.max(1, now - windowStart)
+    const fps = (windowFrames * 1000) / elapsed
+    const masksPerSec = (windowMasks * 1000) / elapsed
+    const inferMs = windowMasks ? windowInferMs / windowMasks : 0
+    const segMs = windowFrames ? windowMainSegMs / Math.max(1, windowMasks) : 0
+    const current = performance.now()
     vbgStats = {
       backend: source.backend,
+      renderer: 'canvas2d', // outCtx above is the renderer; the source backend is inference only.
+      model: appliedMaskModel ?? source.model ?? 'unspecified',
+      outputLocation: lastMaskInputAt === null ? 'pending' : 'cpu', // MaskFrame.data is Float32Array.
+      gpuReadbacksPerFrame: appliedMaskReadbacks,
+      maskAgeMs: lastMaskInputAt === null ? null : Math.max(0, Math.round(current - lastMaskInputAt)),
+      refinement: refinedReady && polish ? 'rgb-guided/webgl2' : 'bilinear',
+      refineMs: refinedReady && polish ? Math.round(refineMs * 10) / 10 : 0,
+      inferenceDetail: source.diagnostics?.() ?? '—',
       camera: `${video.videoWidth}×${video.videoHeight}`,
       canvas: `${W}×${H}`,
       maskInput: `${segIn.width}×${segIn.height}`,
@@ -353,6 +377,15 @@ export function startCompositor(initialSource: MaskSource, camera: MediaStream, 
       fallbacks: fallbacks.map((f) => `${f.source}: ${f.reason}`).join('; '),
       failed,
     }
+    ;(globalThis as any).__vbgStats = vbgStats
+  }
+
+  const judge = (now: number) => {
+    updateStats(now)
+    if (now - windowStart < WINDOW_MS) return
+    const fps = (windowFrames * 1000) / (now - windowStart)
+    const inferMs = windowMasks ? windowInferMs / windowMasks : 0
+    const segMs = windowFrames ? windowMainSegMs / Math.max(1, windowMasks) : 0
     const drawMs = windowFrames ? windowDrawMs / windowFrames : 0
     // Budget = the camera's own frame interval (a 25 fps webcam gives 40 ms), less a margin.
     const cameraFps = camera.getVideoTracks()[0]?.getSettings().frameRate || 30
@@ -396,21 +429,143 @@ export function startCompositor(initialSource: MaskSource, camera: MediaStream, 
 
   // One inference in flight at a time. A GPU source runs off the main thread, so frames
   // keep drawing (with the last stabilized mask) while it works; a sync source runs here.
-  const segment = (now: number) => {
+  let lastMaskInputAt: number | null = null
+  let appliedMaskModel: string | null = null
+  let appliedMaskReadbacks: number | null = null
+  let lastEvaluationTimestamp = -Infinity
+  let captureId = 0
+  let capturedBackend = ''
+  const segment = (now: number, input: CanvasImageSource = video) => {
     if (inFlight) return
-    segCtx.drawImage(video, 0, 0, segIn.width, segIn.height)
+    const diagnostic = takeVbgDiagnosticRequest()
+    const frameId = captureId++
+    const captureStart = performance.now()
+    const refineThisFrame = !!refiner && polish
+    if (refineThisFrame || evaluation || diagnostic) {
+      if (guide.width !== W || guide.height !== H) { guide.width = W; guide.height = H }
+      guideCtx.drawImage(input, 0, 0, W, H)
+      segCtx.drawImage(guide, 0, 0, segIn.width, segIn.height)
+    } else segCtx.drawImage(input, 0, 0, segIn.width, segIn.height)
+    const inferenceSource = source
+    windowMainSegMs += performance.now() - captureStart
     const t0 = performance.now()
+    if (inferenceSource.runSync) {
+      try {
+        inFlight = true
+        const mask = inferenceSource.runSync(segIn, now)
+        const inferenceMs = performance.now() - t0
+        if (mask) {
+          windowMasks++
+          stabilizer.update(mask)
+          lastMaskInputAt = now
+          appliedMaskModel = inferenceSource.model ?? 'unspecified'
+          appliedMaskReadbacks = inferenceSource.gpuReadbacksPerMask ?? null
+          refinedReady = false
+          if (refiner && refineThisFrame && polish && guide.width === W && guide.height === H) {
+            const start = performance.now()
+            const result = refiner.render(guide, maskCanvas, W, H)
+            if (!result && import.meta.env.DEV) console.warn('Refiner render returned null!')
+            if (result) {
+              if (refinedMask.width !== W || refinedMask.height !== H) { refinedMask.width = W; refinedMask.height = H }
+              refinedCtx.globalCompositeOperation = 'copy'
+              refinedCtx.drawImage(result, 0, 0)
+              refinedReady = true
+            }
+            refineMs = performance.now() - start
+            windowMainSegMs += refineMs
+          }
+          if (polish && ++maskNo % 15 === 0) matchBrightness()
+          errors = 0
+          updateStats(now)
+          if (evaluation) {
+            draw(now, guide)
+            evaluation.onFrame({ frameId, timestampMs: now, backend: source.backend,
+              backendChanged: !!capturedBackend && capturedBackend !== source.backend, inferenceMs,
+              original: guide, raw: mask, stabilized: maskCanvas,
+              refined: refinedReady ? refinedMask : maskCanvas, refinementApplied: refinedReady, final: out })
+            capturedBackend = source.backend
+          }
+          if (diagnostic) {
+            try {
+              diagnosticBackground = canvas(W, H)
+              draw(performance.now(), guide)
+              diagnostic.resolve(exportDiagnostic({ frameId, timestampMs: now, backend: inferenceSource.backend,
+                model: inferenceSource.model ?? 'unspecified', inferenceMs, original: guide, inferenceInput: segIn,
+                raw: mask, stabilized: maskCanvas, refined: refinedReady ? refinedMask : maskCanvas,
+                refinementApplied: refinedReady, final: out, foregroundLayer: person, backgroundPlate: diagnosticBackground }))
+            } catch (error) { diagnostic.reject(error) }
+            finally { diagnosticBackground = null; draw(performance.now()) }
+          }
+        }
+      } catch (error) {
+        diagnostic?.reject(error)
+        if (evaluation) throw error
+        if (++errors >= 3) giveUp('Background effects stopped working')
+      } finally {
+        inFlight = false
+        const mainMs = performance.now() - t0
+        windowMainSegMs += mainMs
+        if (source.sync) windowInferMs += mainMs
+      }
+      return Promise.resolve()
+    }
     let pending: Promise<unknown>
     try {
       inFlight = true
-      pending = source.run(segIn, now).then((mask) => {
+      pending = inferenceSource.run(segIn, now).then((mask) => {
+        if (stopped || source !== inferenceSource) {
+          diagnostic?.reject(new Error('Capture interrupted by camera stop or source switch; retry on the current source'))
+          return
+        }
         // A sync source's work happened inside run(); its settle time would include drawing.
         if (!source.sync) windowInferMs += performance.now() - t0
         windowMasks++
-        if (!mask) return
+        if (!mask) {
+          if (evaluation || diagnostic) throw new Error('Source returned no mask for the diagnostic frame')
+          return
+        }
+        const inferenceMs = performance.now() - t0
         stabilizer.update(mask)
+        lastMaskInputAt = now
+        appliedMaskModel = inferenceSource.model ?? 'unspecified'
+        appliedMaskReadbacks = inferenceSource.gpuReadbacksPerMask ?? null
+        refinedReady = false
+        if (refiner && refineThisFrame && polish && guide.width === W && guide.height === H) {
+          const start = performance.now()
+          const result = refiner.render(guide, maskCanvas, W, H)
+          if (!result && import.meta.env.DEV) console.warn('Refiner render returned null!')
+          if (result) {
+            if (refinedMask.width !== W || refinedMask.height !== H) { refinedMask.width = W; refinedMask.height = H }
+            // Copy immediately: the WebGL drawing buffer need not survive presentation.
+            refinedCtx.globalCompositeOperation = 'copy'
+            refinedCtx.drawImage(result, 0, 0)
+            refinedReady = true
+          }
+          refineMs = performance.now() - start
+          windowMainSegMs += refineMs
+        }
         if (polish && ++maskNo % 15 === 0) matchBrightness()
         errors = 0
+        updateStats(now)
+        if (evaluation) {
+          draw(now, guide)
+          evaluation.onFrame({ frameId, timestampMs: now, backend: source.backend,
+            backendChanged: !!capturedBackend && capturedBackend !== source.backend, inferenceMs,
+            original: guide, raw: mask, stabilized: maskCanvas,
+            refined: refinedReady ? refinedMask : maskCanvas, refinementApplied: refinedReady, final: out })
+          capturedBackend = source.backend
+        }
+        if (diagnostic) {
+          try {
+            diagnosticBackground = canvas(W, H)
+            draw(performance.now(), guide)
+            diagnostic.resolve(exportDiagnostic({ frameId, timestampMs: now, backend: inferenceSource.backend,
+              model: inferenceSource.model ?? 'unspecified', inferenceMs, original: guide, inferenceInput: segIn,
+              raw: mask, stabilized: maskCanvas, refined: refinedReady ? refinedMask : maskCanvas,
+              refinementApplied: refinedReady, final: out, foregroundLayer: person, backgroundPlate: diagnosticBackground }))
+          } catch (error) { diagnostic.reject(error) }
+          finally { diagnosticBackground = null; draw(performance.now()) }
+        }
       })
     } catch (error) {
       pending = Promise.reject(error)
@@ -418,7 +573,9 @@ export function startCompositor(initialSource: MaskSource, camera: MediaStream, 
     const mainMs = performance.now() - t0
     windowMainSegMs += mainMs
     if (source.sync) windowInferMs += mainMs
-    pending.catch(() => {
+    return pending.catch((error) => {
+      diagnostic?.reject(error)
+      if (evaluation) throw error
       // Hold the last mask (the stabilizer goes stale → raw camera); give up after 3.
       if (++errors >= 3) giveUp('Background effects stopped working')
     }).finally(() => { inFlight = false })
@@ -438,10 +595,10 @@ export function startCompositor(initialSource: MaskSource, camera: MediaStream, 
     ctx.drawImage(source, -radius * 2, -radius * 2, el.width + radius * 4, el.height + radius * 4)
     ctx.restore()
   }
-  const drawBlur = (target: CanvasRenderingContext2D) => {
+  const drawBlur = (target: CanvasRenderingContext2D, input: CanvasImageSource) => {
     // Blur at half size from a 2× averaged copy of the raw camera, then a 2× upscale:
     // little enough enlargement that no pixel structure (blocks) can show.
-    halfCtx.drawImage(video, 0, 0, halfC.width, halfC.height)
+    halfCtx.drawImage(input, 0, 0, halfC.width, halfC.height)
     if (nativeBlur && blurHalf) {
       blurInto(blurHalfCtx, blurHalfC, halfC, 10) // ≈ 20 px at full size
       blurSource = blurHalfC
@@ -463,22 +620,22 @@ export function startCompositor(initialSource: MaskSource, camera: MediaStream, 
     target.restore()
   }
 
-  const draw = (now: number) => {
+  const draw = (now: number, input: CanvasImageSource = video) => {
     const mirror = options.mirror
     const stale = failed || !stabilizer.usable(now)
     if (stale) {
       // Raw camera (no mask yet, or segmentation stopped): never a frozen cutout.
-      outCtx.drawImage(video, 0, 0, W, H)
+      outCtx.drawImage(input, 0, 0, W, H)
       previewCtx.save()
       if (mirror) { previewCtx.translate(PW, 0); previewCtx.scale(-1, 1) }
-      previewCtx.drawImage(video, 0, 0, PW, PH)
+      previewCtx.drawImage(input, 0, 0, PW, PH)
       previewCtx.restore()
       return
     }
     personCtx.globalCompositeOperation = 'copy'
-    personCtx.drawImage(video, 0, 0, W, H)
+    personCtx.drawImage(input, 0, 0, W, H)
     personCtx.globalCompositeOperation = 'destination-in'
-    personCtx.drawImage(maskCanvas, 0, 0, W, H)
+    personCtx.drawImage(refinedReady && polish && refinedMask.width === W && refinedMask.height === H ? refinedMask : maskCanvas, 0, 0, W, H)
     personCtx.globalCompositeOperation = 'source-over'
 
     if (nativeBlur && polish) {
@@ -521,8 +678,9 @@ export function startCompositor(initialSource: MaskSource, camera: MediaStream, 
     }
 
     if (photoMode) drawPhoto(outCtx, W, H)
-    else drawBlur(outCtx)
+    else drawBlur(outCtx, input)
     shadow(outCtx, W, H, false)
+    if (diagnosticBackground) diagnosticBackground.getContext('2d')!.drawImage(out, 0, 0)
     outCtx.drawImage(person, 0, 0)
 
     if (!mirror) {
@@ -561,14 +719,14 @@ export function startCompositor(initialSource: MaskSource, camera: MediaStream, 
     }
     schedule()
   }
-  schedule()
+  if (!evaluation) schedule()
 
   const stream = out.captureStream(30)
 
   // A better source (MODNet finished loading) is adopted while framing only; a
   // recording keeps the source it started with. The stabilizer re-seeds on the new
   // mask size; an inference already in flight on the old source just completes.
-  const unsubscribe = options.fixedSize ? () => {} : subscribeMaskSource((next) => {
+  const unsubscribe = options.fixedSize || evaluation ? () => {} : subscribeMaskSource((next) => {
     source = next
     stabilizer.setTuning(next.stabilizer)
     if (!W) return
@@ -582,6 +740,14 @@ export function startCompositor(initialSource: MaskSource, camera: MediaStream, 
   return {
     stream,
     preview,
+    evaluateFrame: async (image, timestampMs) => {
+      if (!evaluation || stopped || inFlight) throw new Error('Evaluation compositor unavailable or busy')
+      if (!Number.isFinite(timestampMs) || timestampMs <= 0) throw new Error('A positive media timestamp is required')
+      if (timestampMs <= lastEvaluationTimestamp) throw new Error('Evaluation timestamps must increase')
+      lastEvaluationTimestamp = timestampMs
+      ensureSize({ width: image.width, height: image.height })
+      await segment(timestampMs, image)
+    },
     setOptions: (next) => {
       const photoChanged = next.photoUrl !== undefined && next.photoUrl !== options.photoUrl
       options = { ...options, ...next }
@@ -590,6 +756,7 @@ export function startCompositor(initialSource: MaskSource, camera: MediaStream, 
     stop: () => {
       stopped = true
       unsubscribe()
+      refiner?.dispose()
       if (hasRvfc) video.cancelVideoFrameCallback(handle)
       else cancelAnimationFrame(handle)
       stream.getTracks().forEach((track) => track.stop())

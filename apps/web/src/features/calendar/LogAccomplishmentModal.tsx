@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useCalendar } from './store'
 import { useTeam } from './sync'
 import { todayKey } from './dates'
+import { WORK_CATEGORIES, type WorkCategory } from './types'
 
 export function LogAccomplishmentModal({
   initialDay,
@@ -14,7 +15,6 @@ export function LogAccomplishmentModal({
   const members = useCalendar((state) => state.filters.members)
   const findTaskByNumber = useCalendar((state) => state.findTaskByNumber)
   const addAccomplishment = useCalendar((state) => state.addAccomplishment)
-  const updateTaskStatus = useCalendar((state) => state.updateTaskStatus)
 
   const defaultAssigneeId = members.length === 1 && members[0] !== 'unassigned' ? members[0] : (meId ?? '')
 
@@ -24,6 +24,8 @@ export function LogAccomplishmentModal({
   const [time, setTime] = useState('')
   const [assigneeId, setAssigneeId] = useState(defaultAssigneeId)
   const [updateTaskChecked, setUpdateTaskChecked] = useState(true)
+  const [category, setCategory] = useState<WorkCategory>('work')
+  const [hours, setHours] = useState('')
 
   // Find matching task dynamically if task number is entered
   const matchedTask = taskNumber.trim() ? findTaskByNumber(taskNumber) : null
@@ -35,22 +37,18 @@ export function LogAccomplishmentModal({
 
     const selectedMember = teamMembers.find((m) => m.id === assigneeId)
 
-    // Log the work accomplishment
+    const spent = hours.trim() === '' ? null : Number(hours)
     addAccomplishment({
-      title: matchedTask ? `[${matchedTask.taskKey}] ${finalTitle}` : finalTitle,
-      taskKey: matchedTask?.taskKey ?? (taskNumber.trim() ? taskNumber.trim().toUpperCase() : null),
+      title: finalTitle,
+      taskId: matchedTask && !matchedTask.pending ? matchedTask.id : null,
+      completeTask: !!matchedTask && updateTaskChecked,
       day,
       time: time || null,
-      category: 'work',
-      icon: '✅',
-      assigneeId: selectedMember?.id ?? matchedTask?.assigneeId ?? null,
-      assigneeName: selectedMember?.name ?? matchedTask?.assigneeName ?? null,
+      category,
+      hoursSpent: spent !== null && Number.isFinite(spent) ? spent : null,
+      assigneeId: selectedMember?.id ?? null,
+      assigneeName: selectedMember?.name ?? null,
     })
-
-    // If valid ticket number entered and "Update Task" is checked, settle the task
-    if (matchedTask && updateTaskChecked) {
-      updateTaskStatus(matchedTask.id, 'done')
-    }
 
     onClose()
   }
@@ -88,12 +86,12 @@ export function LogAccomplishmentModal({
                   checked={updateTaskChecked}
                   onChange={(e) => setUpdateTaskChecked(e.target.checked)}
                 />
-                <span><strong>Update Task:</strong> Mark this task as Settled / Done (Crosses out task in calendar)</span>
+                <span>Mark this task done</span>
               </label>
             </div>
           ) : taskNumber.trim() ? (
             <div className="cal-task-no-match">
-              <span>⚠️ No matching open task found for "{taskNumber}". Work will be logged as a standalone accomplishment.</span>
+              <span>No task matches "{taskNumber}". The work will be logged on its own.</span>
             </div>
           ) : null}
 
@@ -117,6 +115,19 @@ export function LogAccomplishmentModal({
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="cal-field-pair">
+            <div className="cal-field">
+              <span>Kind</span>
+              <select value={category} onChange={(e) => setCategory(e.target.value as WorkCategory)}>
+                {WORK_CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+            </div>
+            <div className="cal-field">
+              <span>Hours (optional)</span>
+              <input type="number" inputMode="decimal" min={0} max={24} step={0.25} value={hours} onChange={(e) => setHours(e.target.value)} />
+            </div>
           </div>
 
           <div className="cal-field-pair">

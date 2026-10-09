@@ -10,9 +10,8 @@ import type { MaskSource } from './types'
 const MODEL = __VBG_ASSETS__.modnet
 const MAX_WARM_MS = 40 // ≥ ~24 masks/s, the pipeline's cadence target
 
-const size = (fw: number, fh: number) => {
+const size = (fw: number, fh: number, width = 512) => {
   // 512 wide, height to the frame's aspect; both multiples of 32 (16:9 → 512×288).
-  const width = 512
   const height = Math.max(32, Math.round((width * fh) / fw / 32) * 32)
   return { width, height }
 }
@@ -38,29 +37,64 @@ export async function createModnetSource(onProgress?: (pct: number) => void): Pr
   const inputName = session.inputNames[0]!
   const outputName = session.outputNames[0]!
 
+  let inputWidth = 512
+  let preprocessMs = 0
+  let executeMs = 0
+  const trials: string[] = []
   const infer = async (input: HTMLCanvasElement) => {
     const { width, height } = input
     // MODNet preprocessing: rescale to 0–1, normalise with mean 0.5 / std 0.5.
+    const start = performance.now()
     const tensor = new ort.Tensor('float32', toChw(input, 2 / 255, -1), [1, 3, height, width])
-    const result = await session.run({ [inputName]: tensor })
-    const out = result[outputName]!
-    const data = out.data as Float32Array
-    tensor.dispose()
-    return { data: data instanceof Float32Array ? data : Float32Array.from(data as ArrayLike<number>), width, height }
+    preprocessMs = performance.now() - start
+    const runStart = performance.now()
+    let result: Awaited<ReturnType<typeof session.run>> | undefined
+    try {
+      result = await session.run({ [inputName]: tensor })
+      const out = result[outputName]!
+      // Own the CPU mask before disposing ORT outputs; do not accumulate tensors.
+      if (out.type !== 'float32' || out.dims.length !== 4 || out.dims[0] !== 1 || out.dims[1] !== 1 || out.dims[2] !== height || out.dims[3] !== width) {
+        throw new Error(`Unexpected MODNet alpha layout: ${out.type} [${out.dims.join(',')}]`)
+      }
+      const values = out.data
+      if (!(values instanceof Float32Array) || values.length !== width * height) throw new Error('MODNet alpha must be contiguous float32')
+      const data = Float32Array.from(values)
+      executeMs = performance.now() - runStart
+      return { data, width, height }
+    } finally {
+      tensor.dispose()
+      if (result) Object.values(result).forEach(output => output.dispose())
+    }
   }
 
   const probe = document.createElement('canvas')
-  Object.assign(probe, size(16, 9))
-  const ms = await warmMs(() => infer(probe), 4, speedGate() ? MAX_WARM_MS : Infinity)
-  if (ms > MAX_WARM_MS && speedGate()) throw new Error(`too slow (${Math.round(ms)} ms)`)
+  // Prefer the highest resolution that meets the budget, instead of rejecting
+  // the accelerated model after testing only 512 px. Shape-specific warmup stays
+  // outside measurements. Timings include GPU completion/readback, not just dispatch.
+  try {
+    for (const width of [512, 384, 256]) {
+      inputWidth = width
+      Object.assign(probe, size(16, 9, width))
+      const ms = await warmMs(() => infer(probe), 4, speedGate() ? MAX_WARM_MS : Infinity)
+      trials.push(`${width}px ${Math.round(ms)}ms (prep ${preprocessMs.toFixed(1)}, run/readback ${executeMs.toFixed(1)})`)
+      if (ms <= MAX_WARM_MS || !speedGate()) break
+      if (width === 256) throw new Error(`MODNet budget exceeded: ${trials.join('; ')}`)
+    }
+  } catch (error) {
+    await session.release()
+    throw error
+  }
 
   return {
     backend: 'modnet/webgpu',
+    model: 'modnet-fp32',
+    dispose: () => session.release(),
     sync: false,
     // MODNet's edge noise is slower and larger (a pixel or more, several frames): a short
     // temporal filter can't remove it without lag. Measured: still −15%, slow lag +3%.
     stabilizer: { floor: 0.8, threshold: 0.5 },
-    inputSize: size,
+    diagnostics: () => `${inputWidth}px · prep ${preprocessMs.toFixed(1)}ms · run/readback ${executeMs.toFixed(1)}ms · warm ${trials.join("; ")}`,
+    inputSize: (fw, fh) => size(fw, fh, inputWidth),
     run: (input) => infer(input),
   }
 }
