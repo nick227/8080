@@ -25,6 +25,7 @@ mask     in ${s.maskInput} → ${s.mask}
 infer    ${s.inferMs} ms · ${s.maskFps} masks/s · main ${s.mainSegMs} ms · tier ${s.tier}
 draw     ${s.drawMs} ms · ${s.fps} fps · polish ${s.polish ? 'on' : 'off'} · blur ${s.blur}
 edge     fg ${s.fg}% · flicker ${s.flicker}%
+stability area Δ ${s.areaDelta}% · head retained ${s.headRetained}% · weak ${s.headWeakMs} ms
 rec      ${vbgRecording ? `${vbgRecording.mime} · ${(vbgRecording.videoBitsPerSecond / 1e6).toFixed(1)} Mbps` : '—'}${s.fallbacks ? `\nfallback ${s.fallbacks}` : ''}`}
     </pre>
   )

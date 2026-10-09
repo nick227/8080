@@ -68,7 +68,7 @@ function readTune(): Tune {
 export type VbgStats = {
   backend: string; camera: string; canvas: string; maskInput: string; mask: string
   inferMs: number; maskFps: number; mainSegMs: number; drawMs: number; fps: number; tier: number
-  fg: number; flicker: number; polish: boolean; blur: string; fallbacks: string; failed: boolean
+  fg: number; flicker: number; areaDelta: number; headRetained: number; headWeakMs: number; polish: boolean; blur: string; fallbacks: string; failed: boolean
 }
 export let vbgStats: VbgStats | null = null
 export let vbgRecording: { mime: string; videoBitsPerSecond: number } | null = null
@@ -329,7 +329,7 @@ export function startCompositor(initialSource: MaskSource, camera: MediaStream, 
     const inferMs = windowMasks ? windowInferMs / windowMasks : 0
     // Main-thread cost per frame from inference (all of it for a sync source).
     const segMs = windowFrames ? windowMainSegMs / Math.max(1, windowMasks) : 0
-    const { fg, flicker } = stabilizer.takeStats()
+    const { fg, flicker, areaDelta, headRetained, headWeakMs } = stabilizer.takeStats()
     const mask = stabilizer.size()
     vbgStats = {
       backend: source.backend,
@@ -345,6 +345,9 @@ export function startCompositor(initialSource: MaskSource, camera: MediaStream, 
       tier,
       fg: Math.round(fg * 10) / 10,
       flicker: Math.round(flicker * 10) / 10,
+      areaDelta: Math.round(areaDelta),
+      headRetained: Math.round(headRetained),
+      headWeakMs: Math.round(headWeakMs),
       polish,
       blur: `${nativeBlur ? 'filter' : 'fallback'} ${blurSource.width}×${blurSource.height}`,
       fallbacks: fallbacks.map((f) => `${f.source}: ${f.reason}`).join('; '),

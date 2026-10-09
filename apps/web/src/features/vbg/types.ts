@@ -18,7 +18,7 @@ export interface MaskSource {
 }
 
 /**
- * - threshold: a per-pixel change above this is motion — followed at once, never smoothed.
+ * - threshold: foreground growth above this is followed immediately.
  * - keep: the most history a steady pixel keeps.
  * - floor: the minimum certainty used for smoothing. Edge pixels sit near 0.5 confidence
  *   (certainty ≈ 0), so with no floor the edge — where flicker lives — is never smoothed.

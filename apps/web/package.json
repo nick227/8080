@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "test": "playwright test",
+    "test:vbg": "tsx tests/vbg-stabilizer.check.ts",
     "test:ui": "playwright test --ui",
     "test:contacts": "node tests/contact-workbench.mjs",
     "test:records": "node tests/records.mjs",

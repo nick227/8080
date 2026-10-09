@@ -1,19 +1,8 @@
 import { DEFAULT_TUNING, smoothstep, type MaskFrame, type StabilizerTuning } from './types'
 
-// Temporal stabilizer: owns everything about time. Confidence-weighted smoothing,
-// hysteresis, previous-mask retention and the stale timeout, so the edge stays calm and
-// favours keeping the subject over clipping it. Stable edges beat accurate edges.
-//
-// - Smoothing: steady pixels keep up to `keep` of their history, weighted by certainty
-//   (with a per-source `floor` so edge pixels get smoothed too); a change above
-//   `threshold` is motion and is followed at once (no ghost trails). Tuned per source
-//   (doc/07): settings that calmed still edges were kept only if lag on a slow-motion
-//   clip rose ≤ ~3%.
-// - Hysteresis: a pixel becomes person above 0.5 and stops only below 0.3, so one
-//   uncertain frame can't remove it. No erosion. A small (3×3) feather.
-// - Retention: a new stabilizer (framing → recording) is seeded with the last mask
-//   (< 1 s old), so a take starts composited. Stale after STALE_MS: the compositor shows
-//   the raw camera rather than a frozen cutout.
+// Foreground is acquired quickly, but needs sustained weak evidence before removal.
+// Protection is bounded in elapsed time, so low inference rates cannot freeze a ghost.
+// The upper part of the previous silhouette gets extra grace for hair/head dropouts.
 
 export const STALE_MS = 500
 
@@ -39,6 +28,12 @@ export function createStabilizer(initial: Partial<StabilizerTuning> = {}) {
   let smooth: Float32Array | null = null
   let shaped: Float32Array | null = null
   let held: Uint8Array | null = null
+  let weakMs: Float32Array | null = null
+  let expanded: Float32Array | null = null
+  let previousArea = 0
+  let areaDelta = 0
+  let headRetained = 100
+  let headWeakMs = 0
   let hasPreviousAlpha = false
   let alphaImage: ImageData | null = null
   let ringImage: ImageData | null = null
@@ -57,6 +52,10 @@ export function createStabilizer(initial: Partial<StabilizerTuning> = {}) {
     smooth = seed ? Float32Array.from(seed) : Float32Array.from(mask.data)
     shaped = new Float32Array(w * h)
     held = new Uint8Array(w * h)
+    weakMs = new Float32Array(w * h)
+    expanded = new Float32Array(w * h)
+    previousArea = 0
+    for (let i = 0; i < smooth.length; i++) held[i] = smooth[i]! >= 0.65 ? 1 : 0
     hasPreviousAlpha = false
     for (const el of [alpha, ring]) { el.width = w; el.height = h }
     alphaImage = alphaCtx.createImageData(w, h)
@@ -69,16 +68,56 @@ export function createStabilizer(initial: Partial<StabilizerTuning> = {}) {
     const sh = shaped!
     const hd = held!
     const raw = mask.data
+    const now = performance.now()
+    const dt = at ? Math.max(1, now - at) : 1000 / 30
+    // Derive headroom from the actual previous silhouette, not a fixed camera crop.
+    let top = h, bottom = 0
+    for (let y = 0; y < h; y++) {
+      let count = 0
+      for (let x = 0; x < w; x++) if (hd[y * w + x]) count++
+      if (count >= Math.max(2, w * 0.025)) { top = Math.min(top, y); bottom = y }
+    }
+    const headBottom = top + Math.max(1, (bottom - top + 1) * 0.4)
+    let headBefore = 0, headAfter = 0
+    headWeakMs = 0
     for (let i = 0; i < s.length; i++) {
-      const next = raw[i]!
-      const change = Math.abs(next - s[i]!)
-      const certainty = Math.max(tuning.floor, Math.abs(s[i]! - 0.5) * 2)
-      const keep = change > tuning.threshold ? 0 : tuning.keep * certainty * (1 - change / tuning.threshold)
-      s[i] = next * (1 - keep) + s[i]! * keep
-      if (s[i]! > 0.5) hd[i] = 1
-      else if (s[i]! < 0.3) hd[i] = 0
-      // Held pixels ramp in a little earlier; others need real confidence.
-      sh[i] = hd[i] ? smoothstep(0.25, 0.5, s[i]!) : smoothstep(0.5, 0.8, s[i]!)
+      const next = Number.isFinite(raw[i]) ? Math.max(0, Math.min(1, raw[i]!)) : s[i]!
+      const previous = s[i]!
+      const inHead = Math.floor(i / w) >= top && Math.floor(i / w) < headBottom
+      const wasHeld = hd[i] === 1
+      if (inHead && wasHeld) headBefore++
+      // Dual thresholds: uncertain evidence preserves classification but cannot
+      // repeatedly reset the grace period during a sustained confidence collapse.
+      weakMs![i] = wasHeld && next < 0.35 ? weakMs![i]! + dt : 0
+      const weak = weakMs![i]!
+      const grace = inHead ? 260 : 100
+      if (next >= previous) {
+        const change = next - previous
+        const keep = change > tuning.threshold ? 0 : tuning.keep * Math.max(tuning.floor, Math.abs(previous - 0.5) * 2)
+        s[i] = next * (1 - keep) + previous * keep
+      } else if (wasHeld && (next >= 0.35 || weak <= grace)) {
+        s[i] = Math.max(0.65, previous)
+      } else {
+        const tau = wasHeld ? (inHead ? 140 : 90) : 65
+        s[i] = next + (previous - next) * Math.exp(-dt / tau)
+      }
+      if (next >= 0.65) hd[i] = 1
+      else if (next < 0.35 && weak > grace && s[i]! < 0.35) hd[i] = 0
+      sh[i] = hd[i] ? smoothstep(0.2, 0.65, s[i]!) : smoothstep(0.35, 0.8, s[i]!)
+      if (inHead && wasHeld) {
+        if (sh[i]! >= 0.5) headAfter++
+        headWeakMs = Math.max(headWeakMs, weak)
+      }
+    }
+    headRetained = headBefore ? headAfter / headBefore * 100 : 100
+    // One mask-pixel dilation preserves hairlines and fills tiny holes. A separate
+    // feather pass softens its outside edge without eroding the solid silhouette.
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let peak = 0
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        peak = Math.max(peak, sh[Math.min(h - 1, Math.max(0, y + dy)) * w + Math.min(w - 1, Math.max(0, x + dx))]!)
+      }
+      expanded![y * w + x] = peak
     }
     const px = alphaImage!.data
     const rp = ringImage!.data
@@ -90,7 +129,7 @@ export function createStabilizer(initial: Partial<StabilizerTuning> = {}) {
         let sum = 0
         for (let dy = -1; dy <= 1; dy++) {
           const yy = Math.min(h - 1, Math.max(0, y + dy))
-          for (let dx = -1; dx <= 1; dx++) sum += sh[yy * w + Math.min(w - 1, Math.max(0, x + dx))]!
+          for (let dx = -1; dx <= 1; dx++) sum += expanded![yy * w + Math.min(w - 1, Math.max(0, x + dx))]!
         }
         const i = y * w + x
         const a = Math.round((sum / 9) * 255)
@@ -109,6 +148,8 @@ export function createStabilizer(initial: Partial<StabilizerTuning> = {}) {
     hasPreviousAlpha = true
     alphaCtx.putImageData(alphaImage!, 0, 0)
     ringCtx.putImageData(ringImage!, 0, 0)
+    areaDelta = previousArea ? (fg - previousArea) / previousArea * 100 : 0
+    previousArea = fg
     fgSum += fg / (w * h)
     masks++
     at = performance.now()
@@ -128,7 +169,7 @@ export function createStabilizer(initial: Partial<StabilizerTuning> = {}) {
     usable: (now: number) => at > 0 && now - at <= STALE_MS,
     /** Window metrics since the last call (person %, flicker %). */
     takeStats: () => {
-      const out = { fg: masks ? (fgSum / masks) * 100 : 0, flicker: flickerN ? (flickerSum / flickerN) * 100 : 0 }
+      const out = { fg: masks ? (fgSum / masks) * 100 : 0, flicker: flickerN ? (flickerSum / flickerN) * 100 : 0, areaDelta, headRetained, headWeakMs }
       fgSum = 0
       flickerSum = 0
       flickerN = 0
