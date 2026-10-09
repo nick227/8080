@@ -45,6 +45,7 @@
     "@project/shared": "workspace:*"
   },
   "devDependencies": {
+    "@webgpu/types": "^0.1.74",
     "@playwright/test": "^1.42.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0"
