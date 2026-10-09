@@ -3519,6 +3519,144 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Every live task in the workspace (Calendar and Boards)
+         * @description Ordered by status, then board rank. Deleted tasks are left out.
+         */
+        get: operations["listTasks"];
+        put?: never;
+        /**
+         * Add a task
+         * @description `status` defaults to open. Place it in its column with `afterTaskId` / `beforeTaskId`
+         *     (the cards above / below); neither puts it at the bottom. A time needs a date.
+         */
+        post: operations["createTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/tasks/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add many tasks at once (CSV import, tasks saved in a browser)
+         * @description At most 500. Assignees that aren't active members are dropped. Repeat with the same idempotencyKey to get the first result back.
+         */
+        post: operations["importTasks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/tasks/{taskId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        /** Get a task */
+        get: operations["getTask"];
+        put?: never;
+        post?: never;
+        /** Delete a task (restore undoes it) */
+        delete: operations["deleteTask"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit a task
+         * @description With expectedVersion, a newer version gives 409 TASK_VERSION_CONFLICT. A status change lands at the bottom of the new column.
+         */
+        patch: operations["updateTask"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/tasks/{taskId}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a card on the board (status and position)
+         * @description Neighbours must be live cards in the target column, else 400 INVALID_POSITION.
+         */
+        post: operations["moveTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/tasks/{taskId}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo a delete */
+        post: operations["restoreTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/tasks/{taskId}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        /** A task's comments, oldest first */
+        get: operations["listTaskComments"];
+        put?: never;
+        /** Comment on a task */
+        post: operations["addTaskComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4890,6 +5028,147 @@ export interface components {
             data: components["schemas"]["Contact"][];
             meta: components["schemas"]["PaginatedMeta"];
         };
+        /** @enum {string} */
+        TaskStatus: "open" | "in_progress" | "in_review" | "done";
+        /** @enum {string} */
+        TaskType: "task" | "feature" | "bug" | "story" | "epic";
+        /** @enum {string} */
+        TaskPriority: "low" | "medium" | "high" | "highest";
+        TaskAssignee: {
+            memberId: string;
+            name: string;
+            avatarUrl: string | null;
+        };
+        Task: {
+            id: string;
+            workspaceId: string;
+            /** @description Readable key, e.g. VC-101 */
+            taskKey: string;
+            number: number;
+            title: string;
+            description: string | null;
+            status: components["schemas"]["TaskStatus"];
+            issueType: components["schemas"]["TaskType"];
+            area: string | null;
+            priority: components["schemas"]["TaskPriority"];
+            storyPoints: number | null;
+            /** Format: date */
+            scheduledDate: string | null;
+            scheduledTime: string | null;
+            /** Format: date */
+            dueDate: string | null;
+            assigneeMemberId: string | null;
+            assignee: components["schemas"]["TaskAssignee"] | null;
+            createdByMemberId: string | null;
+            /** @description Order inside the status column (ascending) */
+            rank: number;
+            version: number;
+            commentCount: number;
+            source: string | null;
+            /**
+             * Format: date-time
+             * @description When it last moved to done
+             */
+            resolvedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        TaskResponse: {
+            data: components["schemas"]["Task"];
+        };
+        TaskList: {
+            data: components["schemas"]["Task"][];
+        };
+        CreateTaskInput: {
+            title: string;
+            description?: string | null;
+            status?: components["schemas"]["TaskStatus"];
+            issueType?: components["schemas"]["TaskType"];
+            area?: string | null;
+            priority?: components["schemas"]["TaskPriority"];
+            storyPoints?: number | null;
+            /**
+             * Format: date
+             * @description The calendar day (YYYY-MM-DD); null = unscheduled
+             */
+            scheduledDate?: string | null;
+            scheduledTime?: string | null;
+            /** Format: date */
+            dueDate?: string | null;
+            assigneeMemberId?: string | null;
+            afterTaskId?: string | null;
+            beforeTaskId?: string | null;
+        };
+        UpdateTaskInput: {
+            expectedVersion?: number;
+            title?: string;
+            description?: string | null;
+            status?: components["schemas"]["TaskStatus"];
+            issueType?: components["schemas"]["TaskType"];
+            area?: string | null;
+            priority?: components["schemas"]["TaskPriority"];
+            storyPoints?: number | null;
+            /**
+             * Format: date
+             * @description The calendar day (YYYY-MM-DD); null = unscheduled
+             */
+            scheduledDate?: string | null;
+            scheduledTime?: string | null;
+            /** Format: date */
+            dueDate?: string | null;
+            assigneeMemberId?: string | null;
+        };
+        ImportTaskRow: {
+            title: string;
+            description?: string | null;
+            status?: components["schemas"]["TaskStatus"];
+            issueType?: components["schemas"]["TaskType"];
+            area?: string | null;
+            priority?: components["schemas"]["TaskPriority"];
+            storyPoints?: number | null;
+            /**
+             * Format: date
+             * @description The calendar day (YYYY-MM-DD); null = unscheduled
+             */
+            scheduledDate?: string | null;
+            scheduledTime?: string | null;
+            /** Format: date */
+            dueDate?: string | null;
+            assigneeMemberId?: string | null;
+            source?: string | null;
+        };
+        ImportTasksInput: {
+            idempotencyKey?: string;
+            tasks: components["schemas"]["ImportTaskRow"][];
+        };
+        MoveTaskInput: {
+            status: components["schemas"]["TaskStatus"];
+            /** @description The card directly above */
+            afterTaskId?: string | null;
+            /** @description The card directly below */
+            beforeTaskId?: string | null;
+        };
+        TaskComment: {
+            id: string;
+            taskId: string;
+            authorMemberId: string | null;
+            authorName: string;
+            authorAvatarUrl: string | null;
+            text: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        TaskCommentResponse: {
+            data: components["schemas"]["TaskComment"];
+        };
+        TaskCommentList: {
+            data: components["schemas"]["TaskComment"][];
+        };
+        AddTaskCommentInput: {
+            text: string;
+        };
         InventoryItem: {
             id: string;
             /** @description Bumped by every update; send it back as expectedVersion */
@@ -6075,6 +6354,7 @@ export interface components {
         MemberId: string;
         TeamId: string;
         ContactId: string;
+        TaskId: string;
         InventoryId: string;
         RecordImageId: string;
         AccountId: string;
@@ -12552,6 +12832,295 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTaskInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    importTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportTasksInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTaskInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    moveTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveTaskInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    restoreTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listTaskComments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskCommentList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addTaskComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddTaskCommentInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskCommentResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };

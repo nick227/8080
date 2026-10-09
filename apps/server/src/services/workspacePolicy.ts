@@ -48,6 +48,10 @@ export type WorkspaceVerb =
   // Communication agents: everyone sees them and their activity; admins run them.
   | 'agent.read'
   | 'agent.manage'
+  // Calendar/Boards tasks: every member reads, writes, moves and deletes (soft, with Undo).
+  | 'task.read'
+  | 'task.write'
+  | 'task.delete'
 
 const OWNERS: readonly WorkspaceRole[] = ['owner']
 const ADMINS: readonly WorkspaceRole[] = ['owner', 'admin']
@@ -90,6 +94,9 @@ const ROLES: Record<WorkspaceVerb, readonly WorkspaceRole[]> = {
   'email.manage': ADMINS,
   'agent.read': EVERYONE,
   'agent.manage': ADMINS,
+  'task.read': EVERYONE,
+  'task.write': EVERYONE,
+  'task.delete': EVERYONE,
 }
 
 // What a verb is applied to, when the answer depends on it.

@@ -141,6 +141,10 @@ function sampleBody(op: any) {
     ArchiveInboxItemInput: { archived: true },
     SendComposeInput: { contactId: 'x', channel: 'email', destination: 'a@b.co', subject: 'x', body: 'x', contextType: 'contact', contextId: 'x' },
     DocumentPresenceInput: { editing: true },
+    CreateTaskInput: { title: 'x' },
+    ImportTasksInput: { tasks: [{ title: 'x' }] },
+    MoveTaskInput: { status: 'done' },
+    AddTaskCommentInput: { text: 'x' },
   }
   return samples[name ?? ''] ?? {}
 }

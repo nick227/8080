@@ -605,7 +605,8 @@ model WorkspaceMember {
   proposalsMade    AgentProposal[] @relation("ProposalCreator")
   contactBriefs    ContactBrief[]
   proposalsDecided AgentProposal[] @relation("ProposalDecider")
-  assignedWorkTasks WorkTask[]
+  assignedWorkTasks WorkTask[] @relation("WorkTaskAssignee")
+  createdWorkTasks  WorkTask[] @relation("WorkTaskCreator")
   workComments      WorkComment[]
   workLogs          WorkLog[]
 
@@ -2171,35 +2172,46 @@ model Sprint {
   @@index([workspaceId, status])
 }
 
+// A task on the workspace's Calendar and Boards (one shared list for every view).
+// `rank` orders cards inside a status column (fractional; renumbered when gaps
+// run out). Deleting is soft so the board can offer Undo.
 model WorkTask {
-  id               String           @id @default(cuid())
-  workspaceId      String
-  taskKey          String           @db.VarChar(32)
-  taskNumber       Int
-  title            String           @db.VarChar(255)
-  description      String?          @db.Text
-  status           String           @default("open") @db.VarChar(32)
-  issueType        String           @default("task") @db.VarChar(32)
-  area             String?          @default("Engineering") @db.VarChar(64)
-  priority         String           @default("medium") @db.VarChar(32)
-  storyPoints      Int              @default(1)
-  scheduledDate    String?          @db.VarChar(10)
-  scheduledTime    String?          @db.VarChar(5)
-  dueDate          DateTime?
-  assigneeMemberId String?
-  sprintId         String?
-  source           String?          @db.VarChar(64)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  id                String           @id @default(cuid())
+  workspaceId       String
+  taskKey           String           @db.VarChar(32)
+  taskNumber        Int
+  title             String           @db.VarChar(255)
+  description       String?          @db.Text
+  status            String           @default("open") @db.VarChar(32)
+  issueType         String           @default("task") @db.VarChar(32)
+  area              String?          @db.VarChar(64)
+  priority          String           @default("medium") @db.VarChar(32)
+  storyPoints       Int?
+  scheduledDate     String?          @db.VarChar(10)
+  scheduledTime     String?          @db.VarChar(5)
+  dueDate           DateTime?
+  assigneeMemberId  String?
+  createdByMemberId String?
+  sprintId          String?
+  source            String?          @db.VarChar(64)
+  rank              Float            @default(0)
+  version           Int              @default(1)
+  resolvedAt        DateTime?
+  deletedAt         DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   sprint    Sprint?          @relation(fields: [sprintId], references: [id], onDelete: SetNull)
-  assignee  WorkspaceMember? @relation(fields: [assigneeMemberId], references: [id], onDelete: SetNull)
+  assignee  WorkspaceMember? @relation("WorkTaskAssignee", fields: [assigneeMemberId], references: [id], onDelete: SetNull)
+  createdBy WorkspaceMember? @relation("WorkTaskCreator", fields: [createdByMemberId], references: [id], onDelete: SetNull)
   comments  WorkComment[]
   workLogs  WorkLog[]
 
   @@unique([workspaceId, taskKey])
-  @@index([workspaceId, status])
+  @@unique([workspaceId, taskNumber])
+  @@index([workspaceId, status, rank])
+  @@index([workspaceId, scheduledDate])
   @@index([workspaceId, sprintId])
 }
 

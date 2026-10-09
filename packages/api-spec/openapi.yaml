@@ -5326,6 +5326,202 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /workspaces/{workspaceId}/tasks:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listTasks
+      summary: Every live task in the workspace (Calendar and Boards)
+      description: Ordered by status, then board rank. Deleted tasks are left out.
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createTask
+      summary: Add a task
+      description: |
+        `status` defaults to open. Place it in its column with `afterTaskId` / `beforeTaskId`
+        (the cards above / below); neither puts it at the bottom. A time needs a date.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTaskInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/tasks/import:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: importTasks
+      summary: Add many tasks at once (CSV import, tasks saved in a browser)
+      description: At most 500. Assignees that aren't active members are dropped. Repeat with the same idempotencyKey to get the first result back.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ImportTasksInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/tasks/{taskId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      operationId: getTask
+      summary: Get a task
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateTask
+      summary: Edit a task
+      description: With expectedVersion, a newer version gives 409 TASK_VERSION_CONFLICT. A status change lands at the bottom of the new column.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateTaskInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: deleteTask
+      summary: Delete a task (restore undoes it)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/tasks/{taskId}/move:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/TaskId'
+    post:
+      operationId: moveTask
+      summary: Move a card on the board (status and position)
+      description: Neighbours must be live cards in the target column, else 400 INVALID_POSITION.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MoveTaskInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/tasks/{taskId}/restore:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/TaskId'
+    post:
+      operationId: restoreTask
+      summary: Undo a delete
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/tasks/{taskId}/comments:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      operationId: listTaskComments
+      summary: A task's comments, oldest first
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskCommentList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: addTaskComment
+      summary: Comment on a task
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddTaskCommentInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskCommentResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 components:
   securitySchemes:
     bearerAuth:
@@ -5413,6 +5609,11 @@ components:
     ContactId:
       in: path
       name: contactId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    TaskId:
+      in: path
+      name: taskId
       required: true
       schema: { type: string, minLength: 1, maxLength: 64 }
     InventoryId:
@@ -7437,6 +7638,164 @@ components:
           type: array
           items: { $ref: '#/components/schemas/Contact' }
         meta: { $ref: '#/components/schemas/PaginatedMeta' }
+
+    TaskStatus:
+      type: string
+      enum: [open, in_progress, in_review, done]
+    TaskType:
+      type: string
+      enum: [task, feature, bug, story, epic]
+    TaskPriority:
+      type: string
+      enum: [low, medium, high, highest]
+    TaskAssignee:
+      type: object
+      required: [memberId, name, avatarUrl]
+      properties:
+        memberId: { type: string }
+        name: { type: string }
+        avatarUrl: { type: [string, 'null'] }
+    Task:
+      type: object
+      required: [id, workspaceId, taskKey, number, title, description, status, issueType, area, priority, storyPoints, scheduledDate, scheduledTime, dueDate, assigneeMemberId, assignee, createdByMemberId, rank, version, commentCount, source, resolvedAt, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        taskKey: { type: string, description: 'Readable key, e.g. VC-101' }
+        number: { type: integer }
+        title: { type: string }
+        description: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        issueType: { $ref: '#/components/schemas/TaskType' }
+        area: { type: [string, 'null'] }
+        priority: { $ref: '#/components/schemas/TaskPriority' }
+        storyPoints: { type: [integer, 'null'] }
+        scheduledDate: { type: [string, 'null'], format: date }
+        scheduledTime: { type: [string, 'null'] }
+        dueDate: { type: [string, 'null'], format: date }
+        assigneeMemberId: { type: [string, 'null'] }
+        assignee:
+          oneOf:
+            - $ref: '#/components/schemas/TaskAssignee'
+            - type: 'null'
+        createdByMemberId: { type: [string, 'null'] }
+        rank: { type: number, description: Order inside the status column (ascending) }
+        version: { type: integer, minimum: 1 }
+        commentCount: { type: integer, minimum: 0 }
+        source: { type: [string, 'null'] }
+        resolvedAt: { type: [string, 'null'], format: date-time, description: When it last moved to done }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    TaskResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Task' }
+    TaskList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Task' }
+    CreateTaskInput:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: [string, 'null'], maxLength: 20000 }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        issueType: { $ref: '#/components/schemas/TaskType' }
+        area: { type: [string, 'null'], maxLength: 64 }
+        priority: { $ref: '#/components/schemas/TaskPriority' }
+        storyPoints: { type: [integer, 'null'], minimum: 0, maximum: 1000 }
+        scheduledDate: { type: [string, 'null'], format: date, description: The calendar day (YYYY-MM-DD); null = unscheduled }
+        scheduledTime: { type: [string, 'null'], pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        dueDate: { type: [string, 'null'], format: date }
+        assigneeMemberId: { type: [string, 'null'], maxLength: 64 }
+        afterTaskId: { type: [string, 'null'], maxLength: 64 }
+        beforeTaskId: { type: [string, 'null'], maxLength: 64 }
+    UpdateTaskInput:
+      type: object
+      additionalProperties: false
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        title: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: [string, 'null'], maxLength: 20000 }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        issueType: { $ref: '#/components/schemas/TaskType' }
+        area: { type: [string, 'null'], maxLength: 64 }
+        priority: { $ref: '#/components/schemas/TaskPriority' }
+        storyPoints: { type: [integer, 'null'], minimum: 0, maximum: 1000 }
+        scheduledDate: { type: [string, 'null'], format: date, description: The calendar day (YYYY-MM-DD); null = unscheduled }
+        scheduledTime: { type: [string, 'null'], pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        dueDate: { type: [string, 'null'], format: date }
+        assigneeMemberId: { type: [string, 'null'], maxLength: 64 }
+    ImportTaskRow:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: [string, 'null'], maxLength: 20000 }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        issueType: { $ref: '#/components/schemas/TaskType' }
+        area: { type: [string, 'null'], maxLength: 64 }
+        priority: { $ref: '#/components/schemas/TaskPriority' }
+        storyPoints: { type: [integer, 'null'], minimum: 0, maximum: 1000 }
+        scheduledDate: { type: [string, 'null'], format: date, description: The calendar day (YYYY-MM-DD); null = unscheduled }
+        scheduledTime: { type: [string, 'null'], pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        dueDate: { type: [string, 'null'], format: date }
+        assigneeMemberId: { type: [string, 'null'], maxLength: 64 }
+        source: { type: [string, 'null'], maxLength: 64 }
+    ImportTasksInput:
+      type: object
+      additionalProperties: false
+      required: [tasks]
+      properties:
+        idempotencyKey: { type: string, minLength: 1, maxLength: 128 }
+        tasks:
+          type: array
+          maxItems: 500
+          items: { $ref: '#/components/schemas/ImportTaskRow' }
+    MoveTaskInput:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        afterTaskId: { type: [string, 'null'], maxLength: 64, description: The card directly above }
+        beforeTaskId: { type: [string, 'null'], maxLength: 64, description: The card directly below }
+    TaskComment:
+      type: object
+      required: [id, taskId, authorMemberId, authorName, authorAvatarUrl, text, createdAt]
+      properties:
+        id: { type: string }
+        taskId: { type: string }
+        authorMemberId: { type: [string, 'null'] }
+        authorName: { type: string }
+        authorAvatarUrl: { type: [string, 'null'] }
+        text: { type: string }
+        createdAt: { type: string, format: date-time }
+    TaskCommentResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/TaskComment' }
+    TaskCommentList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/TaskComment' }
+    AddTaskCommentInput:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 10000 }
 
     InventoryItem:
       type: object

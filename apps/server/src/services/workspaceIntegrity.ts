@@ -185,6 +185,10 @@ const CHECKS: { name: string; sql: string }[] = [
   { name: 'AgentEventTarget.delivery', sql: 'SELECT c.id FROM AgentEventTarget c JOIN AgentEventDelivery p ON p.id = c.deliveryId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'AgentEventTarget.contact', sql: 'SELECT c.id FROM AgentEventTarget c JOIN Contact p ON p.id = c.contactId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'AgentEventTarget.member', sql: 'SELECT c.id FROM AgentEventTarget c JOIN WorkspaceMember p ON p.id = c.memberId WHERE c.workspaceId <> p.workspaceId' },
+  // Calendar / Boards tasks
+  { name: 'WorkTask.assignee', sql: 'SELECT c.id FROM WorkTask c JOIN WorkspaceMember p ON p.id = c.assigneeMemberId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'WorkTask.createdBy', sql: 'SELECT c.id FROM WorkTask c JOIN WorkspaceMember p ON p.id = c.createdByMemberId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'WorkComment.author', sql: 'SELECT c.id FROM WorkComment c JOIN WorkTask t ON t.id = c.taskId JOIN WorkspaceMember p ON p.id = c.authorMemberId WHERE t.workspaceId <> p.workspaceId' },
 ]
 
 /** Rows whose references cross a workspace boundary, by check name. Empty = sound. */
