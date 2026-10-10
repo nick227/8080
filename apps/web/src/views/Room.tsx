@@ -287,7 +287,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
         view={view}
         stage={(
           <div className="work-column">
-            <WorkNav desk={shownPlace} teamActive={shownPlace === 'stream' || shownPlace === 'team'} layoutControl={shownPlace === 'stream' ? <TeamLayoutMenu view={view} onChange={chooseView} /> : undefined} onSelect={(next) => {
+            <WorkNav desk={shownPlace} layoutControl={shownPlace === 'stream' ? <TeamLayoutMenu view={view} onChange={chooseView} /> : undefined} onSelect={(next) => {
               if (next === 'documents') useDocuments.getState().open(null)
               openPlace(next)
             }} />

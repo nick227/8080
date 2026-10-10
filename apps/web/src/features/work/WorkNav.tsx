@@ -27,7 +27,6 @@ function lastDesk(group: (typeof NAV_GROUPS)[number]): Desk {
 export function WorkNav({ desk, onSelect, layoutControl, streamLabel = 'Stream' }: {
   desk: Desk
   layoutControl?: ReactNode
-  teamActive: boolean
   onSelect: (desk: Desk) => void
   streamLabel?: string
 }) {

@@ -42,7 +42,8 @@ type State = {
   members: Member[]
   // This person's workspace member id (presence: "me" vs others)
   me: string | null
-  ensure: (owner?: string) => void
+  /** Start once; with a company id, follow it (a switch reloads that company's documents). */
+  ensure: (owner?: string, workspaceId?: string | null) => void
   open: (id: string | null) => void
   // A chat link: show that workspace's documents and open this one (false = not available).
   openFromLink: (workspaceId: string, id: string) => Promise<boolean>
@@ -254,6 +255,7 @@ export const useDocuments = create<State>((set, get) => {
     // The workspace a chat link pointed at, else the app's current company (app/workspace.ts).
     const remembered = rememberedWorkspace()
     const workspace = workspaces.find((w) => w.id === preferredWorkspace) ?? workspaces.find((w) => w.id === remembered) ?? workspaces[0]
+    preferredWorkspace = null // an explicit choice applies once; the store now holds it
     if (!workspace) return false
     const memberRows = unwrap(await getApiClient().GET('/workspaces/{workspaceId}/members', { params: { path: { workspaceId: workspace.id } } })).data
     const me = unwrap(await getApiClient().GET('/auth/me')).data
@@ -270,6 +272,25 @@ export const useDocuments = create<State>((set, get) => {
     context = { me: mine, members }
     set({ me: mine })
     return true
+  }
+
+  // Reload the list in another company (a chat link into it, or the app switching company).
+  async function restartIn(workspaceId: string, owner?: string) {
+    preferredWorkspace = workspaceId
+    const previous = get().openId
+    if (previous) detachBlocks(previous)
+    set({ openId: null, docs: [], ready: false, mode: 'starting' })
+    starting = (async () => {
+      try {
+        if (!(await startShared(owner ?? 'You'))) startLocal(owner)
+      } catch {
+        startLocal(owner)
+      } finally {
+        starting = null
+      }
+    })()
+    await starting
+    startTimer()
   }
 
   let context: { me: string | null; members: Map<string, string> } = { me: null, members: new Map() }
@@ -323,8 +344,13 @@ export const useDocuments = create<State>((set, get) => {
     members: [],
     me: null,
 
-    ensure(owner) {
-      if (get().ready || starting) return
+    ensure(owner, workspaceId) {
+      const state = get()
+      if (workspaceId && state.ready && state.mode === 'shared' && state.workspaceId !== workspaceId && !starting) {
+        void restartIn(workspaceId, owner)
+        return
+      }
+      if (state.ready || starting) return
       const name = owner ?? 'You'
       starting = (async () => {
         try {
@@ -341,16 +367,7 @@ export const useDocuments = create<State>((set, get) => {
     async openFromLink(workspaceId, id) {
       if (starting) await starting
       if (get().mode !== 'shared' || get().workspaceId !== workspaceId) {
-        preferredWorkspace = workspaceId
-        const previous = get().openId
-        if (previous) detachBlocks(previous)
-        set({ openId: null, docs: [], ready: false, mode: 'starting' })
-        try {
-          if (!(await startShared('You'))) startLocal()
-        } catch {
-          startLocal()
-        }
-        startTimer()
+        await restartIn(workspaceId, 'You')
       } else {
         await get().refresh()
       }

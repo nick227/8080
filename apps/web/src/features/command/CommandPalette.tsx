@@ -6,6 +6,13 @@ import { useShell } from '../../state/shell'
 import { DESKS, NAV_GROUPS, type Desk } from '../work/sections'
 import './command.css'
 
+const OPEN_EVENT = '8080:command-palette'
+
+/** Opens the palette from a visible control (touch has no Ctrl/Cmd+K). */
+export function openCommandPalette() {
+  window.dispatchEvent(new Event(OPEN_EVENT))
+}
+
 type Command = { id: string; label: string; hint: string; words: string; run: () => void }
 
 // Extra words people use for a destination (doc 08 §2: automations are found by what they do).
@@ -32,6 +39,7 @@ export function CommandPalette() {
   const [active, setActive] = useState(0)
   const input = useRef<HTMLInputElement>(null)
   const returnFocus = useRef<HTMLElement | null>(null)
+  const openRef = useRef(false)
   const navigate = useNavigate()
   const location = useLocation()
   const { workspace } = useCurrentWorkspace()
@@ -41,13 +49,24 @@ export function CommandPalette() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
-        returnFocus.current = document.activeElement as HTMLElement | null
+        // Remember where focus was only when opening; when closing it is our own input.
+        if (!openRef.current) returnFocus.current = document.activeElement as HTMLElement | null
         setOpen((v) => !v)
       }
     }
+    const onOpen = () => {
+      if (openRef.current) return
+      returnFocus.current = document.activeElement as HTMLElement | null
+      setOpen(true)
+    }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener(OPEN_EVENT, onOpen)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener(OPEN_EVENT, onOpen)
+    }
   }, [])
+  useEffect(() => { openRef.current = open }, [open])
   // Escape closes even before focus has reached the input.
   useEffect(() => {
     if (!open) return
@@ -114,7 +133,8 @@ export function CommandPalette() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, shown.length - 1)) }
+            if (e.key === 'Tab') e.preventDefault() // modal: focus stays on the input
+            else if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, shown.length - 1)) }
             else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)) }
             else if (e.key === 'Enter') { e.preventDefault(); run(shown[active]) }
           }}

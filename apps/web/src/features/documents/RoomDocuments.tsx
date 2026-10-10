@@ -1,12 +1,14 @@
 import { useEffect } from 'react'
 import { markOf } from './format'
 import { useDocuments } from './store'
+import { useCurrentWorkspace } from '../../app/workspace'
 
 export function RoomDocuments({ roomId, owner, onOpen }: { roomId?: string; owner: string; onOpen: () => void }) {
   const docs = useDocuments((state) => state.docs)
   const ensure = useDocuments((state) => state.ensure)
   const open = useDocuments((state) => state.open)
-  useEffect(() => { ensure(owner) }, [ensure, owner])
+  const companyId = useCurrentWorkspace().workspace?.id ?? null
+  useEffect(() => { ensure(owner, companyId) }, [ensure, owner, companyId])
   if (!roomId) return null
   const linked = docs.filter((doc) => doc.roomIds.includes(roomId))
 

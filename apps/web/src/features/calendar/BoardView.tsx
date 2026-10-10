@@ -23,6 +23,7 @@ import { FIELDS, assignToMe, deleteTasks, openField, setField, targetsFor, taskS
 import { columnOf, useCalendar, useWorkflow, wf } from './store'
 import { useTeam } from './sync'
 import type { CalTask, TaskStatus } from './types'
+import { taskPath } from '../tasks/links'
 
 // Done cards older than this fold away (Jira's Kanban does the same).
 const DONE_FRESH_DAYS = 14
@@ -633,7 +634,7 @@ function CardMenu({ task }: { task: CalTask }) {
               type="button"
               role="menuitem"
               onClick={run(() => {
-                const url = `${window.location.origin}${window.location.pathname}?desk=calendar&ticket=${task.taskKey}`
+                const url = `${window.location.origin}${taskPath(window.location.pathname, task.taskKey)}`
                 void navigator.clipboard.writeText(url).then(() => say(`Copied the link to ${task.taskKey}`), () => say('Couldn\u2019t copy the link'))
               })}
             >

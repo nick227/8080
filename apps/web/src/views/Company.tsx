@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Panel } from '../components/Panel'
 import { SEO } from '../components/SEO'
 import { StageChrome } from '../components/StageChrome'
@@ -16,7 +16,8 @@ import '../features/room/room.css'
 // is wired, D4) no chat rail.
 export function Company() {
   const { workspace, loading, missing } = useCurrentWorkspace()
-  const [place, setPlace, unknownDesk] = useWorkPlace()
+  const [place, setPlace, unknownDesk, redirecting] = useWorkPlace()
+  const navigate = useNavigate()
 
   useLayoutEffect(() => {
     useShell.getState().enterRoom()
@@ -30,7 +31,7 @@ export function Company() {
     <Panel as="main" variant="shell" className="room-shell company-shell">
       <SEO title={workspace ? `${workspace.name} - 8080` : '8080'} description="Company workspace" />
       <StageChrome />
-      {loading ? (
+      {loading || redirecting ? (
         <p className="work-empty" role="status">Loading…</p>
       ) : missing || unknownDesk || !workspace ? (
         <div className="company-missing" role="alert">
@@ -40,8 +41,8 @@ export function Company() {
         </div>
       ) : (
         <div className="work-column company-column">
-          {/* Stream opens the Lobby's conversations until company rooms are listed (Phase 2b). */}
-          <WorkNav desk={place} teamActive={place === 'team'} onSelect={(next) => (next === 'stream' ? useShell.getState().showLobby() : setPlace(next))} />
+          {/* Stream goes to the Lobby's conversations until company rooms are listed (Phase 2b). */}
+          <WorkNav desk={place} onSelect={(next) => (next === 'stream' ? navigate('/') : setPlace(next))} />
           {place === 'team' ? (
             <TeamDesk seats={[]} />
           ) : place === 'calendar' ? (

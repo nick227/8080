@@ -50,15 +50,19 @@ export function useWorkPlace() {
   // On a company route, links that only set `?desk=` (record links, contact → automation)
   // land on that desk's own path, keeping the rest of their query.
   useEffect(() => {
-    if (!company || !queryDesk) return
+    if (!company || !queryDesk || legacyTicket) return
     const next = new URLSearchParams(location.search)
     next.delete('desk')
-    navigate({ pathname: deskPath(basePath, queryDesk as Desk), search: next.toString() }, { replace: true, state: location.state })
-  }, [company, queryDesk, basePath, location.search, location.state, navigate])
-  // Keep shared links to the former Calendar views working in their new home.
-  const requested = requestedDesk === 'calendar' && legacyView === 'table' ? 'company'
-    : requestedDesk === 'calendar' && ['board', 'backlog', 'reports'].includes(legacyView ?? '') ? 'board'
-      : requestedDesk
+    const target = legacyDesk(queryDesk, legacyView)
+    if (target === 'company') next.delete('view') // 'table' meant the overview's task table
+    navigate({ pathname: deskPath(basePath, target as Desk), search: next.toString() }, { replace: true, state: location.state })
+  }, [company, queryDesk, legacyView, legacyTicket, basePath, location.search, location.state, navigate])
+  // One address per page: /c/:id/company is the overview at /c/:id.
+  useEffect(() => {
+    if (company && segment === 'company') navigate({ pathname: basePath, search: location.search }, { replace: true })
+  }, [company, segment, basePath, location.search, navigate])
+  // Company paths name their desk exactly; old ?desk= links were mapped by the redirect.
+  const requested = company ? requestedDesk : legacyDesk(requestedDesk, legacyView)
   const known = company
     ? requested === 'company' || COMPANY_DESKS.includes(requested as Desk)
     : DESKS.some((d) => d.id === requested)
@@ -87,7 +91,17 @@ export function useWorkPlace() {
     navigate({ pathname, search: params.toString() }, { state: saved?.state ?? null })
   }
   // Third item: a company URL that names a desk that doesn't exist (the page shows not-found).
-  return [place, select, company && !known] as const
+  // Fourth: a redirect is about to replace this URL; render no desk until it lands, so the
+  // wrong desk never mounts (the overview's task table would reset shared view state).
+  const redirecting = company && (Boolean(queryDesk) || Boolean(legacyTicket) || segment === 'company')
+  return [place, select, company && !known, redirecting] as const
+}
+
+/** Keep shared links to the former Calendar views working in their new home. */
+function legacyDesk(desk: string | null, view: string | null) {
+  if (desk === 'calendar' && view === 'table') return 'company'
+  if (desk === 'calendar' && ['board', 'backlog', 'reports'].includes(view ?? '')) return 'board'
+  return desk
 }
 
 /** A desk's address under a company base path. */
@@ -171,9 +185,13 @@ export function useRecordNavigation(kind: RecordKind) {
         go(search({ record: ref.id, preview: null, previewKind: null }), { results: state.results })
       else {
         const next = new URLSearchParams({ desk: ref.kind, record: ref.id })
+        // The way back names its desk explicitly: on a company path the query alone
+        // doesn't carry it, and the ?desk= redirect then routes Back to the right desk.
+        const back = new URLSearchParams(search({ preview: null, previewKind: null }).slice(1))
+        back.set('desk', kind)
         go(`?${next}`, {
           origin: {
-            search: search({ preview: null, previewKind: null }),
+            search: `?${back}`,
             results: state.results,
             name: originName,
           },

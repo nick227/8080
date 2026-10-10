@@ -4,6 +4,7 @@ import { useDocuments } from '../documents/store'
 import type { Desk } from '../work/sections'
 import { runAgent } from './calendar'
 import './agent.css'
+import { useCurrentWorkspace } from '../../app/workspace'
 
 type Line = { id: string; who: 'you' | 'agent'; text: string }
 
@@ -14,7 +15,8 @@ export function DeskAgent({ desk, onOpen }: { desk: Desk; onOpen: (desk: Desk) =
   const session = useSession()
   const ensure = useDocuments((state) => state.ensure)
   const owner = session.data?.data.displayName ?? 'You'
-  useEffect(() => { ensure(owner) }, [ensure, owner])
+  const companyId = useCurrentWorkspace().workspace?.id ?? null
+  useEffect(() => { ensure(owner, companyId) }, [ensure, owner, companyId])
 
   const send = () => {
     const said = text.trim()

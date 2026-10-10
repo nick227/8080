@@ -8,7 +8,7 @@ import { Lobby } from '../features/Lobby'
 import { useShell } from '../state/shell'
 import { useUI } from '../state/ui'
 import { ThemeSwitcher } from './ThemeSwitcher'
-import { CommandPalette } from '../features/command/CommandPalette'
+import { CommandPalette, openCommandPalette } from '../features/command/CommandPalette'
 
 export function StageChrome() {
   const surface = useShell((s) => s.surface)
@@ -46,16 +46,22 @@ export function StageChrome() {
           8080
         </p>
         <div className="mast-actions">
+          <button type="button" className="mast-goto" onClick={openCommandPalette} aria-keyshortcuts="Control+K Meta+K">
+            <span>Go to…</span>
+            <kbd aria-hidden>{navigator.platform.startsWith('Mac') ? '⌘K' : 'Ctrl K'}</kbd>
+          </button>
           <ThemeSwitcher />
           <button
             type="button"
-            className="mast-icon"
+            className="mast-icon mast-account"
             data-mark="account"
             aria-label={guest ? 'Guest' : (user?.displayName ?? 'Account')}
             aria-expanded={accountOpen}
             onClick={toggleAccount}
           >
-            {user?.avatarUrl ? <img className="mast-avatar" src={user.avatarUrl} alt="" /> : <PersonIcon guest={guest} />}
+            {user?.avatarUrl ? <img className="mast-avatar" src={user.avatarUrl} alt="" />
+              : guest ? <PersonIcon guest />
+                : <span className="mast-initial" aria-hidden>{(user?.displayName ?? '?').trim().charAt(0).toUpperCase()}</span>}
           </button>
         </div>
       </header>
