@@ -60,7 +60,7 @@ export function ForYou({ workspaceId, onOpenTask }: { workspaceId: string; onOpe
             )}
           </div>
           {list.isLoading ? <p className="cal-foryou-empty">Loading…</p>
-            : items.length === 0 ? <p className="cal-foryou-empty">Nothing for you yet. You'll hear here when someone assigns you a task, mentions you, or a task you own is blocked or done.</p>
+            : items.length === 0 ? <p className="cal-foryou-empty">Nothing for you yet. You'll hear here when someone assigns you a task or mentions you, when your task is due tomorrow or overdue, and when a task you own is blocked or done.</p>
             : (
               <ul className="cal-foryou-list">
                 {items.map((item) => (
@@ -81,7 +81,7 @@ export function ForYou({ workspaceId, onOpenTask }: { workspaceId: string; onOpe
               disabled={!settings.data || saveSettings.isPending}
               onChange={(e) => saveSettings.mutate({ email: e.target.value as TaskNotificationSettings['email'] }, { onError: () => say("Couldn't save your email setting.") })}
             >
-              <option value="direct">Mentions and assignments</option>
+              <option value="direct">Mentions, assignments, due dates</option>
               <option value="all">Every notification</option>
               <option value="off">Nothing</option>
             </select>

@@ -5864,7 +5864,7 @@ export interface components {
         };
         TaskNotificationSettings: {
             /**
-             * @description off = For you only; direct = also email mentions and assignments; all = email every task notification
+             * @description off = For you only; direct = also email mentions, assignments and due-date reminders; all = email every task notification
              * @enum {string}
              */
             email: "off" | "direct" | "all";

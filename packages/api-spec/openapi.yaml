@@ -8770,7 +8770,7 @@ components:
         email:
           type: string
           enum: ['off', direct, all]
-          description: "off = For you only; direct = also email mentions and assignments; all = email every task notification"
+          description: "off = For you only; direct = also email mentions, assignments and due-date reminders; all = email every task notification"
     TaskNotificationSettingsResponse:
       type: object
       required: [data]

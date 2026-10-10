@@ -5,6 +5,7 @@ import { startWorkspaceHost } from './services/WorkspaceHost'
 import { startAgentRunner, stopAgentRunner } from './services/agents/runner'
 import { describeEmailSetup } from './services/agents/email'
 import { startTaskEmailSweep, stopTaskEmailSweep } from './services/taskEmail'
+import { startTaskReminders, stopTaskReminders } from './services/taskReminders'
 
 async function main() {
   const server = await buildApp({ logger: true })
@@ -21,6 +22,8 @@ async function main() {
   server.log.info(`agents runner: ${startAgentRunner() ? 'on' : 'off'}`)
   // Task notice emails: retries what an immediate send didn't finish.
   server.log.info(`task email sweep: ${startTaskEmailSweep() ? 'on' : 'off'}`)
+  // Due tomorrow / overdue reminders for assignees, from 8 AM workspace time.
+  server.log.info(`task reminders: ${startTaskReminders() ? 'on' : 'off'}`)
   const email = describeEmailSetup()
   if (email.ok) server.log.info(email.line)
   else server.log.error(email.line)
@@ -30,6 +33,7 @@ async function main() {
     try {
       stopAgentRunner()
       stopTaskEmailSweep()
+      stopTaskReminders()
       host.stop()
       await stopBots()
       await server.close()
