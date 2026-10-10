@@ -39,6 +39,14 @@ export default defineConfig({
       RESEND_API_KEY: '',
       EMAIL_PLATFORM_FROM: '',
       EMAIL_TRANSPORT: '',
+      // Google sign-in and Gmail: fixed fake settings, so tests never depend on (or
+      // reach) real credentials from a developer's .env, and behave the same in CI.
+      GOOGLE_LOGIN_CLIENT_ID: 'test-google-login-client',
+      GOOGLE_LOGIN_CLIENT_SECRET: 'test-google-login-secret',
+      GOOGLE_LOGIN_REDIRECT_URI: 'http://localhost:3001/auth/google/callback',
+      GOOGLE_CLIENT_ID: 'test-google-gmail-client',
+      GOOGLE_CLIENT_SECRET: 'test-google-gmail-secret',
+      GOOGLE_REDIRECT_URI: 'http://localhost:3001/integrations/google/callback',
     },
   },
 })
