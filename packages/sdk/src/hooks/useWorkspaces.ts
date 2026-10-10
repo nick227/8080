@@ -125,6 +125,16 @@ export function useRevokeWorkspaceInvite(workspaceId: string) {
   })
 }
 
+/** What an invite link offers (company, inviter, email, role, expiry); read-only. */
+export function useWorkspaceInvitePreview(token: string | undefined) {
+  return useQuery({
+    queryKey: ['workspaceInvitePreview', token ?? ''],
+    enabled: !!token,
+    retry: false,
+    queryFn: async () => unwrap(await getApiClient().POST('/workspace-invites/preview', { body: { token: token! } })).data,
+  })
+}
+
 export function useAcceptWorkspaceInvite() {
   const queryClient = useQueryClient()
   return useMutation({

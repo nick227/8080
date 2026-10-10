@@ -1186,6 +1186,32 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /workspace-invites/preview:
+    post:
+      operationId: previewWorkspaceInvite
+      x-fastify-config:
+        rateLimit: { max: 60, timeWindow: '1 hour' }
+      summary: What an invite link offers (read-only)
+      description: |
+        The company, who invited, the invited email and role, and when it expires, so the
+        accept page can say what you're joining. Any signed-in session (guests included).
+        Invalid, used, revoked or expired tokens get 404 INVITE_INVALID.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AcceptWorkspaceInviteInput' }
+      responses:
+        '200':
+          description: The invite
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceInvitePreviewResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /workspace-invites/accept:
     post:
       operationId: acceptWorkspaceInvite
@@ -7771,6 +7797,22 @@ components:
       properties:
         email: { type: string, format: email, maxLength: 254 }
         role: { type: string, enum: [admin, member], default: member }
+
+    WorkspaceInvitePreview:
+      type: object
+      required: [workspaceName, inviterName, email, role, expiresAt]
+      properties:
+        workspaceName: { type: string }
+        inviterName: { type: [string, 'null'] }
+        email: { type: string }
+        role: { $ref: '#/components/schemas/WorkspaceRole' }
+        expiresAt: { type: string, format: date-time }
+
+    WorkspaceInvitePreviewResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/WorkspaceInvitePreview' }
 
     AcceptWorkspaceInviteInput:
       type: object

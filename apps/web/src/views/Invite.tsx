@@ -1,6 +1,6 @@
 import { useLayoutEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ApiError, useAcceptWorkspaceInvite, useSession } from '@project/sdk'
+import { ApiError, useAcceptWorkspaceInvite, useSession, useWorkspaceInvitePreview } from '@project/sdk'
 import { Panel } from '../components/Panel'
 import { SEO } from '../components/SEO'
 import { StageChrome } from '../components/StageChrome'
@@ -19,6 +19,8 @@ export function Invite() {
   const { token = '' } = useParams()
   const user = useSession().data?.data
   const accept = useAcceptWorkspaceInvite()
+  const preview = useWorkspaceInvitePreview(token)
+  const invite = preview.data
   const navigate = useNavigate()
   const [problem, setProblem] = useState('')
   useLayoutEffect(() => { useShell.getState().enterRoom() }, [])
@@ -39,10 +41,17 @@ export function Invite() {
       <SEO title="Join a company - 8080" description="Accept an invite" />
       <StageChrome />
       <div className="account-page">
-        <h1>You’re invited to a company</h1>
-        {!user ? null : user.isGuest ? (
+        <h1>{invite ? `Join ${invite.workspaceName}` : 'Join a company'}</h1>
+        {invite && (
+          <p className="account-muted">
+            {invite.inviterName ? `Invited by ${invite.inviterName}` : 'Invited'} as {invite.role === 'admin' ? 'an admin' : 'a member'} · for {invite.email}
+          </p>
+        )}
+        {preview.isError ? (
+          <p className="account-error" role="alert">This invite is no longer valid (expired, withdrawn or already used). Ask for a new one.</p>
+        ) : !user ? null : user.isGuest ? (
           <section aria-label="Sign in">
-            <p className="account-muted">Sign in or create an account with the email address the invite was sent to, then accept.</p>
+            <p className="account-muted">Sign in or create an account as {invite?.email ?? 'the invited email address'}, then accept.</p>
             <GuestAuth user={user} />
           </section>
         ) : (

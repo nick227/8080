@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useCreateWorkspaceInvite } from '@project/sdk'
+import { useCreateWorkspaceInvite, useRevokeWorkspaceInvite, useWorkspaceInvites } from '@project/sdk'
 
 /**
  * Invite someone to the company (redesign D9: Team's "+ New"). The server keeps only a
@@ -60,5 +60,27 @@ export function InviteMember({ workspaceId, onClose }: { workspaceId: string; on
         <button type="button" className="section-add-btn" onClick={onClose}>Cancel</button>
       </div>
     </form>
+  )
+}
+
+/** Invites not yet accepted (admins): who, as what, until when, and Withdraw. */
+export function PendingInvites({ workspaceId }: { workspaceId: string }) {
+  const invites = useWorkspaceInvites(workspaceId)
+  const revoke = useRevokeWorkspaceInvite(workspaceId)
+  const pending = (invites.data ?? []).filter((i) => new Date(i.expiresAt).getTime() > Date.now())
+  if (!pending.length) return null
+  return (
+    <details className="team-pending">
+      <summary>Pending invites <span className="collection-chip-count">{pending.length}</span></summary>
+      <ul>
+        {pending.map((i) => (
+          <li key={i.id}>
+            <span className="team-pending-email">{i.email}</span>
+            <span className="team-muted">{i.role === 'admin' ? 'Admin' : 'Member'} · expires {new Date(i.expiresAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+            <button type="button" className="collection-row-action" disabled={revoke.isPending} onClick={() => revoke.mutate(i.id)}>Withdraw</button>
+          </li>
+        ))}
+      </ul>
+    </details>
   )
 }

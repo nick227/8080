@@ -170,6 +170,21 @@ function sampleBody(op: any) {
 }
 
 describe('invites', () => {
+  it('preview says what an invite offers without accepting it; dead tokens are 404', async () => {
+    const ws = await createWorkspace()
+    await seedPeople()
+    const invite = await call(testUserId, 'POST', `/workspaces/${ws.id}/invites`, { email: 'carol@test.local', role: 'admin' })
+    const token = invite.json().token
+    const preview = await call(testOtherUserId, 'POST', '/workspace-invites/preview', { token })
+    expect(preview.statusCode).toBe(200)
+    await validateResponse('previewWorkspaceInvite', 200, preview.json())
+    expect(preview.json().data).toMatchObject({ workspaceName: 'Acme Co', email: 'carol@test.local', role: 'admin' })
+    expect(await db.workspaceMember.count({ where: { workspaceId: ws.id, userId: carolId } })).toBe(0)
+    expect((await call(carolId, 'POST', '/workspace-invites/preview', { token: 'nope' })).json().code).toBe('INVITE_INVALID')
+    await call(carolId, 'POST', '/workspace-invites/accept', { token })
+    expect((await call(carolId, 'POST', '/workspace-invites/preview', { token })).statusCode).toBe(404)
+  })
+
   it('a registered invitee joins with the invited role; the token works once', async () => {
     const ws = await createWorkspace()
     await seedPeople()

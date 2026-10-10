@@ -938,3 +938,9 @@
 .team-invite-link { display: flex; gap: var(--space-sm); flex: 1 1 100%; }
 .team-invite-link input { flex: 1; }
 .team-invite-actions { display: flex; gap: var(--space-sm); }
+.team-pending { margin: 0 var(--table-cell-padding-x) var(--space-sm); font-size: var(--text-sm); }
+.team-pending summary { cursor: pointer; color: var(--muted); }
+.team-pending summary:hover, .team-pending summary:focus-visible { color: var(--ink); }
+.team-pending ul { list-style: none; margin: var(--space-xs) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-xs); }
+.team-pending li { display: flex; align-items: center; gap: var(--space-md); }
+.team-pending-email { color: var(--ink); min-width: 14rem; }

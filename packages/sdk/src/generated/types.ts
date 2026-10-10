@@ -851,6 +851,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspace-invites/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * What an invite link offers (read-only)
+         * @description The company, who invited, the invited email and role, and when it expires, so the
+         *     accept page can say what you're joining. Any signed-in session (guests included).
+         *     Invalid, used, revoked or expired tokens get 404 INVITE_INVALID.
+         */
+        post: operations["previewWorkspaceInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspace-invites/accept": {
         parameters: {
             query?: never;
@@ -5206,6 +5228,17 @@ export interface components {
              */
             role: "admin" | "member";
         };
+        WorkspaceInvitePreview: {
+            workspaceName: string;
+            inviterName: string | null;
+            email: string;
+            role: components["schemas"]["WorkspaceRole"];
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        WorkspaceInvitePreviewResponse: {
+            data: components["schemas"]["WorkspaceInvitePreview"];
+        };
         AcceptWorkspaceInviteInput: {
             token: string;
         };
@@ -8732,6 +8765,34 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    previewWorkspaceInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptWorkspaceInviteInput"];
+            };
+        };
+        responses: {
+            /** @description The invite */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceInvitePreviewResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     acceptWorkspaceInvite: {

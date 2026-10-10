@@ -42,7 +42,8 @@ export function useCurrentWorkspace() {
   // On a room page, wait for the room's company too, or a redirect could pick the wrong one.
   const loading = session.isLoading || workspaces.isLoading || (Boolean(params.roomId) && roomCompanyQuery.isLoading)
   // A routed company you don't belong to is "missing": never show another one under its URL.
-  const missing = Boolean(routed) && !loading && !list.some((w) => w.id === routed)
+  // While the list refreshes (e.g. just after joining), an unknown routed id is not yet missing.
+  const missing = Boolean(routed) && !loading && !workspaces.isFetching && !list.some((w) => w.id === routed)
   const workspace = missing ? null
     : list.find((w) => w.id === routed)
       ?? list.find((w) => w.id === roomCompany)

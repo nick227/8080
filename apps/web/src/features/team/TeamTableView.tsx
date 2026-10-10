@@ -9,7 +9,7 @@ import { CollectionView } from '../collections/CollectionView'
 import { ColumnsMenu } from '../collections/ColumnsMenu'
 import { DataTable } from '../collections/DataTable'
 import { matches, useTableState, useUrlSearch, type Column } from '../collections/table'
-import { InviteMember } from './InviteMember'
+import { InviteMember, PendingInvites } from './InviteMember'
 import './team.css'
 
 const ROLE_LABEL = { owner: 'Owner', admin: 'Admin', member: 'Member' } as const
@@ -99,7 +99,7 @@ export function TeamTableView({
       collection="team"
       count={rows.length}
       onNew={canInvite ? () => setInviting(true) : undefined}
-      notice={inviting && workspace ? <InviteMember workspaceId={workspace.id} onClose={() => setInviting(false)} /> : undefined}
+      notice={workspace && canInvite ? <>{inviting && <InviteMember workspaceId={workspace.id} onClose={() => setInviting(false)} />}<PendingInvites workspaceId={workspace.id} /></> : undefined}
       search={{ value: search.value, onChange: search.setValue, placeholder: 'Search members, roles, focus…' }}
       view={<ColumnsMenu state={table} />}
     >

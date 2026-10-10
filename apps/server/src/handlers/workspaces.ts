@@ -59,6 +59,10 @@ export async function revokeWorkspaceInvite(request: any, reply: any) {
   return reply.send({ data: null })
 }
 
+export async function previewWorkspaceInvite(request: any, reply: any) {
+  return reply.send({ data: await workspaceService.previewInvite(request.body.token) })
+}
+
 export async function acceptWorkspaceInvite(request: any, reply: any) {
   return reply.send({ data: await workspaceService.acceptInvite(ctx(request), request.body.token) })
 }

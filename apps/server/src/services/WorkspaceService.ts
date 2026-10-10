@@ -312,6 +312,25 @@ export class WorkspaceService {
     )
   }
 
+  /** What an invite link offers, before accepting (read-only; any signed-in session,
+   *  guests included). The token itself is the secret, so it travels in the body. */
+  async previewInvite(token: string) {
+    const invite = await db.workspaceInvite.findUnique({
+      where: { tokenHash: hashInviteToken(token) },
+      include: { workspace: { select: { name: true, deletedAt: true } }, invitedBy: { select: { user: { select: { profile: { select: { displayName: true } } } } } } },
+    })
+    if (!invite || invite.acceptedAt || invite.revokedAt || invite.expiresAt <= new Date() || invite.workspace.deletedAt) {
+      throw httpError(404, 'This invite is invalid or has expired', 'INVITE_INVALID')
+    }
+    return {
+      workspaceName: invite.workspace.name,
+      inviterName: invite.invitedBy?.user.profile?.displayName ?? null,
+      email: invite.email,
+      role: invite.role,
+      expiresAt: invite.expiresAt,
+    }
+  }
+
   // The invite is bound to an email: the accepting account must own it, so a
   // forwarded link can't be used by someone else.
   async acceptInvite(ctx: WorkspaceCtx, token: string) {
