@@ -232,8 +232,8 @@ function Row({ task, selected, toggleSelect, onOpen, moveFocus }: { task: CalTas
       onKeyDown={(e) => {
         if (e.target !== e.currentTarget) return
         if (e.key === 'Enter') { e.preventDefault(); onOpen(task); return }
-        if (e.key === 'ArrowDown' || e.key === 'j') { e.preventDefault(); moveFocus(e.currentTarget, 1); return }
-        if (e.key === 'ArrowUp' || e.key === 'k') { e.preventDefault(); moveFocus(e.currentTarget, -1); return }
+        if (e.key === 'ArrowDown' || (e.key === 'j' && !e.metaKey && !e.ctrlKey)) { e.preventDefault(); moveFocus(e.currentTarget, 1); return }
+        if (e.key === 'ArrowUp' || (e.key === 'k' && !e.metaKey && !e.ctrlKey)) { e.preventDefault(); moveFocus(e.currentTarget, -1); return }
         if (e.key === 'F2') { e.preventDefault(); setEditing(true); return }
         if (!task.pending && !e.metaKey && !e.ctrlKey && !e.altKey && taskShortcut(e, task.id, e.currentTarget, team, meId, () => toggleSelect(task.id))) {
           e.preventDefault()

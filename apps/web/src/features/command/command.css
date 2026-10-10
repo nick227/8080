@@ -1,0 +1,42 @@
+.command-dismiss { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--bg) 55%, transparent); border: 0; }
+.command-palette {
+  position: fixed;
+  top: max(10vh, calc(var(--mast) + var(--space-md)));
+  left: 50%;
+  z-index: 61;
+  width: min(560px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  background: var(--panel);
+  border: var(--line-width) solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 40px var(--shadow-color);
+  overflow: hidden;
+}
+.command-input {
+  width: 100%;
+  padding: var(--space-md);
+  border: 0;
+  border-bottom: var(--line-width) solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-md);
+  outline: none;
+}
+.command-list { list-style: none; margin: 0; padding: var(--space-xs) 0; max-height: min(50vh, 420px); overflow-y: auto; }
+.command-option {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--text-sm);
+  color: var(--ink);
+  cursor: pointer;
+}
+.command-option[aria-selected="true"] { background: var(--surface-active); }
+.command-hint { color: var(--muted); font-size: var(--text-xs); }
+.command-empty { padding: var(--space-sm) var(--space-md); color: var(--muted); font-size: var(--text-sm); }
+@media (prefers-reduced-motion: no-preference) {
+  .command-palette { animation: command-in 120ms var(--ease-out); }
+  @keyframes command-in { from { opacity: 0; transform: translate(-50%, -4px); } }
+}

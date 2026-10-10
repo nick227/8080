@@ -8,6 +8,7 @@ import { Lobby } from '../features/Lobby'
 import { useShell } from '../state/shell'
 import { useUI } from '../state/ui'
 import { ThemeSwitcher } from './ThemeSwitcher'
+import { CommandPalette } from '../features/command/CommandPalette'
 
 export function StageChrome() {
   const surface = useShell((s) => s.surface)
@@ -59,6 +60,7 @@ export function StageChrome() {
         </div>
       </header>
       <AccountSheet />
+      <CommandPalette />
       <AnimatePresence>
         {lobbyOpen && (
           <motion.div

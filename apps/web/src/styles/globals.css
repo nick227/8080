@@ -304,6 +304,19 @@ audio.media-view { width: min(520px, 100%); }
 .account-submit { margin-top: var(--space-md); font-family: var(--button-font); font-size: var(--button-font-size); letter-spacing: var(--tracking-wide); text-transform: var(--button-text-transform); color: var(--button-color);  background: var(--button-bg); border-radius: var(--button-radius); font-weight: var(--button-font-weight); box-shadow: var(--button-shadow);}
 .account-text { display: block; margin-top: var(--space-2); font-family: var(--mono); font-size: var(--text-label); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--muted); }
 .account-text:hover { color: var(--ink); }
+.account-companies { margin-top: var(--space-md); padding-top: var(--space-md); border-top: var(--line-width) solid var(--line); }
+.account-companies .eyebrow { margin: 0 0 var(--space-xs); }
+.account-companies ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.account-company { width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-sm); padding: var(--space-xs) 0; text-align: left; color: var(--ink); }
+.account-company-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); }
+.account-company:hover .account-company-name, .account-company:focus-visible .account-company-name { text-decoration: underline; text-underline-offset: 3px; }
+.account-company[aria-current] .account-company-name { font-weight: 700; }
+.account-muted { margin: 0; flex: none; font-size: var(--text-xs); color: var(--muted); }
+/* Account page (/account): the same pieces as the sheet, on a readable column. */
+.account-page { width: min(560px, 100%); margin: 0 auto; padding: var(--space-xl) var(--space-md) var(--space-2xl); overflow-y: auto; }
+.account-page h1 { margin: 0 0 var(--space-md); font-size: var(--text-xl); }
+.account-page section + section { margin-top: var(--space-lg); padding-top: var(--space-lg); border-top: var(--line-width) solid var(--line); }
+.account-page .account-companies { margin-top: 0; padding-top: 0; border-top: 0; }
 .account-error { margin: var(--space-control) 0 0; font-family: var(--mono); font-size: var(--text-label); letter-spacing: var(--tracking-action); color: var(--form-error-color); }
 .field { width: 100%; background: var(--input-bg); border: 0; border-bottom: var(--input-border-width) var(--input-border-style) var(--input-border-color); color: var(--input-color); padding: var(--input-underline-padding-y) 0; font-size: var(--input-underline-font-size); outline: none; border-radius: var(--input-radius);  font-family: var(--input-font); font-weight: var(--input-font-weight); box-shadow: var(--input-shadow);}
 .field:focus { border-bottom-color: var(--ink); }

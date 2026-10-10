@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
-import { useLocation, useNavigate } from 'react-router-dom'
-import { getApiClient, useLogin, useLogout, useRegister, useSession, type User } from '@project/sdk'
+import { Link, useNavigate } from 'react-router-dom'
+import { getApiClient, useLogin, useLogout, useMyWorkspaces, useRegister, useSession, type User } from '@project/sdk'
 import { AccountAvatar } from './AccountAvatar'
 import { useShell } from '../state/shell'
-import { useCurrentWorkspace } from '../app/workspace'
+import { useCreateCompany, useCurrentWorkspace } from '../app/workspace'
 
 const sheetMotion = {
   initial: { opacity: 0, y: -8, scale: 0.98 },
@@ -34,7 +34,7 @@ export function AccountSheet() {
   )
 }
 
-function GuestAuth({ user }: { user: User }) {
+export function GuestAuth({ user }: { user: User }) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [name, setName] = useState(user.displayName)
   const [email, setEmail] = useState('')
@@ -114,11 +114,9 @@ function GuestAuth({ user }: { user: User }) {
 function MemberAccount({ user }: { user: User }) {
   const [name, setName] = useState(user.displayName)
   const [error, setError] = useState('')
-  const { workspace } = useCurrentWorkspace()
   const logout = useLogout()
   const saveName = useSaveName()
   const navigate = useNavigate()
-  const location = useLocation()
 
   return (
     <form
@@ -135,20 +133,8 @@ function MemberAccount({ user }: { user: User }) {
       </label>
       {error && <p className="account-error" role="alert">{error}</p>}
       <button type="submit" className="account-submit">Save name</button>
-      {workspace && (
-        <button
-          type="button"
-          className="account-text"
-          onClick={() => {
-            useShell.setState({ accountOpen: false })
-            const params = new URLSearchParams(location.search)
-            params.set('desk', 'company')
-            navigate({ pathname: location.pathname, search: params.toString() })
-          }}
-        >
-          Open Company
-        </button>
-      )}
+      <CompanyList onOpen={(id) => { useShell.setState({ accountOpen: false }); navigate(`/c/${id}`) }} />
+      <Link className="account-text" to="/account" onClick={() => useShell.setState({ accountOpen: false })}>Account page</Link>
       <button
         type="button"
         className="account-text"
@@ -162,7 +148,7 @@ function MemberAccount({ user }: { user: User }) {
   )
 }
 
-function AccountIdentity({ user, onError }: { user: User; onError: (message: string) => void }) {
+export function AccountIdentity({ user, onError }: { user: User; onError: (message: string) => void }) {
   return (
     <div className="account-id">
       <AccountAvatar user={user} onError={onError} />
@@ -174,7 +160,7 @@ function AccountIdentity({ user, onError }: { user: User; onError: (message: str
   )
 }
 
-function useSaveName() {
+export function useSaveName() {
   const qc = useQueryClient()
   return async (displayName: string) => {
     const name = displayName.trim()
@@ -187,4 +173,36 @@ function useSaveName() {
     await qc.invalidateQueries({ queryKey: ['me'] })
     return ''
   }
+}
+
+/** The account's companies: open one (it becomes the current company), or create the first. */
+export function CompanyList({ onOpen }: { onOpen: (workspaceId: string) => void }) {
+  const companies = useMyWorkspaces()
+  const { workspace } = useCurrentWorkspace()
+  const { create, creating, createError } = useCreateCompany()
+  const list = companies.data ?? []
+  return (
+    <div className="account-companies">
+      <p className="eyebrow">Companies</p>
+      {companies.isLoading ? <p className="account-muted" role="status">Loading…</p>
+        : list.length === 0 ? (
+          <>
+            <p className="account-muted">You aren’t in a company yet.</p>
+            <button type="button" className="account-text" disabled={creating} onClick={create}>{creating ? 'Creating…' : 'Create a company'}</button>
+            {createError && <p className="account-error" role="alert">{createError}</p>}
+          </>
+        ) : (
+          <ul>
+            {list.map((c) => (
+              <li key={c.id}>
+                <button type="button" className="account-company" aria-current={c.id === workspace?.id ? 'true' : undefined} onClick={() => onOpen(c.id)}>
+                  <span className="account-company-name">{c.name}</span>
+                  <span className="account-muted">{c.role === 'owner' ? 'Owner' : c.role === 'admin' ? 'Admin' : 'Member'}{c.id === workspace?.id ? ' · current' : ''}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+    </div>
+  )
 }
