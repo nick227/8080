@@ -346,7 +346,13 @@ export const useDocuments = create<State>((set, get) => {
 
     ensure(owner, workspaceId) {
       const state = get()
-      if (workspaceId && state.ready && state.mode === 'shared' && state.workspaceId !== workspaceId && !starting) {
+      // A switch that arrives while a start is running: re-check once it has finished.
+      if (workspaceId && starting) {
+        const running = starting
+        void running.then(() => { if (get().workspaceId !== workspaceId) get().ensure(owner, workspaceId) })
+        return
+      }
+      if (workspaceId && state.ready && state.mode === 'shared' && state.workspaceId !== workspaceId) {
         void restartIn(workspaceId, owner)
         return
       }

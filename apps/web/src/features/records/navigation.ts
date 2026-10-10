@@ -200,7 +200,7 @@ export function useRecordNavigation(kind: RecordKind) {
     },
     back: () => {
       if (state.origin) go(state.origin.search, { results: state.origin.results })
-      else go(state.results?.search ?? `?desk=${kind}`, { results: state.results })
+      else go(state.results?.search ?? (onCompanyPath(location.pathname) ? '?' : `?desk=${kind}`), { results: state.results })
     },
   }
 }

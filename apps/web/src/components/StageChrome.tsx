@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { useSession } from '@project/sdk'
-import { LobbyIcon, PersonIcon } from '../components/icons'
+import { LobbyIcon, PersonIcon, SearchIcon } from '../components/icons'
 import { AccountSheet } from '../features/AccountSheet'
 import { Lobby } from '../features/Lobby'
 import { useShell } from '../state/shell'
@@ -46,8 +46,9 @@ export function StageChrome() {
           8080
         </p>
         <div className="mast-actions">
-          <button type="button" className="mast-goto" onClick={openCommandPalette} aria-keyshortcuts="Control+K Meta+K">
-            <span>Go to…</span>
+          <button type="button" className="mast-goto" onClick={openCommandPalette} aria-label="Go to…" aria-keyshortcuts="Control+K Meta+K">
+            <SearchIcon />
+            <span className="mast-goto-text">Go to…</span>
             <kbd aria-hidden>{navigator.platform.startsWith('Mac') ? '⌘K' : 'Ctrl K'}</kbd>
           </button>
           <ThemeSwitcher />

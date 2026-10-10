@@ -41,6 +41,7 @@ import { RecordForm } from './RecordForm'
 import { RecordImportFlow } from './RecordImportFlow'
 import { useRecordNavigation, type RecordKind, type ResultContext } from './navigation'
 import './records.css'
+import { onCompanyPath } from '../tasks/links'
 
 const positions = new Map<string, number>()
 
@@ -202,7 +203,9 @@ function RecordWorkspace({
   browseParams.delete('record')
   browseParams.delete('preview')
   browseParams.delete('previewKind')
-  browseParams.set('desk', kind)
+  // Same-desk links: company paths carry the desk in the path (a ?desk= would redirect and remount).
+  if (onCompanyPath(location.pathname)) browseParams.delete('desk')
+  else browseParams.set('desk', kind)
   const browseSearch = `?${browseParams}`
   const positionKey = `${workspaceId}:${location.pathname}:${browseSearch}`
   const browsePosition = useRef(positions.get(positionKey) ?? 0)
@@ -265,7 +268,8 @@ function RecordWorkspace({
     params.delete('record')
     params.delete('preview')
     params.delete('previewKind')
-    params.set('desk', kind)
+    if (onCompanyPath(location.pathname)) params.delete('desk')
+    else params.set('desk', kind)
     if (q.trim()) params.set('q', q.trim())
     else params.delete('q')
     return {

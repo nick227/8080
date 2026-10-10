@@ -285,7 +285,9 @@ audio.media-view { width: min(520px, 100%); }
 .mast-goto { display: inline-flex; align-items: center; gap: var(--space-sm); height: 28px; padding: 0 var(--space-sm); border: var(--line-width) solid var(--line); border-radius: var(--radius-sm); color: var(--muted); font-family: var(--sans); font-size: var(--text-sm); white-space: nowrap; }
 .mast-goto:hover, .mast-goto:focus-visible { color: var(--ink); border-color: var(--ink); }
 .mast-goto kbd { font-family: var(--mono); font-size: var(--text-xs); opacity: .8; }
+.mast-goto svg { flex: none; }
 @media (max-width: 560px) { .mast-goto kbd { display: none; } }
+@media (max-width: 420px) { .mast-goto { width: 32px; padding: 0; justify-content: center; } .mast-goto-text { display: none; } }
 .mast-icon[data-mark="lobby"] svg { transition: transform var(--motion-slow) var(--ease-out); }
 .mast-icon[data-mark="lobby"][aria-expanded="true"] svg { transform: rotate(90deg); }
 .lobby-sheet { position: fixed; top: var(--mast); left: 0; right: 0; bottom: 0; z-index: 20; overflow: auto; background: var(--bg); padding: var(--page-padding-block) 0 var(--page-padding-bottom); }
