@@ -50,13 +50,16 @@ function NewConversation({ workspaceId, name, onCancel }: { workspaceId: string;
   const [title, setTitle] = useState('')
   const [visibility, setVisibility] = useState<'private' | 'public'>('private')
   const [error, setError] = useState('')
+  // A room made by an attempt whose listing failed: a retry only lists it (no duplicate).
+  const [made, setMade] = useState<string | null>(null)
   const busy = create.isPending || link.isPending
   const submit = async () => {
     setError('')
     try {
-      const room = await create.mutateAsync({ title: title.trim(), visibility })
-      await link.mutateAsync(room.id)
-      navigate(`/room/${room.id}`)
+      const id = made ?? (await create.mutateAsync({ title: title.trim(), visibility })).id
+      setMade(id)
+      await link.mutateAsync(id)
+      navigate(`/room/${id}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Couldn’t start the conversation.')
     }
@@ -74,7 +77,9 @@ function NewConversation({ workspaceId, name, onCancel }: { workspaceId: string;
           <option value="public">Public: anyone, and listed in the Lobby</option>
         </select>
       </label>
-      <p className="company-new-hint">It’s listed in {name}. Listing doesn’t give access: invite people to a private conversation from inside it.</p>
+      <p className="company-new-hint">
+        It’s listed in {name}.{visibility === 'private' && ' Listing doesn’t give access: invite people from inside the conversation.'}
+      </p>
       {error && <p className="room-company-error" role="alert">{error}</p>}
       <div className="company-new-actions">
         <button type="submit" className="section-add-btn" disabled={busy}>{busy ? 'Starting…' : 'Start conversation'}</button>

@@ -72,7 +72,9 @@ export function useWorkPlace() {
   useEffect(() => {
     // Inspecting a related record must not replace the other area's working session.
     if ((location.state as RecordNavigationState | null)?.origin) return
-    const value = { search: location.search, state: location.state }
+    // A one-time arrival note (fromRoom) isn't part of a desk's working state.
+    const { fromRoom: _arrival, ...kept } = (location.state ?? {}) as Record<string, unknown>
+    const value = { search: location.search, state: Object.keys(kept).length ? kept : null }
     const key = keyFor(basePath, place)
     memory.set(key, value)
     try {

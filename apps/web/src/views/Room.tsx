@@ -160,7 +160,8 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const hostChannel = useHostChannel(roomId)
   // A room listed under a company: its mark shows only when that's the company shown;
   // listed under one you aren't in, you get just the conversation (D8).
-  const listing = useRoomCompany(roomId).data
+  const listingQuery = useRoomCompany(roomId)
+  const listing = listingQuery.data
   const listedHere = Boolean(listing?.member && listing.id === workspace?.id)
   const listedElsewhere = Boolean(listing && !listing.member)
   // Guests and accounts without a company only get the conversation (D8).
@@ -168,12 +169,12 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   // An old /room/:id?desk=… link: move to the company's page, keeping the rest of the query.
   const toCompany = shownPlace !== 'stream' && !taskKey
   useEffect(() => {
-    if (!toCompany || current.loading || !workspace) return
+    if (!toCompany || current.loading || listingQuery.isLoading || !workspace) return
     const next = new URLSearchParams(location.search)
     next.delete('desk')
     if (shownPlace === 'company') next.delete('view')
     navigate({ pathname: deskPath(`/c/${workspace.id}`, shownPlace), search: next.toString() }, { replace: true, state: location.state })
-  }, [toCompany, current.loading, workspace, shownPlace, location.search, location.state, navigate])
+  }, [toCompany, current.loading, listingQuery.isLoading, workspace, shownPlace, location.search, location.state, navigate])
   const { rows, catchUp, anchorId } = useChatRows({
     roomId,
     meId,
