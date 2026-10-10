@@ -126,7 +126,7 @@ export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { 
             <option value="area">Area</option>
           </select>
         </label>
-        <span className="cal-view-count">{tasks.length} tasks{points ? ` · ${points} pts` : ''}</span>
+        {points > 0 && <span className="cal-view-count">{points} pts shown</span>}
       </div>
       <div className="cal-table-scroll">
         <table className="cal-table">
@@ -224,9 +224,10 @@ function Row({ task, selected, toggleSelect, onOpen, moveFocus }: { task: CalTas
           <TitleEditor task={task} onDone={() => setEditing(false)} />
         ) : (
           <span className="cal-title-cell">
-            <button type="button" className="cal-title-link" disabled={task.pending} onClick={() => onOpen(task)} onDoubleClick={(e) => { e.preventDefault(); setEditing(true) }} title="Open (double-click or F2 to rename)">
+            <button type="button" className="cal-title-link" disabled={task.pending} onClick={() => onOpen(task)} title="Open">
               {task.title}
             </button>
+            <button type="button" className="cal-icon-btn cal-rename-btn" disabled={task.pending} aria-label={`Rename ${task.taskKey}`} title="Rename (F2)" onClick={() => setEditing(true)}>✎</button>
             {task.blocked && task.status !== 'done' && <span className="cal-table-blocked" title={task.blocked.reason}>Blocked</span>}
           </span>
         )}
@@ -255,7 +256,7 @@ function TitleEditor({ task, onDone }: { task: CalTask; onDone: () => void }) {
   return (
     <input
       className="cal-title-input"
-      aria-label={`Rename ${task.taskKey}`}
+      aria-label={`New title for ${task.taskKey}`}
       autoFocus
       maxLength={255}
       value={value}

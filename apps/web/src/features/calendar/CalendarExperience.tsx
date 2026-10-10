@@ -184,7 +184,8 @@ function Calendar({ workspaceId }: { workspaceId: string }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement
-      const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable
+      // Text entry only: a focused checkbox or button shouldn't swallow shortcuts like Esc.
+      const typing = (target instanceof HTMLInputElement && !['checkbox', 'radio', 'button', 'submit'].includes(target.type)) || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable
       const dialog = !!document.querySelector('dialog[open], [aria-modal="true"]')
       if (event.key === 'Escape' && useCalendar.getState().picker) return
       if (event.key === 'Escape' && ticketParam && !typing && !dialog) { closeTicket(); return }
