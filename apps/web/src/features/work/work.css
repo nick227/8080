@@ -429,8 +429,19 @@
   .work-nav[data-desk="contacts"] .work-search input { width: 100%; min-width: 0; }
 }
 
-/* Company pages (/c/:id/…): the desks fill the page; no chat rail yet (D4). */
+/* Company pages (/c/:id/…): the desks fill the page; the rail holds the company channel (D4). */
 .company-shell .company-column { flex: 1; min-height: 0; }
+.channel-rail-label { margin: 0; padding: var(--space-sm) var(--space-xs); font-family: var(--mono); font-size: var(--text-label); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--muted); }
+.channel-rail-label a { color: inherit; }
+.channel-rail-label a:hover, .channel-rail-label a:focus-visible { color: var(--ink); }
 .company-missing { max-width: var(--content-width-narrow); margin: var(--space-2xl) auto; padding: 0 var(--space-md); }
 .company-missing h1 { font-size: var(--text-lg); margin: 0 0 var(--space-sm); }
 .company-missing p { color: var(--muted); margin: 0 0 var(--space-md); }
+
+/* A room's company listing (redesign D3), beside the layout menu on Stream. */
+.room-company { display: inline-flex; align-items: center; gap: var(--space-sm); margin-right: var(--space-sm); font-size: var(--text-sm); white-space: nowrap; }
+.room-company a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; max-width: 24ch; overflow: hidden; text-overflow: ellipsis; }
+.room-company button { color: var(--muted); font-family: var(--mono); font-size: var(--text-label); letter-spacing: var(--tracking-label); text-transform: uppercase; }
+.room-company button:hover, .room-company button:focus-visible { color: var(--ink); }
+.room-company-error { color: var(--danger); font-size: var(--text-xs); }
+.company-conversations-body { padding: 0 var(--table-cell-padding-x) var(--space-2xl); overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-md); }

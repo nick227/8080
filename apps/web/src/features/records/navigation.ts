@@ -42,7 +42,8 @@ export function useWorkPlace() {
   const segment = company ? location.pathname.slice(basePath.length).split('/')[1] ?? '' : ''
   const onTasks = location.pathname.startsWith(`${basePath}/tasks`)
   const queryDesk = params.get('desk')
-  const requestedDesk = onTasks ? 'tasks' : company ? (segment || 'company') : queryDesk
+  // On a company path, Stream is the company's conversation list (/c/:id/conversations).
+  const requestedDesk = onTasks ? 'tasks' : company ? (segment === 'conversations' ? 'stream' : segment === 'stream' ? 'unknown' : segment || 'company') : queryDesk
   const legacyTicket = params.get('ticket')
   useEffect(() => {
     if (legacyTicket) navigate(taskPath(location.pathname, legacyTicket), { replace: true })
@@ -64,7 +65,7 @@ export function useWorkPlace() {
   // Company paths name their desk exactly; old ?desk= links were mapped by the redirect.
   const requested = company ? requestedDesk : legacyDesk(requestedDesk, legacyView)
   const known = company
-    ? requested === 'company' || COMPANY_DESKS.includes(requested as Desk)
+    ? requested === 'company' || requested === 'stream' || COMPANY_DESKS.includes(requested as Desk)
     : DESKS.some((d) => d.id === requested)
   // A room opens on its conversation; a company on its overview.
   const place: Desk = known ? (requested as Desk) : company ? 'company' : 'stream'
@@ -106,7 +107,7 @@ function legacyDesk(desk: string | null, view: string | null) {
 
 /** A desk's address under a company base path. */
 export function deskPath(base: string, desk: Desk) {
-  return desk === 'company' ? base : `${base}/${desk}`
+  return desk === 'company' ? base : desk === 'stream' ? `${base}/conversations` : `${base}/${desk}`
 }
 
 export function useRecordNavigation(kind: RecordKind) {

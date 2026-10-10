@@ -1,11 +1,11 @@
 import { useParams } from 'react-router-dom'
 import { create } from 'zustand'
-import { useCreateWorkspace, useMyWorkspaces, useSession } from '@project/sdk'
+import { useCreateWorkspace, useMyWorkspaces, useRoomCompany, useSession } from '@project/sdk'
 
 // The one place that decides which company (workspace) the app is showing
 // (docs/8080-redesign-proposal/00-decisions.md, D1). Order: the `:workspaceId`
-// route param, then the workspace this browser last chose, then the first
-// membership. A remembered id that isn't a current membership is ignored. Guests never
+// route param, then (on a room page) the company the room is listed under, then
+// the workspace this browser last chose, then the first membership. A remembered id that isn't a current membership is ignored. Guests never
 // hold workspace data (doc/09 D8): the server returns no memberships, so they resolve to null.
 
 const KEY = '8080.workspace'
@@ -31,7 +31,10 @@ export function useCurrentWorkspace() {
   const session = useSession()
   const guest = session.data?.data.isGuest ?? true
   const workspaces = useMyWorkspaces()
-  const routed = useParams().workspaceId
+  const params = useParams()
+  const routed = params.workspaceId
+  // On a room page, the company the room is listed under (named only to its members).
+  const roomCompany = useRoomCompany(params.roomId).data?.id
   const chosen = useChosen((s) => s.id)
   // Memberships come from the server; guests simply have none (doc/09 D8).
   const list = workspaces.data ?? []
@@ -40,6 +43,7 @@ export function useCurrentWorkspace() {
   const missing = Boolean(routed) && !loading && !list.some((w) => w.id === routed)
   const workspace = missing ? null
     : list.find((w) => w.id === routed)
+      ?? list.find((w) => w.id === roomCompany)
       ?? list.find((w) => w.id === chosen)
       ?? list[0]
       ?? null

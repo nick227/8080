@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useCapture } from '../state/capture'
-import type { Proposal } from '@project/sdk'
-import { uploadMedia, useChooseOption, useDeleteItem, useEditProposal, useProposalAction, useRoom, useRoomItems, useRoomParticipants, useRoomStream, useUpdateRoom } from '@project/sdk'
-import { isHumanAuthored } from '@project/shared'
+import { uploadMedia, useRoom, useRoomItems, useRoomParticipants, useRoomStream, useUpdateRoom } from '@project/sdk'
 import { Panel } from '../components/Panel'
 import { Label } from '../components/Label'
 import { Control } from '../components/Control'
@@ -24,24 +22,22 @@ import { CalendarPage, WorkPage } from '../features/work/WorkPage'
 import { CompanyProfilePanel } from '../features/profile/CompanyProfilePanel'
 import { TeamDesk } from '../features/team/TeamDesk'
 
-// What a chat link opens, as its small label ('' = none: the title says it).
-const LINK_KIND: Record<string, string> = { document: 'Document', contact: 'Contact', compose: 'Contact', profile: '' }
 import type { Desk } from '../features/work/sections'
 import { useWorkPlace } from '../features/records/navigation'
 import { loadRoomView, saveRoomView, seatsFrom, type RoomView } from '../features/room/roomViews'
-import { ChatStream, stillsFrom, type StreamRow } from '../features/room/ChatStream'
+import { ChatStream } from '../features/room/ChatStream'
 import { ChatBox } from '../features/room/ChatBox'
 import { RecordSurface } from '../features/room/RecordSurface'
 import { Playback, isPlayable } from '../features/room/Playback'
 import { useRoomPost } from '../features/room/useRoomPost'
+import { useChatRows } from '../features/room/useChatRows'
 import { pictureOf } from '../utils/thumbnail'
 import { roomTitle } from '../utils/room'
-import { markRead, readNumber } from '../features/room/readCursor'
 import { LiveRoom } from '../features/room/live/LiveRoom'
 import { HostChannelProvider, useHostChannel } from '../features/room/hostChannel'
-import type { ProposalAct } from '../features/room/ProposalCard'
 import '../features/room/room.css'
 import { useCurrentWorkspace } from '../app/workspace'
+import { RoomCompany } from '../features/room/RoomCompany'
 
 export function Room({ roomId: roomRef }: { roomId: string }) {
   const ui = useUI()
@@ -50,7 +46,6 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const [compose, setCompose] = useState(false)
   const [profileFor, setProfileFor] = useState<string | null>(null)
   const [pin, setPin] = useState(0)
-  const [readMark, setReadMark] = useState(0)
   const [activity, setActivity] = useState<PresenceActivity>('here')
   const onActivity = useCallback((next: PresenceActivity) => {
     setActivity((current) => (current === next ? current : next))
@@ -79,7 +74,6 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
     setPlace(next)
 
   }
-  const removeItem = useDeleteItem()
 
   const roomItemsResult = useRoomItems(roomId)
   const itemsError = roomItemsResult.error?.message
@@ -152,29 +146,19 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
     else ui.setIdle()
   }
 
-  // Row actions go through a ref so cached rows never hold stale closures.
-  const chooseOption = useChooseOption()
   const hostChannel = useHostChannel(roomId)
-  // Proposal cards (doc/13 §5): the workspace's own rows; owners/admins decide.
   const current = useCurrentWorkspace()
   const workspace = current.workspace
-  const proposalAction = useProposalAction(workspace?.id ?? '')
-  const proposalEdit = useEditProposal(workspace?.id ?? '')
-  const role = workspace?.role
   // Guests and accounts without a company only get the conversation (D8).
   const shownPlace = !current.loading && !workspace ? 'stream' : place
-  const actions = useRef({
-    act: (_proposalId: string, _action: ProposalAct): Promise<Proposal> => Promise.reject(new Error('not ready')),
-    edit: (_proposalId: string, _edits: Record<string, string>): Promise<Proposal> => Promise.reject(new Error('not ready')),
-    reply: (_id: string) => {},
-    remove: (_id: string) => {},
-    choose: async (_id: string, _optionIds: string[]) => {},
-    openLink: (_link: { type: string; id: string; workspaceId: string }) => {},
-  })
-  actions.current = {
-    act: (proposalId, action) => proposalAction.mutateAsync({ proposalId, action }),
-    edit: (proposalId, edits) => proposalEdit.mutateAsync({ proposalId, edits }),
-    openLink: (link) => {
+  const { rows, catchUp, anchorId } = useChatRows({
+    roomId,
+    meId,
+    visible,
+    pending,
+    send,
+    onReply: (id) => { setCompose(false); ui.startReply(id); setDesk(true) },
+    onOpenLink: (link) => {
       if (link.type === 'document') {
         // Opens in Documents, in the link's workspace; an unavailable one says so there.
         void useDocuments.getState().openFromLink(link.workspaceId, link.id).finally(() => openPlace('documents'))
@@ -186,69 +170,9 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       }
       if (link.type === 'profile') setProfileFor(link.id) // Edit company profile (id = workspace)
     },
-    choose: async (itemId, optionIds) => { await chooseOption.mutateAsync({ itemId, optionIds }) },
-    reply: (id) => { setCompose(false); ui.startReply(id); setDesk(true) },
-    remove: (id) => {
-      void removeItem.mutateAsync(id).catch((error: unknown) => {
-        ui.setError(error instanceof Error ? error.message : 'Could not delete')
-      })
-    },
-  }
-  // One row object per item, reused while the item (and who is viewing) is unchanged,
-  // so a live event re-renders only the row it touched.
-  const rowCache = useRef(new WeakMap<Item, { meId: string | undefined; role: string | undefined; row: StreamRow }>())
-  const rowFor = useCallback((item: Item): StreamRow => {
-    const cached = rowCache.current.get(item)
-    if (cached && cached.meId === meId && cached.role === role) return cached.row
-    const row: StreamRow = {
-      id: item.id,
-      authorId: item.author.id,
-      tag: item.author.tag,
-      author: item.author.name,
-      avatarUrl: item.author.avatarUrl,
-      postedAt: item.createdAt,
-      text: item.text,
-      media: stillsFrom(item.media),
-      proposal: item.proposal
-        ? { proposal: item.proposal, canDecide: item.proposal.requires === 'member' || role === 'owner' || role === 'admin', onAct: (action) => actions.current.act(item.proposal!.id, action), onEdit: (edits) => actions.current.edit(item.proposal!.id, edits) }
-        : undefined,
-      choice: item.actions
-        ? { actions: item.actions, choice: item.choice, meId, onChoose: (optionIds) => actions.current.choose(item.id, optionIds) }
-        : undefined,
-      links: item.links?.map((link) => ({ id: link.id, type: link.type, title: link.title, kind: LINK_KIND[link.type] ?? '', onOpen: () => actions.current.openLink(link) })),
-      onReply: () => actions.current.reply(item.id),
-      onDelete: item.author.id === meId ? () => actions.current.remove(item.id) : undefined,
-    }
-    rowCache.current.set(item, { meId, role, row })
-    return row
-  }, [meId, role])
-
-  const pendingRows: StreamRow[] = useMemo(() => pending.map((item) => ({
-    id: item.id,
-    authorId: meId,
-    author: item.author,
-    avatarUrl: item.avatarUrl,
-    text: item.text,
-    media: item.media,
-    status: item.status,
-    onRetry: item.status === 'failed' ? () => void send(item.input, item.id) : undefined,
-  })), [pending, meId, send])
-
-  const rows: StreamRow[] = useMemo(() => [
-    ...visible.map(rowFor),
-    ...pendingRows,
-  ], [visible, pendingRows, rowFor])
-
-  const latestNumber = visible.at(-1)?.number
-  const catchUp = useCallback(() => {
-    if (!meId || !roomId || latestNumber == null) return
-    if ((readNumber(meId, roomId) ?? -1) >= latestNumber) return
-    markRead(meId, roomId, latestNumber)
-    setReadMark((n) => n + 1)
-  }, [meId, roomId, latestNumber])
-  const stored = meId && roomId ? readNumber(meId, roomId) : null
-  const anchorId = stored == null || readMark < 0 ? undefined : visible.find((item) => item.number > stored && isHumanAuthored(item))?.id
-  // Bot items never make a room unread (doc/08 I6); the roster seats people and bots alike.
+    onError: (message) => ui.setError(message),
+  })
+  // The roster seats people and bots alike.
   const participants = useRoomParticipants(roomId).data
   const people = roomPeopleFrom(visible, meId, meName, meAvatar, activity, participants)
 
@@ -287,7 +211,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
         view={view}
         stage={(
           <div className="work-column">
-            <WorkNav desk={shownPlace} layoutControl={shownPlace === 'stream' ? <TeamLayoutMenu view={view} onChange={chooseView} /> : undefined} onSelect={(next) => {
+            <WorkNav desk={shownPlace} layoutControl={shownPlace === 'stream' ? <>{roomId && <RoomCompany roomId={roomId} />}<TeamLayoutMenu view={view} onChange={chooseView} /></> : undefined} onSelect={(next) => {
               if (next === 'documents') useDocuments.getState().open(null)
               openPlace(next)
             }} />
