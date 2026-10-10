@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMyWorkspaces, useOpenWorkspaceChannel, useRoomBots } from '@project/sdk'
+import { useOpenWorkspaceChannel, useRoomBots } from '@project/sdk'
+import { useCurrentWorkspace } from '../../app/workspace'
 
 // chatbot's tile opens the workspace's shared channel (doc/12 §3). Room provides who
 // the host is here; the host's tile shows the control.
@@ -12,11 +13,11 @@ export const HostChannelProvider = Context.Provider
 
 export function useHostChannel(roomId: string | undefined): HostChannel {
   const bots = useRoomBots(roomId)
-  const workspaces = useMyWorkspaces()
+  const { workspace } = useCurrentWorkspace()
   const openChannel = useOpenWorkspaceChannel()
   const navigate = useNavigate()
   const hostId = bots.data?.find((b) => b.handle === HOST_HANDLE && b.seated)?.user.id
-  const workspaceId = workspaces.data?.[0]?.id
+  const workspaceId = workspace?.id
   if (!hostId || !workspaceId) return {}
   return {
     hostId,

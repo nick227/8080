@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useCapture } from '../state/capture'
 import type { Proposal } from '@project/sdk'
-import { uploadMedia, useChooseOption, useDeleteItem, useEditProposal, useMyWorkspaces, useProposalAction, useRoom, useRoomItems, useRoomParticipants, useRoomStream, useUpdateRoom } from '@project/sdk'
+import { uploadMedia, useChooseOption, useDeleteItem, useEditProposal, useProposalAction, useRoom, useRoomItems, useRoomParticipants, useRoomStream, useUpdateRoom } from '@project/sdk'
 import { isHumanAuthored } from '@project/shared'
 import { Panel } from '../components/Panel'
 import { Label } from '../components/Label'
@@ -41,6 +41,7 @@ import { LiveRoom } from '../features/room/live/LiveRoom'
 import { HostChannelProvider, useHostChannel } from '../features/room/hostChannel'
 import type { ProposalAct } from '../features/room/ProposalCard'
 import '../features/room/room.css'
+import { useCurrentWorkspace } from '../app/workspace'
 
 export function Room({ roomId: roomRef }: { roomId: string }) {
   const ui = useUI()
@@ -155,7 +156,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const chooseOption = useChooseOption()
   const hostChannel = useHostChannel(roomId)
   // Proposal cards (doc/13 §5): the workspace's own rows; owners/admins decide.
-  const workspace = useMyWorkspaces().data?.[0]
+  const { workspace } = useCurrentWorkspace()
   const proposalAction = useProposalAction(workspace?.id ?? '')
   const proposalEdit = useEditProposal(workspace?.id ?? '')
   const role = workspace?.role

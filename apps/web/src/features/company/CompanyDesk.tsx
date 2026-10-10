@@ -1,7 +1,7 @@
 import { CalendarExperience } from '../calendar/CalendarExperience'
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useMyWorkspaces, useRoom, useUpdateRoom } from '@project/sdk'
+import { useRoom, useUpdateRoom } from '@project/sdk'
 import { BookIcon } from '../../components/icons'
 import { useUI } from '../../state/ui'
 import { RecordGallery } from '../records/RecordGallery'
@@ -15,10 +15,11 @@ import { VocabularySection } from './VocabularySection'
 import { applyDeskLink, type DeskLink } from './links'
 import '../records/records.css'
 import './company.css'
+import { useCurrentWorkspace } from '../../app/workspace'
 
 export function CompanyDesk({ roomId, onPlace }: { roomId?: string; onPlace?: (desk: Desk) => void; onOpenComposer?: () => void }) {
   const ui = useUI()
-  const workspace = useMyWorkspaces().data?.[0] ?? null
+  const { workspace } = useCurrentWorkspace()
   const workspaceId = workspace?.id
   const canEdit = workspace?.role === 'owner' || workspace?.role === 'admin'
   const navigate = useNavigate()

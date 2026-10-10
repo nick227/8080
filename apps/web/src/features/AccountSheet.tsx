@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { getApiClient, useLogin, useLogout, useMyWorkspaces, useRegister, useSession, type User } from '@project/sdk'
+import { getApiClient, useLogin, useLogout, useRegister, useSession, type User } from '@project/sdk'
 import { AccountAvatar } from './AccountAvatar'
 import { useShell } from '../state/shell'
+import { useCurrentWorkspace } from '../app/workspace'
 
 const sheetMotion = {
   initial: { opacity: 0, y: -8, scale: 0.98 },
@@ -113,7 +114,7 @@ function GuestAuth({ user }: { user: User }) {
 function MemberAccount({ user }: { user: User }) {
   const [name, setName] = useState(user.displayName)
   const [error, setError] = useState('')
-  const workspace = useMyWorkspaces().data?.[0] ?? null
+  const { workspace } = useCurrentWorkspace()
   const logout = useLogout()
   const saveName = useSaveName()
   const navigate = useNavigate()

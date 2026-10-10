@@ -1,5 +1,4 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useMyWorkspaces } from '@project/sdk'
 import { SectionHeader } from '../work/SectionHeader'
 import { DESKS, type Desk } from '../work/sections'
 import { AgentCatalog } from './AgentCatalog'
@@ -8,11 +7,12 @@ import { AgentList } from './AgentList'
 import { AgentRiver } from './AgentRiver'
 import { EventDetail } from './EventDetail'
 import './agents.css'
+import { useCurrentWorkspace } from '../../app/workspace'
 
 /** Agents (docs/agents/01): full-width management + detailed history data tables.
  *  Selection lives in the URL (?agent=, ?event=, ?add=1) so other places can deep-link. */
 export function AgentsDesk({ onPlace }: { onPlace?: (desk: Desk) => void }) {
-  const workspace = useMyWorkspaces().data?.[0] ?? null
+  const { workspace } = useCurrentWorkspace()
   const canManage = workspace?.role === 'owner' || workspace?.role === 'admin'
   const location = useLocation()
   const navigate = useNavigate()
