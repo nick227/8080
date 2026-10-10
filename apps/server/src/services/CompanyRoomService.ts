@@ -58,7 +58,8 @@ export class CompanyRoomService {
     return { data: null }
   }
 
-  /** The company a room is listed under, named only to that company's members. */
+  /** The company a room is listed under: named to its members; to anyone else only
+   *  that the room is listed (D8: they see just the conversation). */
   async companyOf(userId: string, roomId: string) {
     await rooms.viewable(userId, roomId)
     const [link, channel] = await Promise.all([
@@ -71,6 +72,6 @@ export class CompanyRoomService {
       where: { workspaceId, userId, status: 'active', workspace: { deletedAt: null } },
       select: { workspace: { select: { id: true, name: true } } },
     })
-    return { data: member ? { id: member.workspace.id, name: member.workspace.name, channel: !!channel } : null }
+    return { data: member ? { id: member.workspace.id, name: member.workspace.name, channel: !!channel, member: true } : { id: null, name: null, channel: !!channel, member: false } }
   }
 }

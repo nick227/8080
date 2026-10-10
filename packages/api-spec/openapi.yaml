@@ -386,7 +386,7 @@ paths:
     get:
       operationId: getRoomCompany
       summary: The company a room is listed under
-      description: Named only to that company's active members; null otherwise (and for rooms in no company). Private rooms return 404 to non-members.
+      description: null for rooms in no company. Members of the company get its id and name; anyone else only that the room is listed (id and name null). Private rooms return 404 to non-members.
       tags: [rooms]
       responses:
         '200':
@@ -1532,6 +1532,19 @@ paths:
   /workspaces/{workspaceId}/channel:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: getWorkspaceChannel
+      summary: The workspace channel's room and whether you are in it (read-only)
+      description: Never creates, joins or welcomes (that is openWorkspaceChannel). roomId is null before the channel's first use.
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceChannelStateResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
     post:
       operationId: openWorkspaceChannel
       summary: The workspace's shared bot channel (created on first use)
@@ -6632,13 +6645,28 @@ components:
       properties:
         data: { $ref: '#/components/schemas/Room' }
 
+    WorkspaceChannelState:
+      type: object
+      required: [roomId, joined]
+      properties:
+        roomId: { type: [string, 'null'] }
+        joined: { type: boolean }
+
+    WorkspaceChannelStateResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/WorkspaceChannelState' }
+
     RoomCompany:
       type: object
-      required: [id, name, channel]
+      required: [id, name, channel, member]
+      description: A listed room. id and name are null unless the caller is a member of the company.
       properties:
-        id: { type: string }
-        name: { type: string }
+        id: { type: [string, 'null'] }
+        name: { type: [string, 'null'] }
         channel: { type: boolean, description: "The room is the company's shared channel" }
+        member: { type: boolean, description: 'The caller is an active member of that company' }
 
     RoomCompanyResponse:
       type: object

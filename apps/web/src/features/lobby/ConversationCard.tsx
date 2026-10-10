@@ -7,7 +7,8 @@ import { roomTitle } from '../../utils/room'
 
 // One conversation in the Lobby: thumbnail, name, description, meta. Nothing plays
 // here — media lives inside the conversation.
-export function ConversationCard({ room, action }: { room: Room; action?: ReactNode }) {
+/** `title`/`description` replace the room's own (e.g. the company channel's card). */
+export function ConversationCard({ room, action, title, description }: { room: Room; action?: ReactNode; title?: string; description?: string }) {
   const [broken, setBroken] = useState(false)
   const picture = pictureOf(room.thumbnail)
   const responses = room.responseCount === 1 ? '1 RESPONSE' : room.responseCount ? `${room.responseCount} RESPONSES` : 'NO RESPONSES YET'
@@ -29,8 +30,8 @@ export function ConversationCard({ room, action }: { room: Room; action?: ReactN
             <span className="conv-card-thumb-fallback">{String(room.number).padStart(3, '0')}</span>
           )}
         </span>
-        <span className="conv-card-title">{roomTitle(room)}</span>
-        {room.description && <span className="conv-card-desc">{room.description}</span>}
+        <span className="conv-card-title">{title ?? roomTitle(room)}</span>
+        {(description ?? room.description) && <span className="conv-card-desc">{description ?? room.description}</span>}
       </Link>
       <span className="conv-card-meta">
         <span>{meta.join(' · ')}</span>

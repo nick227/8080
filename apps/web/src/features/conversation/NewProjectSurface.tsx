@@ -68,7 +68,7 @@ export function NewProjectSurface({
       onClose()
       useShell.getState().minimizeRecord()
       ui.setIdle()
-      navigate(`/room/${room.id}?desk=company`)
+      navigate(`/room/${room.id}`) // a new conversation opens on itself (its company page is one click away)
     } catch (e) {
       ui.setError(`Could not create project: ${e instanceof Error ? e.message : 'unknown error'}`)
     } finally {

@@ -150,6 +150,7 @@ export function useRoomCompany(roomId: string | undefined) {
     queryKey: keys.roomCompany(roomId ?? ''),
     enabled: !!roomId,
     retry: false, // a 404 (room not visible) is an answer, not a blip
+    staleTime: 60_000, // read by every resolver consumer on a room page
     queryFn: async () => unwrap(await getApiClient().GET('/rooms/{roomId}/company', { params: { path: { roomId: roomId! } } })).data,
   })
 }

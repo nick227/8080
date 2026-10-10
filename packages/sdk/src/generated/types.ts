@@ -264,7 +264,7 @@ export interface paths {
         };
         /**
          * The company a room is listed under
-         * @description Named only to that company's active members; null otherwise (and for rooms in no company). Private rooms return 404 to non-members.
+         * @description null for rooms in no company. Members of the company get its id and name; anyone else only that the room is listed (id and name null). Private rooms return 404 to non-members.
          */
         get: operations["getRoomCompany"];
         put?: never;
@@ -1117,7 +1117,11 @@ export interface paths {
             };
             cookie?: never;
         };
-        get?: never;
+        /**
+         * The workspace channel's room and whether you are in it (read-only)
+         * @description Never creates, joins or welcomes (that is openWorkspaceChannel). roomId is null before the channel's first use.
+         */
+        get: operations["getWorkspaceChannel"];
         put?: never;
         /**
          * The workspace's shared bot channel (created on first use)
@@ -4362,11 +4366,21 @@ export interface components {
         RoomResponse: {
             data: components["schemas"]["Room"];
         };
+        WorkspaceChannelState: {
+            roomId: string | null;
+            joined: boolean;
+        };
+        WorkspaceChannelStateResponse: {
+            data: components["schemas"]["WorkspaceChannelState"];
+        };
+        /** @description A listed room. id and name are null unless the caller is a member of the company. */
         RoomCompany: {
-            id: string;
-            name: string;
+            id: string | null;
+            name: string | null;
             /** @description The room is the company's shared channel */
             channel: boolean;
+            /** @description The caller is an active member of that company */
+            member: boolean;
         };
         RoomCompanyResponse: {
             data: components["schemas"]["RoomCompany"] | null;
@@ -9191,6 +9205,30 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    getWorkspaceChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceChannelStateResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
     openWorkspaceChannel: {

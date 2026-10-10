@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useCapture } from '../state/capture'
-import { uploadMedia, useRoom, useRoomItems, useRoomParticipants, useRoomStream, useUpdateRoom } from '@project/sdk'
+import { uploadMedia, useRoom, useRoomCompany, useRoomItems, useRoomParticipants, useRoomStream, useUpdateRoom } from '@project/sdk'
 import { Panel } from '../components/Panel'
 import { Label } from '../components/Label'
 import { Control } from '../components/Control'
@@ -81,7 +81,8 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   // companies, so a link can't name its company yet).
   const openPlace = (next: Desk) => {
     const ws = current.workspace
-    if (next !== 'stream' && ws) navigate(deskPath(`/c/${ws.id}`, next))
+    // The company page says where you came from, so the swapped chat rail isn't a surprise.
+    if (next !== 'stream' && ws) navigate(deskPath(`/c/${ws.id}`, next), { state: { fromRoom: { id: roomId, title: room.data ? roomTitle(room.data) : 'the conversation' } } })
     else setPlace(next)
   }
 
@@ -157,8 +158,13 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   }
 
   const hostChannel = useHostChannel(roomId)
+  // A room listed under a company: its mark shows only when that's the company shown;
+  // listed under one you aren't in, you get just the conversation (D8).
+  const listing = useRoomCompany(roomId).data
+  const listedHere = Boolean(listing?.member && listing.id === workspace?.id)
+  const listedElsewhere = Boolean(listing && !listing.member)
   // Guests and accounts without a company only get the conversation (D8).
-  const shownPlace = !current.loading && !workspace ? 'stream' : place
+  const shownPlace = (!current.loading && !workspace) || listedElsewhere ? 'stream' : place
   // An old /room/:id?desk=… link: move to the company's page, keeping the rest of the query.
   const toCompany = shownPlace !== 'stream' && !taskKey
   useEffect(() => {
@@ -178,7 +184,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
     onOpenLink: (link) => {
       if (link.type === 'document') {
         // Opens in Documents, in the link's workspace; an unavailable one says so there.
-        void useDocuments.getState().openFromLink(link.workspaceId, link.id).finally(() => openPlace('documents'))
+        void useDocuments.getState().openFromLink(link.workspaceId, link.id).finally(() => navigate(`/c/${link.workspaceId}/documents`))
         return
       }
       if (link.type === 'contact' || link.type === 'compose') {
@@ -228,7 +234,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
         view={view}
         stage={(
           <div className="work-column">
-            <WorkNav desk={shownPlace} compact layoutControl={shownPlace === 'stream' ? <>{roomId && <RoomCompany roomId={roomId} />}<TeamLayoutMenu view={view} onChange={chooseView} /></> : undefined} onSelect={(next) => {
+            <WorkNav desk={shownPlace} compact showCompany={listedHere} showWork={!listedElsewhere} layoutControl={shownPlace === 'stream' ? <>{roomId && <RoomCompany roomId={roomId} />}<TeamLayoutMenu view={view} onChange={chooseView} /></> : undefined} onSelect={(next) => {
               if (next === 'documents') useDocuments.getState().open(null)
               openPlace(next)
             }} />

@@ -71,6 +71,16 @@ export class WorkspaceHost {
     return this.join(workspaceId, userId, actor.member.id)
   }
 
+  /** GET /workspaces/{id}/channel: read-only — the channel's room (null before first
+   *  use) and whether the caller is in it. Viewing a company page must not join anyone. */
+  async peek(userId: string, workspaceId: string) {
+    await authorize(userId, workspaceId, 'workspace.read')
+    const channel = await db.workspaceChannel.findUnique({ where: { workspaceId } })
+    if (!channel) return { roomId: null, joined: false }
+    const joined = await db.roomMember.findUnique({ where: { roomId_userId: { roomId: channel.roomId, userId } } })
+    return { roomId: channel.roomId, joined: !!joined }
+  }
+
   private async welcome(workspaceId: string, roomId: string, userId: string, memberId: string) {
     const bot = await hostBot()
     if (!bot?.enabled) return

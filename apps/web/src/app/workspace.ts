@@ -34,11 +34,13 @@ export function useCurrentWorkspace() {
   const params = useParams()
   const routed = params.workspaceId
   // On a room page, the company the room is listed under (named only to its members).
-  const roomCompany = useRoomCompany(params.roomId).data?.id
+  const roomCompanyQuery = useRoomCompany(params.roomId)
+  const roomCompany = roomCompanyQuery.data?.id ?? null
   const chosen = useChosen((s) => s.id)
   // Memberships come from the server; guests simply have none (doc/09 D8).
   const list = workspaces.data ?? []
-  const loading = session.isLoading || workspaces.isLoading
+  // On a room page, wait for the room's company too, or a redirect could pick the wrong one.
+  const loading = session.isLoading || workspaces.isLoading || (Boolean(params.roomId) && roomCompanyQuery.isLoading)
   // A routed company you don't belong to is "missing": never show another one under its URL.
   const missing = Boolean(routed) && !loading && !list.some((w) => w.id === routed)
   const workspace = missing ? null

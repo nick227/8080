@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate } from 'react-router-dom'
-import { getApiClient, unwrap, useRoomItems, useRoomStream } from '@project/sdk'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useOpenWorkspaceChannel, useRoomItems, useRoomStream, useWorkspaceChannel } from '@project/sdk'
 import { toItem } from '../../api/adapt'
 import type { SendInput } from '../../api/types'
 import { useDocuments } from '../documents/store'
@@ -12,26 +11,18 @@ import { loadRoomView } from '../room/roomViews'
 import { useChatRows } from '../room/useChatRows'
 import { useRoomPost } from '../room/useRoomPost'
 
-// The company channel's room id. Opening it creates the channel on first use and joins
-// the member (doc/12 §3); repeating it is harmless, so it is cached per company.
-function useChannelRoom(workspaceId: string) {
-  return useQuery({
-    queryKey: ['companyChannel', workspaceId],
-    staleTime: Infinity,
-    retry: false,
-    queryFn: async () =>
-      unwrap(await getApiClient().POST('/workspaces/{workspaceId}/channel', { params: { path: { workspaceId } } })).data.roomId,
-  }).data
-}
-
 /**
  * Company pages with the company's shared channel in the chat rail (redesign D4): the
- * rail shows one room's history (never a mix), here the channel's.
+ * rail shows one room's history (never a mix), here the channel's. Looking is read-only:
+ * someone not yet in the channel joins it with a button, never by visiting.
  */
 export function CompanyChannelShell({ workspaceId, children }: { workspaceId: string; children: ReactNode }) {
   // Always the same shell, so the desks never remount when the channel arrives.
-  const roomId = useChannelRoom(workspaceId)
+  const channel = useWorkspaceChannel(workspaceId).data
+  const join = useOpenWorkspaceChannel()
+  const roomId = channel?.joined ? channel.roomId ?? undefined : undefined
   const navigate = useNavigate()
+  const fromRoom = (useLocation().state as { fromRoom?: { id: string; title: string } } | null)?.fromRoom
   const items = useRoomItems(roomId)
   useRoomStream(roomId)
   const visible = useMemo(
@@ -68,11 +59,25 @@ export function CompanyChannelShell({ workspaceId, children }: { workspaceId: st
       stage={children}
       stream={(
         <>
-          <p className="channel-rail-label">
-            {roomId ? <Link to={`/room/${roomId}`}>Company channel</Link> : 'Company channel'}
-            {error && <span role="alert"> · {error}</span>}
-          </p>
-          {!roomId ? <p className="channel-rail-label" role="status">Opening…</p> : <ChatStream
+          <header className="channel-rail-head">
+            <h2>Company channel</h2>
+            {roomId && <Link to={`/room/${roomId}`}>Open</Link>}
+          </header>
+          {fromRoom && fromRoom.id !== roomId && (
+            <p className="channel-rail-note">
+              Showing the company channel. <Link to={`/room/${fromRoom.id}`}>Back to {fromRoom.title}</Link>
+            </p>
+          )}
+          {error && <p className="channel-rail-note" role="alert">{error}</p>}
+          {!channel ? <p className="channel-rail-note" role="status">Loading…</p>
+            : !roomId ? (
+              <div className="channel-rail-join">
+                <p>Shared updates for everyone in the company.</p>
+                <button type="button" className="section-add-btn" disabled={join.isPending} onClick={() => join.mutate(workspaceId, { onError: (e) => setError(e instanceof Error ? e.message : 'Couldn’t join.') })}>
+                  {join.isPending ? 'Joining…' : 'Join the channel'}
+                </button>
+              </div>
+            ) : <ChatStream
             key={`${roomId}:${items.isSuccess ? 'ready' : 'wait'}`}
             rows={rows}
             pin={pin}

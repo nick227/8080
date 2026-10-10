@@ -75,7 +75,21 @@ describe('company conversations', () => {
     expect(link.statusCode === 409 || link.statusCode === 403).toBe(true)
   })
 
-  it('names the company only to its members', async () => {
+  it('the channel can be looked up without joining it', async () => {
+    const ws = await setup()
+    const before = await call(carolId, 'GET', `/workspaces/${ws.id}/channel`)
+    await validateResponse('getWorkspaceChannel', 200, before.json())
+    const roomId = (await call(testUserId, 'POST', `/workspaces/${ws.id}/channel`)).json().data.roomId
+    const peek = (await call(carolId, 'GET', `/workspaces/${ws.id}/channel`)).json().data
+    expect(peek.roomId).toBe(roomId)
+    const joinedBefore = peek.joined
+    // Looking never joins: membership is unchanged by the GET.
+    expect((await call(carolId, 'GET', `/workspaces/${ws.id}/channel`)).json().data.joined).toBe(joinedBefore)
+    await call(carolId, 'POST', `/workspaces/${ws.id}/channel`)
+    expect((await call(carolId, 'GET', `/workspaces/${ws.id}/channel`)).json().data).toEqual({ roomId, joined: true })
+  })
+
+  it('names the company only to its members; others learn only that it is listed', async () => {
     const ws = await setup()
     const room = await seedRoom(app, testUserId)
     expect((await call(testUserId, 'GET', `/rooms/${room.id}/company`)).json().data).toBeNull()
@@ -83,9 +97,11 @@ describe('company conversations', () => {
 
     const member = await call(carolId, 'GET', `/rooms/${room.id}/company`)
     await validateResponse('getRoomCompany', 200, member.json())
-    expect(member.json().data).toEqual({ id: ws.id, name: 'Acme Co', channel: false })
-    expect((await call(daveId, 'GET', `/rooms/${room.id}/company`)).json().data).toBeNull()
-    expect((await call(testOtherUserId, 'GET', `/rooms/${room.id}/company`)).json().data).toBeNull()
+    expect(member.json().data).toEqual({ id: ws.id, name: 'Acme Co', channel: false, member: true })
+    const outsider = await call(daveId, 'GET', `/rooms/${room.id}/company`)
+    await validateResponse('getRoomCompany', 200, outsider.json())
+    expect(outsider.json().data).toEqual({ id: null, name: null, channel: false, member: false })
+    expect((await call(testOtherUserId, 'GET', `/rooms/${room.id}/company`)).json().data).toEqual({ id: null, name: null, channel: false, member: false })
   })
 
   it('unlink: the room owner or an admin, not another member', async () => {

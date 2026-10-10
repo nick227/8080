@@ -9,6 +9,10 @@ export async function openWorkspaceChannel(request: any, reply: any) {
   return reply.send({ data: await workspaceHost.open(request.user.id, request.params.workspaceId) })
 }
 
+export async function getWorkspaceChannel(request: any, reply: any) {
+  return reply.send({ data: await workspaceHost.peek(request.user.id, request.params.workspaceId) })
+}
+
 export async function getCompanyProfile(request: any, reply: any) {
   return reply.send({ data: await profiles.get(request.user.id, request.params.workspaceId) })
 }

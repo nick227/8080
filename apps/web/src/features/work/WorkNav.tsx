@@ -24,8 +24,12 @@ function lastDesk(group: (typeof NAV_GROUPS)[number]): Desk {
  * wide screens; narrow screens show only the active group's desks. Without a company
  * (guests, D8) only Stream is offered.
  */
-export function WorkNav({ desk, onSelect, layoutControl, streamLabel = 'Stream', compact = false }: {
+export function WorkNav({ desk, onSelect, layoutControl, streamLabel = 'Stream', compact = false, showCompany = true, showWork = true }: {
   desk: Desk
+  /** The company mark: in a room, only when the room is listed in that company. */
+  showCompany?: boolean
+  /** Work and Manage: hidden in a room listed under a company you aren't in (D8). */
+  showWork?: boolean
   /** Rooms: Work and Manage open the company page, so only their labels are shown. */
   compact?: boolean
   layoutControl?: ReactNode
@@ -72,9 +76,9 @@ export function WorkNav({ desk, onSelect, layoutControl, streamLabel = 'Stream',
 
   return (
     <nav className="work-nav" aria-label="Workspace" data-desk={desk} data-compact={compact || undefined}>
-      {workspace && (
+      {workspace && showWork && (
         <>
-          <button
+          {showCompany && <button
             type="button"
             className="work-nav-company"
             aria-current={desk === 'company' ? 'page' : undefined}
@@ -83,7 +87,7 @@ export function WorkNav({ desk, onSelect, layoutControl, streamLabel = 'Stream',
           >
             <span className="work-nav-company-mark" aria-hidden>{workspace.name.trim().charAt(0).toUpperCase() || '·'}</span>
             <span className="work-nav-company-name">{workspace.name}</span>
-          </button>
+          </button>}
           {NAV_GROUPS.map((group) => {
             const active = group.desks.includes(desk)
             return (

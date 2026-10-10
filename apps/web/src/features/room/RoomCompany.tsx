@@ -25,7 +25,8 @@ export function RoomCompany({ roomId }: { roomId: string }) {
   const fail = (err: unknown) => setError(err instanceof Error ? err.message : 'That didn’t work.')
   // Saves on change: the room's own setting, so it lives with the room (not the company).
   const visibility = owner ? (
-    <label className="room-visibility">
+    <label className="room-visibility" title="Who can see this conversation">
+      <span aria-hidden>Conversation:</span>
       <select
         aria-label="Who can see this conversation"
         value={room.visibility}
@@ -38,13 +39,15 @@ export function RoomCompany({ roomId }: { roomId: string }) {
     </label>
   ) : null
 
+  // Listed under a company you aren't in: only the conversation's own setting (D8).
+  if (company && !company.member) return visibility ? <span className="room-company">{visibility}{error && <span className="room-company-error" role="alert">{error}</span>}</span> : null
   if (company) {
     const role = memberships.find((m) => m.id === company.id)?.role
     const canRemove = !company.channel && (owner || role === 'owner' || role === 'admin')
     return (
       <span className="room-company">
         {visibility}
-        <Link to={`/c/${company.id}/conversations`} title={`Listed in ${company.name}`}>In {company.name}</Link>
+        <Link to={`/c/${company.id!}/conversations`} title={`Listed in ${company.name}`}>In {company.name}</Link>
         {canRemove && (
           <button type="button" disabled={unlink.isPending} onClick={() => { setError(''); unlink.mutate(roomId, { onError: fail }) }}>
             Remove
