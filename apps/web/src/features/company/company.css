@@ -18,6 +18,16 @@
   color: var(--muted);
 }
 
+.company-room-visibility select {
+  height: 28px;
+  padding: 0 var(--input-padding-x);
+  border: var(--input-border-width) var(--input-border-style) var(--input-border-color);
+  border-radius: var(--input-radius);
+  background: var(--input-bg);
+  color: var(--input-color);
+  font: inherit;
+}
+
 .vocab-icon-btn {
   display: inline-flex;
   align-items: center;

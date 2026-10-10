@@ -163,7 +163,7 @@ export function UserProfilePage({
         <div className="user-kpi-card">
           <span className="kpi-label">Current Focus</span>
           <span className="kpi-value focus-text">
-            {userTasks.find((t) => !workflow.isDone(t.status))?.title || userLogs[0]?.title || 'Nothing in progress'}
+            {userTasks.find((t) => workflow.get(t.status)?.category === 'doing')?.title || userLogs[0]?.title || 'Nothing in progress'}
           </span>
           <span className="kpi-sub">Updated today</span>
         </div>
