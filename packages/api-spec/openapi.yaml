@@ -6006,6 +6006,69 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/task-links:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listTaskLinks
+      summary: Task links, by task, contact or conversation (exactly one filter)
+      description: Deleted tasks and contacts drop out. A conversation the caller can't see is shown unnamed (by task or contact) or not at all (by room).
+      tags: [workspaces]
+      parameters:
+        - { in: query, name: taskId, schema: { type: string, maxLength: 64 } }
+        - { in: query, name: contactId, schema: { type: string, maxLength: 64 } }
+        - { in: query, name: roomId, schema: { type: string, maxLength: 64 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskLinkList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/tasks/{taskId}/links:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - { in: path, name: taskId, required: true, schema: { type: string } }
+    post:
+      operationId: createTaskLink
+      summary: Link a task to a contact or a conversation
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTaskLinkInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskLinkResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/tasks/{taskId}/links/{linkId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - { in: path, name: taskId, required: true, schema: { type: string } }
+      - { in: path, name: linkId, required: true, schema: { type: string } }
+    delete:
+      operationId: deleteTaskLink
+      summary: Remove a task link
+      tags: [workspaces]
+      responses:
+        '200':
+          description: Removed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskLinkResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /workspaces/{workspaceId}/task-views:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -8737,6 +8800,55 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/TaskBoard' }
+    TaskLink:
+      type: object
+      required: [id, workspaceId, task, kind, contact, room, itemId, linkedById, createdAt]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        task:
+          type: object
+          required: [id, taskKey, title, status]
+          properties:
+            id: { type: string }
+            taskKey: { type: string }
+            title: { type: string }
+            status: { type: string }
+        kind: { type: string, enum: [contact, conversation] }
+        contact:
+          type: [object, 'null']
+          required: [id, name]
+          properties:
+            id: { type: string }
+            name: { type: string }
+        room:
+          type: [object, 'null']
+          description: Null for a conversation the caller can't see.
+          required: [id, number, title]
+          properties:
+            id: { type: string }
+            number: { type: integer }
+            title: { type: string }
+        itemId: { type: [string, 'null'] }
+        linkedById: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+    TaskLinkList:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/TaskLink' } }
+    TaskLinkResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/TaskLink' }
+    CreateTaskLinkInput:
+      type: object
+      additionalProperties: false
+      properties:
+        contactId: { type: string, maxLength: 64 }
+        roomId: { type: string, maxLength: 64 }
+        itemId: { type: [string, 'null'], maxLength: 64 }
     TaskView:
       type: object
       required: [id, name, query, createdAt]

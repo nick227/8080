@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getApiClient, unwrap } from '../client'
-import type { UpdateTaskStatusesInput, BulkTasksInput, CreateTaskInput, CreateWorkLogInput, ImportTasksInput, ImportWorkLogsInput, MoveTaskInput, CreateTaskViewInput, TaskNotificationSettings, UpdateTaskBoardInput, UpdateTaskInput } from '../models'
+import type { UpdateTaskStatusesInput, BulkTasksInput, CreateTaskInput, CreateWorkLogInput, ImportTasksInput, ImportWorkLogsInput, MoveTaskInput, CreateTaskLinkInput, CreateTaskViewInput, TaskNotificationSettings, UpdateTaskBoardInput, UpdateTaskInput } from '../models'
 import { keys } from './keys'
 
 // Calendar / Boards tasks. The web keeps an optimistic copy for drag-and-drop,
@@ -108,6 +108,33 @@ export function useUpdateTaskBoard(workspaceId: string) {
     mutationFn: async (body: UpdateTaskBoardInput) =>
       unwrap(await getApiClient().PUT('/workspaces/{workspaceId}/task-board', { ...path(workspaceId), body })).data,
     onSuccess: (data) => queryClient.setQueryData(keys.taskBoard(workspaceId), data),
+  })
+}
+
+/** Links by task, contact or conversation (exactly one). */
+export function useTaskLinks(workspaceId: string | undefined, filter: { taskId?: string; contactId?: string; roomId?: string }) {
+  return useQuery({
+    queryKey: [...keys.tasks(workspaceId ?? ''), 'links', filter],
+    enabled: !!workspaceId && !!(filter.taskId || filter.contactId || filter.roomId),
+    queryFn: async () => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/task-links', { params: { path: { workspaceId: workspaceId! }, query: filter } })).data,
+  })
+}
+
+export function useCreateTaskLink(workspaceId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ taskId, ...body }: CreateTaskLinkInput & { taskId: string }) =>
+      unwrap(await getApiClient().POST('/workspaces/{workspaceId}/tasks/{taskId}/links', { params: { path: { workspaceId, taskId } }, body })).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [...keys.tasks(workspaceId), 'links'] }),
+  })
+}
+
+export function useDeleteTaskLink(workspaceId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ taskId, linkId }: { taskId: string; linkId: string }) =>
+      unwrap(await getApiClient().DELETE('/workspaces/{workspaceId}/tasks/{taskId}/links/{linkId}', { params: { path: { workspaceId, taskId, linkId } } })).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [...keys.tasks(workspaceId), 'links'] }),
   })
 }
 

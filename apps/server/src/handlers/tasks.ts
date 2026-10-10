@@ -7,8 +7,10 @@ import { TaskWorkflowService } from '../services/TaskWorkflowService'
 import { taskReport } from '../services/taskReport'
 import { setTaskEmailSettings, taskEmailSettings } from '../services/taskEmail'
 import { TaskViewService } from '../services/TaskViewService'
+import { TaskLinkService } from '../services/TaskLinkService'
 
 const views = new TaskViewService()
+const links = new TaskLinkService()
 import { joinTaskStream, type TaskFrame } from '../services/taskStream'
 import { authorize } from '../services/workspacePolicy'
 
@@ -87,6 +89,19 @@ export async function getTaskBoard(request: any, reply: any) {
 
 export async function updateTaskBoard(request: any, reply: any) {
   return reply.send({ data: await workLogs.setBoard(ctx(request), request.params.workspaceId, request.body) })
+}
+
+export async function listTaskLinks(request: any, reply: any) {
+  const q = request.query ?? {}
+  return reply.send(await links.list(request.user.id, request.params.workspaceId, { taskId: q.taskId, contactId: q.contactId, roomId: q.roomId }))
+}
+
+export async function createTaskLink(request: any, reply: any) {
+  return reply.code(201).send(await links.create(ctx(request), request.params.workspaceId, request.params.taskId, request.body))
+}
+
+export async function deleteTaskLink(request: any, reply: any) {
+  return reply.send(await links.remove(ctx(request), request.params.workspaceId, request.params.taskId, request.params.linkId))
 }
 
 export async function listTaskViews(request: any, reply: any) {

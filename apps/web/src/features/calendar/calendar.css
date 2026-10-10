@@ -2300,3 +2300,17 @@
 .cal-view-chip .cal-view-chip-x:hover, .cal-view-chip .cal-view-chip-x:focus-visible { opacity: 1; }
 .cal-view-name { display: inline-flex; align-items: center; gap: var(--space-xs); }
 .cal-view-name input { height: var(--button-height-sm); padding: 0 var(--space-sm); border: var(--line-width) solid var(--line); border-radius: var(--input-radius); background: var(--surface-deep); color: var(--ink); font: inherit; }
+
+/* Task links */
+.ticket-link-add { display: inline-flex; gap: var(--space-sm); }
+.ticket-links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-xs); }
+.ticket-links li { display: flex; align-items: baseline; gap: var(--space-sm); }
+.ticket-links li > .cal-link-btn { margin-left: auto; }
+.ticket-link-kind { font-family: var(--mono); font-size: var(--text-label); color: var(--muted); min-width: 7.5em; }
+.ticket-link-hidden, .ticket-links-empty { color: var(--muted); font-size: var(--text-sm); margin: 0; }
+.ticket-link-picker { display: flex; flex-direction: column; gap: var(--space-xs); }
+.ticket-link-picker input { height: var(--button-height-sm); padding: 0 var(--space-sm); border: var(--line-width) solid var(--line); border-radius: var(--input-radius); background: var(--surface-deep); color: var(--ink); font: inherit; }
+.ticket-link-picker ul { list-style: none; margin: 0; padding: 0; }
+.ticket-link-picker li button { width: 100%; text-align: left; padding: var(--space-xs) var(--space-sm); border: 0; background: none; color: var(--ink); font: inherit; cursor: pointer; }
+.ticket-link-picker li button:hover, .ticket-link-picker li button:focus-visible { background: var(--surface-deep); }
+.ticket-link-picker > .cal-link-btn { align-self: flex-start; }

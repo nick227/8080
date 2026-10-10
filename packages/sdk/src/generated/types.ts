@@ -4013,6 +4013,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/task-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Task links, by task, contact or conversation (exactly one filter)
+         * @description Deleted tasks and contacts drop out. A conversation the caller can't see is shown unnamed (by task or contact) or not at all (by room).
+         */
+        get: operations["listTaskLinks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/tasks/{taskId}/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Link a task to a contact or a conversation */
+        post: operations["createTaskLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/tasks/{taskId}/links/{linkId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: string;
+                linkId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a task link */
+        delete: operations["deleteTaskLink"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/task-views": {
         parameters: {
             query?: never;
@@ -5843,6 +5906,43 @@ export interface components {
         };
         TaskBoardResponse: {
             data: components["schemas"]["TaskBoard"];
+        };
+        TaskLink: {
+            id: string;
+            workspaceId: string;
+            task: {
+                id: string;
+                taskKey: string;
+                title: string;
+                status: string;
+            };
+            /** @enum {string} */
+            kind: "contact" | "conversation";
+            contact: {
+                id: string;
+                name: string;
+            } | null;
+            /** @description Null for a conversation the caller can't see. */
+            room: {
+                id: string;
+                number: number;
+                title: string;
+            } | null;
+            itemId: string | null;
+            linkedById: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        TaskLinkList: {
+            data: components["schemas"]["TaskLink"][];
+        };
+        TaskLinkResponse: {
+            data: components["schemas"]["TaskLink"];
+        };
+        CreateTaskLinkInput: {
+            contactId?: string;
+            roomId?: string;
+            itemId?: string | null;
         };
         TaskView: {
             id: string;
@@ -14431,6 +14531,94 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listTaskLinks: {
+        parameters: {
+            query?: {
+                taskId?: string;
+                contactId?: string;
+                roomId?: string;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskLinkList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createTaskLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTaskLinkInput"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskLinkResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteTaskLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: string;
+                linkId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskLinkResponse"];
+                };
+            };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];

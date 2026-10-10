@@ -4,6 +4,7 @@ import { useCalendar, useWorkflow } from './store'
 import { useTeam } from './sync'
 import { BlockedControl, TaskActivity } from './TaskActivity'
 import { Checklist, ParentLink, Subtasks } from './TaskStructure'
+import { TaskLinks } from './TaskLinks'
 import { AREAS, type CalTask, type TaskPriority, type TaskStatus, type TaskType } from './types'
 
 const TYPE_LABEL: Record<TaskType, string> = { feature: 'Feature', story: 'Story', bug: 'Bug', task: 'Task', epic: 'Epic' }
@@ -161,6 +162,7 @@ function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBac
 
           <Checklist task={task} />
           <Subtasks task={task} />
+          <TaskLinks task={task} />
           <TaskActivity task={task} />
         </div>
 

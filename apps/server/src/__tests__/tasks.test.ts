@@ -608,4 +608,58 @@ describe('tasks', () => {
     expect((await call(testUserId, 'GET', url)).json().data).toHaveLength(19)
     expect(await crossWorkspaceViolations()).toEqual({})
   })
+
+  it('links: a task to contacts and conversations; on its history and the contact timeline; private rooms stay unnamed', async () => {
+    const { ws, base } = await setup()
+    const task = await create(base, { title: 'Quote for Sarah' })
+    const sarah = (await call(testUserId, 'POST', `/workspaces/${ws.id}/contacts`, { displayName: 'Sarah Martinez' })).json().data
+    const room = (await call(testUserId, 'POST', '/rooms', { title: 'Sarah call notes', visibility: 'private' })).json().data
+    const linksUrl = `${base}/${task.id}/links`
+
+    const res = await call(carolId, 'POST', linksUrl, { contactId: sarah.id })
+    expect(res.statusCode).toBe(201)
+    await validateResponse('createTaskLink', 201, res.json())
+    expect(res.json().data).toMatchObject({ kind: 'contact', contact: { id: sarah.id, name: 'Sarah Martinez' }, task: { taskKey: task.taskKey } })
+    expect((await call(carolId, 'POST', linksUrl, { contactId: sarah.id })).json().code).toBe('ALREADY_LINKED')
+    expect((await call(testUserId, 'POST', linksUrl, {})).json().code).toBe('ONE_OBJECT')
+    // Carol can't see Alice's private room, so she can't link it; Alice can.
+    expect((await call(carolId, 'POST', linksUrl, { roomId: room.id })).statusCode).toBe(404)
+    expect((await call(testUserId, 'POST', linksUrl, { roomId: room.id })).statusCode).toBe(201)
+
+    // By task: Alice sees the room's name; Carol sees the link, unnamed.
+    const listUrl = `/workspaces/${ws.id}/task-links`
+    const mine = await call(testUserId, 'GET', `${listUrl}?taskId=${task.id}`)
+    await validateResponse('listTaskLinks', 200, mine.json())
+    expect(mine.json().data.map((l: any) => l.room?.title ?? l.contact?.name)).toEqual(['Sarah call notes', 'Sarah Martinez'])
+    expect((await call(carolId, 'GET', `${listUrl}?taskId=${task.id}`)).json().data.map((l: any) => l.room)).toEqual([null, null])
+    // By contact and by room (only for those who see the room).
+    expect((await call(carolId, 'GET', `${listUrl}?contactId=${sarah.id}`)).json().data.map((l: any) => l.task.taskKey)).toEqual([task.taskKey])
+    expect((await call(testUserId, 'GET', `${listUrl}?roomId=${room.id}`)).json().data).toHaveLength(1)
+    expect((await call(carolId, 'GET', `${listUrl}?roomId=${room.id}`)).json().data).toEqual([])
+    expect((await call(testUserId, 'GET', listUrl)).json().code).toBe('ONE_FILTER')
+
+    // History on the task (the conversation unnamed), and on Sarah's timeline.
+    const history = (await call(testUserId, 'GET', `${base}/${task.id}/activity`)).json().data.filter((a: any) => a.type === 'task.linked')
+    expect(history.map((a: any) => a.summary.name ?? a.summary.kind).sort()).toEqual(['Sarah Martinez', 'conversation'])
+    const timeline = (await call(testUserId, 'GET', `/workspaces/${ws.id}/contacts/${sarah.id}/timeline`)).json().data
+    expect(timeline.some((a: any) => a.type === 'task.linked')).toBe(true)
+
+    // Merging a duplicate contact carries its task links over (once).
+    const dupe = (await call(testUserId, 'POST', `/workspaces/${ws.id}/contacts`, { displayName: 'S. Martinez' })).json().data
+    const other = await create(base, { title: 'Follow up with S.' })
+    await call(testUserId, 'POST', `${base}/${other.id}/links`, { contactId: dupe.id })
+    await call(testUserId, 'POST', `${base}/${task.id}/links`, { contactId: dupe.id }) // task is linked to both
+    expect((await call(testUserId, 'POST', `/workspaces/${ws.id}/contacts/${sarah.id}/merge`, { mergeContactId: dupe.id })).statusCode).toBe(200)
+    expect((await call(testUserId, 'GET', `${listUrl}?contactId=${sarah.id}`)).json().data.map((l: any) => l.task.taskKey).sort()).toEqual([task.taskKey, other.taskKey].sort())
+    await call(testUserId, 'DELETE', `${base}/${other.id}`)
+
+    // Unlink; deleting the task hides its links.
+    const linkId = res.json().data.id
+    const del = await call(testUserId, 'DELETE', `${linksUrl}/${linkId}`)
+    await validateResponse('deleteTaskLink', 200, del.json())
+    expect((await call(testUserId, 'GET', `${listUrl}?contactId=${sarah.id}`)).json().data).toEqual([])
+    await call(testUserId, 'DELETE', `${base}/${task.id}`)
+    expect((await call(testUserId, 'GET', `${listUrl}?roomId=${room.id}`)).json().data).toEqual([])
+    expect(await crossWorkspaceViolations()).toEqual({})
+  })
 })

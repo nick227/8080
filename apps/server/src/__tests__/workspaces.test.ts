@@ -140,6 +140,7 @@ function sampleBody(op: any) {
     ReadInboxItemInput: { unread: false },
     TaskNotificationSettings: { email: 'off' },
     CreateTaskViewInput: { name: 'x', query: '' },
+    CreateTaskLinkInput: { contactId: 'x' },
     StarInboxItemInput: { starred: true },
     ArchiveInboxItemInput: { archived: true },
     SendComposeInput: { contactId: 'x', channel: 'email', destination: 'a@b.co', subject: 'x', body: 'x', contextType: 'contact', contextId: 'x' },

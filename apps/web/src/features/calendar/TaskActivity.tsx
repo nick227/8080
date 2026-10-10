@@ -41,6 +41,8 @@ export function describe(a: Pick<Activity, 'type' | 'summary'>): string {
   const s = a.summary as Record<string, any>
   switch (a.type) {
     case 'task.created': return `created the task${s.parentKey ? ` as a subtask of ${s.parentKey}` : ''}${s.assigneeName ? ` and assigned it to ${s.assigneeName}` : ''}`
+    case 'task.linked': return s.kind === 'contact' ? `linked contact ${s.name}` : 'linked a conversation'
+    case 'task.unlinked': return s.kind === 'contact' ? `unlinked contact ${s.name}` : 'unlinked a conversation'
     case 'task.subtask.added': return `added subtask ${s.subtaskKey} “${s.subtaskTitle}”`
     case 'task.subtask.removed': return `moved subtask ${s.subtaskKey} out`
     case 'task.parent.changed': return s.parentKey ? `made it a subtask of ${s.parentKey}` : 'made it a standalone task'

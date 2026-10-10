@@ -83,6 +83,7 @@ enum RoomRole {
 }
 
 model Room {
+  taskLinks      TaskLink[]
   documentLinks DocumentRoomLink[]
 
   id             String         @id @default(cuid())
@@ -497,6 +498,7 @@ enum TeamRole {
 }
 
 model Workspace {
+  taskLinks        TaskLink[]
   taskViews        TaskView[]
   documents Document[]
   documentGrants DocumentGrant[]
@@ -568,6 +570,7 @@ model Workspace {
 
 // Membership requires a registered human account (doc/09 D8, D11).
 model WorkspaceMember {
+  taskLinksMade  TaskLink[]
   ownedDocuments Document[]
   documentGrants DocumentGrant[]
 
@@ -848,6 +851,7 @@ enum LinkOrigin {
 }
 
 model Contact {
+  taskLinks      TaskLink[]
   version Int @default(1)
   id               String       @id @default(cuid())
   workspaceId      String
@@ -2198,6 +2202,7 @@ model Sprint {
 // `rank` orders cards inside a status column (fractional; renumbered when gaps
 // run out). Deleting is soft so the board can offer Undo.
 model WorkTask {
+  links             TaskLink[]
   id                String           @id @default(cuid())
   workspaceId       String
   taskKey           String           @db.VarChar(32)
@@ -2352,4 +2357,30 @@ model TaskView {
   member    WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, memberId, position])
+}
+
+// A task related to a contact or a conversation (room, optionally one item in it).
+// Linking is recorded on the task's history (and the contact's timeline).
+model TaskLink {
+  id          String   @id @default(cuid())
+  workspaceId String
+  taskId      String
+  contactId   String?
+  roomId      String?
+  itemId      String?
+  pairKey     String   @db.VarChar(100) // "<taskId>|contact:<id>" / "|room:<id>" / "|item:<id>"
+  linkedById  String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  task      WorkTask         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  contact   Contact?         @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  room      Room?            @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  linkedBy  WorkspaceMember? @relation(fields: [linkedById], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, pairKey])
+  @@index([taskId])
+  @@index([contactId])
+  @@index([roomId])
+  @@index([linkedById])
 }

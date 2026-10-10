@@ -517,6 +517,14 @@ export class ContactService {
           else await tx.recordLink.update({ where: { id: link.id }, data: { contactId: winner.id, pairKey } })
         }
 
+        // Task links (pairKey ends with the contact).
+        for (const link of await tx.taskLink.findMany({ where: { contactId: loser.id, workspaceId } })) {
+          const pairKey = `${link.taskId}|contact:${winner.id}`
+          const clash = await tx.taskLink.findUnique({ where: { workspaceId_pairKey: { workspaceId, pairKey } } })
+          if (clash) await tx.taskLink.delete({ where: { id: link.id } })
+          else await tx.taskLink.update({ where: { id: link.id }, data: { contactId: winner.id, pairKey } })
+        }
+
         // Timeline subjects.
         const winnerActivities = new Set((await tx.activitySubject.findMany({ where: { contactId: winner.id }, select: { activityId: true } })).map((s) => s.activityId))
         for (const s of await tx.activitySubject.findMany({ where: { contactId: loser.id } })) {
