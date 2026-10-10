@@ -140,16 +140,21 @@ export function CollectionToolbar({
 
   const viewPart = (
     <>
-      <select aria-label="Sort records" value={sort} onChange={(e) => onFilter('sort', e.target.value)}>
-        {sorts.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-      </select>
-      <button type="button" className="record-dir-btn" aria-pressed={dir === 'desc'} onClick={() => onFilter('dir', dir === 'desc' ? 'asc' : 'desc')}>
-        {dir === 'desc' ? '↓ Descending' : '↑ Ascending'}
-      </button>
+      {/* In the table the column headers sort; the grid has no headers, so it keeps a sort control. */}
+      {layout === 'grid' && (
+        <>
+          <select aria-label="Sort records" value={sort} onChange={(e) => onFilter('sort', e.target.value)}>
+            {sorts.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+          <button type="button" className="record-dir-btn" aria-pressed={dir === 'desc'} onClick={() => onFilter('dir', dir === 'desc' ? 'asc' : 'desc')}>
+            {dir === 'desc' ? '↓ Descending' : '↑ Ascending'}
+          </button>
+        </>
+      )}
       {kind === 'contacts' && contactColumnPicker}
       <div className="record-layout-toggle" role="group" aria-label="Collection layout">
         <button type="button" aria-pressed={layout === 'list'} onClick={() => onLayout('list')}>
-          {kind === 'contacts' ? 'Table' : 'List'}
+          Table
         </button>
         <button type="button" aria-pressed={layout === 'grid'} onClick={() => onLayout('grid')}>
           Grid

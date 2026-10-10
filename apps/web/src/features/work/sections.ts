@@ -15,11 +15,11 @@ export const DESKS: { id: Desk; label: string }[] = [
 ]
 
 /** The tabular collections (redesign D9): one shared view, switched in its header. */
-export const COLLECTIONS: { id: Desk; label: string; singular: string }[] = [
+export const COLLECTIONS: { id: Desk; label: string; singular: string; newLabel?: string }[] = [
   { id: 'tasks', label: 'Tasks', singular: 'task' },
   { id: 'contacts', label: 'Contacts', singular: 'contact' },
   { id: 'inventory', label: 'Inventory', singular: 'item' },
-  { id: 'team', label: 'Team', singular: 'member' },
+  { id: 'team', label: 'Team', singular: 'member', newLabel: 'Invite member' },
   { id: 'documents', label: 'Documents', singular: 'document' },
   { id: 'agents', label: 'Automations', singular: 'automation' },
 ]

@@ -22,7 +22,9 @@ export type Column<T> = {
 
 export type Sort = { id: string; dir: 1 | -1 }
 
-type Saved = { sort?: Sort; hidden?: string[] }
+// Per viewer: only the columns this person explicitly showed or hid (redesign D9). A
+// column added later keeps its own default until someone toggles it.
+type Saved = { shown?: string[]; hidden?: string[] }
 const key = (collection: string) => `8080.table.${collection}`
 
 function load(collection: string): Saved {
@@ -38,30 +40,47 @@ const compareValues = (a: unknown, b: unknown) => {
 }
 
 /**
- * Sort and column visibility for one collection's table, remembered in this browser
- * (a per-viewer convenience; nothing shared depends on it).
+ * A collection table's sort and columns (redesign D9). Sort lives in the URL (`sort`,
+ * `dir`) like search and filters, so Back, links and saved views keep it; column
+ * visibility is a per-viewer preference. With `server`, the API sorts (the caller owns
+ * the URL) and the table only shows and changes it.
  */
-export function useTableState<T>(collection: string, columns: Column<T>[], initial: Sort) {
-  const [saved] = useState(() => load(collection))
-  const [sort, setSortState] = useState<Sort>(() => (saved.sort && columns.some((c) => c.id === saved.sort!.id && c.sortValue) ? saved.sort : initial))
-  const [hidden, setHidden] = useState<Set<string>>(() => new Set(saved.hidden ?? columns.filter((c) => c.defaultHidden).map((c) => c.id)))
+export function useTableState<T>(collection: string, columns: Column<T>[], initial: Sort, server?: { sort: Sort; onSort: (id: string) => void }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [prefs, setPrefs] = useState<Saved>(() => load(collection))
   useEffect(() => {
-    try { localStorage.setItem(key(collection), JSON.stringify({ sort, hidden: [...hidden] })) } catch { /* this visit only */ }
-  }, [collection, sort, hidden])
+    try { localStorage.setItem(key(collection), JSON.stringify(prefs)) } catch { /* this visit only */ }
+  }, [collection, prefs])
+
+  const params = new URLSearchParams(location.search)
+  const urlSort = params.get('sort')
+  const urlDir = params.get('dir')
+  const fromUrl = columns.find((c) => c.id === urlSort && c.sortValue)
+  const sort: Sort = fromUrl ? { id: fromUrl.id, dir: urlDir === 'desc' ? -1 : 1 } : initial
 
   const sortBy = useCallback((id: string) => {
     const column = columns.find((c) => c.id === id)
     if (!column?.sortValue) return
-    setSortState((current) => (current.id === id ? { id, dir: current.dir === 1 ? -1 : 1 } : { id, dir: column.firstDir ?? 1 }))
-  }, [columns])
+    const dir = sort.id === id ? (sort.dir === 1 ? -1 : 1) : (column.firstDir ?? 1)
+    const next = new URLSearchParams(location.search)
+    next.set('sort', id)
+    next.set('dir', dir === 1 ? 'asc' : 'desc')
+    navigate({ search: next.toString() }, { replace: true, state: location.state })
+  }, [columns, sort, location.search, location.state, navigate])
+
+  const hidden = useMemo(() => new Set(columns.filter((c) =>
+    prefs.hidden?.includes(c.id) || (c.defaultHidden && !prefs.shown?.includes(c.id)),
+  ).map((c) => c.id)), [columns, prefs])
   const toggle = useCallback((id: string) => {
-    setHidden((current) => {
-      const next = new Set(current)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
+    setPrefs((current) => {
+      const isHidden = hidden.has(id)
+      const shown = new Set(current.shown ?? [])
+      const hide = new Set(current.hidden ?? [])
+      if (isHidden) { hide.delete(id); shown.add(id) } else { shown.delete(id); hide.add(id) }
+      return { shown: [...shown], hidden: [...hide] }
     })
-  }, [])
+  }, [hidden])
   const visible = useMemo(() => columns.filter((c, i) => i === 0 || c.hideable === false || !hidden.has(c.id)), [columns, hidden])
   const sortRows = useCallback((rows: T[], tiebreak?: (a: T, b: T) => number) => {
     const column = columns.find((c) => c.id === sort.id)
@@ -70,6 +89,7 @@ export function useTableState<T>(collection: string, columns: Column<T>[], initi
     return [...rows].sort((a, b) => sort.dir * compareValues(value(a), value(b)) || (tiebreak?.(a, b) ?? 0))
   }, [columns, sort])
 
+  if (server) return { sort: server.sort, sortBy: server.onSort, hidden, toggle, visible, columns, sortRows: (rows: T[]) => rows }
   return { sort, sortBy, hidden, toggle, visible, columns, sortRows }
 }
 

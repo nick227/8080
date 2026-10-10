@@ -3,6 +3,7 @@ import { BrowserRouter, Routes as RouterRoutes, Route, useLocation, useParams } 
 import { Home } from '../views/Home'
 import { Room } from '../views/Room'
 import { Company } from '../views/Company'
+import { Invite } from '../views/Invite'
 import { Account } from '../views/Account'
 import { BASE_PATH } from '../features/tasks/links'
 
@@ -14,6 +15,7 @@ function AppRoutes() {
     <RouterRoutes location={location} key={location.pathname.match(BASE_PATH)?.[0] ?? location.pathname}>
       <Route path="/" element={<Page><Home /></Page>} />
       <Route path="/account" element={<Page><Account /></Page>} />
+      <Route path="/invite/:token" element={<Page><Invite /></Page>} />
       {['/room/:roomId', '/room/:roomId/tasks', '/room/:roomId/tasks/:taskKey'].map((path) => (
         <Route key={path} path={path} element={<Page><RoomWrapper /></Page>} />
       ))}

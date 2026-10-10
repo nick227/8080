@@ -43,7 +43,8 @@ const SECTION_VIEWS: Record<TaskSection, View[]> = {
   calendar: ['month', 'day', 'list'],
   board: ['board', 'backlog', 'reports'],
   table: ['table'],
-  tasks: ['table', 'board', 'reports'],
+  // Board is its own canvas in the nav (redesign D9): the Tasks list is the table or its reports.
+  tasks: ['table', 'reports'],
 }
 
 // View and filters are part of the address, so a filtered board can be shared.
@@ -100,7 +101,8 @@ export function CalendarExperience({ section = 'calendar' }: { section?: TaskSec
 
 function Calendar({ workspaceId, canManage, section }: { workspaceId: string; canManage: boolean; section: TaskSection }) {
   const views = SECTION_VIEWS[section].map((id) => VIEWS.find((item) => item.id === id)!)
-  const sectionTitle = section === 'calendar' ? 'Calendar' : section === 'board' ? 'Board' : section === 'tasks' ? 'Tasks' : 'Table'
+  // Board and Calendar show the same tasks as the Tasks list, and say so.
+  const sectionTitle = section === 'calendar' ? 'Tasks · Calendar' : section === 'board' ? 'Tasks · Board' : section === 'tasks' ? 'Tasks' : 'Table'
   const location = useLocation()
   const navigate = useNavigate()
   const { taskKey: pageTaskKey } = useParams()
@@ -286,7 +288,7 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
             <button type="button" className="cal-btn" aria-label={view === 'day' ? 'Next day' : 'Next month'} onClick={() => view === 'day' ? showDay(dayKey(addDays(parseDay(cursor), 1))) : shiftMonth(1)}>→</button>
             <h2 className="cal-period">{title}</h2>
             <button type="button" className="cal-btn" aria-pressed={onToday} onClick={goToday}>Today</button>
-          </div> : <h2 className="cal-period">{view === 'backlog' ? 'Open tasks · all dates' : view === 'table' ? 'All tasks' : view === 'reports' ? 'Reports' : 'Board · all tasks'}</h2>}
+          </div> : section === 'tasks' ? null : <h2 className="cal-period">{view === 'backlog' ? 'Open tasks · all dates' : view === 'table' ? 'All tasks' : view === 'reports' ? 'Reports' : 'Board · all tasks'}</h2>}
           <span className="cal-live" data-state={sync.live} role="status" title={sync.live === 'live' ? 'Changes from teammates appear as they happen' : 'Reconnecting; changes appear when the connection is back'}>
             {sync.live === 'live' ? 'Live' : sync.live === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}
           </span>

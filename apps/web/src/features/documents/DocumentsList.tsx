@@ -36,6 +36,7 @@ export function DocumentsList({ owner }: { owner: string }) {
         <span className="docs-name">
           <DocIcon kind={kindOf(doc)} />
           <span className="docs-name-text">{doc.title || 'Untitled'}</span>
+          {kindOf(doc) === 'contacts' && <span className="docs-name-tag">dataset</span>}
           {doc.surface === 'external' && <span className="docs-out" aria-label="Opens in a new tab">↗</span>}
         </span>
       ),

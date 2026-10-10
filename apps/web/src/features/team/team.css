@@ -931,3 +931,10 @@
 .team-member-cell .team-cell-avatar, .team-member-cell .team-cell-avatar-placeholder { width: 24px; height: 24px; flex: none; border-radius: 50%; display: grid; place-items: center; overflow: hidden; object-fit: cover; }
 .team-member-cell .member-name-text { overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
 .team-muted { color: var(--muted); }
+.team-invite { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-md); margin: 0 var(--table-cell-padding-x) var(--space-sm); padding: var(--space-md); border: var(--line-width) solid var(--line); border-radius: var(--radius-sm); }
+.team-invite p { flex-basis: 100%; margin: 0; font-size: var(--text-sm); color: var(--muted); }
+.team-invite label { display: flex; flex-direction: column; gap: var(--space-xs); font-size: var(--text-sm); color: var(--muted); }
+.team-invite input, .team-invite select { min-width: 220px; height: 32px; padding: 0 var(--input-padding-x); border: var(--input-border-width) var(--input-border-style) var(--input-border-color); border-radius: var(--input-radius); background: var(--input-bg); color: var(--input-color); font: inherit; }
+.team-invite-link { display: flex; gap: var(--space-sm); flex: 1 1 100%; }
+.team-invite-link input { flex: 1; }
+.team-invite-actions { display: flex; gap: var(--space-sm); }

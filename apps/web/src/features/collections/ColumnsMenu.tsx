@@ -5,19 +5,26 @@ import type { TableState } from './table'
 export function ColumnsMenu<T>({ state }: { state: TableState<T> }) {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
+  const button = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (!open) return
     const away = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false) }
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    // Capture phase: Escape closes this menu only, not the panel or page behind it.
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault(); e.stopPropagation()
+      setOpen(false)
+      button.current?.focus()
+    }
     window.addEventListener('pointerdown', away)
-    window.addEventListener('keydown', esc)
-    return () => { window.removeEventListener('pointerdown', away); window.removeEventListener('keydown', esc) }
+    window.addEventListener('keydown', esc, true)
+    return () => { window.removeEventListener('pointerdown', away); window.removeEventListener('keydown', esc, true) }
   }, [open])
   const hideable = state.columns.filter((c, i) => i > 0 && c.hideable !== false)
   if (!hideable.length) return null
   return (
     <div className="collection-menu" ref={root}>
-      <button type="button" className="collection-control" aria-expanded={open} aria-haspopup="true" onClick={() => setOpen((v) => !v)}>
+      <button ref={button} type="button" className="collection-control" aria-expanded={open} aria-haspopup="true" onClick={() => setOpen((v) => !v)}>
         Columns <span aria-hidden>▾</span>
       </button>
       {open && (

@@ -45,11 +45,12 @@
 .collection-menu-legend { padding: 0 0 var(--space-xs); font-size: var(--text-xs); color: var(--muted); }
 .collection-menu-panel label { display: flex; align-items: center; gap: var(--space-sm); font-size: var(--text-sm); color: var(--ink); white-space: nowrap; }
 
+.collection-subtitle { margin: calc(var(--space-xs) * -1) 0 var(--space-sm); padding: 0 var(--table-cell-padding-x); font-size: var(--text-sm); color: var(--muted); }
 .collection-note { margin: 0 0 var(--space-sm); padding: 0 var(--table-cell-padding-x); font-size: var(--text-sm); color: var(--muted); }
 .collection-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .collection-table tbody tr[data-open] { cursor: pointer; }
 .collection-table tbody tr:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
-.collection-table tbody tr[aria-selected="true"] td { background: var(--surface-active); }
+.collection-table tbody tr[data-selected] td { background: var(--surface-active); }
 .collection-table th[data-align="end"], .collection-table td[data-align="end"] { text-align: right; }
 .collection-select-cell { text-align: center !important; padding: 0 !important; }
 .collection-table td a { color: var(--ink); }

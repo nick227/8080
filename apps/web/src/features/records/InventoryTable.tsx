@@ -1,9 +1,11 @@
+import { useMemo } from 'react'
 import { useUpdateInventoryItem, type InventoryItem } from '@project/sdk'
+import { ColumnsMenu } from '../collections/ColumnsMenu'
+import { DataTable } from '../collections/DataTable'
+import { useTableState, type Column, type TableState } from '../collections/table'
 import { RecordMedia } from './RecordChrome'
 import { dateLabel, priceLabel, stockLabel } from './labels'
 import { useSaveFeedback } from './saveFeedback'
-
-type SortKey = 'name' | 'availability' | 'category' | 'price' | 'quantity' | 'updated'
 
 type Props = {
   workspaceId: string
@@ -21,157 +23,88 @@ type Props = {
   previewId?: string | null
 }
 
-const COLUMNS: { key: SortKey; label: string }[] = [
-  { key: 'name', label: 'Item' },
-  { key: 'availability', label: 'Status' },
-  { key: 'category', label: 'Category' },
-  { key: 'price', label: 'Price' },
-  { key: 'quantity', label: 'Stock' },
-  { key: 'updated', label: 'Updated' },
-]
-
-export function InventoryTable(props: Props) {
-  const scope = props.records.slice(0, 50).map((i) => i.id)
-  const allSelected = scope.length > 0 && scope.every((id) => props.selected.includes(id))
-
-  const selectionHeader = (
-    <input
-      type="checkbox"
-      aria-label={`Select first ${scope.length} loaded items`}
-      checked={allSelected}
-      onChange={() => props.onSelect(allSelected ? [] : scope)}
-    />
-  )
-
-  return (
-    <div className="docs-table-wrap inventory-table-scroll" tabIndex={0} role="region" aria-label="Inventory table">
-      <table className="docs-table inventory-table">
-        <caption className="record-sr-only">Inventory items catalog. Edit availability directly.</caption>
-        <thead>
-          <tr>
-            <th className="table-col-check">{selectionHeader}</th>
-            {COLUMNS.map((col) => {
-              const active = props.sort === col.key
-              return (
-                <th key={col.key} className={`table-col-${col.key}`} aria-sort={active ? (props.dir === 'desc' ? 'descending' : 'ascending') : 'none'}>
-                  <button type="button" className="docs-sort" data-active={active || undefined} onClick={() => props.onSort(col.key)}>
-                    {col.label}
-                    <span className="docs-sort-dir" aria-hidden>{active ? (props.dir === 'desc' ? '↓' : '↑') : '↕'}</span>
-                  </button>
-                </th>
-              )
-            })}
-            <th className="docs-col-action">
-              <span className="docs-sort">Preview</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {props.records.length === 0 ? (
-            <tr className="docs-none">
-              <td colSpan={8}>No inventory items found.</td>
-            </tr>
-          ) : (
-            props.records.map((item) => (
-              <InventoryTableRow
-                key={item.id}
-                item={item}
-                {...props}
-              />
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function InventoryTableRow({ item, ...props }: Props & { item: InventoryItem }) {
-  const update = useUpdateInventoryItem(props.workspaceId)
-  const feedback = useSaveFeedback(update.isPending, update.error)
-  const checked = props.selected.includes(item.id)
-  const selected = props.previewId === item.id
-
-  return (
-    <tr
-      data-selected={checked || selected || undefined}
-      onClick={() => props.onOpen(item.id)}
-    >
-      <td className="table-col-check" onClick={(e) => e.stopPropagation()}>
-        <input
-          type="checkbox"
-          aria-label={`Select ${item.name}`}
-          checked={checked}
-          onChange={() => props.onToggle(item.id)}
-        />
-      </td>
-
-      <td className="table-col-name">
-        <div className="inventory-name-cell">
+/** Inventory's columns (redesign D9). Sorting is the API's (URL `sort`/`dir`). */
+export function useInventoryTable(props: Pick<Props, 'workspaceId' | 'currency' | 'href' | 'onOpen' | 'onPreview' | 'sort' | 'dir' | 'onSort'>) {
+  const { currency, href, onOpen, onPreview } = props
+  const columns = useMemo<Column<InventoryItem>[]>(() => [
+    {
+      id: 'name', header: 'Item', width: '30%', hideable: false, sortValue: (i) => i.name,
+      cell: (item) => (
+        <span className="inventory-name-cell">
           <RecordMedia person={false} name={item.name} src={item.imageUrl} />
-          <div className="inventory-name-info">
+          <span className="inventory-name-info">
             <a
-              href={props.href(item.id)}
+              href={href(item.id)}
               data-record-link={item.id}
               onClick={(e) => {
-                if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
-                  e.preventDefault()
-                  props.onOpen(item.id)
-                }
+                if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); onOpen(item.id) }
               }}
             >
               {item.name}
             </a>
             <small className="docs-name-sub">{item.category || item.sku || 'Catalog item'}</small>
-          </div>
-        </div>
-      </td>
+          </span>
+        </span>
+      ),
+    },
+    { id: 'availability', header: 'Status', sortValue: (i) => (i.availability ? 0 : 1), cell: (item) => <Availability workspaceId={props.workspaceId} item={item} /> },
+    { id: 'category', header: 'Category', sortValue: (i) => i.category ?? '', cell: (i) => i.category || '—' },
+    { id: 'price', header: 'Price', align: 'end', sortValue: (i) => i.price ?? 0, cell: (i) => priceLabel(i.price, currency) },
+    { id: 'quantity', header: 'Stock', align: 'end', sortValue: (i) => i.quantity ?? 0, cell: (i) => <>{stockLabel(i)}{i.location ? <small className="docs-name-sub"> · {i.location}</small> : null}</> },
+    { id: 'updated', header: 'Updated', sortValue: (i) => i.updatedAt, cell: (i) => dateLabel(i.updatedAt) },
+    { id: 'sku', header: 'SKU', defaultHidden: true, cell: (i) => i.sku || '—' },
+    {
+      id: 'preview', header: '', width: '7rem', hideable: false,
+      cell: (item) => <button type="button" className="collection-row-action" aria-label={`Preview ${item.name}`} onClick={() => onPreview(item.id, item.name)}>Preview</button>,
+    },
+  ], [currency, href, onOpen, onPreview, props.workspaceId])
+  return useTableState('inventory', columns, { id: 'name', dir: 1 }, {
+    sort: { id: props.sort, dir: props.dir === 'desc' ? -1 : 1 },
+    onSort: props.onSort,
+  })
+}
 
-      <td className="table-col-status" onClick={(e) => e.stopPropagation()}>
-        <select
-          className="table-status-select"
-          aria-label={`Availability for ${item.name}`}
-          value={item.availability ? 'offered' : 'paused'}
-          disabled={update.isPending}
-          onChange={(e) =>
-            update.mutate({
-              inventoryId: item.id,
-              expectedVersion: item.version,
-              availability: e.target.value === 'offered',
-            })
-          }
-        >
-          <option value="offered">Offered</option>
-          <option value="paused">Paused</option>
-        </select>
-        {feedback.label && (
-          <small role="status" className="table-feedback" data-failed={feedback.failed || undefined}>
-            {feedback.label}
-          </small>
-        )}
-      </td>
+export function InventoryColumns({ table }: { table: TableState<InventoryItem> }) {
+  return <ColumnsMenu state={table} />
+}
 
-      <td className="table-col-category">{item.category || '—'}</td>
+/** Inventory as the shared collection table: same frame and table as every list. */
+export function InventoryTable({ table, ...props }: Props & { table: TableState<InventoryItem> }) {
+  return (
+    <DataTable
+      label="Inventory"
+      rows={props.records}
+      getId={(i) => i.id}
+      state={table}
+      onOpen={(i) => props.onOpen(i.id)}
+      rowProps={(i) => ({ 'data-selected': props.previewId === i.id ? '' : undefined })}
+      selection={{
+        selected: new Set(props.selected),
+        limit: 50,
+        onChange: (next) => props.onSelect([...next]),
+      }}
+      empty="No inventory items found."
+    />
+  )
+}
 
-      <td className="table-col-price">{priceLabel(item.price, props.currency)}</td>
-
-      <td className="table-col-stock">
-        {stockLabel(item)}
-        {item.location ? <small className="docs-name-sub"> · {item.location}</small> : null}
-      </td>
-
-      <td className="table-col-updated">{dateLabel(item.updatedAt)}</td>
-
-      <td className="docs-col-action" onClick={(e) => e.stopPropagation()}>
-        <button
-          type="button"
-          className="docs-preview-btn"
-          aria-label={`Preview ${item.name}`}
-          onClick={() => props.onPreview(item.id, item.name)}
-        >
-          Preview ↗
-        </button>
-      </td>
-    </tr>
+// Availability is edited in place (a single field; the record keeps its version).
+function Availability({ workspaceId, item }: { workspaceId: string; item: InventoryItem }) {
+  const update = useUpdateInventoryItem(workspaceId)
+  const feedback = useSaveFeedback(update.isPending, update.error)
+  return (
+    <>
+      <select
+        className="table-status-select"
+        aria-label={`Availability for ${item.name}`}
+        value={item.availability ? 'offered' : 'paused'}
+        disabled={update.isPending}
+        onChange={(e) => update.mutate({ inventoryId: item.id, expectedVersion: item.version, availability: e.target.value === 'offered' })}
+      >
+        <option value="offered">Offered</option>
+        <option value="paused">Paused</option>
+      </select>
+      {feedback.label && <small role="status" className="table-feedback" data-failed={feedback.failed || undefined}>{feedback.label}</small>}
+    </>
   )
 }

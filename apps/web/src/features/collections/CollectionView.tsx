@@ -33,7 +33,7 @@ export function CollectionHeader({ collection, count, onNew, actions }: HeadProp
       {count != null && <span className="collection-count" aria-label={`${count} ${count === 1 ? meta?.singular : meta?.label.toLowerCase()}`}>{count}</span>}
       <div className="collection-actions">
         {actions}
-        {onNew && <button type="button" className="collection-new" onClick={onNew}>+ New {meta?.singular}</button>}
+        {onNew && <button type="button" className="collection-new" onClick={onNew}>+ {meta?.newLabel ?? `New ${meta?.singular}`}</button>}
       </div>
     </header>
   )
@@ -63,7 +63,9 @@ export function CollectionBar({ collection, search, filters, view }: BarProps) {
   )
 }
 
-export function CollectionView({ collection, count, onNew, actions, search, filters, view, notice, children }: HeadProps & BarProps & {
+export function CollectionView({ collection, count, onNew, actions, subtitle, search, filters, view, notice, children }: HeadProps & BarProps & {
+  /** One line under the title saying what the list is for. */
+  subtitle?: ReactNode
   /** Between the toolbar and the table: selection bars, banners. */
   notice?: ReactNode
   children: ReactNode
@@ -71,6 +73,7 @@ export function CollectionView({ collection, count, onNew, actions, search, filt
   return (
     <section className="collection" aria-labelledby={`collection-${collection}-title`}>
       <CollectionHeader collection={collection} count={count} onNew={onNew} actions={actions} />
+      {subtitle && <p className="collection-subtitle">{subtitle}</p>}
       <CollectionBar collection={collection} search={search} filters={filters} view={view} />
       {notice}
       <div className="collection-body">{children}</div>

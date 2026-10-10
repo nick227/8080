@@ -68,7 +68,7 @@ export function AgentList({ workspaceId, timeZone, canManage, onOpen, onAdd, act
         { id: 'attention', label: 'Needs attention', count: counts.attention },
       ]} />}
       view={<ColumnsMenu state={table} />}
-      notice={<p className="collection-note">Scheduled team briefs, reports and emails.</p>}
+      subtitle="Scheduled team briefs, reports and emails."
     >
       {agents.isLoading ? <p className="collection-note" role="status">Loading automations…</p>
         : agents.isError ? <p className="collection-note" role="alert">Couldn’t load automations.</p>

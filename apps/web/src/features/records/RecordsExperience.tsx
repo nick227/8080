@@ -1,7 +1,7 @@
 import { audienceRules, CONTACT_FOCUSES, CONTACT_SORTS, CONTACT_MILESTONES, type ContactSort } from '@project/shared'
 import { ContactTable, ContactUndoBar, type ContactUndo, useContactColumns, readContactPreference, saveContactPreference } from './ContactTable'
 import { ContactViewPicker, ContactColumnPicker, ContactFilterChips } from './ContactTableControls'
-import { InventoryTable } from './InventoryTable'
+import { InventoryColumns, InventoryTable, useInventoryTable } from './InventoryTable'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
@@ -205,6 +205,12 @@ function RecordWorkspace({
     if (kind === 'contacts') { next.delete('record'); next.delete('preview'); next.delete('previewKind') }
   }, [kind])
   const search = useUrlSearch(clearRecord)
+  const inventoryTable = useInventoryTable({
+    workspaceId, currency, href: nav.href, sort, dir,
+    onOpen: (id) => nav.open(id, context(id)),
+    onPreview: (id, name) => nav.preview({ kind: 'inventory', id, name }, context(id)),
+    onSort: (next) => filters({ sort: next, dir: next === sort && dir === 'asc' ? 'desc' : 'asc' }),
+  })
   const toolbar = (part: 'filters' | 'view' | 'bulk') => (
     <CollectionToolbar
       part={part}
@@ -500,7 +506,7 @@ function RecordWorkspace({
               collection={kind}
               search={{ value: search.value, onChange: search.setValue, placeholder: kind === 'contacts' ? 'Search contacts, companies, interests…' : 'Search inventory…' }}
               filters={toolbar('filters')}
-              view={toolbar('view')}
+              view={<>{toolbar('view')}{kind === 'inventory' && layout === 'list' && <InventoryColumns table={inventoryTable} />}</>}
             />
             {toolbar('bulk')}
             {kind === 'contacts' && selected.length > 0 && <button type="button" className="agents-button" onClick={() => navigate({ search: new URLSearchParams({ desk: 'agents', add: '1', contactIds: selected.join(',') }).toString() })}>New automation for {selected.length} selected {selected.length === 1 ? 'contact' : 'contacts'}</button>}
@@ -511,12 +517,11 @@ function RecordWorkspace({
                 {bulkError}
               </p>
             )}
+            {/* The header shows the count; here only what it can't: updating, or how many are loaded so far. */}
             <p className="record-count" role="status">
               {list.isFetching && !list.isFetchingNextPage
                 ? 'Updating…'
-                : typeof total === 'number'
-                  ? `${total} ${total === 1 ? 'record' : 'records'}${list.hasNextPage ? ` · ${records.length} loaded` : ''}`
-                  : `${records.length}${list.hasNextPage ? '+' : ''} ${records.length === 1 ? 'record' : 'records'}${list.hasNextPage ? ' loaded' : ''}`}
+                : list.hasNextPage ? `${records.length} loaded${typeof total === 'number' ? ` of ${total}` : ''}` : ''}
             </p>
             {list.isError ? (
               <div className="record-empty" role="alert">
@@ -560,7 +565,7 @@ function RecordWorkspace({
                 href={nav.href} onOpen={id => nav.open(id, context(id))} previewId={nav.previewId}
                 onPreview={(id, name) => nav.preview({ kind, id, name }, context(id))} />
             ) : kind === 'inventory' && layout === 'list' ? (
-              <InventoryTable workspaceId={workspaceId} currency={currency} records={records as InventoryItem[]} selected={selected}
+              <InventoryTable table={inventoryTable} workspaceId={workspaceId} currency={currency} records={records as InventoryItem[]} selected={selected}
                 sort={sort} dir={dir} onSort={next => filters({ sort: next, dir: next === sort && dir === 'asc' ? 'desc' : 'asc' })}
                 onSelect={setSelected} onToggle={id => setSelected(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id])}
                 href={nav.href} onOpen={id => nav.open(id, context(id))} previewId={nav.previewId}

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useSession, useWorkspaceMembers } from '@project/sdk'
 import { useCalendar, useWorkflow } from '../calendar/store'
 import { PersonIcon } from '../../components/icons'
@@ -9,6 +9,7 @@ import { CollectionView } from '../collections/CollectionView'
 import { ColumnsMenu } from '../collections/ColumnsMenu'
 import { DataTable } from '../collections/DataTable'
 import { matches, useTableState, useUrlSearch, type Column } from '../collections/table'
+import { InviteMember } from './InviteMember'
 import './team.css'
 
 const ROLE_LABEL = { owner: 'Owner', admin: 'Admin', member: 'Member' } as const
@@ -38,6 +39,8 @@ export function TeamTableView({
   const members = useWorkspaceMembers(workspace?.id)
   const meUserId = useSession().data?.data.id
   const search = useUrlSearch()
+  const [inviting, setInviting] = useState(false)
+  const canInvite = workspace?.role === 'owner' || workspace?.role === 'admin'
 
   const rows = useMemo<Row[]>(() => {
     const here = new Map(seats.map((seat) => [seat.id, seat]))
@@ -95,7 +98,8 @@ export function TeamTableView({
     <CollectionView
       collection="team"
       count={rows.length}
-      actions={<button type="button" className="section-add-btn" onClick={() => onAssignTask('')}>Assign task</button>}
+      onNew={canInvite ? () => setInviting(true) : undefined}
+      notice={inviting && workspace ? <InviteMember workspaceId={workspace.id} onClose={() => setInviting(false)} /> : undefined}
       search={{ value: search.value, onChange: search.setValue, placeholder: 'Search members, roles, focus…' }}
       view={<ColumnsMenu state={table} />}
     >

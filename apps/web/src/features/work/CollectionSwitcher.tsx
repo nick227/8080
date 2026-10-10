@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useWorkPlace } from '../records/navigation'
+import { useDeskSelect } from '../records/navigation'
 import { COLLECTIONS, type Desk } from './sections'
 
 /**
@@ -7,7 +7,7 @@ import { COLLECTIONS, type Desk } from './sections'
  * menu button; choosing another switches collection, keeping each one's own filters.
  */
 export function CollectionSwitcher({ current, level = 1, id }: { current: Desk; level?: 1 | 2; id?: string }) {
-  const [, select] = useWorkPlace()
+  const select = useDeskSelect()
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const button = useRef<HTMLButtonElement>(null)
@@ -42,7 +42,6 @@ export function CollectionSwitcher({ current, level = 1, id }: { current: Desk; 
           type="button"
           aria-haspopup="menu"
           aria-expanded={open}
-          aria-label={`${label}: switch list`}
           onClick={() => setOpen((v) => !v)}
           onKeyDown={(e) => { if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true) } }}
         >

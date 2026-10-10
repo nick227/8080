@@ -14,21 +14,31 @@ export function DataTable<T>({ label, rows, getId, state, onOpen, selection, emp
   getId: (row: T) => string
   state: TableState<T>
   onOpen?: (row: T) => void
-  selection?: { selected: Set<string>; onChange: (next: Set<string>) => void }
+  /** `limit`: "select all" takes at most this many (bulk actions have a cap). */
+  selection?: { selected: Set<string>; onChange: (next: Set<string>) => void; limit?: number }
   empty?: ReactNode
   rowProps?: (row: T) => Record<string, string | undefined>
 }) {
   const body = useRef<HTMLTableSectionElement>(null)
-  const [focusIndex, setFocusIndex] = useState(0)
-  useEffect(() => { if (focusIndex >= rows.length) setFocusIndex(Math.max(0, rows.length - 1)) }, [rows.length, focusIndex])
+  // The roving tab stop follows the row (by id), so a re-sort keeps focus on the same item.
+  const [focusId, setFocusId] = useState<string | null>(null)
+  const ids = rows.map(getId)
+  const focusIndex = Math.max(0, focusId ? ids.indexOf(focusId) : 0)
   const columns = state.visible
   const span = columns.length + (selection ? 1 : 0)
 
   const focusRow = (index: number) => {
     const next = Math.max(0, Math.min(rows.length - 1, index))
-    setFocusIndex(next)
+    setFocusId(ids[next] ?? null)
     ;(body.current?.children[next] as HTMLElement | undefined)?.focus()
   }
+  useEffect(() => {
+    // Keep keyboard focus on the same row when the order changes under it.
+    const active = document.activeElement
+    if (!focusId || !body.current?.contains(active) || active?.tagName !== 'TR') return
+    const row = body.current.children[ids.indexOf(focusId)] as HTMLElement | undefined
+    if (row && row !== active) row.focus()
+  })
   const toggle = (id: string) => {
     if (!selection) return
     const next = new Set(selection.selected)
@@ -36,13 +46,13 @@ export function DataTable<T>({ label, rows, getId, state, onOpen, selection, emp
     else next.add(id)
     selection.onChange(next)
   }
-  const allIds = rows.map(getId)
+  const allIds = rows.map(getId).slice(0, selection?.limit ?? Infinity)
   const allSelected = !!selection && allIds.length > 0 && allIds.every((id) => selection.selected.has(id))
   const someSelected = !!selection && !allSelected && allIds.some((id) => selection.selected.has(id))
 
   return (
     <div className="docs-table-wrap collection-table-wrap" role="region" aria-label={label} tabIndex={-1}>
-      <table className="docs-table collection-table" aria-label={label} aria-rowcount={rows.length}>
+      <table className="docs-table collection-table" aria-label={label}>
         <colgroup>
           {selection && <col style={{ width: '2.5rem' }} />}
           {columns.map((c) => <col key={c.id} style={c.width ? { width: c.width } : undefined} />)}
@@ -53,7 +63,7 @@ export function DataTable<T>({ label, rows, getId, state, onOpen, selection, emp
               <th className="collection-select-cell">
                 <input
                   type="checkbox"
-                  aria-label={allSelected ? 'Clear selection' : 'Select all shown'}
+                  aria-label={allSelected ? 'Clear selection' : selection.limit && rows.length > selection.limit ? `Select the first ${selection.limit}` : 'Select all shown'}
                   checked={allSelected}
                   ref={(el) => { if (el) el.indeterminate = someSelected }}
                   onChange={() => selection.onChange(allSelected ? new Set() : new Set(allIds))}
@@ -87,10 +97,10 @@ export function DataTable<T>({ label, rows, getId, state, onOpen, selection, emp
               <tr
                 key={id}
                 tabIndex={index === focusIndex ? 0 : -1}
-                aria-selected={selection ? !!selected : undefined}
+                data-selected={selected ? '' : undefined}
                 data-open={onOpen ? '' : undefined}
                 {...rowProps?.(row)}
-                onFocus={() => setFocusIndex(index)}
+                onFocus={() => setFocusId(id)}
                 onClick={(e) => {
                   // A control inside the row (link, button, input) handles its own click.
                   if ((e.target as HTMLElement).closest('a, button, input, select, textarea, label')) return

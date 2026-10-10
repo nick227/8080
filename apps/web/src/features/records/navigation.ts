@@ -83,15 +83,9 @@ export function useWorkPlace() {
       /* Memory still works without storage. */
     }
   }, [location.pathname, location.search, location.state, place, basePath])
+  const go = useDeskSelect()
   const select = (desk: Desk) => {
-    if (desk === place) return
-    const saved = read(basePath, desk)
-    const params = new URLSearchParams(saved?.search ?? '')
-    params.delete('ticket')
-    if (company) params.delete('desk')
-    else params.set('desk', desk)
-    const pathname = company ? deskPath(basePath, desk) : desk === 'tasks' ? tasksPath(basePath) : basePath
-    navigate({ pathname, search: params.toString() }, { state: saved?.state ?? null })
+    if (desk !== place) go(desk)
   }
   // Third item: a company URL that names a desk that doesn't exist (the page shows not-found).
   // Fourth: a redirect is about to replace this URL; render no desk until it lands, so the
@@ -105,6 +99,24 @@ function legacyDesk(desk: string | null, view: string | null) {
   if (desk === 'calendar' && view === 'table') return 'company'
   if (desk === 'calendar' && ['board', 'backlog', 'reports'].includes(view ?? '')) return 'board'
   return desk
+}
+
+/** Open a desk where you left it (its remembered query), with no other effects: for
+ *  controls like the list switcher that sit inside a page already using useWorkPlace. */
+export function useDeskSelect() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  return (desk: Desk) => {
+    const basePath = projectPath(location.pathname)
+    const company = onCompanyPath(location.pathname)
+    const saved = read(basePath, desk)
+    const params = new URLSearchParams(saved?.search ?? '')
+    params.delete('ticket')
+    if (company) params.delete('desk')
+    else params.set('desk', desk)
+    const pathname = company ? deskPath(basePath, desk) : desk === 'tasks' ? tasksPath(basePath) : basePath
+    navigate({ pathname, search: params.toString() }, { state: saved?.state ?? null })
+  }
 }
 
 /** A desk's address under a company base path. */
