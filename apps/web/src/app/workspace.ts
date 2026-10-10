@@ -6,7 +6,7 @@ import { useCreateWorkspace, useMyWorkspaces, useSession } from '@project/sdk'
 // (docs/8080-redesign-proposal/00-decisions.md, D1). Order: the `:workspaceId`
 // route param, then the workspace this browser last chose, then the first
 // membership. A remembered id that isn't a current membership is ignored. Guests never
-// hold workspace data (doc/09 D8), so they always resolve to null.
+// hold workspace data (doc/09 D8): the server returns no memberships, so they resolve to null.
 
 const KEY = '8080.workspace'
 
@@ -33,8 +33,9 @@ export function useCurrentWorkspace() {
   const workspaces = useMyWorkspaces()
   const routed = useParams().workspaceId
   const chosen = useChosen((s) => s.id)
-  const list = guest ? [] : workspaces.data ?? []
-  const loading = session.isLoading || (!guest && workspaces.isLoading)
+  // Memberships come from the server; guests simply have none (doc/09 D8).
+  const list = workspaces.data ?? []
+  const loading = session.isLoading || workspaces.isLoading
   // A routed company you don't belong to is "missing": never show another one under its URL.
   const missing = Boolean(routed) && !loading && !list.some((w) => w.id === routed)
   const workspace = missing ? null

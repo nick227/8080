@@ -62,7 +62,8 @@ export function useWorkPlace() {
   const known = company
     ? requested === 'company' || COMPANY_DESKS.includes(requested as Desk)
     : DESKS.some((d) => d.id === requested)
-  const place: Desk = known ? (requested as Desk) : 'company'
+  // A room opens on its conversation; a company on its overview.
+  const place: Desk = known ? (requested as Desk) : company ? 'company' : 'stream'
   useEffect(() => {
     // Inspecting a related record must not replace the other area's working session.
     if ((location.state as RecordNavigationState | null)?.origin) return

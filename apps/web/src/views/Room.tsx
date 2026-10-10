@@ -156,10 +156,13 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const chooseOption = useChooseOption()
   const hostChannel = useHostChannel(roomId)
   // Proposal cards (doc/13 §5): the workspace's own rows; owners/admins decide.
-  const { workspace } = useCurrentWorkspace()
+  const current = useCurrentWorkspace()
+  const workspace = current.workspace
   const proposalAction = useProposalAction(workspace?.id ?? '')
   const proposalEdit = useEditProposal(workspace?.id ?? '')
   const role = workspace?.role
+  // Guests and accounts without a company only get the conversation (D8).
+  const shownPlace = !current.loading && !workspace ? 'stream' : place
   const actions = useRef({
     act: (_proposalId: string, _action: ProposalAct): Promise<Proposal> => Promise.reject(new Error('not ready')),
     edit: (_proposalId: string, _edits: Record<string, string>): Promise<Proposal> => Promise.reject(new Error('not ready')),
@@ -284,11 +287,11 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
         view={view}
         stage={(
           <div className="work-column">
-            <WorkNav desk={place} teamActive={place === 'stream' || place === 'team'} layoutControl={place === 'stream' ? <TeamLayoutMenu view={view} onChange={chooseView} /> : undefined} onSelect={(next) => {
+            <WorkNav desk={shownPlace} teamActive={shownPlace === 'stream' || shownPlace === 'team'} layoutControl={shownPlace === 'stream' ? <TeamLayoutMenu view={view} onChange={chooseView} /> : undefined} onSelect={(next) => {
               if (next === 'documents') useDocuments.getState().open(null)
               openPlace(next)
             }} />
-            {place === 'stream' ? (
+            {shownPlace === 'stream' ? (
               <RoomFloor
                 view={view}
                 seats={seatsFrom(people, meId, meGuest)}
@@ -298,15 +301,15 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
                 onSend={send}
                 onActivity={onActivity}
               />
-            ) : place === 'team' ? (
+            ) : shownPlace === 'team' ? (
               <TeamDesk
                 seats={seatsFrom(people, meId, meGuest)}
                 roomId={roomId}
               />
-            ) : place === 'calendar' ? (
+            ) : shownPlace === 'calendar' ? (
               <CalendarPage />
             ) : (
-              <WorkPage place={place} roomId={roomId} onPlace={openPlace} onOpenComposer={() => { openPlace('stream'); openRecord(); }} />
+              <WorkPage place={shownPlace} roomId={roomId} onPlace={openPlace} onOpenComposer={() => { openPlace('stream'); openRecord(); }} />
             )}
           </div>
         )}

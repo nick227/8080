@@ -14,6 +14,12 @@ export const DESKS: { id: Desk; label: string }[] = [
   { id: 'agents', label: 'Automations' },
 ]
 
+/** How the work nav groups desks (redesign 00-decisions.md, Phase 2). Company and Stream stand alone. */
+export const NAV_GROUPS: { id: 'work' | 'manage'; label: string; desks: Desk[] }[] = [
+  { id: 'work', label: 'Work', desks: ['tasks', 'board', 'calendar'] },
+  { id: 'manage', label: 'Manage', desks: ['contacts', 'inventory', 'team', 'agents', 'documents'] },
+]
+
 export type InboxNote = { id: string; from: string; subject: string }
 export type CalendarEvent = { id: string; title: string; when: string }
 
