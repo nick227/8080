@@ -105,19 +105,20 @@ export function TaskActivity({ task }: { task: CalTask }) {
   return (
     <div className="ticket-section">
       <div className="ticket-activity-head">
-        <h3 className="ticket-section-heading">Activity</h3>
+        <h3 className="ticket-section-heading">Updates</h3>
         <div className="ticket-activity-tabs" role="group" aria-label="Show">
           {(['all', 'comments', 'history'] as const).map((v) => (
             <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)}>
-              {v === 'all' ? 'All' : v === 'comments' ? `Comments${comments.data ? ` · ${comments.data.length}` : ''}` : 'History'}
+              {v === 'all' ? 'All' : v === 'comments' ? `Updates${comments.data ? ` · ${comments.data.length}` : ''}` : 'History'}
             </button>
           ))}
         </div>
       </div>
       {view !== 'history' && <Composer task={task} />}
+      {(comments.isError || history.isError) && <p className="ticket-no-comments" role="alert">Couldn’t load updates. <button type="button" className="cal-link-btn" onClick={() => { void comments.refetch(); void history.refetch() }}>Retry</button></p>}
       <ol className="ticket-activity-list">
         {loading ? <li className="ticket-no-comments">Loading activity…</li>
-          : lines.length === 0 ? <li className="ticket-no-comments">{view === 'comments' ? 'No comments yet.' : 'Nothing yet.'}</li>
+          : lines.length === 0 ? <li className="ticket-no-comments">{view === 'comments' ? 'No updates yet. Share progress or ask a question.' : 'No updates yet.'}</li>
           : lines.map((line) => line.kind === 'comment' ? (
             <li key={line.id} className="ticket-comment-bubble">
               <div className="ticket-comment-header">
@@ -158,7 +159,7 @@ function Composer({ task }: { task: CalTask }) {
 
   const post = () => {
     const clean = text.trim()
-    if (!clean || pending) return
+    if (!clean || pending || addComment.isPending) return
     addComment.mutate(clean, { onSuccess: () => setText('') })
   }
 
@@ -169,10 +170,10 @@ function Composer({ task }: { task: CalTask }) {
           ref={ref}
           rows={2}
           className="ticket-comment-input"
-          aria-label="Comment"
-          placeholder={pending ? 'Saving the task…' : 'Write a comment… @name to notify someone'}
+          aria-label="Task update"
+          placeholder={pending ? 'Saving the task…' : 'Share an update… @name to notify someone'}
           value={text}
-          disabled={pending}
+          disabled={pending || addComment.isPending}
           onChange={(e) => { setText(e.target.value); setPick(0) }}
           onKeyDown={(e) => {
             if (suggestions.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
@@ -198,9 +199,9 @@ function Composer({ task }: { task: CalTask }) {
         )}
       </div>
       <button type="submit" className="cal-btn" data-primary="" disabled={!text.trim() || addComment.isPending || pending}>
-        {addComment.isPending ? 'Posting…' : 'Comment'}
+        {addComment.isPending ? 'Posting…' : 'Post update'}
       </button>
-      {addComment.isError && <p className="ticket-no-comments" role="alert">Couldn't post the comment. Try again.</p>}
+      {addComment.isError && <p className="ticket-no-comments" role="alert">Couldn't post the update. Try again.</p>}
     </form>
   )
 }

@@ -22,6 +22,7 @@ import { WorkNav } from '../features/work/WorkNav'
 import { useDocuments } from '../features/documents/store'
 import { CalendarPage, WorkPage } from '../features/work/WorkPage'
 import { CompanyProfilePanel } from '../features/profile/CompanyProfilePanel'
+import { TeamDesk } from '../features/team/TeamDesk'
 
 // What a chat link opens, as its small label ('' = none: the title says it).
 const LINK_KIND: Record<string, string> = { document: 'Document', contact: 'Contact', compose: 'Contact', profile: '' }
@@ -282,11 +283,11 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
         view={view}
         stage={(
           <div className="work-column">
-            <WorkNav desk={place} teamActive={place === 'team'} layoutControl={place === 'team' ? <TeamLayoutMenu view={view} onChange={chooseView} /> : undefined} onSelect={(next) => {
+            <WorkNav desk={place} teamActive={place === 'stream' || place === 'team'} layoutControl={place === 'stream' ? <TeamLayoutMenu view={view} onChange={chooseView} /> : undefined} onSelect={(next) => {
               if (next === 'documents') useDocuments.getState().open(null)
               openPlace(next)
             }} />
-            {place === 'team' ? (
+            {place === 'stream' ? (
               <RoomFloor
                 view={view}
                 seats={seatsFrom(people, meId, meGuest)}
@@ -296,10 +297,15 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
                 onSend={send}
                 onActivity={onActivity}
               />
+            ) : place === 'team' ? (
+              <TeamDesk
+                seats={seatsFrom(people, meId, meGuest)}
+                roomId={roomId}
+              />
             ) : place === 'calendar' ? (
               <CalendarPage />
             ) : (
-              <WorkPage place={place} roomId={roomId} onPlace={openPlace} onOpenComposer={() => { openPlace('team'); openRecord(); }} />
+              <WorkPage place={place} roomId={roomId} onPlace={openPlace} onOpenComposer={() => { openPlace('stream'); openRecord(); }} />
             )}
           </div>
         )}

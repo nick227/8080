@@ -1,67 +1,34 @@
-import {
-  useInboxItems,
-  useInboxStream,
-  useTeams,
-  useWorkspaceInsights,
-  useWorkspaceInvites,
-  useWorkspaceMembers,
-} from '@project/sdk'
+import { useMemo } from 'react'
+import { useInboxItems, useInboxStream, useTeams, useWorkspaceInsights, useWorkspaceInvites, useWorkspaceMembers } from '@project/sdk'
 import { SectionHeader } from '../work/SectionHeader'
-import type { DeskLink } from './links'
 
-type Action = { id: string; label: string; go: string; link: DeskLink }
-
-function metric(cards: { id: string; value: string }[] | undefined, id: string) {
-  return cards?.find((c) => c.id === id)?.value ?? '—'
-}
-
-export function OverviewSection({
-  workspaceId,
-  onLink,
-}: {
-  workspaceId: string
-  onLink: (link: DeskLink) => void
-}) {
+export function OverviewSection({ workspaceId }: { workspaceId: string }) {
   const insights = useWorkspaceInsights(workspaceId)
   const members = useWorkspaceMembers(workspaceId)
   const invites = useWorkspaceInvites(workspaceId)
   const teams = useTeams(workspaceId)
-  const unread = useInboxItems(workspaceId, { unread: true })
-  useInboxStream(workspaceId)
-
   const cards = insights.data?.cards
-  const inviteCount = invites.isError ? null : invites.data?.length
-  const unreadCount = unread.data?.pages.flatMap((page) => page.data).length ?? 0
-
-  const actions: Action[] = []
-  for (const row of insights.data?.attention ?? []) {
-    if (row.id === 'overdue-followups') {
-      actions.push({ id: row.id, label: row.label, go: 'Open Contacts', link: row.href })
-    } else if (row.id === 'low-stock-attn') {
-      actions.push({ id: row.id, label: row.label, go: 'Open Inventory', link: row.href })
+  const cardMap = useMemo(() => {
+    if (!cards) return null
+    const map = new Map<string, string>()
+    for (const card of cards) {
+      map.set(card.id, card.value)
     }
-  }
-  if (inviteCount != null && inviteCount > 0) {
-    actions.push({
-      id: 'invites',
-      label: `${inviteCount} pending invite${inviteCount === 1 ? '' : 's'}`,
-      go: 'Open Team',
-      link: { desk: 'team' },
-    })
-  }
-  if (unreadCount > 0) {
-    actions.push({
-      id: 'unread',
-      label: `${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}`,
-      go: 'Open Calendar',
-      link: { desk: 'calendar' },
-    })
-  }
+    return map
+  }, [cards])
+  const getMetric = (id: string) => cardMap?.get(id) ?? '—'
+
+  const inviteCount = invites.isError ? null : invites.data?.length
+  const notifications = useInboxItems(workspaceId, { unread: true })
+  useInboxStream(workspaceId)
+  const items = useMemo(
+    () => notifications.data?.pages.flatMap((page) => page.data) ?? [],
+    [notifications.data?.pages],
+  )
 
   return (
     <section className="company-group" aria-labelledby="company-overview-title">
       <SectionHeader title="Overview" titleId="company-overview-title" />
-
       {insights.isError ? (
         <p className="company-status" role="status">
           Couldn’t load overview.{' '}
@@ -77,19 +44,19 @@ export function OverviewSection({
               <dl>
                 <div>
                   <dt>Open leads</dt>
-                  <dd>{insights.isLoading ? '…' : metric(cards, 'open-leads')}</dd>
+                  <dd>{insights.isLoading ? '…' : getMetric('open-leads')}</dd>
                 </div>
                 <div>
                   <dt>Pipeline</dt>
-                  <dd>{insights.isLoading ? '…' : metric(cards, 'pipeline-value')}</dd>
+                  <dd>{insights.isLoading ? '…' : getMetric('pipeline-value')}</dd>
                 </div>
                 <div>
                   <dt>Customers</dt>
-                  <dd>{insights.isLoading ? '…' : metric(cards, 'customers')}</dd>
+                  <dd>{insights.isLoading ? '…' : getMetric('customers')}</dd>
                 </div>
                 <div>
                   <dt>Catalog</dt>
-                  <dd>{insights.isLoading ? '…' : metric(cards, 'catalog')}</dd>
+                  <dd>{insights.isLoading ? '…' : getMetric('catalog')}</dd>
                 </div>
               </dl>
             </div>
@@ -112,23 +79,40 @@ export function OverviewSection({
             </div>
           </div>
 
-          {actions.length > 0 && (
-            <div className="company-actions">
-              <h3>Action needed</h3>
-              <ul>
-                {actions.map((row) => (
-                  <li key={row.id}>
-                    <span>{row.label}</span>
-                    <button type="button" className="company-go" onClick={() => onLink(row.link)}>
-                      {row.go}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       )}
+      <div className="company-overview company-actions">
+        <h3 id="company-notifications-title">Notifications</h3>
+        <div className="company-notifications" role="region" aria-labelledby="company-notifications-title" tabIndex={0}>
+      {notifications.isLoading ? (
+        <p className="company-status" role="status">Loading notifications…</p>
+      ) : notifications.isError ? (
+        <p className="company-status" role="status">
+          Couldn’t load notifications.{' '}
+          <button type="button" className="section-add-btn" onClick={() => void notifications.refetch()}>
+            Retry
+          </button>
+        </p>
+      ) : items.length > 0 ? (
+        <div>
+          <ul>
+            {items.map((item) => (
+              <li key={item.id}>
+                <span><strong>{item.title}</strong>{item.summary && <> — {item.summary}</>}</span>
+              </li>
+            ))}
+          </ul>
+          {notifications.hasNextPage && (
+            <button type="button" className="section-add-btn" disabled={notifications.isFetchingNextPage} onClick={() => void notifications.fetchNextPage()}>
+              Load more
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className="company-status" role="status">No new notifications.</p>
+      )}
+        </div>
+      </div>
     </section>
   )
 }

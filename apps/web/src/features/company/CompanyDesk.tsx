@@ -77,7 +77,7 @@ export function CompanyDesk({ roomId, onPlace }: { roomId?: string; onPlace?: (d
           </div>
         </div>
         <div className="company-col company-col-side">
-          <OverviewSection workspaceId={workspaceId} onLink={go} />
+          <OverviewSection workspaceId={workspaceId} />
           <IntegrationsSection workspaceId={workspaceId} canEdit={!!canEdit} />
         </div>
       </div>

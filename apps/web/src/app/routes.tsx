@@ -9,7 +9,7 @@ function AnimatedRoutes() {
   
   return (
     <AnimatePresence mode="wait">
-      <RouterRoutes location={location} key={location.pathname}>
+      <RouterRoutes location={location} key={location.pathname.match(/^\/room\/[^/]+/)?.[0] ?? location.pathname}>
         <Route path="/" element={
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -21,7 +21,7 @@ function AnimatedRoutes() {
             <Home />
           </motion.div>
         } />
-        <Route path="/room/:roomId" element={
+        {["/room/:roomId", "/room/:roomId/tasks", "/room/:roomId/tasks/:taskKey"].map((path) => <Route key={path} path={path} element={
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -31,7 +31,7 @@ function AnimatedRoutes() {
           >
             <RoomWrapper />
           </motion.div>
-        } />
+        } />)}
       </RouterRoutes>
     </AnimatePresence>
   );

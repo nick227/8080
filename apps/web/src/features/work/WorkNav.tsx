@@ -38,7 +38,7 @@ export function WorkNav({ desk, teamActive, onSelect, layoutControl }: {
   return (
     <nav className="work-nav" aria-label="Workspace" data-desk={desk}>
       {DESKS.map((item) => {
-        const current = item.id === 'team' ? teamActive : desk === item.id
+        const current = desk === item.id
         return (
           <button
             key={item.id}

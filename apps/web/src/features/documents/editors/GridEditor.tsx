@@ -47,8 +47,16 @@ export function GridEditor({ doc }: { doc: DocumentRecord }) {
   const records = useMemo(() => live.data?.rows ?? [], [live.data])
   const source = useMemo<GridRow[]>(() => {
     if (dataset) return records.map((row) => ({ id: row.id, version: String(row.version), ...row.cells }))
-    // Typed cells are edited (and copied, pasted, filtered) as their plain text.
-    return (sheet?.rows ?? []).map((row) => ({ id: row.id, version: '0', ...Object.fromEntries((sheet?.columns ?? []).map((c) => [c.id, cellText({ type: typeOf(c), currency: c.currency }, row.cells[c.id])])) }))
+    if (!sheet) return []
+    const cols = sheet.columns
+    return sheet.rows.map((row) => {
+      const cells: Record<string, string> = {}
+      for (let i = 0; i < cols.length; i++) {
+        const c = cols[i]!
+        cells[c.id] = cellText({ type: typeOf(c), currency: c.currency }, row.cells[c.id])
+      }
+      return { id: row.id, version: '0', ...cells }
+    })
   }, [dataset, records, sheet])
   const keys = useMemo(
     () => (dataset ? dataset.columns.map((column) => column.key) : (sheet?.columns.map((column) => column.id) ?? [])),

@@ -265,7 +265,8 @@ function Column({
   footer: React.ReactNode
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
-  const cards = ids.map((id) => byId.get(id)).filter((t): t is CalTask => !!t)
+  const cards = useMemo(() => ids.map((id) => byId.get(id)).filter((t): t is CalTask => !!t), [ids, byId])
+  const cardIds = useMemo(() => cards.map((c) => c.id), [cards])
   const points = cards.reduce((sum, t) => sum + (t.storyPoints ?? 0), 0)
   const blocked = cards.filter((t) => t.blocked).length
   const [editing, setEditing] = useState(false)
@@ -299,7 +300,7 @@ function Column({
 
       <SortableContext id={status} items={ids} strategy={verticalListSortingStrategy}>
         <ol ref={setNodeRef} className="cal-kanban-cards">
-          {cards.map((task) => <SortableCard key={task.id} task={task} onOpen={() => onSelectTask(task)} onSelect={(e) => selectCard(task.id, cards.map((c) => c.id), e.shiftKey)} />)}
+          {cards.map((task) => <SortableCard key={task.id} task={task} onOpen={() => onSelectTask(task)} onSelect={(e) => selectCard(task.id, cardIds, e.shiftKey)} />)}
           {cards.length === 0 && !creating && <li className="cal-kanban-empty">Drop tasks here</li>}
         </ol>
       </SortableContext>
@@ -463,13 +464,28 @@ function Chip({ task, field, label, className, children }: { task: CalTask; fiel
 /** "1/3": done subtasks of a parent (a primitive, so the card only re-renders when it changes). */
 export function useSubtaskProgress(taskId: string) {
   return useCalendar((s) => {
-    const kids = s.tasks.filter((t) => t.parentTaskId === taskId)
-    return kids.length ? `${kids.filter((t) => wf().isDone(t.status)).length}/${kids.length}` : ''
+    let total = 0
+    let done = 0
+    for (let i = 0; i < s.tasks.length; i++) {
+      const t = s.tasks[i]!
+      if (t.parentTaskId === taskId) {
+        total++
+        if (wf().isDone(t.status)) done++
+      }
+    }
+    return total > 0 ? `${done}/${total}` : ''
   })
 }
 
 export function useParentKey(parentTaskId: string | null | undefined) {
-  return useCalendar((s) => (parentTaskId ? s.tasks.find((t) => t.id === parentTaskId)?.taskKey ?? null : null))
+  return useCalendar((s) => {
+    if (!parentTaskId) return null
+    for (let i = 0; i < s.tasks.length; i++) {
+      const t = s.tasks[i]!
+      if (t.id === parentTaskId) return t.taskKey
+    }
+    return null
+  })
 }
 
 function CardBody({ task, overlay, interactive }: { task: CalTask; overlay?: boolean; interactive?: boolean }) {

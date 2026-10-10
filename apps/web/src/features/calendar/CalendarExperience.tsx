@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { isUrgencyKey } from '@project/shared'
 import { useCurrentWorkspace } from '../documents/workspace'
+import { taskPath, tasksPath } from '../tasks/links'
 import { SectionHeader } from '../work/SectionHeader'
 import { DayView } from './DayView'
 import { addDays, dayKey, dayTitle, monthName, parseDay, todayKey } from './dates'
@@ -36,11 +37,12 @@ const VIEWS: { id: View; label: string }[] = [
   { id: 'reports', label: 'Reports' },
 ]
 
-type TaskSection = 'calendar' | 'board' | 'table'
+type TaskSection = 'calendar' | 'board' | 'table' | 'tasks'
 const SECTION_VIEWS: Record<TaskSection, View[]> = {
   calendar: ['month', 'day', 'list'],
   board: ['board', 'backlog', 'reports'],
   table: ['table'],
+  tasks: ['table', 'board', 'reports'],
 }
 
 // View and filters are part of the address, so a filtered board can be shared.
@@ -78,6 +80,7 @@ function writeUrl(search: string, view: View, filters: Filters) {
 }
 
 export function CalendarExperience({ section = 'calendar' }: { section?: TaskSection }) {
+  const { taskKey } = useParams()
   const { workspace, loading, guest, create, creating, createError } = useCurrentWorkspace()
   if (loading) return <p className="cal-gate" role="status">Loading workspace…</p>
   if (!workspace) {
@@ -90,15 +93,16 @@ export function CalendarExperience({ section = 'calendar' }: { section?: TaskSec
       </div>
     )
   }
-  return <Calendar key={`${workspace.id}:${section}`} section={section} workspaceId={workspace.id} canManage={workspace.role === 'owner' || workspace.role === 'admin'} />
+  return <Calendar key={`${workspace.id}:${section}:${taskKey ?? "list"}`} section={section} workspaceId={workspace.id} canManage={workspace.role === 'owner' || workspace.role === 'admin'} />
 }
 
 function Calendar({ workspaceId, canManage, section }: { workspaceId: string; canManage: boolean; section: TaskSection }) {
-  const views = VIEWS.filter((item) => SECTION_VIEWS[section].includes(item.id))
-  const sectionTitle = section === 'calendar' ? 'Calendar' : section === 'board' ? 'Board' : 'Table'
+  const views = SECTION_VIEWS[section].map((id) => VIEWS.find((item) => item.id === id)!)
+  const sectionTitle = section === 'calendar' ? 'Calendar' : section === 'board' ? 'Board' : section === 'tasks' ? 'Tasks' : 'Table'
   const location = useLocation()
   const navigate = useNavigate()
-  const ticketParam = new URLSearchParams(location.search).get('ticket')
+  const { taskKey: pageTaskKey } = useParams()
+  const ticketParam = pageTaskKey ?? new URLSearchParams(location.search).get('ticket')
   const sync = useTaskSync()
   const local = useLocalTasks()
 
@@ -135,26 +139,29 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
   const [editingWorkflow, setEditingWorkflow] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
-  // URL → store once, then store → URL.
-  const fromUrl = useRef(false)
+  // Read shared links and browser history; preserve local edits when writing the URL.
+  const fromUrl = useRef<string | null>(null)
   const justRead = useRef(false)
   useEffect(() => {
-    if (fromUrl.current) return
-    fromUrl.current = true
+    if (fromUrl.current === location.search) return
+    fromUrl.current = location.search
     justRead.current = true
     const { view: urlView, filters: urlFilters } = readUrl(location.search)
     setView(urlView && SECTION_VIEWS[section].includes(urlView) ? urlView : SECTION_VIEWS[section][0])
     setFilters(urlFilters)
   }, [location.search, setFilters, setView, section])
   useEffect(() => {
-    if (!fromUrl.current) return
+    if (fromUrl.current === null || pageTaskKey) return
     // The store takes the URL's values on the next render; don't overwrite them first.
     if (justRead.current) { justRead.current = false; return }
     const params = new URLSearchParams(location.search)
     params.set('desk', section === 'table' ? 'company' : section)
     const next = writeUrl(params.toString(), view, filters)
-    if (next !== location.search.replace(/^\?/, '')) navigate({ search: next }, { replace: true })
-  }, [view, filters, location.search, navigate, section])
+    if (next !== location.search.replace(/^\?/, '')) {
+      fromUrl.current = `?${next}`
+      navigate({ search: next }, { replace: true })
+    }
+  }, [view, filters, location.search, navigate, section, pageTaskKey])
 
   // Notices fade on their own; Undo stays a few seconds.
   useEffect(() => {
@@ -180,24 +187,16 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
 
   const openTicket = useCallback((task: CalTask) => {
     if (task.pending) return
-    const next = new URLSearchParams(location.search)
-    next.set('desk', section === 'table' ? 'company' : section)
-    next.set('ticket', task.taskKey)
-    navigate({ search: next.toString() })
-  }, [location.search, navigate, section])
+    navigate(taskPath(location.pathname, task.taskKey), { state: { taskListSearch: location.search } })
+  }, [location.pathname, location.search, navigate, section])
 
   const openTicketKey = useCallback((taskKey: string) => {
-    const next = new URLSearchParams(location.search)
-    next.set('desk', section === 'table' ? 'company' : section)
-    next.set('ticket', taskKey)
-    navigate({ search: next.toString() })
-  }, [location.search, navigate, section])
+    navigate(taskPath(location.pathname, taskKey))
+  }, [location.pathname, location.search, navigate, section])
 
   const closeTicket = useCallback(() => {
-    const next = new URLSearchParams(location.search)
-    next.delete('ticket')
-    navigate({ search: next.toString() })
-  }, [location.search, navigate])
+    navigate({ pathname: tasksPath(location.pathname), search: (location.state as { taskListSearch?: string } | null)?.taskListSearch ?? '' })
+  }, [location.pathname, location.search, location.state, navigate])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -215,7 +214,7 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
       if (event.key === 'c' && !ticketParam) {
         event.preventDefault()
         if (view === 'board') setCreateIn(workflow.firstTodo)
-        else { setSelectedDayForNewTask(cursor); setComposing(true) }
+        else { setSelectedDayForNewTask(section === 'tasks' ? '' : cursor); setComposing(true) }
       }
     }
     window.addEventListener('keydown', onKey)
@@ -228,14 +227,15 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
   }
 
   return (
-    <div className="cal" data-expanded={expanded || undefined}>
+    <div className="cal" data-surface={section} data-expanded={expanded || undefined}>
+      {!pageTaskKey && <>
       <SectionHeader
         title={sectionTitle}
         level={section === 'table' ? 2 : 1}
         newLabel="task"
         onNew={() => {
           if (view === 'board') { setCreateIn(workflow.firstTodo); return }
-          setSelectedDayForNewTask(cursor)
+          setSelectedDayForNewTask(section === 'tasks' ? '' : cursor)
           setComposing(true)
         }}
         onImport={() => setImporting(true)}
@@ -270,14 +270,14 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
             <button type="button" className="cal-btn" aria-label={view === 'day' ? 'Next day' : 'Next month'} onClick={() => view === 'day' ? showDay(dayKey(addDays(parseDay(cursor), 1))) : shiftMonth(1)}>→</button>
             <h2 className="cal-period">{title}</h2>
             <button type="button" className="cal-btn" aria-pressed={onToday} onClick={goToday}>Today</button>
-          </div> : <h2 className="cal-period">{view === 'backlog' ? 'Open tasks · all dates' : view === 'table' ? 'Table · all tasks' : view === 'reports' ? 'Reports' : 'Board · all tasks'}</h2>}
+          </div> : <h2 className="cal-period">{view === 'backlog' ? 'Open tasks · all dates' : view === 'table' ? 'All tasks' : view === 'reports' ? 'Reports' : 'Board · all tasks'}</h2>}
           <span className="cal-live" data-state={sync.live} role="status" title={sync.live === 'live' ? 'Changes from teammates appear as they happen' : 'Reconnecting; changes appear when the connection is back'}>
             {sync.live === 'live' ? 'Live' : sync.live === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}
           </span>
           <div className="cal-tools">
             <div className="cal-view-toggle" role="group" aria-label={`${sectionTitle} view`}>
               {views.length > 1 && views.map((v) => (
-                <button key={v.id} type="button" className={`cal-btn ${view === v.id ? 'cal-view-active' : ''}`} aria-pressed={view === v.id} onClick={() => setView(v.id)}>{v.label}</button>
+                <button key={v.id} type="button" className={`cal-btn ${view === v.id ? 'cal-view-active' : ''}`} aria-pressed={view === v.id} onClick={() => setView(v.id)}>{section === 'tasks' && v.id === 'table' ? 'List' : v.label}</button>
               ))}
             </div>
           </div>
@@ -342,7 +342,12 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
         )}
       </div>
 
-      {ticketParam && (
+      </>}
+
+      {pageTaskKey ? (
+        sync.error ? <p className="cal-board-note" role="alert">Couldn’t load task. <button type="button" className="cal-btn" onClick={sync.retry}>Retry</button></p>
+          : <TicketPage taskKey={pageTaskKey} onBack={closeTicket} />
+      ) : ticketParam && (
         <div className="cal-panel-layer">
           <div className="cal-panel-scrim" onClick={closeTicket} aria-hidden="true" />
           <div className="cal-panel">

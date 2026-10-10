@@ -1,3 +1,5 @@
+import { Link, useLocation } from 'react-router-dom'
+import { taskPath } from '../tasks/links'
 import { useMemo, useRef, useState } from 'react'
 import { isUrgent } from '@project/shared'
 import { Avatar, since, useParentKey } from './BoardView'
@@ -63,6 +65,8 @@ function groupOf(t: CalTask, key: GroupKey, wf: Workflow): { id: string; label: 
 
 export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { tasks: CalTask[]; onSelectTask: (task: CalTask) => void; filtersOn: boolean; onClearFilters: () => void }) {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'status', dir: 1 })
+  const [details, setDetails] = useState(false)
+  const [status, setStatus] = useState('all')
   const [group, setGroup] = useState<GroupKey>('none')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const selection = useCalendar((s) => s.selection)
@@ -72,14 +76,14 @@ export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { 
   const workflow = useWorkflow()
 
   const sorted = useMemo(() => {
-    const rows = [...tasks]
+    const rows = tasks.filter((task) => status === 'all' || (status === '!open' ? !workflow.isDone(task.status) : task.status === status))
     rows.sort((a, b) => {
       const x = sortValue(a, sort.key, workflow)
       const y = sortValue(b, sort.key, workflow)
       return (x < y ? -1 : x > y ? 1 : 0) * sort.dir || a.rank - b.rank
     })
     return rows
-  }, [tasks, sort, workflow])
+  }, [tasks, sort, workflow, status])
 
   const groups = useMemo(() => {
     if (group === 'none') return [{ id: 'all', label: '', rows: sorted }]
@@ -93,7 +97,8 @@ export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { 
   }, [sorted, group, workflow])
 
   const visibleIds = groups.flatMap((g) => (collapsed.has(g.id) ? [] : g.rows.map((r) => r.id)))
-  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selection.includes(id))
+  const selectionSet = useMemo(() => new Set(selection), [selection])
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectionSet.has(id))
   const points = tasks.reduce((n, t) => n + (t.storyPoints ?? 0), 0)
 
   const sortBy = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: 1 }))
@@ -114,8 +119,13 @@ export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { 
   }
 
   return (
-    <div className="cal-table-view" role="region" aria-label="Task table">
+    <div className="cal-table-view" data-details={details || undefined} role="region" aria-label="Task table">
       <div className="cal-table-tools">
+        <label>Status<select aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}>
+          <option value="all">All tasks</option><option value="!open">Open tasks</option>
+          {workflow.active.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+        </select></label>
+        <button type="button" className="cal-btn" aria-pressed={details} onClick={() => setDetails(!details)}>{details ? 'Fewer columns' : 'More columns'}</button>
         <label>
           Group by
           <select value={group} onChange={(e) => { setGroup(e.target.value as GroupKey); setCollapsed(new Set()) }}>
@@ -154,6 +164,7 @@ export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { 
             </tr>
           </thead>
           <tbody ref={bodyRef}>
+            {!sorted.length && <tr><td colSpan={COLUMNS.length + 1}>No tasks with this status.</td></tr>}
             {groups.map((g) => (
               <GroupRows key={g.id} group={g} grouped={group !== 'none'} collapsed={collapsed.has(g.id)}
                 onToggle={() => setCollapsed((c) => { const n = new Set(c); n.has(g.id) ? n.delete(g.id) : n.add(g.id); return n })}
@@ -193,6 +204,7 @@ function GroupRows({ group, grouped, collapsed, onToggle, selection, toggleSelec
 }
 
 function Row({ task, selected, toggleSelect, onOpen, moveFocus }: { task: CalTask; selected: boolean; toggleSelect: (id: string) => void; onOpen: (t: CalTask) => void; moveFocus: (from: HTMLElement, step: 1 | -1) => void }) {
+  const location = useLocation()
   const { team, meId } = useTeam()
   const [editing, setEditing] = useState(false)
   const parentKey = useParentKey(task.parentTaskId)
@@ -237,9 +249,9 @@ function Row({ task, selected, toggleSelect, onOpen, moveFocus }: { task: CalTas
         ) : (
           <span className="cal-title-cell">
             {parentKey && <span className="cal-parent-chip" title={`Subtask of ${parentKey}`}>↳ {parentKey}</span>}
-            <button type="button" className="cal-title-link" disabled={task.pending} onClick={() => onOpen(task)} title="Open">
+            {task.pending ? <span className="cal-title-link">{task.title}</span> : <Link className="cal-title-link" to={taskPath(location.pathname, task.taskKey)} state={{ taskListSearch: location.search }} title="View task">
               {task.title}
-            </button>
+            </Link>}
             <button type="button" className="cal-icon-btn cal-rename-btn" disabled={task.pending} aria-label={`Rename ${task.taskKey}`} title="Rename (F2)" onClick={() => setEditing(true)}>✎</button>
             {task.blocked && !done && <span className="cal-table-blocked" title={task.blocked.reason}>Blocked</span>}
           </span>

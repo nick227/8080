@@ -2,7 +2,7 @@ import { audienceRules, CONTACT_FOCUSES, CONTACT_SORTS, CONTACT_MILESTONES, type
 import { ContactTable, ContactUndoBar, type ContactUndo, useContactColumns, readContactPreference, saveContactPreference } from './ContactTable'
 import { ContactViewPicker, ContactColumnPicker, ContactFilterChips } from './ContactTableControls'
 import { InventoryTable } from './InventoryTable'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -91,9 +91,10 @@ function RecordWorkspace({
   const queryClient = useQueryClient()
   const vocabulary = useWorkspaceVocabulary(workspaceId)
   const tags = useTags(workspaceId)
-  const stageOptions = (vocabulary.data?.stages ?? [])
-    .filter((s) => !s.archived)
-    .map((s) => ({ key: s.key, label: s.label }))
+  const stageOptions = useMemo(
+    () => (vocabulary.data?.stages ?? []).filter((s) => !s.archived).map((s) => ({ key: s.key, label: s.label })),
+    [vocabulary.data?.stages],
+  )
   const inventoryCategories = vocabulary.data?.categories ?? []
   const contactTags = tags.data ?? []
   const q = nav.params.get('q') ?? ''
@@ -161,8 +162,10 @@ function RecordWorkspace({
   const bulkInventory = useBulkUpdateInventory(workspaceId)
   const list = kind === 'contacts' ? contacts : inventory
   const counts = kind === 'contacts' ? contactCounts.data : inventoryCounts.data
-  const records: (Contact | InventoryItem)[] =
-    list.data?.pages.flatMap((page) => page.data as (Contact | InventoryItem)[]) ?? []
+  const records: (Contact | InventoryItem)[] = useMemo(
+    () => list.data?.pages.flatMap((page) => page.data as (Contact | InventoryItem)[]) ?? [],
+    [list.data?.pages],
+  )
   const total = list.data?.pages[0]?.meta.total
   const [selected, setSelected] = useState<string[]>([])
   const [bulkError, setBulkError] = useState('')
@@ -315,16 +318,17 @@ function RecordWorkspace({
     setNavigationError('')
     try {
       let response = await list.fetchNextPage()
+      const existingSet = new Set(results.ids)
       while (
         !response.isError &&
         response.hasNextPage &&
-        response.data?.pages.every((page) => page.data.every((record) => results.ids.includes(record.id)))
+        response.data?.pages.every((page) => page.data.every((record) => existingSet.has(record.id)))
       ) {
         response = await list.fetchNextPage()
       }
       if (response.isError) throw response.error
       const ids = response.data?.pages.flatMap((page) => page.data.map((record) => record.id)) ?? []
-      const extra = ids.filter((id) => !results.ids.includes(id))
+      const extra = ids.filter((id) => !existingSet.has(id))
       const combined = { ...results, ids: [...results.ids, ...extra], complete: !response.hasNextPage }
       if (extra[0]) nav.step(extra[0], preview, { ...combined, focusId: extra[0] })
       else nav.updateResults(combined)

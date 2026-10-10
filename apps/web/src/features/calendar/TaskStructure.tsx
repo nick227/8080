@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { taskPath } from '../tasks/links'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { checklistApi, keys, useTaskChecklist, type ChecklistItem } from '@project/sdk'
@@ -16,9 +17,7 @@ function useOpenTicket() {
   const navigate = useNavigate()
   const location = useLocation()
   return (taskKey: string) => {
-    const next = new URLSearchParams(location.search)
-    next.set('ticket', taskKey)
-    navigate({ search: next.toString() })
+    navigate(taskPath(location.pathname, taskKey), { state: location.state })
   }
 }
 

@@ -187,6 +187,10 @@
   flex-direction: column;
   min-width: 0;
 }
+.company-notifications {
+  max-height: 10vh;
+  overflow-y: auto;
+}
 .company-group + .company-group { margin-top: var(--space-lg); }
 .company-overview {
   padding: 0 var(--table-cell-padding-x) var(--space-lg);

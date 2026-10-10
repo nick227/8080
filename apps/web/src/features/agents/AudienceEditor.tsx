@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { audienceRules, type AudienceFilters, type RecipientConfig } from '@project/shared'
 import { useAudiencePreview, useContactFields, useContacts, useTags, useWorkspaceMembers, useWorkspaceVocabulary } from '@project/sdk'
@@ -10,7 +10,11 @@ export function AudienceEditor({ workspaceId, config, count, editable, save }: {
   const vocabulary = useWorkspaceVocabulary(workspaceId)
   const members = useWorkspaceMembers(workspaceId)
   const fields = useContactFields(workspaceId)
-  const labels = Object.fromEntries([...(vocabulary.data?.stages ?? []).map(s => [s.key, s.label]), ...(members.data ?? []).map(m => [m.id, m.user.name || m.email || m.id]), ...(fields.data ?? []).map(f => [f.key, f.label])])
+  const labels = useMemo(() => Object.fromEntries([
+    ...(vocabulary.data?.stages ?? []).map(s => [s.key, s.label]),
+    ...(members.data ?? []).map(m => [m.id, m.user.name || m.email || m.id]),
+    ...(fields.data ?? []).map(f => [f.key, f.label]),
+  ]), [vocabulary.data?.stages, members.data, fields.data])
   const navigate = useNavigate()
   const location = useLocation()
   const intrinsic = config?.source === 'WORKSPACE_MEMBERS' || config?.source === 'TRIGGER_CONTACT'
@@ -43,6 +47,7 @@ function AudienceModal({ workspaceId, initial, onClose, onSave }: { workspaceId:
   const [mode, setMode] = useState<'CONTACTS' | 'SELECTED_CONTACTS'>(initial?.source === 'SELECTED_CONTACTS' ? 'SELECTED_CONTACTS' : 'CONTACTS')
   const [filters, setFilters] = useState<AudienceFilters>(initial?.filters ?? {})
   const [ids, setIds] = useState<string[]>(initial?.ids ?? [])
+  const selectedSet = useMemo(() => new Set(ids), [ids])
   const [q, setQ] = useState('')
   const [all, setAll] = useState(initial?.source === 'CONTACTS' && Object.keys(initial.filters ?? {}).length === 0)
   const [saving, setSaving] = useState(false)
@@ -52,6 +57,7 @@ function AudienceModal({ workspaceId, initial, onClose, onSave }: { workspaceId:
   const members = useWorkspaceMembers(workspaceId)
   const fields = useContactFields(workspaceId)
   const contacts = useContacts(workspaceId, { q: q.trim() || undefined, limit: 50 })
+  const contactItems = useMemo(() => contacts.data?.pages.flatMap(p => p.data) ?? [], [contacts.data?.pages])
   const candidate: RecipientConfig | null = mode === 'SELECTED_CONTACTS' ? ids.length ? { source: mode, ids } : null : Object.keys(filters).length || all ? { source: mode, filters } : null
   const [debounced, setDebounced] = useState(candidate)
   const serialized = JSON.stringify(candidate)
@@ -81,7 +87,7 @@ function AudienceModal({ workspaceId, initial, onClose, onSave }: { workspaceId:
     </> : <>
       <label>Search contacts<input value={q} onChange={e => setQ(e.target.value)} /></label>
       <p>{ids.length} contacts selected <button type="button" onClick={() => setIds([])}>Clear selection</button></p>
-      {contacts.data?.pages.flatMap(p => p.data).map(c => <label className="audience-person" key={c.id}><input type="checkbox" checked={ids.includes(c.id)} onChange={e => setIds(e.target.checked ? [...ids, c.id] : ids.filter(id => id !== c.id))} />{c.displayName} <small>{c.primaryEmail || 'No email'}</small></label>)}
+      {contactItems.map(c => <label className="audience-person" key={c.id}><input type="checkbox" checked={selectedSet.has(c.id)} onChange={e => setIds(e.target.checked ? [...ids, c.id] : ids.filter(id => id !== c.id))} />{c.displayName} <small>{c.primaryEmail || 'No email'}</small></label>)}
       {contacts.hasNextPage && <button type="button" disabled={contacts.isFetchingNextPage} onClick={() => void contacts.fetchNextPage()}>Load more contacts</button>}
     </>}
     <div aria-live="polite">{!candidate ? 'Choose recipients to see matches.' : !current || preview.isFetching ? 'Counting contacts…' : preview.isError ? 'Could not resolve these rules. Check the attribute type and value.' : `${preview.data?.recipientCount ?? 0} unique recipients (${preview.data?.matchedCount ?? 0} contact matches)`}</div>

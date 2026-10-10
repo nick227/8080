@@ -227,13 +227,20 @@ function rankBetween(tasks: CalTask[], status: TaskStatus, place: Placement, mov
   return (above + below) / 2
 }
 
+const WORK_ICON_MAP = new Map(WORK_CATEGORIES.map((c) => [c.id, c.icon]))
+
 export function applyFilters(tasks: CalTask[], f: Filters, ctx = { today: todayKey(), now: Date.now(), isDone: wf().isDone }): CalTask[] {
   const needle = f.search.trim().toLowerCase()
+  const memberSet = f.members.length ? new Set(f.members) : null
+  const typeSet = f.types.length ? new Set(f.types) : null
+  const areaSet = f.areas.length ? new Set(f.areas) : null
+  const prioritySet = f.priorities.length ? new Set(f.priorities) : null
+
   return tasks.filter((t) => {
-    if (f.members.length && !f.members.includes(t.assigneeId ?? 'unassigned')) return false
-    if (f.types.length && !f.types.includes(t.category ?? 'task')) return false
-    if (f.areas.length && !f.areas.includes(t.area ?? '')) return false
-    if (f.priorities.length && !f.priorities.includes(t.priority ?? 'medium')) return false
+    if (memberSet && !memberSet.has(t.assigneeId ?? 'unassigned')) return false
+    if (typeSet && !typeSet.has(t.category ?? 'task')) return false
+    if (areaSet && !areaSet.has(t.area ?? '')) return false
+    if (prioritySet && !prioritySet.has(t.priority ?? 'medium')) return false
     if (!matchesUrgency(t, f.urgency, ctx)) return false
     if (needle && !t.title.toLowerCase().includes(needle) && !t.taskKey.toLowerCase().includes(needle)) return false
     return true
@@ -243,7 +250,7 @@ export function applyFilters(tasks: CalTask[], f: Filters, ctx = { today: todayK
 export const filtersActive = (f: Filters) =>
   f.members.length + f.types.length + f.areas.length + f.priorities.length + f.urgency.length > 0 || f.search.trim() !== ''
 
-export const workIcon = (category: string) => WORK_CATEGORIES.find((c) => c.id === category)?.icon ?? '✨'
+export const workIcon = (category: string) => WORK_ICON_MAP.get(category as WorkCategory) ?? '✨'
 
 export function logFromServer(l: WorkLog): CalAccomplishment {
   return {

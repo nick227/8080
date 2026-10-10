@@ -1249,7 +1249,7 @@
   gap: var(--space-xs);
   padding: var(--space-xs);
   min-height: 3rem;
-  overflow-y: auto;
+  overflow-y: visible;
   flex: 1;
 }
 
@@ -2290,6 +2290,22 @@
 .cal-chart-table table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
 .cal-chart-table th { text-align: left; font-weight: normal; font-size: var(--text-label); color: var(--muted); padding: 4px var(--space-sm); border-bottom: var(--line-width) solid var(--line); }
 .cal-chart-table td { padding: 4px var(--space-sm); border-bottom: var(--line-width) solid var(--line); color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* The task list starts with the everyday fields; extra planning fields are optional. */
+.cal-table-view:not([data-details]) :is(th, td):nth-child(7),
+.cal-table-view:not([data-details]) :is(th, td):nth-child(8),
+.cal-table-view:not([data-details]) :is(th, td):nth-child(9),
+.cal-table-view:not([data-details]) :is(th, td):nth-child(11) { display: none; }
+.cal-table-tools { flex-wrap: wrap; }
+a.cal-title-link { text-decoration: none; }
+a.cal-title-link:hover { text-decoration: underline; }
+.cal[data-surface="tasks"] .ticket-page-view { flex: 1; min-height: 0; }
+.cal[data-surface="tasks"] .ticket-page-container { width: 100%; max-width: 90rem; margin-inline: auto; }
+@media (max-width: 600px) {
+  .cal[data-surface="tasks"] .ticket-page-nav-bar { flex-wrap: wrap; gap: var(--space-sm); }
+  .cal[data-surface="tasks"] .ticket-nav-left,
+  .cal[data-surface="tasks"] .ticket-nav-right { flex-wrap: wrap; }
+}
 
 /* Saved views */
 .cal-views { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs) var(--space-sm); padding: var(--space-xs) var(--space-md) 0; font-size: var(--text-label); }

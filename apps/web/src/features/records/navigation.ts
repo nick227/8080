@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { projectPath, taskPath, tasksPath } from '../tasks/links'
 import { DESKS, type Desk } from '../work/sections'
 
 export type RecordKind = 'contacts' | 'inventory'
@@ -33,7 +34,13 @@ export function useWorkPlace() {
   const navigate = useNavigate()
   const params = new URLSearchParams(location.search)
   const legacyView = params.get('view')
-  const requestedDesk = params.get('desk')
+  const basePath = projectPath(location.pathname)
+  const onTasks = location.pathname.startsWith(`${basePath}/tasks`)
+  const requestedDesk = onTasks ? 'tasks' : params.get('desk')
+  const legacyTicket = params.get('ticket')
+  useEffect(() => {
+    if (legacyTicket) navigate(taskPath(location.pathname, legacyTicket), { replace: true })
+  }, [legacyTicket, location.pathname, navigate])
   // Keep shared links to the former Calendar views working in their new home.
   const requested = requestedDesk === 'calendar' && legacyView === 'table' ? 'company'
     : requestedDesk === 'calendar' && ['board', 'backlog', 'reports'].includes(legacyView ?? '') ? 'board'
@@ -43,20 +50,21 @@ export function useWorkPlace() {
     // Inspecting a related record must not replace the other area's working session.
     if ((location.state as RecordNavigationState | null)?.origin) return
     const value = { search: location.search, state: location.state }
-    const key = keyFor(location.pathname, place)
+    const key = keyFor(basePath, place)
     memory.set(key, value)
     try {
       sessionStorage.setItem(key, JSON.stringify(value))
     } catch {
       /* Memory still works without storage. */
     }
-  }, [location.pathname, location.search, location.state, place])
+  }, [location.pathname, location.search, location.state, place, basePath])
   const select = (desk: Desk) => {
     if (desk === place) return
-    const saved = read(location.pathname, desk)
+    const saved = read(basePath, desk)
     const params = new URLSearchParams(saved?.search ?? '')
     params.set('desk', desk)
-    navigate({ pathname: location.pathname, search: params.toString() }, { state: saved?.state ?? null })
+    params.delete('ticket')
+    navigate({ pathname: desk === 'tasks' ? tasksPath(basePath) : basePath, search: params.toString() }, { state: saved?.state ?? null })
   }
   return [place, select] as const
 }

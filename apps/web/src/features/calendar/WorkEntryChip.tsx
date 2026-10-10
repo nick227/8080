@@ -1,3 +1,4 @@
+import { TaskLink } from '../tasks/TaskLink'
 import { hourLabel } from './dates'
 import { useCalendar } from './store'
 import { useCanDeleteLog } from './sync'
@@ -10,7 +11,7 @@ export function WorkEntryChip({ entry }: { entry: CalAccomplishment }) {
   return (
     <div className="cal-acc-chip" data-pending={entry.pending || undefined}>
       <span className="cal-acc-icon">{entry.icon || '✨'}</span>
-      {entry.taskKey && <span className="cal-acc-key">[{entry.taskKey}]</span>}
+      {entry.taskKey && <TaskLink taskKey={entry.taskKey} className="cal-acc-key">{entry.taskKey}</TaskLink>}
       <span className="cal-acc-title">{entry.title}</span>
       {entry.assigneeName && <span className="cal-acc-assignee">@{entry.assigneeName}</span>}
       {entry.hoursSpent != null && <span className="cal-acc-time">{entry.hoursSpent} h</span>}

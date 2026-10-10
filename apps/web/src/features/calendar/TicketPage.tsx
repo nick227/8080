@@ -1,3 +1,4 @@
+import { taskPath } from '../tasks/links'
 import { useEffect, useState } from 'react'
 import { useCurrentWorkspace } from '../documents/workspace'
 import { useCalendar, useWorkflow } from './store'
@@ -22,7 +23,7 @@ export function TicketPage({
 }) {
   const task = useCalendar((state) => state.findTaskByNumber(taskKey))
   const loaded = useCalendar((state) => state.loaded)
-  const backLabel = variant === 'panel' ? 'Close' : '← Back'
+  const backLabel = variant === 'panel' ? 'Close' : '← All tasks'
 
   if (!task) {
     return (
@@ -73,11 +74,11 @@ function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBac
   }
 
   const copyLink = () => {
-    const url = `${window.location.origin}${window.location.pathname}?desk=calendar&ticket=${task.taskKey}`
+    const url = `${window.location.origin}${taskPath(window.location.pathname, task.taskKey)}`
     void navigator.clipboard.writeText(url).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    })
+    }).catch(() => useCalendar.getState().say('Couldn’t copy the link. Copy the address from your browser.'))
   }
 
   const assign = (memberId: string) => {
@@ -115,6 +116,7 @@ function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBac
           <div className="ticket-title-wrap">
             <input
               className="ticket-title-input"
+              maxLength={255}
               aria-label="Title"
               value={title}
               placeholder="Task summary…"
@@ -133,7 +135,7 @@ function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBac
               className="ticket-description-textarea"
               aria-label="Description"
               rows={6}
-              placeholder="Details, acceptance criteria, steps to reproduce…"
+              placeholder="What needs to be done? Add context and what a good result looks like."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onBlur={saveDescription}
@@ -160,10 +162,10 @@ function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBac
             </div>
           )}
 
+          <TaskActivity task={task} />
           <Checklist task={task} />
           <Subtasks task={task} />
           <TaskLinks task={task} />
-          <TaskActivity task={task} />
         </div>
 
         <aside className="ticket-sidebar-col">
