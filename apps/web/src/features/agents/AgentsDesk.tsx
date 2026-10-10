@@ -32,18 +32,19 @@ export function AgentsDesk({ onPlace }: { onPlace?: (desk: Desk) => void }) {
 
   // Senders are managed with the company settings
   const senderDesk = DESKS.find((d) => (d.id as string) === 'company')?.id
-  if (!workspace) return <p className="work-empty">Join or create a workspace to set up agents.</p>
+  if (!workspace) return <p className="work-empty">Join or create a company to set up automations.</p>
   const timeZone = workspace.timezone
 
   return (
     <div className="agents">
-      <SectionHeader title="Agents" titleId="agents-title" level={1}>
+      <SectionHeader title="Automations" titleId="agents-title" level={1}>
         {canManage && !adding && !agentId && !eventId && (
           <button type="button" className="section-add-btn" onClick={() => go({ add: '1', agent: null })}>
-            + Add agent
+            + New automation
           </button>
         )}
       </SectionHeader>
+      {!adding && !agentId && !eventId && <p className="agents-purpose">Scheduled emails, team briefs and customer reports.</p>}
       <div className="agents-full-width">
         {adding ? (
           <AgentCatalog recipientConfig={params.get('contactIds') ? { source: 'SELECTED_CONTACTS', ids: params.get('contactIds')!.split(',') } : undefined} workspaceId={workspace.id} onCancel={() => go({ add: null })} onCreated={(id) => go({ add: null, agent: id, contactIds: null })} />

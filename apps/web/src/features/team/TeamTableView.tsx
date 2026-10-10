@@ -1,74 +1,15 @@
 import { TaskLink } from '../tasks/TaskLink'
 import React, { useMemo, useState } from 'react'
+import { useWorkspaceMembers } from '@project/sdk'
+import { useCurrentWorkspace } from '../../app/workspace'
 import { useCalendar, useWorkflow } from '../calendar/store'
 import { MaximizeIcon, PersonIcon, SearchIcon } from '../../components/icons'
 import type { Seat } from '../room/roomViews'
 import type { ExtendedMember } from './UserProfilePage'
 import './team.css'
 
-// Default fallback roster so the table is rich with team members even when offline
-const DEFAULT_TEAM_MEMBERS: ExtendedMember[] = [
-  {
-    id: 'user-1',
-    name: 'Alex Rivera',
-    tag: '@alex',
-    role: 'Senior Full-Stack Engineer',
-    department: 'Engineering',
-    email: 'alex.rivera@project.com',
-    presence: 'online',
-    activity: 'here',
-    bio: 'Lead architect on real-time web audio and UI frameworks.',
-    skills: ['TypeScript', 'React', 'WebSockets', 'WebAudio'],
-  },
-  {
-    id: 'user-2',
-    name: 'Sarah Chen',
-    tag: '@sarah',
-    role: 'Lead Product Designer',
-    department: 'Design',
-    email: 'sarah.chen@project.com',
-    presence: 'focus',
-    activity: 'recording',
-    bio: 'Specializing in sleek dark modes, micro-animations, and dynamic visual design.',
-    skills: ['Figma', 'UI/UX', 'Design Systems', 'CSS'],
-  },
-  {
-    id: 'user-3',
-    name: 'Marcus Vance',
-    tag: '@marcus',
-    role: 'Backend & Systems Engineer',
-    department: 'Engineering',
-    email: 'marcus.vance@project.com',
-    presence: 'in_meeting',
-    activity: 'typing',
-    bio: 'Focused on distributed stream event routing and API performance.',
-    skills: ['Go', 'Node.js', 'PostgreSQL', 'WebSockets'],
-  },
-  {
-    id: 'user-4',
-    name: 'Elena Rostova',
-    tag: '@elena',
-    role: 'Product Manager',
-    department: 'Product',
-    email: 'elena.rostova@project.com',
-    presence: 'online',
-    activity: 'here',
-    bio: 'Driving product strategy, sprint execution, and user feedback cycles.',
-    skills: ['Roadmapping', 'Agile', 'Product Analytics'],
-  },
-  {
-    id: 'user-5',
-    name: 'David Kim',
-    tag: '@david',
-    role: 'QA & Test Automation Lead',
-    department: 'Operations',
-    email: 'david.kim@project.com',
-    presence: 'offline',
-    activity: 'away',
-    bio: 'Building comprehensive E2E playwright test suites and CI pipelines.',
-    skills: ['Playwright', 'Jest', 'CI/CD', 'QA'],
-  },
-]
+
+const ROLE_LABEL = { owner: 'Owner', admin: 'Admin', member: 'Member' } as const
 
 export function TeamTableView({
   seats,
@@ -80,49 +21,36 @@ export function TeamTableView({
   onAssignTask: (memberId: string) => void
 }) {
   const [search, setSearch] = useState('')
-  const [selectedDept, setSelectedDept] = useState<string>('all')
   const [expandedUser, setExpandedUser] = useState<string | null>(null)
 
   const tasks = useCalendar((s) => s.tasks)
   const accomplishments = useCalendar((s) => s.accomplishments)
   const workflow = useWorkflow()
 
-  // Merge live room seats with workspace team members
+  // Rows are the company's active members (ids = WorkspaceMember ids, what task
+  // assignees reference); the room's seats only add who is here right now.
+  const { workspace } = useCurrentWorkspace()
+  const members = useWorkspaceMembers(workspace?.id)
   const mergedMembers = useMemo(() => {
-    const map = new Map<string, ExtendedMember>()
-
-    // First populate default roster
-    for (const member of DEFAULT_TEAM_MEMBERS) {
-      map.set(member.id, { ...member })
-    }
-
-    // Merge seats from live room
-    for (const seat of seats) {
-      const existing = map.get(seat.id)
-      if (existing) {
-        existing.activity = seat.activity ?? undefined
-        existing.avatarUrl = seat.avatarUrl || existing.avatarUrl
-        existing.self = seat.self
-        existing.guest = seat.guest
-        existing.presence = 'online'
-      } else {
-        map.set(seat.id, {
-          id: seat.id,
-          name: seat.name,
-          tag: seat.tag || `@${seat.name.toLowerCase().replace(/\s+/g, '')}`,
-          avatarUrl: seat.avatarUrl,
-          role: seat.self ? 'You (Current User)' : 'Team Member',
-          department: 'Engineering',
-          presence: 'online',
-          activity: seat.activity ?? undefined,
-          self: seat.self,
-          guest: seat.guest,
-        })
-      }
-    }
-
-    return Array.from(map.values())
-  }, [seats])
+    const here = new Map(seats.map((seat) => [seat.id, seat]))
+    return (members.data ?? [])
+      .filter((m) => m.status === 'active')
+      .map((m): ExtendedMember => {
+        const seat = here.get(m.user.id)
+        return {
+          id: m.id,
+          userId: m.user.id,
+          name: m.user.name,
+          tag: seat?.tag,
+          avatarUrl: m.user.avatarUrl ?? seat?.avatarUrl,
+          role: m.title || ROLE_LABEL[m.role],
+          email: m.email ?? undefined,
+          presence: seat ? 'online' : 'offline',
+          activity: seat?.activity ?? undefined,
+          self: seat?.self,
+        }
+      })
+  }, [members.data, seats])
 
   // Filter members by search & department
   const filteredMembers = useMemo(() => {
@@ -132,10 +60,9 @@ export function TeamTableView({
         m.name.toLowerCase().includes(search.toLowerCase()) ||
         (m.tag && m.tag.toLowerCase().includes(search.toLowerCase())) ||
         (m.role && m.role.toLowerCase().includes(search.toLowerCase()))
-      const matchesDept = selectedDept === 'all' || m.department?.toLowerCase() === selectedDept.toLowerCase()
-      return matchesSearch && matchesDept
+      return matchesSearch
     })
-  }, [mergedMembers, search, selectedDept])
+  }, [mergedMembers, search])
 
   // Statistics
   const activeCount = mergedMembers.filter((m) => m.presence !== 'offline').length
@@ -147,9 +74,9 @@ export function TeamTableView({
       {/* Header & Control Bar */}
       <div className="team-table-header">
         <div className="team-header-title-block">
-          <h2>Team Workspace</h2>
+          <h2>Team</h2>
           <span className="team-header-subtitle">
-            {mergedMembers.length} Teammates &bull; {activeCount} Active Now &bull; {totalCompletedCount}/{totalTasksCount} Tasks Done
+            {mergedMembers.length} {mergedMembers.length === 1 ? 'member' : 'members'} &bull; {activeCount} in this room &bull; {totalCompletedCount}/{totalTasksCount} tasks done
           </span>
         </div>
 
@@ -174,21 +101,6 @@ export function TeamTableView({
             + Assign Task
           </button>
         </div>
-      </div>
-
-      {/* Filter Chips Bar */}
-      <div className="team-filters-bar">
-        <span className="filter-label">Filter Department:</span>
-        {['all', 'Engineering', 'Design', 'Product', 'Operations'].map((dept) => (
-          <button
-            key={dept}
-            type="button"
-            className={`team-filter-pill ${selectedDept === dept ? 'active' : ''}`}
-            onClick={() => setSelectedDept(dept)}
-          >
-            {dept === 'all' ? 'All Departments' : dept}
-          </button>
-        ))}
       </div>
 
       {/* Main Table */}
@@ -263,7 +175,7 @@ export function TeamTableView({
                     <td>
                       <div className="role-area-block">
                         <span className="role-title">{member.role || 'Member'}</span>
-                        <span className="area-pill">{member.department || 'Engineering'}</span>
+                        {member.department && <span className="area-pill">{member.department}</span>}
                       </div>
                     </td>
 
@@ -382,6 +294,16 @@ export function TeamTableView({
                 </React.Fragment>
               )
             })}
+            {filteredMembers.length === 0 && (
+              <tr>
+                <td colSpan={6} className="team-empty">
+                  {!workspace ? 'Join or create a company to see its team.'
+                    : members.isLoading ? 'Loading members…'
+                      : search.trim() ? 'No members match this search.'
+                        : 'No members yet.'}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
 

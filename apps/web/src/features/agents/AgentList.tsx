@@ -13,12 +13,12 @@ export function AgentList({ workspaceId, timeZone, canManage, onOpen, onAdd }: {
   onAdd: () => void
 }) {
   const agents = useAgents(workspaceId)
-  if (agents.isLoading) return <p className="agents-status">Loading agents…</p>
-  if (agents.isError) return <p className="agents-status">Couldn’t load agents.</p>
+  if (agents.isLoading) return <p className="agents-status">Loading automations…</p>
+  if (agents.isError) return <p className="agents-status">Couldn’t load automations.</p>
   const rows = agents.data ?? []
 
   return (
-    <div className="docs-table-wrap" tabIndex={0} role="region" aria-label="Your agents">
+    <div className="docs-table-wrap" tabIndex={0} role="region" aria-label="Your automations">
       <table className="docs-table agents-list-table">
         <thead>
           <tr>

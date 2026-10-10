@@ -19,7 +19,7 @@ export function TeamDesk({
       {selectedUser ? (
         <UserProfilePage
           member={selectedUser}
-          seat={seats.find((s) => s.id === selectedUser.id)}
+          seat={seats.find((s) => s.id === (selectedUser.userId ?? selectedUser.id))}
           onBack={() => setSelectedUser(null)}
           onAssignTask={(userId) => setAssignModalUser(userId)}
         />

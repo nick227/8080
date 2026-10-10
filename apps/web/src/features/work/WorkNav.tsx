@@ -55,20 +55,22 @@ export function WorkNav({ desk, teamActive, onSelect, layoutControl }: {
       <div className="work-nav-search">
         {layoutControl}
         <ActiveUsersWidget />
-        <div className="work-search">
-          <input
-            ref={searchRef}
-            type="search"
-            placeholder={desk === 'contacts' ? 'Search contacts, companies, interests…' : `Search ${label}...`}
-            aria-label={`Search ${label}`}
-            value={searchable ? value : ''}
-            disabled={!searchable}
-            onChange={(event) => setValue(event.target.value)}
-          />
-          <button type="button" className="work-search-btn" aria-label="Search" onClick={() => searchRef.current?.focus()}>
-            <SearchIcon />
-          </button>
-        </div>
+        {/* Only desks that filter by it get a search box; real global search comes with the shell. */}
+        {searchable && (
+          <div className="work-search">
+            <input
+              ref={searchRef}
+              type="search"
+              placeholder={desk === 'contacts' ? 'Search contacts, companies, interests…' : `Search ${label}...`}
+              aria-label={`Search ${label}`}
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+            />
+            <button type="button" className="work-search-btn" aria-label="Search" onClick={() => searchRef.current?.focus()}>
+              <SearchIcon />
+            </button>
+          </div>
+        )}
       </div>
     </nav>
   )

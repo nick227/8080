@@ -53,6 +53,15 @@
 
 .agents-status { margin: var(--space-sm) 0; font-size: var(--text-sm); color: var(--muted); }
 .agents-status-bad { color: var(--danger, #dc2626); font-weight: var(--weight-medium); }
+.agents-purpose { margin: 0 0 var(--space-md); padding: 0 var(--table-cell-padding-x); font-size: var(--text-sm); color: var(--muted); }
+.agents-live-note {
+  margin: var(--space-sm) 0;
+  padding: var(--space-sm) var(--space-md);
+  border-left: var(--line-width-strong) solid var(--signal);
+  background: var(--surface-subtle);
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
 
 .agents-bar {
   display: flex;

@@ -40,22 +40,22 @@ export function CompanyDesk({ roomId, onPlace }: { roomId?: string; onPlace?: (d
   const handleVisibilityChange = (next: 'public' | 'private') => {
     if (!roomId) return
     void updateRoom.mutateAsync({ visibility: next }).catch((err: unknown) => {
-      ui.setError(err instanceof Error ? err.message : 'Could not change project visibility')
+      ui.setError(err instanceof Error ? err.message : 'Could not change conversation visibility')
     })
   }
 
   if (!workspaceId) {
-    return <p className="work-empty">Join or create a workspace to see project details.</p>
+    return <p className="work-empty">Join or create a company to see its overview.</p>
   }
 
   return (
     <div className="company company-with-table">
-      <SectionHeader title="Project Overview" titleId="company-title" level={1}>
+      <SectionHeader title="Company overview" titleId="company-title" level={1}>
         <button
           type="button"
           className="vocab-icon-btn"
           onClick={() => setVocabOpen(true)}
-          title="Open Workspace Vocabulary"
+          title="Open company vocabulary"
           aria-label="Vocabulary"
         >
           <BookIcon />
@@ -74,7 +74,7 @@ export function CompanyDesk({ roomId, onPlace }: { roomId?: string; onPlace?: (d
             showVisibility={!!roomId}
           />
           <div className="company-gallery">
-            <RecordGallery workspaceId={workspaceId} kind="company" recordId={workspaceId} name={workspace?.name ?? 'Project'} />
+            <RecordGallery workspaceId={workspaceId} kind="company" recordId={workspaceId} name={workspace?.name ?? 'Company'} />
           </div>
         </div>
         <div className="company-col company-col-side">

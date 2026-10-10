@@ -2,7 +2,7 @@ export type Desk = 'tasks' | 'company' | 'stream' | 'team' | 'inbox' | 'contacts
 
 /** Desks shown in the workspace nav. Inbox is deferred until real inbound mail exists. */
 export const DESKS: { id: Desk; label: string }[] = [
-  { id: 'company', label: 'Project' },
+  { id: 'company', label: 'Company' },
   { id: 'tasks', label: 'Tasks' },
   { id: 'stream', label: 'Stream' },
   { id: 'team', label: 'Team' },
@@ -11,7 +11,7 @@ export const DESKS: { id: Desk; label: string }[] = [
   { id: 'documents', label: 'Documents' },
   { id: 'calendar', label: 'Calendar' },
   { id: 'board', label: 'Board' },
-  { id: 'agents', label: 'Messaging' },
+  { id: 'agents', label: 'Automations' },
 ]
 
 export type InboxNote = { id: string; from: string; subject: string }

@@ -9,6 +9,8 @@ import './team.css'
 
 export type ExtendedMember = {
   id: string
+  /** The account behind a membership (seats are keyed by user id). */
+  userId?: string
   name: string
   tag?: string
   avatarUrl?: string
@@ -131,7 +133,7 @@ export function UserProfilePage({
             {member.guest && <span className="user-badge guest">Guest</span>}
           </div>
           <p className="user-hero-role">
-            {member.role || 'Team Member'} &bull; <span className="user-dept">{member.department || 'Engineering'}</span>
+            {member.role || 'Member'}{member.department && <> &bull; <span className="user-dept">{member.department}</span></>}
           </p>
           <div className="user-hero-meta">
             <span className="user-meta-item">
@@ -340,31 +342,32 @@ export function UserProfilePage({
             <div className="info-grid">
               <div className="info-block">
                 <h4>Role & Department</h4>
-                <p>{member.role || 'Full-Stack Software Engineer'}</p>
-                <p className="text-muted">Department: {member.department || 'Engineering'}</p>
+                <p>{member.role || 'Member'}</p>
+                {member.department && <p className="text-muted">Department: {member.department}</p>}
               </div>
               <div className="info-block">
                 <h4>Contact Details</h4>
-                <p>Email: {member.email || `${member.name.toLowerCase().replace(/\s+/g, '.')}@project.com`}</p>
-                <p>Handle: {member.tag || `@${member.name.toLowerCase().replace(/\s+/g, '')}`}</p>
+                {member.email ? <p>Email: {member.email}</p> : <p className="text-muted">No email shared.</p>}
+                {member.tag && <p>Handle: {member.tag}</p>}
               </div>
-              <div className="info-block">
-                <h4>Skills & Expertise</h4>
-                <div className="skills-tags">
-                  {(member.skills || ['React', 'TypeScript', 'WebSockets', 'Node.js', 'UI/UX Design']).map((s) => (
-                    <span className="skill-tag" key={s}>
-                      {s}
-                    </span>
-                  ))}
+              {member.skills?.length ? (
+                <div className="info-block">
+                  <h4>Skills & Expertise</h4>
+                  <div className="skills-tags">
+                    {member.skills.map((s) => (
+                      <span className="skill-tag" key={s}>
+                        {s}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <div className="info-block">
-                <h4>Summary & Notes</h4>
-                <p className="user-bio">
-                  {member.bio ||
-                    `${member.name} is a key member of the development team, focusing on high-performance web applications, real-time collaboration, and product engineering.`}
-                </p>
-              </div>
+              ) : null}
+              {member.bio && (
+                <div className="info-block">
+                  <h4>Summary & Notes</h4>
+                  <p className="user-bio">{member.bio}</p>
+                </div>
+              )}
             </div>
           </div>
         )}

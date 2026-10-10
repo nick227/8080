@@ -56,10 +56,10 @@ export function AgentCatalog({ workspaceId, onCancel, onCreated, recipientConfig
   }
 
   return (
-    <section className="agents-catalog" aria-label="Add agent">
+    <section className="agents-catalog" aria-label="New automation">
       <div className="agents-bar" style={{ marginBottom: '1rem' }}>
         <button type="button" className="agents-back" onClick={onCancel}>
-          ← Back to Agents
+          ← Back to Automations
         </button>
       </div>
 
@@ -115,7 +115,7 @@ export function AgentCatalog({ workspaceId, onCancel, onCreated, recipientConfig
 
       {create.isError && (
         <p className="agents-status agents-status-bad" role="alert" style={{ marginTop: '0.75rem' }}>
-          {create.error instanceof Error ? create.error.message : 'Couldn’t add the agent.'}
+          {create.error instanceof Error ? create.error.message : 'Couldn’t add the automation.'}
         </p>
       )}
     </section>

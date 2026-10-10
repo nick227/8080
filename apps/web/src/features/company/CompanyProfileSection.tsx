@@ -121,7 +121,7 @@ export function CompanyProfileSection({
         await profile.refetch()
         setStatus('The profile was changed elsewhere and has been reloaded.')
       } else if (error instanceof ApiError && error.status === 403) {
-        setStatus('Only owners and admins can edit the project profile.')
+        setStatus('Only owners and admins can edit the company profile.')
       } else setStatus(error instanceof Error ? error.message : 'Couldn’t save.')
     } finally {
       setSaving(false)
@@ -132,12 +132,12 @@ export function CompanyProfileSection({
     <section className="company-group" aria-labelledby="company-profile-title">
       {!form ? (
         <p className="company-status" role="status">
-          {profile.isError ? 'Couldn’t load the project profile.' : 'Loading…'}
+          {profile.isError ? 'Couldn’t load the company profile.' : 'Loading…'}
         </p>
       ) : (
         <form className="company-form" onSubmit={(e) => void save(e)}>
           <div className="company-section-block">
-            <SectionHeader title="Project Definition" titleId="company-profile-title">
+            <SectionHeader title="Overview" titleId="company-profile-title">
               {onOpenChannel && (
                 <button type="button" className="section-add-btn" onClick={onOpenChannel}>
                   Setup with chatbot
@@ -146,24 +146,24 @@ export function CompanyProfileSection({
             </SectionHeader>
             <div className="record-form-fields">
               <label>
-                <span>Project name</span>
+                <span>Display name</span>
                 <input value={form.name} disabled={!canEdit} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               </label>
               {showVisibility && (
                 <label>
-                  <span>Project visibility</span>
+                  <span>This conversation is</span>
                   <select
                     value={visibility ?? 'public'}
                     disabled={!canEdit || updatingVisibility}
                     onChange={(e) => onVisibilityChange?.(e.target.value as 'public' | 'private')}
                   >
-                    <option value="public">Public Project</option>
-                    <option value="private">Private Project</option>
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
                   </select>
                 </label>
               )}
               <label className="company-full-width">
-                <span>Project goals & objectives</span>
+                <span>Goals & objectives</span>
                 <textarea rows={3} value={form.purpose} disabled={!canEdit} onChange={(e) => setForm({ ...form, purpose: e.target.value })} placeholder="Key goals, scope, and objectives" />
               </label>
             </div>

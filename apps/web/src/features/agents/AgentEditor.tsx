@@ -83,16 +83,16 @@ export function AgentEditor({ workspaceId, agentId, timeZone, canManage, onBack,
     }
   }, [subject, customText, agent?.subject, agent?.customText, editable])
 
-  if (query.isLoading) return <p className="agents-status">Loading agent…</p>
+  if (query.isLoading) return <p className="agents-status">Loading automation…</p>
   if (query.isError || !agent)
     return (
       <div className="agents-editor">
         <div className="agents-bar">
           <button type="button" className="agents-back" onClick={onBack}>
-            ← Agents
+            ← Automations
           </button>
         </div>
-        <p className="agents-status">This agent isn’t available.</p>
+        <p className="agents-status">This automation isn’t available.</p>
       </div>
     )
 
@@ -136,14 +136,14 @@ export function AgentEditor({ workspaceId, agentId, timeZone, canManage, onBack,
     <section className="agents-editor" aria-label={agent.name}>
       <div className="agents-bar">
         <button type="button" className="agents-back" onClick={onBack}>
-          ← Back to Agents
+          ← Back to Automations
         </button>
       </div>
 
       <div className="agents-editor-head">
         <input
           className="agents-name"
-          aria-label="Agent name"
+          aria-label="Automation name"
           value={name}
           disabled={!editable}
           onChange={(e) => setName(e.target.value)}
@@ -224,7 +224,7 @@ export function AgentEditor({ workspaceId, agentId, timeZone, canManage, onBack,
                         }
                       }}
                     >
-                      {agent.lastEvent ? 'Archive agent' : 'Delete agent'}
+                      {agent.lastEvent ? 'Archive automation' : 'Delete automation'}
                     </button>
                   </div>
                 )}
@@ -234,6 +234,9 @@ export function AgentEditor({ workspaceId, agentId, timeZone, canManage, onBack,
         )}
       </div>
 
+      {agent.status === 'active' && editable && (
+        <p className="agents-live-note" role="note">Changes to this active automation may affect its next scheduled delivery.</p>
+      )}
       {actionError && <p className="agents-status agents-status-bad" role="alert">{errorText(actionError, 'Action failed.')}</p>}
       
 

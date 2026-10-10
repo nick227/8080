@@ -923,3 +923,5 @@
   padding: 2px 8px;
   font-size: 0.725rem;
 }
+
+.team-empty { padding: var(--space-lg) var(--space-md); color: var(--muted); text-align: center; }
