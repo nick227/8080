@@ -72,7 +72,7 @@ describe('team agents: catalog and lifecycle', () => {
       status: 'draft',
       destinations: ['email', 'internal_chat'],
       schedule: { repeat: 'daily', time: '08:00' },
-      include: ['activity', 'followUpsDue', 'agentFailures', 'inventoryAlerts'],
+      include: ['activity', 'tasks', 'followUpsDue', 'agentFailures', 'inventoryAlerts'],
       templateKey: 'team_brief',
       sender: { mode: 'platform', label: 'Send with 8080' },
       recipientCount: 2,
@@ -227,6 +227,34 @@ describe('team agents: delivery', () => {
     expect(preview.json().data.chat).toContain('Stage changes: 1 (Sarah Martinez · Qualified → Customer)')
     expect(preview.json().data.recipientCount).toBe(2)
     expect(await db.agentEvent.count()).toBe(0)
+  })
+
+  it('the team brief lists board tasks that are blocked, overdue or due today, with the board\'s rules', async () => {
+    const ws = await workspace()
+    const tasks = `${base(ws.id)}/tasks`
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: NY, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+    const carol = (await db.workspaceMember.findFirstOrThrow({ where: { workspaceId: ws.id, userId: carolId } })).id
+    const make = async (body: object) => (await call(testUserId, 'POST', tasks, body)).json().data
+    const late = await make({ title: 'Renew domain', dueDate: '2020-01-01', assigneeMemberId: carol })
+    await make({ title: 'Send invoices', dueDate: today })
+    const stuck = await make({ title: 'Vendor contract' })
+    await call(testUserId, 'POST', `${tasks}/${stuck.id}/block`, { reason: 'Waiting on legal' })
+    const finished = await make({ title: 'Old launch', dueDate: '2020-01-01' })
+    await call(testUserId, 'POST', `${tasks}/${finished.id}/move`, { status: 'done' }) // done never counts
+    await make({ title: 'Later', dueDate: '2099-01-01' })
+
+    const agent = await addAgent(ws.id)
+    const preview = (await call(carolId, 'GET', `${base(ws.id)}/agents/${agent.id}/preview`)).json().data
+    const section = preview.sections.find((s: any) => s.key === 'tasks')
+    expect(section.count).toBe(3)
+    expect(preview.text).toContain(`${stuck.taskKey} Vendor contract · blocked: Waiting on legal · unassigned`)
+    expect(preview.text).toContain(`${late.taskKey} Renew domain · overdue since Jan 1 · Carol`)
+    expect(preview.text).toContain('Send invoices · due today')
+    expect(preview.text).not.toContain('Old launch')
+    // Blocked first, then overdue, then due today.
+    expect(preview.text.indexOf('Vendor contract')).toBeLessThan(preview.text.indexOf('Renew domain'))
+    expect(preview.text.indexOf('Renew domain')).toBeLessThan(preview.text.indexOf('Send invoices'))
+    expect(preview.chat).toContain('Tasks needing attention: 3')
   })
 
   it('Send test emails only the caller, marked as a test, and creates no event or chat post', async () => {

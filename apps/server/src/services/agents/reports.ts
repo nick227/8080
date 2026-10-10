@@ -3,8 +3,11 @@
 // window ending at `at` (the event's scheduled time), so a report is reproducible.
 // AI is not involved.
 import { db, type Prisma, type Workspace } from '@project/db'
+import { isUrgent } from '@project/shared'
 import type { MessageLink } from '../../lib/choice'
-import { localDayBounds } from '../../lib/workspaceDay'
+import { localDayBounds, localDayKey } from '../../lib/workspaceDay'
+import { toAuthor } from '../../lib/serialize'
+import { loadWorkflow } from '../TaskWorkflowService'
 
 export type ReportSection = {
   key: string
@@ -60,6 +63,42 @@ async function importantActivity(ws: Workspace, at: Date): Promise<ReportSection
     db.activityEvent.findMany({ where, orderBy: { createdAt: 'desc' }, take: LINE_CAP, select: { title: true } }),
   ])
   return { key: 'activity', title: 'Important activity', count, lines: more(rows.map((r) => r.title), count), links: [] }
+}
+
+/**
+ * Board tasks that need someone today: blocked, overdue, due today. Same urgency
+ * definitions as the board's filters and reports; done tasks never count.
+ */
+async function tasksNeedingAttention(ws: Workspace, at: Date): Promise<ReportSection> {
+  const wf = await loadWorkflow(db, ws.id)
+  const today = localDayKey(at, ws.timezone)
+  const rows = await db.workTask.findMany({
+    where: { workspaceId: ws.id, deletedAt: null, OR: [{ blockedAt: { not: null } }, { dueDate: { not: null } }] },
+    select: { taskKey: true, title: true, status: true, dueDate: true, blockedAt: true, blockedReason: true, assignee: { select: { user: { include: { profile: true } } } } },
+  })
+  const ctx = { today, now: at.getTime(), isDone: wf.isDone }
+  type Row = (typeof rows)[number] & { due: string | null; why: string; order: number }
+  const found: Row[] = []
+  for (const t of rows) {
+    const due = t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null
+    const view = { status: t.status, dueDate: due, blocked: t.blockedAt }
+    const reasons: string[] = []
+    if (isUrgent(view, 'blocked', ctx)) reasons.push(t.blockedReason ? `blocked: ${t.blockedReason}` : 'blocked')
+    if (isUrgent(view, 'overdue', ctx)) reasons.push(`overdue since ${localDate(new Date(`${due}T12:00:00Z`), 'UTC')}`)
+    else if (due === today && !wf.isDone(t.status)) reasons.push('due today')
+    if (!reasons.length) continue
+    found.push({ ...t, due, why: reasons.join(' · '), order: t.blockedAt ? 0 : due! < today ? 1 : 2 })
+  }
+  // Blocked first, then the longest overdue, then due today.
+  found.sort((a, b) => a.order - b.order || (a.due ?? '').localeCompare(b.due ?? '') || a.taskKey.localeCompare(b.taskKey))
+  const shown = found.slice(0, LINE_CAP)
+  return {
+    key: 'tasks',
+    title: 'Tasks needing attention',
+    count: found.length,
+    lines: more(shown.map((t) => `${t.taskKey} ${t.title} · ${t.why} · ${t.assignee ? toAuthor(t.assignee.user).name : 'unassigned'}`), found.length),
+    links: [],
+  }
 }
 
 async function agentFailures(ws: Workspace, at: Date): Promise<ReportSection> {
@@ -169,6 +208,7 @@ async function needsAttention(ws: Workspace, at: Date): Promise<ReportSection> {
 
 export const BRIEF_SECTIONS: SectionDef[] = [
   { key: 'activity', label: 'Important activity', build: importantActivity },
+  { key: 'tasks', label: 'Tasks needing attention', build: tasksNeedingAttention },
   { key: 'followUpsDue', label: 'Follow-ups due', build: followUpsDue },
   { key: 'agentFailures', label: 'Agent failures', build: agentFailures },
   { key: 'inventoryAlerts', label: 'Inventory alerts', build: (ws) => inventoryAlerts(ws) },
