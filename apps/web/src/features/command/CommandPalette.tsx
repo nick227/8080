@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useMyWorkspaces } from '@project/sdk'
 import { chooseWorkspace, useCurrentWorkspace } from '../../app/workspace'
 import { useShell } from '../../state/shell'
@@ -41,7 +41,6 @@ export function CommandPalette() {
   const returnFocus = useRef<HTMLElement | null>(null)
   const openRef = useRef(false)
   const navigate = useNavigate()
-  const location = useLocation()
   const { workspace } = useCurrentWorkspace()
   const companies = useMyWorkspaces().data ?? []
 
@@ -81,11 +80,9 @@ export function CommandPalette() {
 
   const commands = useMemo<Command[]>(() => {
     const list: Command[] = []
-    const room = location.pathname.match(/^\/room\/[^/]+/)?.[0]
-    // In a room, desks open in place (its chat stays); elsewhere on the company's own page.
+    // Desks live on the company's page (its channel is in the rail there).
     const goDesk = (desk: Desk, extra: Record<string, string> = {}) => {
-      if (room) navigate({ pathname: room, search: new URLSearchParams({ desk, ...extra }).toString() })
-      else if (workspace) navigate({ pathname: desk === 'company' ? `/c/${workspace.id}` : `/c/${workspace.id}/${desk}`, search: new URLSearchParams(extra).toString() })
+      if (workspace) navigate({ pathname: desk === 'company' ? `/c/${workspace.id}` : `/c/${workspace.id}/${desk}`, search: new URLSearchParams(extra).toString() })
     }
     if (workspace) {
       for (const d of DESKS) {
@@ -93,7 +90,7 @@ export function CommandPalette() {
         const label = d.id === 'company' ? `${workspace.name} overview` : d.label
         list.push({ id: `desk:${d.id}`, label, hint: groupOf(d.id), words: `${label} ${SYNONYMS[d.id] ?? ''}`, run: () => goDesk(d.id) })
       }
-      if (!room) list.push({ id: 'conversations', label: `${workspace.name} conversations`, hint: 'Stream', words: 'conversations rooms stream channel chat', run: () => navigate(`/c/${workspace.id}/conversations`) })
+      list.push({ id: 'conversations', label: `${workspace.name} conversations`, hint: 'Stream', words: 'conversations rooms stream channel chat', run: () => navigate(`/c/${workspace.id}/conversations`) })
       list.push({ id: 'new-automation', label: 'New automation', hint: 'Automations', words: 'new automation create agent schedule email scheduled email newsletter team brief customer report', run: () => goDesk('agents', { add: '1' }) })
       for (const c of companies) {
         if (c.id === workspace.id) continue
@@ -103,7 +100,7 @@ export function CommandPalette() {
     list.push({ id: 'lobby', label: 'Lobby', hint: 'Conversations', words: 'lobby home conversations rooms stream', run: () => { navigate('/'); useShell.getState().showLobby() } })
     list.push({ id: 'account', label: 'Account', hint: 'You', words: 'account profile name avatar sign out settings', run: () => navigate('/account') })
     return list
-  }, [workspace, companies, location.pathname, navigate])
+  }, [workspace, companies, navigate])
 
   const shown = useMemo(() => {
     const terms = query.toLowerCase().split(/\s+/).filter(Boolean)

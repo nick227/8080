@@ -24,8 +24,10 @@ function lastDesk(group: (typeof NAV_GROUPS)[number]): Desk {
  * wide screens; narrow screens show only the active group's desks. Without a company
  * (guests, D8) only Stream is offered.
  */
-export function WorkNav({ desk, onSelect, layoutControl, streamLabel = 'Stream' }: {
+export function WorkNav({ desk, onSelect, layoutControl, streamLabel = 'Stream', compact = false }: {
   desk: Desk
+  /** Rooms: Work and Manage open the company page, so only their labels are shown. */
+  compact?: boolean
   layoutControl?: ReactNode
   onSelect: (desk: Desk) => void
   streamLabel?: string
@@ -69,7 +71,7 @@ export function WorkNav({ desk, onSelect, layoutControl, streamLabel = 'Stream' 
   }
 
   return (
-    <nav className="work-nav" aria-label="Workspace" data-desk={desk}>
+    <nav className="work-nav" aria-label="Workspace" data-desk={desk} data-compact={compact || undefined}>
       {workspace && (
         <>
           <button

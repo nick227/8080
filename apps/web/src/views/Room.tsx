@@ -23,7 +23,8 @@ import { CompanyProfilePanel } from '../features/profile/CompanyProfilePanel'
 import { TeamDesk } from '../features/team/TeamDesk'
 
 import type { Desk } from '../features/work/sections'
-import { useWorkPlace } from '../features/records/navigation'
+import { deskPath, useWorkPlace } from '../features/records/navigation'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { loadRoomView, saveRoomView, seatsFrom, type RoomView } from '../features/room/roomViews'
 import { ChatStream } from '../features/room/ChatStream'
 import { ChatBox } from '../features/room/ChatBox'
@@ -70,9 +71,18 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
     setView(next)
     saveRoomView(next)
   }
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { taskKey } = useParams()
+  const current = useCurrentWorkspace()
+  const workspace = current.workspace
+  // Work and Manage live on the company's page (redesign §4, Phase 2b); a room keeps its
+  // conversation. Task pages opened inside a room stay here (task keys repeat across
+  // companies, so a link can't name its company yet).
   const openPlace = (next: Desk) => {
-    setPlace(next)
-
+    const ws = current.workspace
+    if (next !== 'stream' && ws) navigate(deskPath(`/c/${ws.id}`, next))
+    else setPlace(next)
   }
 
   const roomItemsResult = useRoomItems(roomId)
@@ -147,10 +157,17 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   }
 
   const hostChannel = useHostChannel(roomId)
-  const current = useCurrentWorkspace()
-  const workspace = current.workspace
   // Guests and accounts without a company only get the conversation (D8).
   const shownPlace = !current.loading && !workspace ? 'stream' : place
+  // An old /room/:id?desk=… link: move to the company's page, keeping the rest of the query.
+  const toCompany = shownPlace !== 'stream' && !taskKey
+  useEffect(() => {
+    if (!toCompany || current.loading || !workspace) return
+    const next = new URLSearchParams(location.search)
+    next.delete('desk')
+    if (shownPlace === 'company') next.delete('view')
+    navigate({ pathname: deskPath(`/c/${workspace.id}`, shownPlace), search: next.toString() }, { replace: true, state: location.state })
+  }, [toCompany, current.loading, workspace, shownPlace, location.search, location.state, navigate])
   const { rows, catchUp, anchorId } = useChatRows({
     roomId,
     meId,
@@ -211,11 +228,13 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
         view={view}
         stage={(
           <div className="work-column">
-            <WorkNav desk={shownPlace} layoutControl={shownPlace === 'stream' ? <>{roomId && <RoomCompany roomId={roomId} />}<TeamLayoutMenu view={view} onChange={chooseView} /></> : undefined} onSelect={(next) => {
+            <WorkNav desk={shownPlace} compact layoutControl={shownPlace === 'stream' ? <>{roomId && <RoomCompany roomId={roomId} />}<TeamLayoutMenu view={view} onChange={chooseView} /></> : undefined} onSelect={(next) => {
               if (next === 'documents') useDocuments.getState().open(null)
               openPlace(next)
             }} />
-            {shownPlace === 'stream' ? (
+            {toCompany ? (
+              <p className="work-empty" role="status">Opening…</p>
+            ) : shownPlace === 'stream' ? (
               <RoomFloor
                 view={view}
                 seats={seatsFrom(people, meId, meGuest)}

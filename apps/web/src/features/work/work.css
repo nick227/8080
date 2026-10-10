@@ -83,6 +83,8 @@
 .work-nav-group-label:hover,
 .work-nav-group-label:focus-visible { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 .work-nav-stream { padding-left: var(--space-sm); border-left: var(--line-width) solid var(--line); }
+/* Rooms: Work and Manage open the company page; their labels are enough. */
+.work-nav[data-compact] .work-nav-group .work-nav-item { display: none; }
 /* Narrow screens: the group labels are the choice; only the active group lists its desks. */
 @media (max-width: 760px) {
   /* Line 1: company, group labels, Stream. Line 2: the current group's desks (scrolls). */
@@ -443,5 +445,6 @@
 .room-company a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; max-width: 24ch; overflow: hidden; text-overflow: ellipsis; }
 .room-company button { color: var(--muted); font-family: var(--mono); font-size: var(--text-label); letter-spacing: var(--tracking-label); text-transform: uppercase; }
 .room-company button:hover, .room-company button:focus-visible { color: var(--ink); }
+.room-visibility select { height: 24px; padding: 0 var(--space-xs); border: var(--input-border-width) var(--input-border-style) var(--input-border-color); border-radius: var(--input-radius); background: var(--input-bg); color: var(--input-color); font: inherit; font-size: var(--text-sm); }
 .room-company-error { color: var(--danger); font-size: var(--text-xs); }
 .company-conversations-body { padding: 0 var(--table-cell-padding-x) var(--space-2xl); overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-md); }
