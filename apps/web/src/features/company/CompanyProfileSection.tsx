@@ -15,27 +15,45 @@ type Profile = {
 type Form = {
   name: string
   purpose: string
+  companyName: string
+  companySlug: string
   location: string
   serviceArea: string
   brandVoice: string
   offerings: string
   customers: string
   differentiators: string
+  goals: string
 }
-const LISTS = { offerings: 'offering', customers: 'customer', differentiators: 'differentiator' } as const
+const LISTS = {
+  offerings: 'offering',
+  customers: 'customer',
+  differentiators: 'differentiator',
+  goals: 'goal',
+  companyName: 'company_name',
+  companySlug: 'company_slug',
+} as const
 const split = (text: string) => text.split(/[,;\n]/).map((v) => v.trim()).filter(Boolean)
+const sanitizeSlug = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9._-]/g, '')
 
 function formOf(p: Profile): Form {
   const list = (kind: string) => p.facts.filter((f) => f.kind === kind).map((f) => f.value).join(', ')
   return {
     name: p.name ?? '',
     purpose: p.purpose ?? '',
+    companyName: list('company_name'),
+    companySlug: list('company_slug'),
     location: p.location ?? '',
     serviceArea: p.serviceArea ?? '',
     brandVoice: p.brandVoice ?? '',
     offerings: list('offering'),
     customers: list('customer'),
     differentiators: list('differentiator'),
+    goals: list('goal'),
   }
 }
 
@@ -43,10 +61,18 @@ export function CompanyProfileSection({
   workspaceId,
   canEdit,
   onOpenChannel,
+  visibility,
+  onVisibilityChange,
+  updatingVisibility,
+  showVisibility = true,
 }: {
   workspaceId: string
   canEdit: boolean
   onOpenChannel?: () => void
+  visibility?: string
+  onVisibilityChange?: (visibility: 'public' | 'private') => void
+  updatingVisibility?: boolean
+  showVisibility?: boolean
 }) {
   const queryClient = useQueryClient()
   const key = ['company-profile', workspaceId]
@@ -95,7 +121,7 @@ export function CompanyProfileSection({
         await profile.refetch()
         setStatus('The profile was changed elsewhere and has been reloaded.')
       } else if (error instanceof ApiError && error.status === 403) {
-        setStatus('Only owners and admins can edit the company profile.')
+        setStatus('Only owners and admins can edit the project profile.')
       } else setStatus(error instanceof Error ? error.message : 'Couldn’t save.')
     } finally {
       setSaving(false)
@@ -104,65 +130,106 @@ export function CompanyProfileSection({
 
   return (
     <section className="company-group" aria-labelledby="company-profile-title">
-      <SectionHeader title="Profile" titleId="company-profile-title">
-        {onOpenChannel && (
-          <button type="button" className="section-add-btn" onClick={onOpenChannel}>
-            Setup with chatbot
-          </button>
-        )}
-      </SectionHeader>
       {!form ? (
         <p className="company-status" role="status">
-          {profile.isError ? 'Couldn’t load the company profile.' : 'Loading…'}
+          {profile.isError ? 'Couldn’t load the project profile.' : 'Loading…'}
         </p>
       ) : (
         <form className="company-form" onSubmit={(e) => void save(e)}>
-          <div className="record-form-fields">
-            <label>
-              <span>Company name</span>
-              <input value={form.name} disabled={!canEdit} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            </label>
-            <label>
-              <span>What the business does</span>
-              <textarea rows={3} value={form.purpose} disabled={!canEdit} onChange={(e) => setForm({ ...form, purpose: e.target.value })} />
-            </label>
-            <label>
-              <span>Location</span>
-              <input value={form.location} disabled={!canEdit} onChange={(e) => setForm({ ...form, location: e.target.value })} />
-            </label>
-            <label>
-              <span>Where it works</span>
-              <select value={form.serviceArea} disabled={!canEdit} onChange={(e) => setForm({ ...form, serviceArea: e.target.value })}>
-                <option value="">Not set</option>
-                <option value="local">Local</option>
-                <option value="regional">Regional</option>
-                <option value="national">National</option>
-                <option value="global">Global</option>
-              </select>
-            </label>
-            <label>
-              <span>Products and services</span>
-              <input value={form.offerings} disabled={!canEdit} onChange={(e) => setForm({ ...form, offerings: e.target.value })} placeholder="Separate with commas" />
-            </label>
-            <label>
-              <span>Customers</span>
-              <input value={form.customers} disabled={!canEdit} onChange={(e) => setForm({ ...form, customers: e.target.value })} placeholder="Separate with commas" />
-            </label>
-            <label>
-              <span>What sets it apart</span>
-              <input value={form.differentiators} disabled={!canEdit} onChange={(e) => setForm({ ...form, differentiators: e.target.value })} placeholder="Separate with commas" />
-            </label>
-            <label>
-              <span>Tone for documents</span>
-              <select value={form.brandVoice} disabled={!canEdit} onChange={(e) => setForm({ ...form, brandVoice: e.target.value })}>
-                <option value="">Not set</option>
-                <option value="professional">Professional</option>
-                <option value="friendly">Friendly</option>
-                <option value="bold">Bold</option>
-                <option value="technical">Technical</option>
-              </select>
-            </label>
+          <div className="company-section-block">
+            <SectionHeader title="Project Definition" titleId="company-profile-title">
+              {onOpenChannel && (
+                <button type="button" className="section-add-btn" onClick={onOpenChannel}>
+                  Setup with chatbot
+                </button>
+              )}
+            </SectionHeader>
+            <div className="record-form-fields">
+              <label>
+                <span>Project name</span>
+                <input value={form.name} disabled={!canEdit} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              </label>
+              {showVisibility && (
+                <label>
+                  <span>Project visibility</span>
+                  <select
+                    value={visibility ?? 'public'}
+                    disabled={!canEdit || updatingVisibility}
+                    onChange={(e) => onVisibilityChange?.(e.target.value as 'public' | 'private')}
+                  >
+                    <option value="public">Public Project</option>
+                    <option value="private">Private Project</option>
+                  </select>
+                </label>
+              )}
+              <label className="company-full-width">
+                <span>Project goals & objectives</span>
+                <textarea rows={3} value={form.purpose} disabled={!canEdit} onChange={(e) => setForm({ ...form, purpose: e.target.value })} placeholder="Key goals, scope, and objectives" />
+              </label>
+            </div>
           </div>
+
+          <div className="company-section-block">
+            <SectionHeader title="Company Profile" titleId="company-details-title" />
+            <div className="record-form-fields">
+              <label>
+                <span>Company name</span>
+                <input
+                  value={form.companyName}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                  placeholder="e.g. Acme Corporation"
+                />
+              </label>
+              <label>
+                <span>Company slug</span>
+                <input
+                  value={form.companySlug}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({ ...form, companySlug: sanitizeSlug(e.target.value) })}
+                  placeholder="e.g. acme-corp"
+                />
+                <span className="company-field-hint">Used in domains and emails (lowercase, no spaces)</span>
+              </label>
+              <label>
+                <span>Company deliverables & services</span>
+                <input value={form.offerings} disabled={!canEdit} onChange={(e) => setForm({ ...form, offerings: e.target.value })} placeholder="Separate with commas" />
+              </label>
+              <label>
+                <span>Company target audience & stakeholders</span>
+                <input value={form.customers} disabled={!canEdit} onChange={(e) => setForm({ ...form, customers: e.target.value })} placeholder="Separate with commas" />
+              </label>
+              <label>
+                <span>Company strategic advantages</span>
+                <input value={form.differentiators} disabled={!canEdit} onChange={(e) => setForm({ ...form, differentiators: e.target.value })} placeholder="Separate with commas" />
+              </label>
+              <label>
+                <span>Company location</span>
+                <input value={form.location} disabled={!canEdit} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+              </label>
+              <label>
+                <span>Company scale & scope</span>
+                <select value={form.serviceArea} disabled={!canEdit} onChange={(e) => setForm({ ...form, serviceArea: e.target.value })}>
+                  <option value="">Not set</option>
+                  <option value="local">Local</option>
+                  <option value="regional">Regional</option>
+                  <option value="national">National</option>
+                  <option value="global">Global</option>
+                </select>
+              </label>
+              <label>
+                <span>Company tone & communication voice</span>
+                <select value={form.brandVoice} disabled={!canEdit} onChange={(e) => setForm({ ...form, brandVoice: e.target.value })}>
+                  <option value="">Not set</option>
+                  <option value="professional">Professional</option>
+                  <option value="friendly">Friendly</option>
+                  <option value="bold">Bold</option>
+                  <option value="technical">Technical</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
           {canEdit && (
             <footer>
               <span role="status">{status}</span>

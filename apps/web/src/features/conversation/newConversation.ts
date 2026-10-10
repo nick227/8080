@@ -19,7 +19,7 @@ export const THUMB_ACCEPT = THUMB_TYPES.join(',')
 export function thumbFileProblem(file: File): string | null {
   if (THUMB_TYPES.includes(file.type)) return null
   if (/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name)) return 'HEIC photos aren’t supported yet — choose a JPEG or PNG (on iPhone: Settings → Camera → Formats → Most Compatible).'
-  return 'Choose a JPEG, PNG, GIF or WebP image for the conversation.'
+  return 'Choose a JPEG, PNG, GIF or WebP image for the project.'
 }
 
 /** What a draft's own attachments can offer as a thumbnail (image or YouTube). Videos get a still elsewhere. */
@@ -56,6 +56,27 @@ const draftKey = (opening: SendInput): unknown[] => [
   ...(opening.media ?? []).map((m) => (isLocalMedia(m) ? m.file : isYouTubeDraft(m) ? m.url : m.id)),
 ]
 const sameKey = (a: unknown[] | undefined, b: unknown[]) => !!a && a.length === b.length && a.every((v, i) => v === b[i])
+
+export async function createProjectOnly(details: ConversationDetails): Promise<Room> {
+  let thumbnailId: string | undefined = undefined
+  if (details.thumb) {
+    if (details.thumb.kind === 'file') {
+      thumbnailId = (await uploadMedia({ file: details.thumb.file, type: 'image', name: 'thumbnail' })).id
+    }
+  }
+  const client = getApiClient()
+  const room = unwrap(
+    await client.POST('/rooms', {
+      body: {
+        title: details.title.trim(),
+        description: details.description.trim(),
+        thumbnailId,
+        visibility: 'public',
+      },
+    }),
+  ).data
+  return room
+}
 
 export async function createConversation(details: ConversationDetails, opening: SendInput, progress: Progress): Promise<Room> {
   // A different take since the last attempt: its uploads don't apply (and an

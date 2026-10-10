@@ -299,7 +299,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
             ) : place === 'calendar' ? (
               <CalendarPage />
             ) : (
-              <WorkPage place={place} roomId={roomId} onPlace={openPlace} />
+              <WorkPage place={place} roomId={roomId} onPlace={openPlace} onOpenComposer={() => { openPlace('team'); openRecord(); }} />
             )}
           </div>
         )}

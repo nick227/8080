@@ -58,29 +58,29 @@ export function Lobby() {
     <div className="lobby-body">
       <div className="lobby-head">
         <button type="button" className="lobby-pill" onClick={() => void start()}>
-          NEW CONVERSATION
+          NEW PROJECT
         </button>
       </div>
 
-      {isError && <p className="lobby-note lobby-note-error">Failed to load conversations</p>}
+      {isError && <p className="lobby-note lobby-note-error">Failed to load projects</p>}
       {deleteError && <p className="lobby-note lobby-note-error">{deleteError}</p>}
       {isLoading && !isError && <p className="lobby-note">Loading…</p>}
 
       {!isLoading && !isError && (
         <>
-          <section className="lobby-section" aria-label="Your conversations">
+          <section className="lobby-section" aria-label="Your projects">
             <p className="lobby-kicker">Yours</p>
             {myList.length === 0 ? (
-              <p className="lobby-note">You're not in any conversations yet.</p>
+              <p className="lobby-note">You're not in any projects yet.</p>
             ) : (
               <div className="conv-grid">{myList.map(renderCard)}</div>
             )}
           </section>
 
-          <section className="lobby-section" aria-label="Public conversations">
+          <section className="lobby-section" aria-label="Public projects">
             <p className="lobby-kicker">Public</p>
             {publicList.length === 0 ? (
-              <p className="lobby-note">No other public conversations.</p>
+              <p className="lobby-note">No other public projects.</p>
             ) : (
               <div className="conv-grid">{publicList.map(renderCard)}</div>
             )}

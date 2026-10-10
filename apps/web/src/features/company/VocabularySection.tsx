@@ -21,7 +21,15 @@ type StageDraft = {
   system: boolean
 }
 
-export function VocabularySection({ workspaceId, canEdit }: { workspaceId: string; canEdit: boolean }) {
+export function VocabularySection({
+  workspaceId,
+  canEdit,
+  inSlideout = false,
+}: {
+  workspaceId: string
+  canEdit: boolean
+  inSlideout?: boolean
+}) {
   const vocab = useWorkspaceVocabulary(workspaceId)
   const updatePipeline = useUpdatePipeline(workspaceId)
   const createCategory = useCreateCategory(workspaceId)
@@ -58,18 +66,12 @@ export function VocabularySection({ workspaceId, canEdit }: { workspaceId: strin
     }
   }
 
-  return (
-    <section className="company-group" aria-labelledby="company-vocab-title">
-      <SectionHeader title="Vocabulary" titleId="company-vocab-title">
-        {status && <span className="company-status" role="status">{status}</span>}
-      </SectionHeader>
-
-      {!data ? (
-        <p className="company-status" role="status">
-          {vocab.isError ? 'Couldn’t load vocabulary.' : 'Loading…'}
-        </p>
-      ) : (
-        <div className="company-vocab">
+  const content = !data ? (
+    <p className="company-status" role="status" style={inSlideout ? { padding: 'var(--space-lg)' } : undefined}>
+      {vocab.isError ? 'Couldn’t load vocabulary.' : 'Loading…'}
+    </p>
+  ) : (
+    <div className="company-vocab" style={inSlideout ? { padding: 'var(--space-lg)' } : undefined}>
           <div className="company-vocab-block">
             <h3>Pipeline stages</h3>
             <ul className="company-vocab-list">
@@ -309,7 +311,23 @@ export function VocabularySection({ workspaceId, canEdit }: { workspaceId: strin
             )}
           </div>
         </div>
-      )}
+      )
+
+  if (inSlideout) {
+    return (
+      <div className="company-vocab-slideout-shell" style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+        {status && <span className="company-status" role="status" style={{ padding: 'var(--space-md) var(--space-lg) 0' }}>{status}</span>}
+        {content}
+      </div>
+    )
+  }
+
+  return (
+    <section className="company-group" aria-labelledby="company-vocab-title">
+      <SectionHeader title="Vocabulary" titleId="company-vocab-title">
+        {status && <span className="company-status" role="status">{status}</span>}
+      </SectionHeader>
+      {content}
     </section>
   )
 }

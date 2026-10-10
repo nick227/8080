@@ -1,6 +1,10 @@
+import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useMyWorkspaces, useOpenWorkspaceChannel } from '@project/sdk'
+import { useMyWorkspaces, useRoom, useUpdateRoom } from '@project/sdk'
+import { BookIcon } from '../../components/icons'
+import { useUI } from '../../state/ui'
 import { RecordGallery } from '../records/RecordGallery'
+import { FormSlideout } from '../work/FormSlideout'
 import { SectionHeader } from '../work/SectionHeader'
 import type { Desk } from '../work/sections'
 import { CompanyProfileSection } from './CompanyProfileSection'
@@ -11,13 +15,19 @@ import { applyDeskLink, type DeskLink } from './links'
 import '../records/records.css'
 import './company.css'
 
-export function CompanyDesk({ onPlace }: { onPlace?: (desk: Desk) => void }) {
+export function CompanyDesk({ roomId, onPlace }: { roomId?: string; onPlace?: (desk: Desk) => void; onOpenComposer?: () => void }) {
+  const ui = useUI()
   const workspace = useMyWorkspaces().data?.[0] ?? null
   const workspaceId = workspace?.id
   const canEdit = workspace?.role === 'owner' || workspace?.role === 'admin'
-  const openChannel = useOpenWorkspaceChannel()
   const navigate = useNavigate()
   const location = useLocation()
+  const [vocabOpen, setVocabOpen] = useState(false)
+
+  const roomQuery = useRoom(roomId ?? '')
+  const updateRoom = useUpdateRoom(roomId ?? '')
+  const room = roomId ? roomQuery.data : null
+  const visibility = room?.visibility ?? 'public'
 
   const go = (link: DeskLink) => {
     applyDeskLink(link, (desk) => onPlace?.(desk), (params) => {
@@ -25,38 +35,57 @@ export function CompanyDesk({ onPlace }: { onPlace?: (desk: Desk) => void }) {
     })
   }
 
-  const openHost = () => {
-    if (!workspaceId) return
-    void openChannel.mutateAsync(workspaceId).then(({ roomId }) => {
-      if (roomId) navigate(`/room/${roomId}`)
+  const handleVisibilityChange = (next: 'public' | 'private') => {
+    if (!roomId) return
+    void updateRoom.mutateAsync({ visibility: next }).catch((err: unknown) => {
+      ui.setError(err instanceof Error ? err.message : 'Could not change project visibility')
     })
   }
 
   if (!workspaceId) {
-    return <p className="work-empty">Join or create a workspace to see company settings.</p>
+    return <p className="work-empty">Join or create a workspace to see project details.</p>
   }
 
   return (
     <div className="company">
-      <SectionHeader title="Company" titleId="company-title" level={1}>
-        <button type="button" className="section-add-btn" disabled={openChannel.isPending} onClick={openHost}>
-          Host channel
+      <SectionHeader title="Project Overview" titleId="company-title" level={1}>
+        <button
+          type="button"
+          className="vocab-icon-btn"
+          onClick={() => setVocabOpen(true)}
+          title="Open Workspace Vocabulary"
+          aria-label="Vocabulary"
+        >
+          <BookIcon />
+          <span>Vocabulary</span>
         </button>
       </SectionHeader>
 
       <div className="company-split">
         <div className="company-col company-col-profile">
-          <CompanyProfileSection workspaceId={workspaceId} canEdit={!!canEdit} onOpenChannel={openHost} />
+          <CompanyProfileSection
+            workspaceId={workspaceId}
+            canEdit={!!canEdit}
+            visibility={visibility}
+            onVisibilityChange={handleVisibilityChange}
+            updatingVisibility={updateRoom.isPending}
+            showVisibility={!!roomId}
+          />
           <div className="company-gallery">
-            <RecordGallery workspaceId={workspaceId} kind="company" recordId={workspaceId} name={workspace?.name ?? 'Company'} />
+            <RecordGallery workspaceId={workspaceId} kind="company" recordId={workspaceId} name={workspace?.name ?? 'Project'} />
           </div>
         </div>
         <div className="company-col company-col-side">
           <OverviewSection workspaceId={workspaceId} onLink={go} />
-          <VocabularySection workspaceId={workspaceId} canEdit={!!canEdit} />
           <IntegrationsSection workspaceId={workspaceId} canEdit={!!canEdit} />
         </div>
       </div>
+
+      {vocabOpen && (
+        <FormSlideout title="Workspace Vocabulary" onClose={() => setVocabOpen(false)}>
+          <VocabularySection workspaceId={workspaceId} canEdit={!!canEdit} inSlideout />
+        </FormSlideout>
+      )}
     </div>
   )
 }

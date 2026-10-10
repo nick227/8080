@@ -32,7 +32,7 @@ export function useWorkPlace() {
   const location = useLocation()
   const navigate = useNavigate()
   const requested = new URLSearchParams(location.search).get('desk')
-  const place: Desk = DESKS.some((d) => d.id === requested) ? (requested as Desk) : 'team'
+  const place: Desk = DESKS.some((d) => d.id === requested) ? (requested as Desk) : 'company'
   useEffect(() => {
     // Inspecting a related record must not replace the other area's working session.
     if ((location.state as RecordNavigationState | null)?.origin) return

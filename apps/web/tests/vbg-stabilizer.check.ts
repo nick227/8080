@@ -4,10 +4,13 @@ import { createStabilizer } from '../src/features/vbg/stabilizer'
 let now = 2000
 Object.defineProperty(globalThis, 'performance', { value: { now: () => now } })
 Object.defineProperty(globalThis, 'document', { value: {
-  createElement: () => ({ width: 0, height: 0, getContext: () => ({
-    createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
-    putImageData: () => {},
-  }) }),
+  createElement: () => {
+    const element = { width: 0, height: 0, pixels: new Uint8ClampedArray(), getContext: () => ({
+      createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
+      putImageData: (image: { data: Uint8ClampedArray }) => { element.pixels = image.data },
+    }) }
+    return element
+  },
 } })
 const w = 32, h = 40
 const person = () => {
@@ -46,3 +49,27 @@ function scenario(fps: number) {
 }
 for (const fps of [10, 15, 30, 60]) scenario(fps)
 console.log('VBG stability checks passed at 10, 15, 30 and 60 masks/s')
+
+// A translating head must not retain its old location as a second silhouette.
+for (const fps of [15, 30, 60]) {
+  const stabilizer = createStabilizer({}, true)
+  let t = 1
+  stabilizer.update({ data: person(), width: w, height: h }, t)
+  const moved = new Float32Array(w * h)
+  for (let y = 4; y < 36; y++) for (let x = 14; x < 26; x++) moved[y * w + x] = 1
+  stabilizer.update({ data: moved, width: w, height: h }, t += 1000 / fps)
+  assert.ok(stabilizer.confidence()![8 * w + 10]! < 0.01, 'old head position must clear on translation')
+  assert.ok(stabilizer.confidence()![8 * w + 24]! > 0.99, 'new head position must acquire immediately')
+  // Persistent ambiguous background must stop inheriting old opaque alpha.
+  const ambiguous = new Float32Array(w * h).fill(0.4)
+  for (let frame = 0; frame < fps; frame++) stabilizer.update({ data: ambiguous, width: w, height: h }, t += 1000 / fps)
+  assert.ok(stabilizer.confidence()![8 * w + 16]! < 0.1, 'mid-band evidence cannot preserve an opaque ghost indefinitely')
+}
+console.log('Motion and uncertain-background ghost regression checks passed')
+
+const border = createStabilizer({}, true)
+border.update({ data: person(), width: w, height: h }, 1)
+const rendered = (border.alpha as unknown as { pixels: Uint8ClampedArray }).pixels
+assert.equal(rendered[(8 * w + 9) * 4 + 3], 0, 'no added halo outside the model silhouette')
+assert.equal(rendered[(8 * w + 10) * 4 + 3], 255, 'do not erode the foreground boundary')
+console.log('Rendered silhouette has no dilation halo or erosion')
