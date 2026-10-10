@@ -151,3 +151,13 @@ export function useUpdateTaskStatuses(workspaceId: string) {
     onSuccess: (data) => queryClient.setQueryData(keys.taskStatuses(workspaceId), data),
   })
 }
+
+/** Board reports; refetched when tasks change (live) and on focus. */
+export function useTaskReport(workspaceId: string | undefined, weeks: number) {
+  return useQuery({
+    queryKey: [...keys.tasks(workspaceId ?? ''), 'report', weeks],
+    enabled: !!workspaceId,
+    queryFn: async () => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/tasks/report', { ...path(workspaceId!), params: { path: { workspaceId: workspaceId! }, query: { weeks } } })).data,
+    placeholderData: (previous) => previous,
+  })
+}

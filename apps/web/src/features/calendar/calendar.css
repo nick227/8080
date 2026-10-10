@@ -2236,3 +2236,53 @@
 @media (max-width: 640px) { .cal-workflow-list li { grid-template-columns: auto 1fr; } }
 .cal-workflow .cal-dialog-sub { margin: var(--space-xs) 0 0; font-size: var(--text-sm); color: var(--muted); line-height: 1.45; }
 .cal-workflow h2 { margin: 0; }
+
+/* Reports. Chart colors are validated categorical slots (dataviz reference
+   palette) per theme; text always uses text tokens, never a series color. */
+.cal-reports { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-md); display: flex; flex-direction: column; gap: var(--space-md);
+  --viz-1: #3987e5; --viz-2: #d95926; --viz-3: #199e70; --viz-surface: var(--surface-deep); }
+:where([data-theme="light"]) .cal-reports { --viz-1: #2a78d6; --viz-2: #eb6834; --viz-3: #1baf7a; }
+.cal-reports[data-loading] .cal-reports-grid, .cal-reports[data-loading] .cal-tiles { opacity: 0.6; transition: opacity 0.2s; }
+.cal-reports-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.cal-reports-filters .cal-view-count { margin-left: auto; }
+.cal-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: var(--space-sm); }
+.cal-tile { display: flex; flex-direction: column; gap: 2px; padding: var(--space-sm) var(--space-md); border: var(--line-width) solid var(--line); border-radius: var(--input-radius); background: var(--surface-highlight); }
+.cal-tile-label { font-size: var(--text-label); color: var(--muted); }
+.cal-tile-value { font-size: 1.75rem; font-weight: 600; color: var(--ink); line-height: 1.2; }
+.cal-tile-note { font-size: var(--text-label); color: var(--muted); }
+.cal-reports-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); gap: var(--space-md); }
+.cal-chart-card { min-width: 0; display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-md); border: var(--line-width) solid var(--line); border-radius: var(--input-radius); background: var(--surface-highlight); }
+.cal-chart-card header { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-sm); }
+.cal-chart-card h3 { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-bold); color: var(--ink); }
+.cal-chart-card header p { margin: 2px 0 0; font-size: var(--text-label); color: var(--muted); }
+.cal-viz { position: relative; width: 100%; }
+.cal-viz svg { display: block; overflow: visible; }
+.viz-grid { stroke: var(--line); stroke-width: 1; shape-rendering: crispEdges; }
+.viz-baseline { stroke: var(--line-strong, var(--muted)); stroke-width: 1; shape-rendering: crispEdges; }
+.viz-axis { fill: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.viz-label { fill: var(--ink); font-size: 11px; font-weight: 600; }
+.viz-bar { fill: var(--viz-1); }
+.viz-bar[data-hover] { filter: brightness(1.15); }
+.viz-hit { fill: transparent; outline: none; cursor: crosshair; }
+.viz-hit:focus-visible { stroke: var(--ink); stroke-width: 1; }
+.viz-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.viz-line.viz-s1 { stroke: var(--viz-1); } .viz-line.viz-s2 { stroke: var(--viz-2); }
+.viz-dot { stroke: var(--viz-surface); stroke-width: 2; }
+.viz-dot.viz-s1 { fill: var(--viz-1); } .viz-dot.viz-s2 { fill: var(--viz-2); }
+.viz-area { stroke: var(--surface-highlight); stroke-width: 2; stroke-linejoin: round; fill-opacity: 0.85; }
+.viz-area.viz-s1 { fill: var(--viz-1); } .viz-area.viz-s2 { fill: var(--viz-2); } .viz-area.viz-s3 { fill: var(--viz-3); }
+.viz-crosshair { stroke: var(--muted); stroke-width: 1; shape-rendering: crispEdges; }
+.cal-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-md); font-size: var(--text-label); color: var(--ink); }
+.cal-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.viz-key-line { display: inline-block; width: 14px; height: 2px; border-radius: 1px; }
+.viz-key-rect { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.viz-key-line.viz-s1, .viz-key-rect.viz-s1 { background: var(--viz-1); }
+.viz-key-line.viz-s2, .viz-key-rect.viz-s2 { background: var(--viz-2); }
+.viz-key-rect.viz-s3 { background: var(--viz-3); }
+.cal-viz-tip { position: absolute; pointer-events: none; z-index: 5; min-width: 9rem; padding: var(--space-xs) var(--space-sm); background: var(--surface-deep); border: var(--line-width) solid var(--line); border-radius: var(--input-radius); box-shadow: 0 6px 18px rgb(0 0 0 / 0.25); font-size: var(--text-label); color: var(--muted); }
+.cal-viz-tip strong { color: var(--ink); font-size: var(--text-sm); }
+.cal-viz-tip-row { display: flex; align-items: center; gap: 6px; }
+.cal-chart-table { overflow-x: auto; }
+.cal-chart-table table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.cal-chart-table th { text-align: left; font-weight: normal; font-size: var(--text-label); color: var(--muted); padding: 4px var(--space-sm); border-bottom: var(--line-width) solid var(--line); }
+.cal-chart-table td { padding: 4px var(--space-sm); border-bottom: var(--line-width) solid var(--line); color: var(--ink); font-variant-numeric: tabular-nums; }

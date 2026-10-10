@@ -506,4 +506,47 @@ describe('tasks', () => {
     expect((await call(testUserId, 'PUT', wfUrl, { statuses: [{ key: 'open', label: 'Same', category: 'todo' }, { key: 'done', label: 'same', category: 'done' }], reassign: { in_progress: 'open', shipped: 'done' } })).json().code).toBe('INVALID_WORKFLOW')
     expect(await crossWorkspaceViolations()).toEqual({})
   })
+
+  it('report: throughput by week, cycle time from start to done, cumulative flow, open work, urgency', async () => {
+    const { ws, base, carol } = await setup()
+    const url = `/workspaces/${ws.id}/tasks/report?weeks=2`
+    const a = await create(base, { title: 'A', assigneeMemberId: carol })
+    const b = await create(base, { title: 'B', dueDate: '2020-01-01' })
+    await create(base, { title: 'C', status: 'in_progress', assigneeMemberId: carol })
+    await call(testUserId, 'POST', `${base}/${b.id}/block`, { reason: 'Vendor' })
+    // A: started, then done 10 hours later.
+    await call(testUserId, 'POST', `${base}/${a.id}/move`, { status: 'in_progress' })
+    await call(testUserId, 'POST', `${base}/${a.id}/move`, { status: 'done' })
+    const moves = await db.activity.findMany({ where: { taskId: a.id, type: 'task.moved' }, orderBy: { occurredAt: 'asc' } })
+    const end = moves[1]!.occurredAt
+    await db.activity.update({ where: { id: moves[0]!.id }, data: { occurredAt: new Date(end.getTime() - 10 * 3_600_000) } })
+
+    const res = await call(testUserId, 'GET', url)
+    expect(res.statusCode).toBe(200)
+    await validateResponse('getTaskReport', 200, res.json())
+    const r = res.json().data
+    expect(r.range.weeks).toBe(2)
+    expect(r.throughput).toHaveLength(2)
+    expect(r.throughput.at(-1).done).toBe(1)
+    expect(r.done).toEqual({ thisPeriod: 1, previousPeriod: 0 })
+    expect(r.cycleTime.samples).toBe(1)
+    expect(r.cycleTime.medianHours).toBeCloseTo(10, 0)
+    expect(r.now).toMatchObject({ todo: 1, doing: 1, overdue: 1, blocked: 1 })
+    // Today's flow matches the board: B to do, C doing, A done.
+    expect(r.flow.at(-1)).toMatchObject({ todo: 1, doing: 1, done: 1 })
+    const carolRow = r.people.find((p: any) => p.name === 'Carol')
+    expect(carolRow).toMatchObject({ doing: 1, todo: 0 })
+    expect(r.people.find((p: any) => p.name === 'Unassigned')).toMatchObject({ todo: 1, blocked: 1, overdue: 1 })
+
+    // A custom done status counts as done in the report too.
+    await call(testUserId, 'PUT', `/workspaces/${ws.id}/task-statuses`, { statuses: [
+      { key: 'open', label: 'To do', category: 'todo' }, { key: 'in_progress', label: 'In progress', category: 'doing' },
+      { key: 'in_review', label: 'In review', category: 'doing' }, { key: 'done', label: 'Done', category: 'done' }, { label: 'Shipped', category: 'done' },
+    ] })
+    const c2 = await create(base, { title: 'D' })
+    await call(testUserId, 'POST', `${base}/${c2.id}/move`, { status: 'shipped' })
+    const r2 = (await call(testUserId, 'GET', url)).json().data
+    expect(r2.throughput.at(-1).done).toBe(2)
+    expect((await call(testUserId, 'GET', `/workspaces/${ws.id}/tasks/report?weeks=99`)).statusCode).toBe(400)
+  })
 })

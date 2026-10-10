@@ -4,6 +4,7 @@ import { TaskService } from '../services/TaskService'
 import { WorkLogService } from '../services/WorkLogService'
 import { ChecklistService } from '../services/ChecklistService'
 import { TaskWorkflowService } from '../services/TaskWorkflowService'
+import { taskReport } from '../services/taskReport'
 import { joinTaskStream, type TaskFrame } from '../services/taskStream'
 import { authorize } from '../services/workspacePolicy'
 
@@ -169,4 +170,9 @@ export async function listTaskStatuses(request: any, reply: any) {
 
 export async function updateTaskStatuses(request: any, reply: any) {
   return reply.send(await workflow.update(ctx(request), request.params.workspaceId, request.body))
+}
+
+export async function getTaskReport(request: any, reply: any) {
+  const weeks = request.query?.weeks !== undefined ? Number(request.query.weeks) : undefined
+  return reply.send({ data: await taskReport(request.user.id, request.params.workspaceId, { weeks }) })
 }

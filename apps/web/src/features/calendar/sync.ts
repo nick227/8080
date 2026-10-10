@@ -45,9 +45,16 @@ export function useTaskSync() {
       setLive('live')
       if (!read(e).replayed) reconcile()
     })
+    // An open Reports view refreshes after a burst of changes settles (not per event).
+    let reportTimer: ReturnType<typeof setTimeout> | undefined
+    const refreshReport = () => {
+      clearTimeout(reportTimer)
+      reportTimer = setTimeout(() => void queryClient.invalidateQueries({ queryKey: [...keys.tasks(workspaceId), 'report'] }), 1500)
+    }
     source.addEventListener('task.changed', (e) => {
       const d = read(e)
       if (!d.taskId) return
+      refreshReport()
       applyServer(d.taskId, d.task ?? null)
       // An open panel's comments and history for that task.
       void queryClient.invalidateQueries({ queryKey: [...keys.tasks(workspaceId), d.taskId] })
@@ -61,6 +68,7 @@ export function useTaskSync() {
     source.addEventListener('reset', reconcile)
     source.onerror = () => setLive('reconnecting')
     return () => {
+      clearTimeout(reportTimer)
       source.close()
       setLive('connecting')
     }

@@ -20,7 +20,7 @@ export const LOCAL_TASKS_KEY = 'vc-tasks'
 export const LOCAL_LOGS_KEY = 'vc-accomplishments'
 const RANK_STEP = 1024
 
-export type View = 'month' | 'day' | 'list' | 'board' | 'table' | 'backlog'
+export type View = 'month' | 'day' | 'list' | 'board' | 'table' | 'backlog' | 'reports'
 
 export type Filters = {
   /** WorkspaceMember ids; 'unassigned' matches tasks without one. */

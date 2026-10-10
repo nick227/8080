@@ -11,6 +11,7 @@ import { ListView } from './ListView'
 import { BoardView } from './BoardView'
 import { BacklogView } from './BacklogView'
 import { TableView } from './TableView'
+import { ReportsView } from './ReportsView'
 import { NewTaskSlideout } from './NewTaskSlideout'
 import { LogAccomplishmentModal } from './LogAccomplishmentModal'
 import { TicketPage } from './TicketPage'
@@ -31,6 +32,7 @@ const VIEWS: { id: View; label: string }[] = [
   { id: 'board', label: 'Board' },
   { id: 'table', label: 'Table' },
   { id: 'backlog', label: 'Backlog' },
+  { id: 'reports', label: 'Reports' },
 ]
 
 // View and filters are part of the address, so a filtered board can be shared.
@@ -255,7 +257,7 @@ function Calendar({ workspaceId, canManage }: { workspaceId: string; canManage: 
             <button type="button" className="cal-btn" aria-label={view === 'day' ? 'Next day' : 'Next month'} onClick={() => view === 'day' ? showDay(dayKey(addDays(parseDay(cursor), 1))) : shiftMonth(1)}>→</button>
             <h2 className="cal-period">{title}</h2>
             <button type="button" className="cal-btn" aria-pressed={onToday} onClick={goToday}>Today</button>
-          </div> : <h2 className="cal-period">{view === 'backlog' ? 'Open tasks · all dates' : view === 'table' ? 'Table · all tasks' : 'Board · all tasks'}</h2>}
+          </div> : <h2 className="cal-period">{view === 'backlog' ? 'Open tasks · all dates' : view === 'table' ? 'Table · all tasks' : view === 'reports' ? 'Reports' : 'Board · all tasks'}</h2>}
           <span className="cal-live" data-state={sync.live} role="status" title={sync.live === 'live' ? 'Changes from teammates appear as they happen' : 'Reconnecting; changes appear when the connection is back'}>
             {sync.live === 'live' ? 'Live' : sync.live === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}
           </span>
@@ -267,7 +269,8 @@ function Calendar({ workspaceId, canManage }: { workspaceId: string; canManage: 
             </div>
           </div>
         </header>
-        <CalendarFilters ref={searchRef} count={filteredTasks.length} total={scopedTasks.length} scoped={scopedTasks} />
+        {/* Reports cover the whole workspace; they have their own date range. */}
+        {view !== 'reports' && <CalendarFilters ref={searchRef} count={filteredTasks.length} total={scopedTasks.length} scoped={scopedTasks} />}
 
         {sync.error && !loaded ? (
           <p className="cal-board-note" role="alert">
@@ -308,6 +311,8 @@ function Calendar({ workspaceId, canManage }: { workspaceId: string; canManage: 
           />
         ) : view === 'table' ? (
           <TableView tasks={filteredTasks} onSelectTask={openTicket} filtersOn={filtersActive(filters)} onClearFilters={clearFilters} />
+        ) : view === 'reports' ? (
+          <ReportsView workspaceId={workspaceId} />
         ) : view === 'backlog' ? (
           <BacklogView tasks={filteredTasks} onSelectTask={openTicket} onUpdateStatus={updateTaskStatus} />
         ) : (
