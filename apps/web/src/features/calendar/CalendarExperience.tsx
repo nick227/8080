@@ -35,6 +35,13 @@ const VIEWS: { id: View; label: string }[] = [
   { id: 'reports', label: 'Reports' },
 ]
 
+type TaskSection = 'calendar' | 'board' | 'table'
+const SECTION_VIEWS: Record<TaskSection, View[]> = {
+  calendar: ['month', 'day', 'list'],
+  board: ['board', 'backlog', 'reports'],
+  table: ['table'],
+}
+
 // View and filters are part of the address, so a filtered board can be shared.
 const LIST_PARAMS = { who: 'members', type: 'types', area: 'areas', priority: 'priorities' } as const
 
@@ -69,7 +76,7 @@ function writeUrl(search: string, view: View, filters: Filters) {
   return params.toString()
 }
 
-export function CalendarExperience() {
+export function CalendarExperience({ section = 'calendar' }: { section?: TaskSection }) {
   const { workspace, loading, guest, create, creating, createError } = useCurrentWorkspace()
   if (loading) return <p className="cal-gate" role="status">Loading workspace…</p>
   if (!workspace) {
@@ -82,10 +89,12 @@ export function CalendarExperience() {
       </div>
     )
   }
-  return <Calendar key={workspace.id} workspaceId={workspace.id} canManage={workspace.role === 'owner' || workspace.role === 'admin'} />
+  return <Calendar key={`${workspace.id}:${section}`} section={section} workspaceId={workspace.id} canManage={workspace.role === 'owner' || workspace.role === 'admin'} />
 }
 
-function Calendar({ workspaceId, canManage }: { workspaceId: string; canManage: boolean }) {
+function Calendar({ workspaceId, canManage, section }: { workspaceId: string; canManage: boolean; section: TaskSection }) {
+  const views = VIEWS.filter((item) => SECTION_VIEWS[section].includes(item.id))
+  const sectionTitle = section === 'calendar' ? 'Calendar' : section === 'board' ? 'Board' : 'Table'
   const location = useLocation()
   const navigate = useNavigate()
   const ticketParam = new URLSearchParams(location.search).get('ticket')
@@ -96,7 +105,8 @@ function Calendar({ workspaceId, canManage }: { workspaceId: string; canManage: 
   const loaded = useCalendar((state) => state.loaded)
   const accomplishments = useCalendar((state) => state.accomplishments)
   const cursor = useCalendar((state) => state.cursor)
-  const view = useCalendar((state) => state.view)
+  const storedView = useCalendar((state) => state.view)
+  const view = SECTION_VIEWS[section].includes(storedView) ? storedView : SECTION_VIEWS[section][0]
   const filters = useCalendar((state) => state.filters)
   const workflow = useWorkflow()
   const notice = useCalendar((state) => state.notice)
@@ -132,16 +142,18 @@ function Calendar({ workspaceId, canManage }: { workspaceId: string; canManage: 
     fromUrl.current = true
     justRead.current = true
     const { view: urlView, filters: urlFilters } = readUrl(location.search)
-    if (urlView) setView(urlView)
+    setView(urlView && SECTION_VIEWS[section].includes(urlView) ? urlView : SECTION_VIEWS[section][0])
     setFilters(urlFilters)
-  }, [location.search, setFilters, setView])
+  }, [location.search, setFilters, setView, section])
   useEffect(() => {
     if (!fromUrl.current) return
     // The store takes the URL's values on the next render; don't overwrite them first.
     if (justRead.current) { justRead.current = false; return }
-    const next = writeUrl(location.search, view, filters)
+    const params = new URLSearchParams(location.search)
+    params.set('desk', section === 'table' ? 'company' : section)
+    const next = writeUrl(params.toString(), view, filters)
     if (next !== location.search.replace(/^\?/, '')) navigate({ search: next }, { replace: true })
-  }, [view, filters, location.search, navigate])
+  }, [view, filters, location.search, navigate, section])
 
   // Notices fade on their own; Undo stays a few seconds.
   useEffect(() => {
@@ -168,17 +180,17 @@ function Calendar({ workspaceId, canManage }: { workspaceId: string; canManage: 
   const openTicket = useCallback((task: CalTask) => {
     if (task.pending) return
     const next = new URLSearchParams(location.search)
-    next.set('desk', 'calendar')
+    next.set('desk', section === 'table' ? 'company' : section)
     next.set('ticket', task.taskKey)
     navigate({ search: next.toString() })
-  }, [location.search, navigate])
+  }, [location.search, navigate, section])
 
   const openTicketKey = useCallback((taskKey: string) => {
     const next = new URLSearchParams(location.search)
-    next.set('desk', 'calendar')
+    next.set('desk', section === 'table' ? 'company' : section)
     next.set('ticket', taskKey)
     navigate({ search: next.toString() })
-  }, [location.search, navigate])
+  }, [location.search, navigate, section])
 
   const closeTicket = useCallback(() => {
     const next = new URLSearchParams(location.search)
@@ -217,8 +229,8 @@ function Calendar({ workspaceId, canManage }: { workspaceId: string; canManage: 
   return (
     <div className="cal" data-expanded={expanded || undefined}>
       <SectionHeader
-        title="Calendar"
-        level={1}
+        title={sectionTitle}
+        level={section === 'table' ? 2 : 1}
         newLabel="task"
         onNew={() => {
           if (view === 'board') { setCreateIn(workflow.firstTodo); return }
@@ -262,8 +274,8 @@ function Calendar({ workspaceId, canManage }: { workspaceId: string; canManage: 
             {sync.live === 'live' ? 'Live' : sync.live === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}
           </span>
           <div className="cal-tools">
-            <div className="cal-view-toggle" role="group" aria-label="Calendar view">
-              {VIEWS.map((v) => (
+            <div className="cal-view-toggle" role="group" aria-label={`${sectionTitle} view`}>
+              {views.length > 1 && views.map((v) => (
                 <button key={v.id} type="button" className={`cal-btn ${view === v.id ? 'cal-view-active' : ''}`} aria-pressed={view === v.id} onClick={() => setView(v.id)}>{v.label}</button>
               ))}
             </div>

@@ -275,13 +275,13 @@ export class EmailConnectionService {
     return { removed: true, agentsMovedToDefault: agents }
   }
 
-  /** Checks the connection, then sends a short test email to the caller's own address. */
-  async test(ctx: WorkspaceCtx, workspaceId: string, connectionId: string) {
+  /** Checks the connection, then sends a short test email to the specified address (or caller's own address). */
+  async test(ctx: WorkspaceCtx, workspaceId: string, connectionId: string, customTo?: string) {
     const actor = await authorize(ctx.user.id, workspaceId, 'email.manage')
     const connection = await db.emailConnection.findFirst({ where: { id: connectionId, workspaceId } })
     if (!connection) throw notFound()
-    const to = ctx.user.email as string | null
-    if (!to) throw badRequest('Your account has no email address to send the test to', 'NO_TEST_ADDRESS')
+    const to = (customTo && customTo.trim()) || (ctx.user.email as string | null)
+    if (!to) throw badRequest('No email recipient address provided for test', 'NO_TEST_ADDRESS')
 
     const provider = providerFor(connection)
     const checked = await provider.test(connection)

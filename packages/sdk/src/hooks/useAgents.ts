@@ -152,8 +152,16 @@ export function useDeleteEmailConnection(workspaceId: string) {
 
 export function useTestEmailConnection(workspaceId: string) {
   return useMutation({
-    mutationFn: async (connectionId: string) =>
-      unwrap(await getApiClient().POST('/workspaces/{workspaceId}/email-connections/{connectionId}/test', { params: { path: { workspaceId, connectionId } } })).data,
+    mutationFn: async (input: string | { connectionId: string; to?: string }) => {
+      const connectionId = typeof input === 'string' ? input : input.connectionId
+      const to = typeof input === 'string' ? undefined : input.to
+      return unwrap(
+        await getApiClient().POST('/workspaces/{workspaceId}/email-connections/{connectionId}/test', {
+          params: { path: { workspaceId, connectionId } },
+          ...(to ? { body: { to } as any } : {}),
+        }),
+      ).data
+    },
   })
 }
 

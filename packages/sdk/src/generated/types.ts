@@ -9450,7 +9450,14 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description Optional target email recipient address for test email dispatch. */
+                    to?: string;
+                };
+            };
+        };
         responses: {
             /** @description What happened */
             200: {

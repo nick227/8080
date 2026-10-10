@@ -298,6 +298,8 @@ export function IntegrationsSection({ workspaceId, canEdit }: { workspaceId: str
 
   // Combine integrations and SDK custom SMTP senders (filtering out SDK platform mode to eliminate redundant "Send with 8080")
   const unifiedRows = useMemo<UnifiedRow[]>(() => {
+    const platformConnection = (list.data ?? []).find((c) => c.mode === 'platform' || c.strategy === 'platform')
+
     const staticRows: UnifiedRow[] = INTEGRATIONS.map((row) => {
       const isConnected = row.isSystem || !!connectedState[row.id]
       const account = isConnected && row.accountPattern ? row.accountPattern.replace('YOUR_SLUG', companySlug) : '—'
@@ -312,6 +314,7 @@ export function IntegrationsSection({ workspaceId, canEdit }: { workspaceId: str
         status,
         isConnected,
         isSystem: row.isSystem,
+        connectionId: row.isSystem ? platformConnection?.id : undefined,
         fromAddress: fromAddr,
         rawItem: row,
       }

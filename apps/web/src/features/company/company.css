@@ -537,3 +537,15 @@
   .company-col { overflow: visible; }
   .company-col-profile { border-right: 0; border-bottom: var(--line-width) solid var(--line); }
 }
+
+/* Project details and the task table share one vertically scrollable page. */
+.company-with-table { overflow-y: auto; }
+.company-with-table > .company-split { flex: none; }
+.company-with-table > .company-split > .company-col { overflow: visible; }
+.company-table-section {
+  flex: none;
+  display: flex;
+  min-height: 32rem;
+  height: 70vh;
+  border-top: var(--line-width) solid var(--line);
+}

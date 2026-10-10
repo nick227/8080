@@ -25,7 +25,8 @@ export async function deleteEmailConnection(request: any, reply: any) {
 
 export async function testEmailConnection(request: any, reply: any) {
   const { workspaceId, connectionId } = request.params
-  return reply.send({ data: await connections.test(workspaceCtx(request), workspaceId, connectionId) })
+  const to = request.body?.to || request.body?.recipient || request.query?.to
+  return reply.send({ data: await connections.test(workspaceCtx(request), workspaceId, connectionId, to) })
 }
 
 // ─── agents (S1) ─────────────────────────────────────────────────────────────────

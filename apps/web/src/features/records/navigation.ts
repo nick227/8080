@@ -31,7 +31,13 @@ function read(path: string, desk: Desk) {
 export function useWorkPlace() {
   const location = useLocation()
   const navigate = useNavigate()
-  const requested = new URLSearchParams(location.search).get('desk')
+  const params = new URLSearchParams(location.search)
+  const legacyView = params.get('view')
+  const requestedDesk = params.get('desk')
+  // Keep shared links to the former Calendar views working in their new home.
+  const requested = requestedDesk === 'calendar' && legacyView === 'table' ? 'company'
+    : requestedDesk === 'calendar' && ['board', 'backlog', 'reports'].includes(legacyView ?? '') ? 'board'
+      : requestedDesk
   const place: Desk = DESKS.some((d) => d.id === requested) ? (requested as Desk) : 'company'
   useEffect(() => {
     // Inspecting a related record must not replace the other area's working session.

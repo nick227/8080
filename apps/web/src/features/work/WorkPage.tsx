@@ -25,6 +25,8 @@ export function WorkPage({ place, roomId, onPlace, onOpenComposer }: { place: Ex
         <ContactsDesk />
       ) : place === 'inventory' ? (
         <InventoryDesk />
+      ) : place === 'board' ? (
+        <CalendarExperience section="board" />
       ) : place === 'agents' ? (
         <AgentsDesk onPlace={onPlace} />
       ) : empty ? (

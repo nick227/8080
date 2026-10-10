@@ -25,20 +25,19 @@ export function TestEmailSlideout({
 
   const handleSendTest = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!recipient.trim()) return
+    const targetRecipient = recipient.trim()
+    if (!targetRecipient) return
     setStatus(null)
     try {
       if (connectionId) {
-        const res = await testConnection.mutateAsync(connectionId)
+        const res = await testConnection.mutateAsync({ connectionId, to: targetRecipient })
         if (res.ok) {
-          setStatus({ ok: true, message: `Test email successfully dispatched to ${recipient.trim()}` })
+          setStatus({ ok: true, message: `Test email successfully dispatched to ${targetRecipient}` })
         } else {
           setStatus({ ok: false, message: res.error?.message ?? 'Test email failed to send.' })
         }
       } else {
-        // Simulated dispatch for System Email or custom integrations
-        await new Promise((resolve) => setTimeout(resolve, 600))
-        setStatus({ ok: true, message: `Test email successfully dispatched to ${recipient.trim()}` })
+        setStatus({ ok: false, message: 'No email connection ID provided for test.' })
       }
     } catch (err) {
       setStatus({ ok: false, message: err instanceof Error ? err.message : 'Could not send test email' })

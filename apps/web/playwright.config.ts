@@ -25,7 +25,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://localhost:15173',
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -50,13 +50,28 @@ export default defineConfig({
     },
   ],
 
-  /* Run your local dev server before starting the tests */
-  webServer: {
-    command: 'cd ../.. && pnpm dev:all',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    env: {
-      RATE_LIMITS: 'off',
+  // Own fresh servers so a long-running dev process cannot serve stale modules.
+  webServer: [
+    {
+      command: 'pnpm --filter server dev',
+      cwd: '../..',
+      url: 'http://localhost:13001/health',
+      reuseExistingServer: false,
+      env: {
+        PORT: '13001',
+        PUBLIC_API_URL: 'http://localhost:13001',
+        PUBLIC_UPLOAD_BASE_URL: 'http://localhost:13001/uploads',
+        CORS_ORIGIN: 'http://localhost:15173',
+        RATE_LIMITS: 'off',
+        BOTS: 'off',
+        AGENTS_SCHEDULER: 'off',
+      },
     },
-  },
+    {
+      command: 'pnpm exec vite --host 0.0.0.0 --port 15173 --strictPort',
+      url: 'http://localhost:15173',
+      reuseExistingServer: false,
+      env: { VITE_API_URL: 'http://localhost:13001' },
+    },
+  ],
 });

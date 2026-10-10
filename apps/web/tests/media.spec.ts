@@ -1,13 +1,6 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
-// Helper to open the record surface
-async function openRecordSurface(page: Page) {
-  const newConvButton = page.getByRole('button', { name: /new conversation/i });
-  await expect(newConvButton).toBeVisible();
-  await newConvButton.click();
-  const recordButton = page.getByRole('button', { name: 'Record', exact: true });
-  await expect(recordButton).toBeVisible();
-}
+import { openRecordSurface } from './helpers/project';
 
 test.describe('Media Capture State Machine', () => {
   test.beforeEach(async ({ page }) => {
@@ -27,9 +20,9 @@ test.describe('Media Capture State Machine', () => {
     });
 
     // Mock rooms and feeds to prevent errors
-    await page.route('**/rooms/me*', route => route.fulfill({ status: 200, body: JSON.stringify({ data: [] }) }));
-    await page.route('**/rooms*', route => route.fulfill({ status: 200, body: JSON.stringify({ data: [] }) }));
-    await page.route('**/feed*', route => route.fulfill({ status: 200, body: JSON.stringify({ data: [] }) }));
+    await page.route('**/rooms/me*', route => route.fulfill({ status: 200, body: JSON.stringify({ data: [], meta: { nextCursor: null } }) }));
+    await page.route('**/rooms*', route => route.fulfill({ status: 200, body: JSON.stringify({ data: [], meta: { nextCursor: null } }) }));
+    await page.route('**/feed*', route => route.fulfill({ status: 200, body: JSON.stringify({ data: [], meta: { nextCursor: null } }) }));
 
     // Navigate to the home page
     await page.goto('/');

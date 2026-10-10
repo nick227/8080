@@ -1,4 +1,4 @@
-export type Desk = 'company' | 'team' | 'inbox' | 'contacts' | 'inventory' | 'documents' | 'calendar' | 'agents'
+export type Desk = 'company' | 'team' | 'inbox' | 'contacts' | 'inventory' | 'documents' | 'calendar' | 'board' | 'agents'
 
 /** Desks shown in the workspace nav. Inbox is deferred until real inbound mail exists. */
 export const DESKS: { id: Desk; label: string }[] = [
@@ -8,6 +8,7 @@ export const DESKS: { id: Desk; label: string }[] = [
   { id: 'inventory', label: 'Inventory' },
   { id: 'documents', label: 'Documents' },
   { id: 'calendar', label: 'Calendar' },
+  { id: 'board', label: 'Board' },
   { id: 'agents', label: 'Messaging' },
 ]
 

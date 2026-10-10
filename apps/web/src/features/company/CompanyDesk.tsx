@@ -1,3 +1,4 @@
+import { CalendarExperience } from '../calendar/CalendarExperience'
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useMyWorkspaces, useRoom, useUpdateRoom } from '@project/sdk'
@@ -47,7 +48,7 @@ export function CompanyDesk({ roomId, onPlace }: { roomId?: string; onPlace?: (d
   }
 
   return (
-    <div className="company">
+    <div className="company company-with-table">
       <SectionHeader title="Project Overview" titleId="company-title" level={1}>
         <button
           type="button"
@@ -80,6 +81,10 @@ export function CompanyDesk({ roomId, onPlace }: { roomId?: string; onPlace?: (d
           <IntegrationsSection workspaceId={workspaceId} canEdit={!!canEdit} />
         </div>
       </div>
+
+      <section className="company-table-section" aria-label="Table">
+        <CalendarExperience section="table" />
+      </section>
 
       {vocabOpen && (
         <FormSlideout title="Workspace Vocabulary" onClose={() => setVocabOpen(false)}>
