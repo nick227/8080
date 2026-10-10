@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getApiClient, unwrap } from '../client'
-import type { CreateTaskInput, CreateWorkLogInput, ImportTasksInput, ImportWorkLogsInput, MoveTaskInput, UpdateTaskBoardInput, UpdateTaskInput } from '../models'
+import type { BulkTasksInput, CreateTaskInput, CreateWorkLogInput, ImportTasksInput, ImportWorkLogsInput, MoveTaskInput, UpdateTaskBoardInput, UpdateTaskInput } from '../models'
 import { keys } from './keys'
 
 // Calendar / Boards tasks. The web keeps an optimistic copy for drag-and-drop,
@@ -26,6 +26,8 @@ export const tasksApi = {
     unwrap(await getApiClient().POST('/workspaces/{workspaceId}/tasks/{taskId}/restore', taskPath(workspaceId, taskId))).data,
   block: async (workspaceId: string, taskId: string, reason: string) =>
     unwrap(await getApiClient().POST('/workspaces/{workspaceId}/tasks/{taskId}/block', { ...taskPath(workspaceId, taskId), body: { reason } })).data,
+  bulk: async (workspaceId: string, body: BulkTasksInput) =>
+    unwrap(await getApiClient().POST('/workspaces/{workspaceId}/tasks/bulk', { ...path(workspaceId), body })).data,
   unblock: async (workspaceId: string, taskId: string) =>
     unwrap(await getApiClient().POST('/workspaces/{workspaceId}/tasks/{taskId}/unblock', taskPath(workspaceId, taskId))).data,
 }

@@ -239,6 +239,35 @@ export function mentionedIn(text: string, members: { id: string; name: string }[
   return [...found]
 }
 
+/** The row changes for an edit (one task; shared by update and bulk). A status change lands at the bottom of the new column. */
+async function patchData(tx: Tx, workspaceId: string, before: TaskRow, input: TaskInput) {
+  const status = input.status ?? before.status
+  const scheduledDate = 'scheduledDate' in input ? input.scheduledDate || null : before.scheduledDate
+  return {
+    title: input.title?.trim().slice(0, 255),
+    description: 'description' in input ? blank(input.description) : undefined,
+    status: input.status,
+    rank: status !== before.status ? await rankFor(tx, workspaceId, status, {}, before.id) : undefined,
+    ...statusChange(before.status, status),
+    issueType: input.issueType,
+    area: 'area' in input ? blank(input.area) : undefined,
+    priority: input.priority,
+    storyPoints: 'storyPoints' in input ? input.storyPoints : undefined,
+    scheduledDate: 'scheduledDate' in input ? scheduledDate : undefined,
+    // Clearing the date clears the time with it.
+    scheduledTime: !scheduledDate ? null : 'scheduledTime' in input ? input.scheduledTime || null : undefined,
+    dueDate: 'dueDate' in input ? (input.dueDate ? new Date(`${input.dueDate}T00:00:00Z`) : null) : undefined,
+    assigneeMemberId: 'assigneeMemberId' in input ? input.assigneeMemberId ?? null : undefined,
+  }
+}
+
+const BULK_MAX = 200
+
+/** Fields a bulk edit may set on many tasks at once. `blocked`: a reason blocks, null unblocks. */
+export type BulkPatch = Pick<TaskInput, 'status' | 'priority' | 'issueType' | 'area' | 'storyPoints' | 'dueDate' | 'scheduledDate' | 'assigneeMemberId'> & {
+  blocked?: { reason: string } | null
+}
+
 export class TaskService {
   async list(userId: string, workspaceId: string) {
     await authorize(userId, workspaceId, 'task.read')
@@ -297,27 +326,7 @@ export class TaskService {
           data: { version: { increment: 1 } },
         })
         if (!claimed.count) throw conflict('Task changed; reload it before saving again', 'TASK_VERSION_CONFLICT')
-        const status = input.status ?? before.status
-        await tx.workTask.update({
-          where: { id: taskId },
-          data: {
-            title: input.title?.trim().slice(0, 255),
-            description: 'description' in input ? blank(input.description) : undefined,
-            status: input.status,
-            // A status change through the editor lands at the bottom of the new column.
-            rank: status !== before.status ? await rankFor(tx, workspaceId, status, {}, taskId) : undefined,
-            ...statusChange(before.status, status),
-            issueType: input.issueType,
-            area: 'area' in input ? blank(input.area) : undefined,
-            priority: input.priority,
-            storyPoints: 'storyPoints' in input ? input.storyPoints : undefined,
-            scheduledDate: 'scheduledDate' in input ? scheduledDate : undefined,
-            // Clearing the date clears the time with it.
-            scheduledTime: !scheduledDate ? null : 'scheduledTime' in input ? input.scheduledTime || null : undefined,
-            dueDate: 'dueDate' in input ? (input.dueDate ? new Date(`${input.dueDate}T00:00:00Z`) : null) : undefined,
-            assigneeMemberId: 'assigneeMemberId' in input ? input.assigneeMemberId ?? null : undefined,
-          },
-        })
+        await tx.workTask.update({ where: { id: taskId }, data: await patchData(tx, workspaceId, before, input) })
         const after = await liveTask(tx, workspaceId, taskId)
         return { value: toTask(after), changes: diff(before, after, TRACKED), activities: activitiesFor(before, after) }
       },
@@ -408,6 +417,66 @@ export class TaskService {
         },
         async (previous) => load(((previous.result as { taskIds?: string[] } | null)?.taskIds ?? [])),
       ),
+    )
+  }
+
+  /**
+   * One change to many tasks, all or nothing: update (the same field logic as a
+   * single edit), delete, or restore. Each task gets its own history line, so
+   * notifications and live boards treat it like single edits.
+   */
+  async bulk(ctx: WorkspaceCtx, workspaceId: string, input: { ids: string[]; action: 'update' | 'delete' | 'restore'; patch?: BulkPatch; idempotencyKey?: string }) {
+    const actor = await authorize(ctx.user.id, workspaceId, input.action === 'update' ? 'task.write' : 'task.delete')
+    const ids = [...new Set(input.ids)]
+    if (!ids.length || ids.length > BULK_MAX) throw badRequest(`Choose between 1 and ${BULK_MAX} tasks`, 'INVALID_SELECTION')
+    const patch = input.patch ?? {}
+    if (input.action === 'update') {
+      if (!Object.keys(patch).length) throw badRequest('Nothing to change', 'EMPTY_PATCH')
+      assertValid(patch)
+      if ('assigneeMemberId' in patch) await assertAssignee(workspaceId, patch.assigneeMemberId)
+      if (patch.blocked && !patch.blocked.reason?.trim()) throw badRequest('Say what they are waiting on', 'INVALID_REASON')
+    }
+    const rows = await db.workTask.findMany({ where: { id: { in: ids }, workspaceId }, include: taskInclude, orderBy: [{ status: 'asc' }, { rank: 'asc' }] })
+    const usable = rows.filter((t) => (input.action === 'restore' ? true : !t.deletedAt))
+    if (usable.length !== ids.length) throw badRequest('Some of those tasks are not in this workspace (or were deleted)', 'INVALID_SELECTION')
+    const load = async (taskIds: string[]) => ({
+      data: (await db.workTask.findMany({ where: { id: { in: taskIds }, workspaceId, deletedAt: null }, include: taskInclude, orderBy: [{ status: 'asc' }, { rank: 'asc' }] })).map(toTask),
+    })
+    return runAction(
+      { action: `task.bulk_${input.action}`, workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { ids, patch }, idempotencyKey: input.idempotencyKey, target: { type: 'task' } },
+      async (tx) => {
+        const activities: ActivityDraft[] = []
+        const out: ReturnType<typeof toTask>[] = []
+        // In board order, so cards moved together keep their order at the bottom of the new column.
+        for (const before of usable) {
+          const object = { taskId: before.id }
+          const summary = { taskId: before.id, taskKey: before.taskKey, title: before.title }
+          if (input.action === 'delete') {
+            await tx.workTask.update({ where: { id: before.id }, data: { deletedAt: new Date(), version: { increment: 1 } } })
+            activities.push({ type: 'task.deleted', object, summary })
+            continue
+          }
+          if (input.action === 'restore') {
+            if (!before.deletedAt) continue
+            await tx.workTask.update({ where: { id: before.id }, data: { deletedAt: null, version: { increment: 1 } } })
+            activities.push({ type: 'task.restored', object, summary })
+            out.push(toTask(await liveTask(tx, workspaceId, before.id)))
+            continue
+          }
+          const { blocked, ...fields } = patch
+          const data: Record<string, unknown> = { ...(await patchData(tx, workspaceId, before, fields)), version: { increment: 1 } }
+          if (blocked) Object.assign(data, { blockedAt: before.blockedAt ?? new Date(), blockedReason: blocked.reason.trim().slice(0, 280), blockedByMemberId: actor.member.id })
+          if (blocked === null) Object.assign(data, { blockedAt: null, blockedReason: null, blockedByMemberId: null })
+          await tx.workTask.update({ where: { id: before.id }, data })
+          const after = await liveTask(tx, workspaceId, before.id)
+          activities.push(...activitiesFor(before, after))
+          if (blocked && after.blockedReason !== before.blockedReason) activities.push({ type: 'task.blocked', object, summary: { ...summary, reason: after.blockedReason, previous: before.blockedReason } })
+          if (blocked === null && before.blockedAt) activities.push({ type: 'task.unblocked', object, summary: { ...summary, reason: before.blockedReason, blockedForMs: Date.now() - before.blockedAt.getTime() } })
+          out.push(toTask(after))
+        }
+        return { value: { data: out }, result: { taskIds: ids }, activities }
+      },
+      async (previous) => load((previous.result as { taskIds?: string[] } | null)?.taskIds ?? []),
     )
   }
 

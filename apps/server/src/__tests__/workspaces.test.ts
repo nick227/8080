@@ -150,6 +150,7 @@ function sampleBody(op: any) {
     ImportWorkLogsInput: { entries: [{ summary: 'x', day: '2026-10-09' }] },
     UpdateTaskBoardInput: { wipLimits: {} },
     BlockTaskInput: { reason: 'x' },
+    BulkTasksInput: { ids: ['x'], action: 'delete' },
     UpdatePipelineInput: { stages: [{ label: 'x', position: 0, kind: 'open' }] },
     UpdateContactFieldLabelsInput: { fields: [{ key: 'x', label: 'x' }] },
     RecipientConfig: { source: 'WORKSPACE_MEMBERS' },

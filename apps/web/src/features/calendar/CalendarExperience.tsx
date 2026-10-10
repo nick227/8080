@@ -10,10 +10,13 @@ import { MonthView } from './MonthView'
 import { ListView } from './ListView'
 import { BoardView } from './BoardView'
 import { BacklogView } from './BacklogView'
+import { TableView } from './TableView'
 import { NewTaskSlideout } from './NewTaskSlideout'
 import { LogAccomplishmentModal } from './LogAccomplishmentModal'
 import { TicketPage } from './TicketPage'
 import { ForYou } from './ForYou'
+import { BulkBar } from './BulkBar'
+import { FieldPickerHost } from './FieldPicker'
 import { CalendarFilters } from './CalendarFilters'
 import { applyFilters, filtersActive, NO_FILTERS, useCalendar, type Filters, type View } from './store'
 import { useLocalTasks, useTaskSync } from './sync'
@@ -25,6 +28,7 @@ const VIEWS: { id: View; label: string }[] = [
   { id: 'day', label: 'Day' },
   { id: 'list', label: 'List' },
   { id: 'board', label: 'Board' },
+  { id: 'table', label: 'Table' },
   { id: 'backlog', label: 'Backlog' },
 ]
 
@@ -182,7 +186,9 @@ function Calendar({ workspaceId }: { workspaceId: string }) {
       const target = event.target as HTMLElement
       const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable
       const dialog = !!document.querySelector('dialog[open], [aria-modal="true"]')
+      if (event.key === 'Escape' && useCalendar.getState().picker) return
       if (event.key === 'Escape' && ticketParam && !typing && !dialog) { closeTicket(); return }
+      if (event.key === 'Escape' && !typing && useCalendar.getState().selection.length) { useCalendar.getState().clearSelection(); return }
       if (event.key === 'Escape' && expanded && !dialog) { setExpanded(false); return }
       if (event.key === 'Escape' && view === 'day' && !typing && !dialog) { showMonth(); return }
       if (typing || dialog || event.metaKey || event.ctrlKey || event.altKey) return
@@ -242,7 +248,7 @@ function Calendar({ workspaceId }: { workspaceId: string }) {
             <button type="button" className="cal-btn" aria-label={view === 'day' ? 'Next day' : 'Next month'} onClick={() => view === 'day' ? showDay(dayKey(addDays(parseDay(cursor), 1))) : shiftMonth(1)}>→</button>
             <h2 className="cal-period">{title}</h2>
             <button type="button" className="cal-btn" aria-pressed={onToday} onClick={goToday}>Today</button>
-          </div> : <h2 className="cal-period">{view === 'backlog' ? 'Open tasks · all dates' : 'Board · all tasks'}</h2>}
+          </div> : <h2 className="cal-period">{view === 'backlog' ? 'Open tasks · all dates' : view === 'table' ? 'Table · all tasks' : 'Board · all tasks'}</h2>}
           <span className="cal-live" data-state={sync.live} role="status" title={sync.live === 'live' ? 'Changes from teammates appear as they happen' : 'Reconnecting; changes appear when the connection is back'}>
             {sync.live === 'live' ? 'Live' : sync.live === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}
           </span>
@@ -293,6 +299,8 @@ function Calendar({ workspaceId }: { workspaceId: string }) {
             createIn={createIn}
             onCreateHandled={() => setCreateIn(null)}
           />
+        ) : view === 'table' ? (
+          <TableView tasks={filteredTasks} onSelectTask={openTicket} filtersOn={filtersActive(filters)} onClearFilters={clearFilters} />
         ) : view === 'backlog' ? (
           <BacklogView tasks={filteredTasks} onSelectTask={openTicket} onUpdateStatus={updateTaskStatus} />
         ) : (
@@ -316,6 +324,9 @@ function Calendar({ workspaceId }: { workspaceId: string }) {
           </div>
         </div>
       )}
+
+      <BulkBar />
+      <FieldPickerHost />
 
       {notice && (
         <div className="cal-toast" role="status" key={notice.id}>

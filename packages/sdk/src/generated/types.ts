@@ -3573,6 +3573,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/tasks/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * One change to many tasks (update, delete or restore), all or nothing
+         * @description Up to 200 tasks. `update` applies the same field rules as editing one task (a new
+         *     status lands at the bottom of that column, in board order); `blocked` with a reason
+         *     blocks, `null` unblocks. Every task gets its own history line. A task outside this
+         *     workspace (or deleted, except for restore) fails the whole request with 400
+         *     INVALID_SELECTION. Repeat with the same idempotencyKey to get the first result back.
+         */
+        post: operations["bulkTasks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/tasks/import": {
         parameters: {
             query?: never;
@@ -5273,6 +5299,27 @@ export interface components {
             task?: components["schemas"]["Task"] | null;
             wipLimits?: components["schemas"]["WipLimits"];
             reason?: string;
+        };
+        BulkTasksInput: {
+            ids: string[];
+            /** @enum {string} */
+            action: "update" | "delete" | "restore";
+            idempotencyKey?: string;
+            patch?: {
+                status?: components["schemas"]["TaskStatus"];
+                priority?: components["schemas"]["TaskPriority"];
+                issueType?: components["schemas"]["TaskType"];
+                area?: string | null;
+                storyPoints?: number | null;
+                /** Format: date */
+                dueDate?: string | null;
+                /** Format: date */
+                scheduledDate?: string | null;
+                assigneeMemberId?: string | null;
+                blocked?: {
+                    reason: string;
+                } | null;
+            };
         };
         TaskBlocked: {
             /** Format: date-time */
@@ -13201,6 +13248,37 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    bulkTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkTasksInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     importTasks: {

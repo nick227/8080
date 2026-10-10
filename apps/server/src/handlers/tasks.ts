@@ -131,3 +131,7 @@ export async function streamTasks(request: any, reply: any) {
     joined.leave()
   })
 }
+
+export async function bulkTasks(request: any, reply: any) {
+  return reply.send(await tasks.bulk(ctx(request), request.params.workspaceId, request.body))
+}

@@ -322,4 +322,46 @@ describe('tasks', () => {
     expect(mentionedIn('ping @Bo.', people)).toEqual(['c'])
     expect(mentionedIn('mail bo@x.com and @Bob', people)).toEqual([])
   })
+
+  it('bulk: one change to many tasks, all or nothing, one history line each', async () => {
+    const { ws, base, carol } = await setup()
+    const a = await create(base, { title: 'A' })
+    const b = await create(base, { title: 'B' })
+    const c = await create(base, { title: 'C' })
+    await create(base, { title: 'Already in progress', status: 'in_progress' })
+
+    const res = await call(testUserId, 'POST', `${base}/bulk`, { ids: [c.id, a.id], action: 'update', patch: { status: 'in_progress', assigneeMemberId: carol, priority: 'high' } })
+    expect(res.statusCode).toBe(200)
+    await validateResponse('bulkTasks', 200, res.json())
+    expect(res.json().data.every((t: any) => t.status === 'in_progress' && t.assigneeMemberId === carol && t.priority === 'high')).toBe(true)
+    // Board order is kept at the bottom of the new column: A was above C.
+    expect(await column(base, 'in_progress')).toEqual(['Already in progress', 'A', 'C'])
+    expect(await column(base, 'open')).toEqual(['B'])
+
+    // Each task has its own history and Carol got one notice per assignment.
+    const hist = (await call(testUserId, 'GET', `${base}/${a.id}/activity`)).json().data.map((x: any) => x.type)
+    expect(hist).toEqual(['task.created', 'task.moved', 'task.assigned', 'task.updated'])
+    const inbox = (await call(carolId, 'GET', `/workspaces/${ws.id}/inbox?sourceType=task`)).json().data
+    expect(inbox.filter((i: any) => i.title.includes('assigned you'))).toHaveLength(2)
+
+    // Block and unblock together.
+    const blocked = await call(testUserId, 'POST', `${base}/bulk`, { ids: [a.id, b.id], action: 'update', patch: { blocked: { reason: 'Waiting on vendor' } } })
+    expect(blocked.json().data.map((t: any) => t.blocked?.reason)).toEqual(['Waiting on vendor', 'Waiting on vendor'])
+    const cleared = await call(testUserId, 'POST', `${base}/bulk`, { ids: [a.id, b.id], action: 'update', patch: { blocked: null } })
+    expect(cleared.json().data.every((t: any) => t.blocked === null)).toBe(true)
+
+    // A bad id fails everything; nothing changes.
+    const bad = await call(testUserId, 'POST', `${base}/bulk`, { ids: [b.id, 'nope'], action: 'update', patch: { priority: 'low' } })
+    expect(bad.statusCode).toBe(400)
+    expect(bad.json().code).toBe('INVALID_SELECTION')
+    expect((await call(testUserId, 'GET', `${base}/${b.id}`)).json().data.priority).toBe('medium')
+    expect((await call(testUserId, 'POST', `${base}/bulk`, { ids: [b.id], action: 'update', patch: {} })).json().code).toBe('EMPTY_PATCH')
+
+    // Delete many, then undo.
+    expect((await call(carolId, 'POST', `${base}/bulk`, { ids: [a.id, b.id], action: 'delete' })).json().data).toEqual([])
+    expect(await column(base, 'open')).toEqual([])
+    const back = await call(carolId, 'POST', `${base}/bulk`, { ids: [a.id, b.id], action: 'restore' })
+    expect(back.json().data.map((t: any) => t.title).sort()).toEqual(['A', 'B'])
+    expect(await column(base, 'open')).toEqual(['B'])
+  })
 })

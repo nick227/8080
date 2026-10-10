@@ -19,7 +19,7 @@ export const LOCAL_TASKS_KEY = 'vc-tasks'
 export const LOCAL_LOGS_KEY = 'vc-accomplishments'
 const RANK_STEP = 1024
 
-export type View = 'month' | 'day' | 'list' | 'board' | 'backlog'
+export type View = 'month' | 'day' | 'list' | 'board' | 'table' | 'backlog'
 
 export type Filters = {
   /** WorkspaceMember ids; 'unassigned' matches tasks without one. */
@@ -35,6 +35,14 @@ export type Filters = {
 export const NO_FILTERS: Filters = { members: [], types: [], areas: [], priorities: [], urgency: [], search: '' }
 
 export type Notice = { id: number; text: string; undo?: () => void }
+
+/** What a bulk edit may change; `blocked` with a reason blocks, null unblocks. */
+export type BulkChange = Partial<Pick<CalTask, 'status' | 'priority' | 'category' | 'area' | 'storyPoints' | 'dueDate' | 'day' | 'assigneeId' | 'assigneeName' | 'assigneeAvatar'>> & {
+  blocked?: { reason: string } | null
+}
+
+export type PickerField = 'status' | 'assignee' | 'priority' | 'type' | 'area' | 'points' | 'due' | 'day' | 'blocked'
+export type Picker = { field: PickerField; ids: string[]; anchor: { x: number; y: number; w: number; h: number } }
 
 export type NewWorkLog = {
   title: string
@@ -114,6 +122,21 @@ type State = {
   toggle: (id: string) => void
   remove: (id: string) => void
   restore: (task: CalTask) => void
+  /** One change to many cards (the bulk bar, multi-select shortcuts). */
+  updateMany: (ids: string[], patch: BulkChange) => void
+  removeMany: (ids: string[]) => void
+  restoreMany: (tasks: CalTask[]) => void
+
+  /** Multi-select on the board and table. */
+  selection: string[]
+  toggleSelect: (id: string) => void
+  selectMany: (ids: string[], on: boolean) => void
+  clearSelection: () => void
+
+  /** The one field picker every surface opens (see actions.ts). */
+  picker: Picker | null
+  openPicker: (picker: Picker) => void
+  closePicker: () => void
   closeMatching: (query: string, day: string) => string | null
   findTaskByNumber: (query: string) => CalTask | null
   settleTaskByNumber: (query: string) => CalTask | null
@@ -290,7 +313,16 @@ export const useCalendar = create<State>((set, get) => {
   function send<T>(
     what: string,
     run: (workspaceId: string) => Promise<T>,
-    opts: { taskId?: string; snapshot?: (value: T) => Task | null; onDone?: (value: T) => void; onFail?: (err: unknown) => void; logs?: boolean } = {},
+    opts: {
+      taskId?: string
+      snapshot?: (value: T) => Task | null
+      /** Several cards (bulk): all busy until it settles; `snapshots` gives each one's answer. */
+      taskIds?: string[]
+      snapshots?: (value: T) => [string, Task | null][]
+      onDone?: (value: T) => void
+      onFail?: (err: unknown) => void
+      logs?: boolean
+    } = {},
   ) {
     const workspaceId = get().workspaceId
     if (!workspaceId) {
@@ -298,13 +330,15 @@ export const useCalendar = create<State>((set, get) => {
       get().say('Tasks are still loading. Try again in a moment.')
       return
     }
-    if (opts.taskId) writing.set(keyOf(opts.taskId), (writing.get(keyOf(opts.taskId)) ?? 0) + 1)
+    const busy = [...(opts.taskId ? [opts.taskId] : []), ...(opts.taskIds ?? [])]
+    for (const id of busy) writing.set(keyOf(id), (writing.get(keyOf(id)) ?? 0) + 1)
     if (opts.logs) logWrites++
     set({ syncing: true })
     run(workspaceId)
       .then((value) => {
         opts.onDone?.(value)
         if (opts.taskId && opts.snapshot) hold(keyOf(opts.taskId), opts.snapshot(value))
+        if (opts.snapshots) for (const [id, task] of opts.snapshots(value)) hold(keyOf(id), task)
       })
       .catch((err) => {
         opts.onFail?.(err)
@@ -314,8 +348,8 @@ export const useCalendar = create<State>((set, get) => {
       })
       .finally(() => {
         if (opts.logs) logWrites--
-        if (opts.taskId) {
-          const key = keyOf(opts.taskId)
+        for (const id of busy) {
+          const key = keyOf(id)
           const left = (writing.get(key) ?? 1) - 1
           if (left > 0) writing.set(key, left)
           else {
@@ -373,6 +407,21 @@ export const useCalendar = create<State>((set, get) => {
     cursor: todayKey(),
     view: 'month',
     filters: NO_FILTERS,
+    selection: [],
+    picker: null,
+
+    toggleSelect(id) {
+      const sel = get().selection
+      set({ selection: sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id] })
+    },
+    selectMany(ids, on) {
+      const sel = new Set(get().selection)
+      for (const id of ids) on ? sel.add(id) : sel.delete(id)
+      set({ selection: [...sel] })
+    },
+    clearSelection() { if (get().selection.length) set({ selection: [] }) },
+    openPicker(picker) { set({ picker }) },
+    closePicker() { set({ picker: null }) },
 
     hydrate(workspaceId, tasks, refresh) {
       if (get().workspaceId !== workspaceId) set({ workspaceId, tasks: [], loaded: false })
@@ -628,6 +677,49 @@ export const useCalendar = create<State>((set, get) => {
       replaceTask(id, null)
       send('delete the task', async (ws) => tasksApi.remove(ws, await realId(id)), { taskId: id, snapshot: () => null })
       get().say(`Deleted ${task.taskKey}`, () => get().restore(task))
+    },
+
+    updateMany(ids, change) {
+      const tasks = ids.map((id) => get().tasks.find((t) => t.id === id)).filter((t): t is CalTask => !!t && !t.pending)
+      if (!tasks.length) return
+      const { blocked, ...fields } = change
+      // Same field rules as one edit: a new status = bottom of that column, in board order.
+      const ordered = [...tasks].sort((a, b) => a.status.localeCompare(b.status) || a.rank - b.rank)
+      for (const t of ordered) {
+        const moved = fields.status && fields.status !== t.status ? { rank: rankBetween(get().tasks, fields.status, {}, t.id) } : {}
+        const flag = blocked ? { blocked: { since: t.blocked?.since ?? new Date().toISOString(), reason: blocked.reason.trim(), byName: t.blocked?.byName ?? null } } : blocked === null ? { blocked: null } : {}
+        patchLocal(t.id, { ...fields, ...moved, ...flag, ...(fields.day === null ? { time: null } : {}) })
+      }
+      const patch = { ...toUpdate(fields), ...(blocked !== undefined ? { blocked: blocked ? { reason: blocked.reason.trim() } : null } : {}) }
+      delete (patch as { title?: unknown }).title
+      const taskIds = tasks.map((t) => t.id)
+      send(`update ${tasks.length} tasks`, async (ws) => tasksApi.bulk(ws, { ids: await Promise.all(taskIds.map(realId)), action: 'update', patch }), {
+        taskIds,
+        snapshots: (updated) => updated.map((t) => [t.id, t] as [string, Task | null]),
+      })
+    },
+
+    removeMany(ids) {
+      const tasks = ids.map((id) => get().tasks.find((t) => t.id === id)).filter((t): t is CalTask => !!t && !t.pending)
+      if (!tasks.length) return
+      const gone = new Set(tasks.map((t) => t.id))
+      set({ tasks: get().tasks.filter((t) => !gone.has(t.id)), selection: get().selection.filter((id) => !gone.has(id)) })
+      send(`delete ${tasks.length} tasks`, async (ws) => tasksApi.bulk(ws, { ids: [...gone], action: 'delete' }), {
+        taskIds: [...gone],
+        snapshots: () => [...gone].map((id) => [id, null] as [string, Task | null]),
+      })
+      get().say(tasks.length === 1 ? `Deleted ${tasks[0]!.taskKey}` : `Deleted ${tasks.length} tasks`, () => get().restoreMany(tasks))
+    },
+
+    restoreMany(tasks) {
+      const missing = tasks.filter((t) => !get().tasks.some((x) => x.id === t.id))
+      set({ tasks: [...get().tasks, ...missing] })
+      get().dismiss()
+      const ids = tasks.map((t) => t.id)
+      send(`restore ${tasks.length} tasks`, async (ws) => tasksApi.bulk(ws, { ids, action: 'restore' }), {
+        taskIds: ids,
+        snapshots: (restored) => restored.map((t) => [t.id, t] as [string, Task | null]),
+      })
     },
 
     restore(task) {

@@ -5399,6 +5399,35 @@ paths:
                 description: SSE frames; each data payload is a JSON TaskStreamEvent
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/tasks/bulk:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: bulkTasks
+      summary: One change to many tasks (update, delete or restore), all or nothing
+      description: |
+        Up to 200 tasks. `update` applies the same field rules as editing one task (a new
+        status lands at the bottom of that column, in board order); `blocked` with a reason
+        blocks, `null` unblocks. Every task gets its own history line. A task outside this
+        workspace (or deleted, except for restore) fails the whole request with 400
+        INVALID_SELECTION. Repeat with the same idempotencyKey to get the first result back.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BulkTasksInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /workspaces/{workspaceId}/tasks/import:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -7924,6 +7953,38 @@ components:
             - type: 'null'
         wipLimits: { $ref: '#/components/schemas/WipLimits' }
         reason: { type: string }
+    BulkTasksInput:
+      type: object
+      additionalProperties: false
+      required: [ids, action]
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items: { type: string, minLength: 1, maxLength: 64 }
+        action: { type: string, enum: [update, delete, restore] }
+        idempotencyKey: { type: string, minLength: 1, maxLength: 128 }
+        patch:
+          type: object
+          additionalProperties: false
+          properties:
+            status: { $ref: '#/components/schemas/TaskStatus' }
+            priority: { $ref: '#/components/schemas/TaskPriority' }
+            issueType: { $ref: '#/components/schemas/TaskType' }
+            area: { type: [string, 'null'], maxLength: 64 }
+            storyPoints: { type: [integer, 'null'], minimum: 0, maximum: 1000 }
+            dueDate: { type: [string, 'null'], format: date }
+            scheduledDate: { type: [string, 'null'], format: date }
+            assigneeMemberId: { type: [string, 'null'], maxLength: 64 }
+            blocked:
+              oneOf:
+                - type: object
+                  additionalProperties: false
+                  required: [reason]
+                  properties:
+                    reason: { type: string, minLength: 1, maxLength: 280 }
+                - type: 'null'
     TaskBlocked:
       type: object
       required: [since, reason, byMemberId, byName]

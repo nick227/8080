@@ -19,6 +19,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { useTaskBoard, useUpdateTaskBoard, type WipLimits } from '@project/sdk'
 import { useCurrentWorkspace } from '../documents/workspace'
 import { todayKey } from './dates'
+import { FIELDS, assignToMe, deleteTasks, openField, setField, targetsFor, taskShortcut } from './actions'
 import { columnOf, useCalendar } from './store'
 import { useTeam } from './sync'
 import { STATUSES, type CalTask, type TaskStatus } from './types'
@@ -29,7 +30,7 @@ const DONE_FRESH_DAYS = 14
 type Columns = Record<TaskStatus, string[]>
 
 const TYPE_LABEL: Record<string, string> = { feature: 'Feature', bug: 'Bug', task: 'Task', story: 'Story', epic: 'Epic' }
-const PRIORITY_MARK: Record<string, string> = { highest: '⇈', high: '↑', low: '↓' }
+const PRIORITY_MARK: Record<string, string> = { highest: '⇈', high: '↑', medium: '=', low: '↓' }
 const statusTitle = (s: TaskStatus) => STATUSES.find((c) => c.id === s)!.title
 
 export function BoardView({
@@ -216,6 +217,22 @@ export function BoardView({
 
 const label = (t: CalTask | undefined) => (t ? `${t.taskKey} ${t.title}` : 'card')
 
+// The card a Shift-click range starts from.
+let anchorId: string | null = null
+
+/** Toggle one card, or (Shift) select the range from the last card picked in the same column. */
+function selectCard(id: string, columnIds: string[], range: boolean) {
+  const s = useCalendar.getState()
+  const from = anchorId ? columnIds.indexOf(anchorId) : -1
+  const to = columnIds.indexOf(id)
+  if (range && from >= 0 && to >= 0) {
+    s.selectMany(columnIds.slice(Math.min(from, to), Math.max(from, to) + 1), true)
+  } else {
+    s.toggleSelect(id)
+  }
+  anchorId = id
+}
+
 function Column({
   status,
   title,
@@ -280,7 +297,7 @@ function Column({
 
       <SortableContext id={status} items={ids} strategy={verticalListSortingStrategy}>
         <ol ref={setNodeRef} className="cal-kanban-cards">
-          {cards.map((task) => <SortableCard key={task.id} task={task} onOpen={() => onSelectTask(task)} />)}
+          {cards.map((task) => <SortableCard key={task.id} task={task} onOpen={() => onSelectTask(task)} onSelect={(e) => selectCard(task.id, cards.map((c) => c.id), e.shiftKey)} />)}
           {cards.length === 0 && !creating && <li className="cal-kanban-empty">Drop tasks here</li>}
         </ol>
       </SortableContext>
@@ -365,43 +382,82 @@ function QuickCreate({ status, title, lastId, onDone }: { status: TaskStatus; ti
   )
 }
 
-function SortableCard({ task, onOpen }: { task: CalTask; onOpen: () => void }) {
+function SortableCard({ task, onOpen, onSelect }: { task: CalTask; onOpen: () => void; onSelect: (e: React.MouseEvent | React.KeyboardEvent) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, disabled: !!task.pending })
   const style = { transform: CSS.Transform.toString(transform), transition }
+  const selected = useCalendar((s) => s.selection.includes(task.id))
+  const selecting = useCalendar((s) => s.selection.length > 0)
+  const { team, meId } = useTeam()
   return (
     <li
       ref={setNodeRef}
       style={style}
       className="cal-kanban-slot"
       data-dragging={isDragging || undefined}
+      data-selected={selected || undefined}
     >
       <div
         {...attributes}
         {...listeners}
         className="cal-kanban-card"
         aria-roledescription="Draggable task"
-        aria-label={`${task.taskKey} ${task.title}${task.blocked ? `, blocked: ${task.blocked.reason}` : ''}`}
+        aria-label={`${task.taskKey} ${task.title}${task.blocked ? `, blocked: ${task.blocked.reason}` : ''}${selected ? ', selected' : ''}`}
         data-done={task.status === 'done' || undefined}
         data-pending={task.pending || undefined}
         data-blocked={(task.blocked && task.status !== 'done') || undefined}
-        onClick={onOpen}
+        data-task-id={task.id}
+        onClick={(e) => {
+          // Ctrl/⌘-click and Shift-click select; a plain click opens.
+          if (e.metaKey || e.ctrlKey || e.shiftKey || selecting) onSelect(e)
+          else onOpen()
+        }}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && e.target === e.currentTarget) {
+          if (e.target !== e.currentTarget) return
+          if (e.key === 'Enter') {
             e.preventDefault()
             onOpen()
+            return
+          }
+          if (!task.pending && !e.metaKey && !e.ctrlKey && !e.altKey && taskShortcut(e, task.id, e.currentTarget, team, meId, () => onSelect(e))) {
+            e.preventDefault()
+            e.stopPropagation()
             return
           }
           listeners?.onKeyDown?.(e)
         }}
       >
-        <CardBody task={task} />
+        <CardBody task={task} interactive />
       </div>
+      <label className="cal-card-check" data-shown={selecting || undefined} onPointerDown={(e) => e.stopPropagation()}>
+        <input type="checkbox" aria-label={`Select ${task.taskKey}`} checked={selected} disabled={task.pending} onChange={() => useCalendar.getState().toggleSelect(task.id)} />
+      </label>
       <CardMenu task={task} />
     </li>
   )
 }
 
-function CardBody({ task, overlay }: { task: CalTask; overlay?: boolean }) {
+/** A chip on a card that edits one field in place (doesn't drag or open the card). */
+function Chip({ task, field, label, className, children }: { task: CalTask; field: Parameters<typeof openField>[0]; label: string; className?: string; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      className={`cal-chip ${className ?? ''}`}
+      aria-label={label}
+      title={label}
+      disabled={task.pending}
+      onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation()
+        openField(field, targetsFor(task.id), e.currentTarget)
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+function CardBody({ task, overlay, interactive }: { task: CalTask; overlay?: boolean; interactive?: boolean }) {
   const today = todayKey()
   const overdue = !!task.dueDate && task.dueDate < today && task.status !== 'done'
   return (
@@ -418,17 +474,25 @@ function CardBody({ task, overlay }: { task: CalTask; overlay?: boolean }) {
         </p>
       )}
       <div className="cal-card-bottom-row">
-        {task.priority && task.priority !== 'medium' && (
-          <span className="cal-priority-mark" data-priority={task.priority} title={`Priority: ${task.priority}`} aria-label={`Priority ${task.priority}`}>
-            {PRIORITY_MARK[task.priority]}
-          </span>
+        {interactive ? (
+          <Chip task={task} field="priority" label={`Priority: ${task.priority ?? 'medium'}. Change`} className="cal-priority-mark" >
+            <span data-priority={task.priority ?? 'medium'}>{PRIORITY_MARK[task.priority ?? 'medium'] ?? '='}</span>
+          </Chip>
+        ) : task.priority && task.priority !== 'medium' && (
+          <span className="cal-priority-mark" data-priority={task.priority}>{PRIORITY_MARK[task.priority]}</span>
         )}
-        {task.dueDate && <span className="cal-card-due" data-overdue={overdue || undefined}>{overdue ? 'Overdue ' : 'Due '}{shortDate(task.dueDate)}</span>}
+        {task.dueDate ? (
+          interactive
+            ? <Chip task={task} field="due" label={`Due ${task.dueDate}. Change`} className="cal-card-due"><span data-overdue={overdue || undefined}>{overdue ? 'Overdue ' : 'Due '}{shortDate(task.dueDate)}</span></Chip>
+            : <span className="cal-card-due" data-overdue={overdue || undefined}>{overdue ? 'Overdue ' : 'Due '}{shortDate(task.dueDate)}</span>
+        ) : interactive && <Chip task={task} field="due" label="Set a due date" className="cal-card-due cal-chip-ghost"><span>+ Due</span></Chip>}
         {task.day && <span className="cal-card-due">{shortDate(task.day)}{task.time ? ` ${task.time}` : ''}</span>}
         {task.commentCount > 0 && <span className="cal-card-comments" title={`${task.commentCount} comments`}>{task.commentCount} ✎</span>}
         <span className="cal-card-right-tags">
           {task.storyPoints != null && <span className="cal-points-badge" title={`${task.storyPoints} story points`}>{task.storyPoints}</span>}
-          <Avatar name={task.assigneeName ?? null} url={task.assigneeAvatar ?? null} />
+          {interactive
+            ? <Chip task={task} field="assignee" label={task.assigneeName ? `Assigned to ${task.assigneeName}. Change` : 'Assign'}><Avatar name={task.assigneeName ?? null} url={task.assigneeAvatar ?? null} /></Chip>
+            : <Avatar name={task.assigneeName ?? null} url={task.assigneeAvatar ?? null} />}
         </span>
       </div>
     </div>
@@ -463,22 +527,15 @@ function CardMenu({ task }: { task: CalTask }) {
   const ref = useRef<HTMLDivElement>(null)
   const moveTask = useCalendar((s) => s.moveTask)
   const tasks = useCalendar((s) => s.tasks)
-  const updateTask = useCalendar((s) => s.updateTask)
-  const remove = useCalendar((s) => s.remove)
   const say = useCalendar((s) => s.say)
-  const block = useCalendar((s) => s.block)
-  const unblock = useCalendar((s) => s.unblock)
-  const [blocking, setBlocking] = useState(false)
-  const [reason, setReason] = useState('')
+  const selection = useCalendar((s) => s.selection)
   const { team, meId } = useTeam()
+  // On a selected card, the menu acts on the whole selection.
+  const ids = selection.includes(task.id) ? selection : [task.id]
   const me = team.find((m) => m.id === meId)
 
   useEffect(() => {
-    if (!open) {
-      setBlocking(false)
-      setReason('')
-      return
-    }
+    if (!open) return
     const away = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); ref.current?.querySelector('button')?.focus() } }
     document.addEventListener('pointerdown', away)
@@ -509,50 +566,41 @@ function CardMenu({ task }: { task: CalTask }) {
       >
         ⋯
       </button>
-      {open && blocking && (
-        <form
-          className="cal-menu cal-block-form"
-          aria-label={`Mark ${task.taskKey} blocked`}
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (!reason.trim()) return
-            block(task.id, reason)
-            setOpen(false)
-          }}
-        >
-          <label className="cal-menu-heading" htmlFor={`block-${task.id}`}>What is it waiting on?</label>
-          <input id={`block-${task.id}`} autoFocus maxLength={280} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Waiting on legal sign-off" />
-          <button type="submit" className="cal-btn" data-primary="" disabled={!reason.trim()}>Mark blocked</button>
-        </form>
-      )}
-      {open && !blocking && (
+      {open && (
         <div className="cal-menu" role="menu" aria-label={`Actions for ${task.taskKey}`} onKeyDown={(e) => menuKeys(e)}>
-          <span className="cal-menu-heading">Move to</span>
-          {STATUSES.filter((s) => s.id !== task.status).map((s) => (
-            <button key={s.id} type="button" role="menuitem" onClick={run(() => moveTask(task.id, s.id, {}))}>{s.title}</button>
+          <span className="cal-menu-heading">{ids.length > 1 ? `${ids.length} selected · move to` : 'Move to'}</span>
+          {STATUSES.filter((st) => ids.length > 1 || st.id !== task.status).map((st) => (
+            <button key={st.id} type="button" role="menuitem" onClick={run(() => setField(ids, 'status', st.id, team))}>{st.title}</button>
           ))}
-          {first && first.id !== task.id && <button type="button" role="menuitem" onClick={run(() => moveTask(task.id, task.status, { beforeTaskId: first.id }))}>Top of column</button>}
-          {last && last.id !== task.id && <button type="button" role="menuitem" onClick={run(() => moveTask(task.id, task.status, { afterTaskId: last.id }))}>Bottom of column</button>}
+          {ids.length === 1 && first && first.id !== task.id && <button type="button" role="menuitem" onClick={run(() => moveTask(task.id, task.status, { beforeTaskId: first.id }))}>Top of column</button>}
+          {ids.length === 1 && last && last.id !== task.id && <button type="button" role="menuitem" onClick={run(() => moveTask(task.id, task.status, { afterTaskId: last.id }))}>Bottom of column</button>}
           <hr />
-          {task.blocked
-            ? <button type="button" role="menuitem" onClick={run(() => unblock(task.id))}>Unblock</button>
-            : <button type="button" role="menuitem" onClick={() => setBlocking(true)}>Mark blocked…</button>}
-          {me && task.assigneeId !== me.id && (
-            <button type="button" role="menuitem" onClick={run(() => updateTask(task.id, { assigneeId: me.id, assigneeName: me.name, assigneeAvatar: me.avatarUrl ?? null }))}>Assign to me</button>
+          {(['assignee', 'priority', 'due', 'type', 'points'] as const).map((f) => (
+            <button key={f} type="button" role="menuitem" onClick={(e) => { const at = e.currentTarget.closest('.cal-card-menu'); setOpen(false); openField(f, ids, at) }}>
+              {FIELDS[f].label}…<kbd>{FIELDS[f].key.toUpperCase()}</kbd>
+            </button>
+          ))}
+          {ids.every((id) => tasks.find((t) => t.id === id)?.blocked)
+            ? <button type="button" role="menuitem" onClick={run(() => setField(ids, 'blocked', null, team))}>Unblock</button>
+            : <button type="button" role="menuitem" onClick={(e) => { const at = e.currentTarget.closest('.cal-card-menu'); setOpen(false); openField('blocked', ids, at) }}>Mark blocked…<kbd>B</kbd></button>}
+          {me && ids.some((id) => tasks.find((t) => t.id === id)?.assigneeId !== me.id) && (
+            <button type="button" role="menuitem" onClick={run(() => assignToMe(ids, team, meId))}>Assign to me<kbd>I</kbd></button>
           )}
-          {task.assigneeId && <button type="button" role="menuitem" onClick={run(() => updateTask(task.id, { assigneeId: null, assigneeName: null, assigneeAvatar: null }))}>Unassign</button>}
-          <button
-            type="button"
-            role="menuitem"
-            onClick={run(() => {
-              const url = `${window.location.origin}${window.location.pathname}?desk=calendar&ticket=${task.taskKey}`
-              void navigator.clipboard.writeText(url).then(() => say(`Copied the link to ${task.taskKey}`), () => say('Couldn’t copy the link'))
-            })}
-          >
-            Copy link
-          </button>
+          {ids.length === 1 && task.assigneeId && <button type="button" role="menuitem" onClick={run(() => setField(ids, 'assignee', '', team))}>Unassign</button>}
+          {ids.length === 1 && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={run(() => {
+                const url = `${window.location.origin}${window.location.pathname}?desk=calendar&ticket=${task.taskKey}`
+                void navigator.clipboard.writeText(url).then(() => say(`Copied the link to ${task.taskKey}`), () => say('Couldn\u2019t copy the link'))
+              })}
+            >
+              Copy link
+            </button>
+          )}
           <hr />
-          <button type="button" role="menuitem" data-danger="" onClick={run(() => remove(task.id))}>Delete</button>
+          <button type="button" role="menuitem" data-danger="" onClick={run(() => deleteTasks(ids))}>{ids.length > 1 ? `Delete ${ids.length}` : 'Delete'}</button>
         </div>
       )}
     </div>
