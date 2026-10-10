@@ -7,6 +7,7 @@ import { useCalendar, useWorkflow, type PickerField } from './store'
 import type { Workflow } from '@project/shared'
 import { useTeam } from './sync'
 import type { CalTask } from './types'
+import { downloadCsv, tasksCsv } from './csv'
 
 // A dense, editable list of the same tasks the board shows. Every field cell opens
 // the shared picker (actions.ts), so a cell, a card chip, a shortcut and the bulk
@@ -127,6 +128,14 @@ export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { 
           </select>
         </label>
         {points > 0 && <span className="cal-view-count">{points} pts shown</span>}
+        <button type="button" className="cal-btn" onClick={() => {
+          // Display order (groups, then sort); a selection exports just those rows.
+          const ordered = groups.flatMap((g) => g.rows)
+          const rows = selection.length ? ordered.filter((t) => selection.includes(t.id)) : ordered
+          downloadCsv(`tasks-${todayKey()}.csv`, tasksCsv(rows, workflow))
+        }}>
+          {selection.length ? `Export ${selection.length} selected` : 'Export CSV'}
+        </button>
       </div>
       <div className="cal-table-scroll">
         <table className="cal-table">
