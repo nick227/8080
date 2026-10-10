@@ -609,6 +609,7 @@ model WorkspaceMember {
   assignedWorkTasks WorkTask[] @relation("WorkTaskAssignee")
   createdWorkTasks  WorkTask[] @relation("WorkTaskCreator")
   blockedWorkTasks  WorkTask[] @relation("WorkTaskBlocker")
+  checkedItems      WorkChecklistItem[] @relation("ChecklistDoneBy")
   workComments      WorkComment[]
   workLogs          WorkLog[] @relation("WorkLogAuthor")
   workLogsDone      WorkLog[] @relation("WorkLogMember")
@@ -2208,6 +2209,8 @@ model WorkTask {
   blockedAt         DateTime?
   blockedReason     String?          @db.VarChar(280)
   blockedByMemberId String?
+  // A subtask's parent (one level: a subtask has no subtasks of its own).
+  parentTaskId      String?
   deletedAt         DateTime?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
@@ -2217,14 +2220,38 @@ model WorkTask {
   assignee  WorkspaceMember? @relation("WorkTaskAssignee", fields: [assigneeMemberId], references: [id], onDelete: SetNull)
   createdBy WorkspaceMember? @relation("WorkTaskCreator", fields: [createdByMemberId], references: [id], onDelete: SetNull)
   blockedBy WorkspaceMember? @relation("WorkTaskBlocker", fields: [blockedByMemberId], references: [id], onDelete: SetNull)
+  parent    WorkTask?        @relation("WorkTaskParent", fields: [parentTaskId], references: [id], onDelete: SetNull)
+  subtasks  WorkTask[]       @relation("WorkTaskParent")
   comments  WorkComment[]
   activities Activity[]
+  checklist WorkChecklistItem[]
   workLogs  WorkLog[]
 
   @@unique([workspaceId, taskKey])
   @@index([workspaceId, status, rank])
   @@index([workspaceId, scheduledDate])
   @@index([workspaceId, sprintId])
+  @@index([workspaceId, parentTaskId])
+}
+
+// A checklist line inside a task: small steps that don't need their own owner or
+// status (those are subtasks). `position` orders them (fractional).
+model WorkChecklistItem {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  taskId         String
+  text           String    @db.VarChar(500)
+  done           Boolean   @default(false)
+  position       Float     @default(0)
+  doneAt         DateTime?
+  doneByMemberId String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  task   WorkTask         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  doneBy WorkspaceMember? @relation("ChecklistDoneBy", fields: [doneByMemberId], references: [id], onDelete: SetNull)
+
+  @@index([taskId, position])
 }
 
 model WorkComment {

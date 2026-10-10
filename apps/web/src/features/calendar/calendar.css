@@ -2188,3 +2188,33 @@
 .cal-rename-btn { width: 1.5rem; height: 1.5rem; opacity: 0; flex: none; }
 .cal-table tbody tr:hover .cal-rename-btn, .cal-table tbody tr:focus-within .cal-rename-btn { opacity: 1; }
 @media (hover: none) { .cal-rename-btn { opacity: 1; } }
+
+/* Subtasks and checklists on cards and rows */
+.cal-parent-chip { font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap; }
+.cal-card-progress { font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap; }
+.cal-card-progress[data-complete] { color: var(--ink); }
+
+/* Task panel: parent, subtasks, checklist */
+.ticket-parent { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm); font-size: var(--text-sm); color: var(--muted); }
+.ticket-parent-detach { margin-left: auto; color: var(--muted); }
+.ticket-progress-label { font-family: var(--mono); font-size: var(--text-label); color: var(--muted); }
+.ticket-progress { height: 4px; border-radius: 2px; background: var(--surface-highlight); overflow: hidden; }
+.ticket-progress span { display: block; height: 100%; background: var(--ink); transition: width 0.2s; }
+.ticket-subtasks, .ticket-checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ticket-subtasks li { display: flex; align-items: center; gap: var(--space-sm); padding: 4px 0; border-bottom: var(--line-width) solid var(--line); font-size: var(--text-sm); }
+.ticket-subtasks li .cal-title-link { flex: 1; }
+.ticket-subtasks li[data-done] .cal-title-link { color: var(--muted); text-decoration: line-through; }
+.ticket-subtask-status { width: auto; flex: none; color: var(--muted); font-size: var(--text-label); }
+.ticket-checklist li { display: flex; align-items: center; gap: var(--space-sm); padding: 2px 0; font-size: var(--text-sm); }
+.ticket-checklist li[data-pending] { opacity: 0.6; }
+.ticket-checklist-text { flex: 1; min-width: 0; padding: 4px; border: var(--line-width) solid transparent; border-radius: var(--input-radius); background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: text; overflow-wrap: anywhere; }
+.ticket-checklist-text:hover, .ticket-checklist-text:focus-visible { border-color: var(--line); outline: none; }
+.ticket-checklist li[data-done] .ticket-checklist-text { color: var(--muted); text-decoration: line-through; }
+.ticket-checklist-edit { flex: 1; height: 1.9rem; padding: 0 var(--space-sm); border: var(--line-width) solid var(--ink); border-radius: var(--input-radius); background: var(--surface-deep); color: var(--ink); font: inherit; }
+.ticket-checklist-by { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.ticket-inline-add { display: flex; gap: var(--space-xs); }
+.ticket-inline-add input { flex: 1; height: var(--button-height-sm); padding: 0 var(--space-sm); border: var(--line-width) solid var(--line); border-radius: var(--input-radius); background: var(--surface-deep); color: var(--ink); font: inherit; font-size: var(--text-sm); }
+.ticket-inline-add input:focus { border-color: var(--ink); outline: none; }
+/* Chips keep the size of what they replace (the generic reset above would inherit the card's). */
+.cal-chip.cal-card-due { font-family: var(--mono); font-size: 10px; }
+.cal-chip.cal-priority-mark { font-family: var(--mono); font-size: var(--text-sm); line-height: 1; }

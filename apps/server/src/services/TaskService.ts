@@ -34,6 +34,8 @@ export type TaskInput = {
   dueDate?: string | null
   assigneeMemberId?: string | null
   source?: string | null
+  /** Make this a subtask of that task (one level), or null to make it standalone. */
+  parentTaskId?: string | null
 }
 
 // Where a card lands in its column: between the card above (`afterTaskId`) and
@@ -44,6 +46,7 @@ export const taskInclude = {
   assignee: { include: { user: { include: { profile: true } } } },
   blockedBy: { include: { user: { include: { profile: true } } } },
   _count: { select: { comments: true } },
+  checklist: { select: { done: true } },
 } satisfies Prisma.WorkTaskInclude
 type TaskRow = Prisma.WorkTaskGetPayload<{ include: typeof taskInclude }>
 
@@ -72,6 +75,8 @@ export function toTask(t: TaskRow) {
     rank: t.rank,
     version: t.version,
     commentCount: t._count.comments,
+    parentTaskId: t.parentTaskId,
+    checklist: { done: t.checklist.filter((c) => c.done).length, total: t.checklist.length },
     source: t.source,
     resolvedAt: t.resolvedAt,
     blocked: t.blockedAt
@@ -126,9 +131,17 @@ async function rankFor(tx: Tx, workspaceId: string, status: string, place: Place
     const last = await tx.workTask.findFirst({ where: { workspaceId, status, deletedAt: null, id: movingId ? { not: movingId } : undefined }, orderBy: { rank: 'desc' }, select: { rank: true } })
     return (last?.rank ?? 0) + RANK_STEP
   }
-  if (above === null) return below! - RANK_STEP
-  if (below === null) return above + RANK_STEP
-  if (below - above > RANK_EPSILON) return (above + below) / 2
+  // One neighbour given: the other is whatever sits next to it in the column now.
+  const others = { workspaceId, status, deletedAt: null, id: movingId ? { not: movingId } : undefined }
+  let [lo, hi] = [above, below]
+  if (lo !== null && hi === null) {
+    hi = (await tx.workTask.findFirst({ where: { ...others, rank: { gt: lo } }, orderBy: { rank: 'asc' }, select: { rank: true } }))?.rank ?? null
+    if (hi === null) return lo + RANK_STEP
+  } else if (lo === null) {
+    lo = (await tx.workTask.findFirst({ where: { ...others, rank: { lt: hi! } }, orderBy: { rank: 'desc' }, select: { rank: true } }))?.rank ?? null
+    if (lo === null) return hi! - RANK_STEP
+  }
+  if (hi! - lo! > RANK_EPSILON) return (lo! + hi!) / 2
   await renumber(tx, workspaceId, status)
   return rankFor(tx, workspaceId, status, place, movingId)
 }
@@ -183,6 +196,7 @@ function createData(workspaceId: string, number: number, rank: number, actor: Ac
     assigneeMemberId: input.assigneeMemberId ?? null,
     createdByMemberId: actor.member.id,
     source: blank(input.source)?.slice(0, 64) ?? null,
+    parentTaskId: input.parentTaskId ?? null,
     rank,
     resolvedAt: status === 'done' ? new Date() : null,
   }
@@ -261,6 +275,48 @@ async function patchData(tx: Tx, workspaceId: string, before: TaskRow, input: Ta
   }
 }
 
+/** A parent must be a live task here that isn't a subtask itself; a task with subtasks can't become one. */
+async function assertParent(workspaceId: string, parentId: string | null | undefined, childId?: string) {
+  if (!parentId) return null
+  if (parentId === childId) throw badRequest('A task cannot be its own parent', 'INVALID_PARENT')
+  const parent = await db.workTask.findFirst({ where: { id: parentId, workspaceId, deletedAt: null }, select: { id: true, taskKey: true, title: true, parentTaskId: true } })
+  if (!parent) throw badRequest('That parent task does not exist here', 'INVALID_PARENT')
+  if (parent.parentTaskId) throw badRequest('Subtasks cannot have subtasks', 'INVALID_PARENT')
+  if (childId && (await db.workTask.count({ where: { parentTaskId: childId, deletedAt: null } }))) {
+    throw badRequest('A task with subtasks cannot become a subtask', 'INVALID_PARENT')
+  }
+  return parent
+}
+
+/** Delete a task and its live subtasks at the same instant (so a restore can bring back exactly those). */
+async function deleteWithSubtasks(tx: Tx, task: { id: string; taskKey: string; title: string }, at: Date, done: Set<string>) {
+  const children = await tx.workTask.findMany({ where: { parentTaskId: task.id, deletedAt: null }, select: { id: true, taskKey: true, title: true } })
+  const out: ActivityDraft[] = []
+  for (const t of [task, ...children]) {
+    if (done.has(t.id)) continue
+    done.add(t.id)
+    await tx.workTask.update({ where: { id: t.id }, data: { deletedAt: at, version: { increment: 1 } } })
+    out.push({ type: 'task.deleted', object: { taskId: t.id }, summary: { taskId: t.id, taskKey: t.taskKey, title: t.title, ...(t.id !== task.id ? { withParent: task.taskKey } : {}) } })
+  }
+  return out
+}
+
+/** Undo a delete: the task and the subtasks deleted with it (same instant). */
+async function restoreWithSubtasks(tx: Tx, task: { id: string; taskKey: string; title: string; deletedAt: Date | null }, done: Set<string>) {
+  if (!task.deletedAt) return { ids: [] as string[], activities: [] as ActivityDraft[] }
+  const children = await tx.workTask.findMany({ where: { parentTaskId: task.id, deletedAt: task.deletedAt }, select: { id: true, taskKey: true, title: true } })
+  const ids: string[] = []
+  const activities: ActivityDraft[] = []
+  for (const t of [task, ...children]) {
+    if (done.has(t.id)) continue
+    done.add(t.id)
+    await tx.workTask.update({ where: { id: t.id }, data: { deletedAt: null, version: { increment: 1 } } })
+    ids.push(t.id)
+    activities.push({ type: 'task.restored', object: { taskId: t.id }, summary: { taskId: t.id, taskKey: t.taskKey, title: t.title } })
+  }
+  return { ids, activities }
+}
+
 const BULK_MAX = 200
 
 /** Fields a bulk edit may set on many tasks at once. `blocked`: a reason blocks, null unblocks. */
@@ -289,6 +345,7 @@ export class TaskService {
     if (input.title === undefined) throw badRequest('A task needs a title', 'INVALID_TITLE')
     assertValid(input)
     await assertAssignee(workspaceId, input.assigneeMemberId)
+    const parent = await assertParent(workspaceId, input.parentTaskId)
     return withNumberRetry(() =>
       runAction(
         { action: 'task.create', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { ...input }, target: { type: 'task' } },
@@ -303,8 +360,8 @@ export class TaskService {
             activities: [...renumberActivity(tx, status), {
               type: 'task.created',
               object: { taskId: created.id },
-              summary: { taskId: created.id, taskKey: created.taskKey, title: created.title, status, assigneeMemberId: created.assigneeMemberId, assigneeName: nameOf(created.assignee) },
-            }],
+              summary: { taskId: created.id, taskKey: created.taskKey, title: created.title, status, assigneeMemberId: created.assigneeMemberId, assigneeName: nameOf(created.assignee), parentKey: parent?.taskKey ?? null },
+            }, ...(parent ? [{ type: 'task.subtask.added', object: { taskId: parent.id }, summary: { taskId: parent.id, taskKey: parent.taskKey, title: parent.title, subtaskId: created.id, subtaskKey: created.taskKey, subtaskTitle: created.title } }] : [])],
           }
         },
       ),
@@ -318,6 +375,10 @@ export class TaskService {
     if ('assigneeMemberId' in input) await assertAssignee(workspaceId, input.assigneeMemberId)
     const scheduledDate = 'scheduledDate' in input ? input.scheduledDate || null : before.scheduledDate
     if ('scheduledTime' in input && input.scheduledTime && !scheduledDate) throw badRequest('A time needs a date', 'INVALID_TIME')
+    const newParent = 'parentTaskId' in input ? await assertParent(workspaceId, input.parentTaskId, taskId) : undefined
+    const oldParent = newParent !== undefined && before.parentTaskId && before.parentTaskId !== input.parentTaskId
+      ? await db.workTask.findFirst({ where: { id: before.parentTaskId, workspaceId }, select: { id: true, taskKey: true, title: true } })
+      : null
     return runAction(
       { action: 'task.update', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { taskId, ...input }, target: { type: 'task', id: taskId } },
       async (tx) => {
@@ -326,9 +387,16 @@ export class TaskService {
           data: { version: { increment: 1 } },
         })
         if (!claimed.count) throw conflict('Task changed; reload it before saving again', 'TASK_VERSION_CONFLICT')
-        await tx.workTask.update({ where: { id: taskId }, data: await patchData(tx, workspaceId, before, input) })
+        await tx.workTask.update({ where: { id: taskId }, data: { ...(await patchData(tx, workspaceId, before, input)), ...('parentTaskId' in input ? { parentTaskId: input.parentTaskId ?? null } : {}) } })
         const after = await liveTask(tx, workspaceId, taskId)
-        return { value: toTask(after), changes: diff(before, after, TRACKED), activities: activitiesFor(before, after) }
+        const activities = activitiesFor(before, after)
+        if (before.parentTaskId !== after.parentTaskId) {
+          const sub = { subtaskId: after.id, subtaskKey: after.taskKey, subtaskTitle: after.title }
+          if (oldParent) activities.push({ type: 'task.subtask.removed', object: { taskId: oldParent.id }, summary: { taskId: oldParent.id, taskKey: oldParent.taskKey, title: oldParent.title, ...sub } })
+          if (newParent) activities.push({ type: 'task.subtask.added', object: { taskId: newParent.id }, summary: { taskId: newParent.id, taskKey: newParent.taskKey, title: newParent.title, ...sub } })
+          activities.push({ type: 'task.parent.changed', object: { taskId: after.id }, summary: { taskId: after.id, taskKey: after.taskKey, title: after.title, parentKey: newParent?.taskKey ?? null, previousKey: oldParent?.taskKey ?? null } })
+        }
+        return { value: toTask(after), changes: diff(before, after, TRACKED), activities }
       },
     )
   }
@@ -358,24 +426,20 @@ export class TaskService {
     permit(actor, 'task.delete')
     await runAction(
       { action: 'task.delete', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: {}, target: { type: 'task', id: taskId } },
-      async (tx) => {
-        await tx.workTask.update({ where: { id: taskId }, data: { deletedAt: new Date(), version: { increment: 1 } } })
-        return { value: null, activities: [{ type: 'task.deleted', object: { taskId }, summary: { taskId, taskKey: task.taskKey, title: task.title } }] }
-      },
+      async (tx) => ({ value: null, activities: await deleteWithSubtasks(tx, task, new Date(), new Set()) }),
     )
   }
 
   /** Undo a delete: the card returns to its old column and position. */
   async restore(ctx: WorkspaceCtx, workspaceId: string, taskId: string) {
     const actor = await authorize(ctx.user.id, workspaceId, 'task.delete')
-    const task = await db.workTask.findFirst({ where: { id: taskId, workspaceId }, select: { deletedAt: true } })
+    const task = await db.workTask.findFirst({ where: { id: taskId, workspaceId }, select: { id: true, taskKey: true, title: true, deletedAt: true } })
     if (!task) throw notFound('Task not found')
     return runAction(
       { action: 'task.restore', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: {}, target: { type: 'task', id: taskId } },
       async (tx) => {
-        const restored = await tx.workTask.update({ where: { id: taskId }, data: { deletedAt: null, version: { increment: 1 } }, include: taskInclude })
-        const activities = task.deletedAt ? [{ type: 'task.restored', object: { taskId }, summary: { taskId, taskKey: restored.taskKey, title: restored.title } }] : []
-        return { value: toTask(restored), activities }
+        const { activities } = await restoreWithSubtasks(tx, task, new Set())
+        return { value: toTask(await liveTask(tx, workspaceId, taskId)), activities }
       },
     )
   }
@@ -447,20 +511,20 @@ export class TaskService {
       async (tx) => {
         const activities: ActivityDraft[] = []
         const out: ReturnType<typeof toTask>[] = []
+        const handled = new Set<string>()
+        const at = new Date()
         // In board order, so cards moved together keep their order at the bottom of the new column.
         for (const before of usable) {
           const object = { taskId: before.id }
           const summary = { taskId: before.id, taskKey: before.taskKey, title: before.title }
           if (input.action === 'delete') {
-            await tx.workTask.update({ where: { id: before.id }, data: { deletedAt: new Date(), version: { increment: 1 } } })
-            activities.push({ type: 'task.deleted', object, summary })
+            activities.push(...(await deleteWithSubtasks(tx, before, at, handled)))
             continue
           }
           if (input.action === 'restore') {
-            if (!before.deletedAt) continue
-            await tx.workTask.update({ where: { id: before.id }, data: { deletedAt: null, version: { increment: 1 } } })
-            activities.push({ type: 'task.restored', object, summary })
-            out.push(toTask(await liveTask(tx, workspaceId, before.id)))
+            const restored = await restoreWithSubtasks(tx, before, handled)
+            activities.push(...restored.activities)
+            for (const id of restored.ids) out.push(toTask(await liveTask(tx, workspaceId, id)))
             continue
           }
           const { blocked, ...fields } = patch

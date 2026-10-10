@@ -110,3 +110,26 @@ export function useUpdateTaskBoard(workspaceId: string) {
     onSuccess: (data) => queryClient.setQueryData(keys.taskBoard(workspaceId), data),
   })
 }
+
+/** A task's checklist (in order). Writes go through checklistApi; live updates refetch it. */
+export function useTaskChecklist(workspaceId: string | undefined, taskId: string | undefined, opts: { paused?: boolean } = {}) {
+  return useQuery({
+    queryKey: keys.taskChecklist(workspaceId ?? '', taskId ?? ''),
+    // Paused while the caller has writes in flight: a refetch then would show older state.
+    enabled: !!workspaceId && !!taskId && !opts.paused,
+    queryFn: async () =>
+      unwrap(await getApiClient().GET('/workspaces/{workspaceId}/tasks/{taskId}/checklist', taskPath(workspaceId!, taskId!))).data,
+  })
+}
+
+const itemPath = (workspaceId: string, taskId: string, itemId: string) => ({ params: { path: { workspaceId, taskId, itemId } } })
+
+export const checklistApi = {
+  add: async (workspaceId: string, taskId: string, body: { text: string; afterItemId?: string | null; beforeItemId?: string | null }) =>
+    unwrap(await getApiClient().POST('/workspaces/{workspaceId}/tasks/{taskId}/checklist', { ...taskPath(workspaceId, taskId), body })).data,
+  update: async (workspaceId: string, taskId: string, itemId: string, body: { text?: string; done?: boolean; afterItemId?: string | null; beforeItemId?: string | null }) =>
+    unwrap(await getApiClient().PATCH('/workspaces/{workspaceId}/tasks/{taskId}/checklist/{itemId}', { ...itemPath(workspaceId, taskId, itemId), body })).data,
+  remove: async (workspaceId: string, taskId: string, itemId: string) => {
+    unwrap(await getApiClient().DELETE('/workspaces/{workspaceId}/tasks/{taskId}/checklist/{itemId}', itemPath(workspaceId, taskId, itemId)))
+  },
+}

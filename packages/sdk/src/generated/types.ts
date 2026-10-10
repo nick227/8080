@@ -3755,6 +3755,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/tasks/{taskId}/checklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        /** A task's checklist, in order */
+        get: operations["listTaskChecklist"];
+        put?: never;
+        /**
+         * Add a checklist line (at the end, or after/before another)
+         * @description At most 100 per task (400 CHECKLIST_FULL).
+         */
+        post: operations["addChecklistItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/tasks/{taskId}/checklist/{itemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+                itemId: components["parameters"]["ChecklistItemId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a checklist line */
+        delete: operations["deleteChecklistItem"];
+        options?: never;
+        head?: never;
+        /** Check, uncheck, rename or move a checklist line */
+        patch: operations["updateChecklistItem"];
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/tasks/{taskId}/comments": {
         parameters: {
             query?: never;
@@ -5273,6 +5319,12 @@ export interface components {
             rank: number;
             version: number;
             commentCount: number;
+            /** @description The task this is a subtask of (one level) */
+            parentTaskId: string | null;
+            checklist: {
+                done: number;
+                total: number;
+            };
             source: string | null;
             /**
              * Format: date-time
@@ -5321,6 +5373,35 @@ export interface components {
                 } | null;
             };
         };
+        ChecklistItem: {
+            id: string;
+            taskId: string;
+            text: string;
+            done: boolean;
+            position: number;
+            /** Format: date-time */
+            doneAt: string | null;
+            doneByName: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ChecklistItemResponse: {
+            data: components["schemas"]["ChecklistItem"];
+        };
+        ChecklistList: {
+            data: components["schemas"]["ChecklistItem"][];
+        };
+        AddChecklistItemInput: {
+            text: string;
+            afterItemId?: string | null;
+            beforeItemId?: string | null;
+        };
+        UpdateChecklistItemInput: {
+            text?: string;
+            done?: boolean;
+            afterItemId?: string | null;
+            beforeItemId?: string | null;
+        };
         TaskBlocked: {
             /** Format: date-time */
             since: string;
@@ -5358,6 +5439,8 @@ export interface components {
             /** Format: date */
             dueDate?: string | null;
             assigneeMemberId?: string | null;
+            /** @description Create it as a subtask of this task */
+            parentTaskId?: string | null;
             afterTaskId?: string | null;
             beforeTaskId?: string | null;
         };
@@ -5379,6 +5462,8 @@ export interface components {
             /** Format: date */
             dueDate?: string | null;
             assigneeMemberId?: string | null;
+            /** @description Make it a subtask of this task, or null for standalone */
+            parentTaskId?: string | null;
         };
         ImportTaskRow: {
             title: string;
@@ -6685,6 +6770,7 @@ export interface components {
         ContactId: string;
         TaskId: string;
         WorkLogId: string;
+        ChecklistItemId: string;
         InventoryId: string;
         RecordImageId: string;
         AccountId: string;
@@ -13533,6 +13619,124 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaskActivityList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listTaskChecklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChecklistList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addChecklistItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddChecklistItemInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChecklistItemResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteChecklistItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+                itemId: components["parameters"]["ChecklistItemId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateChecklistItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                taskId: components["parameters"]["TaskId"];
+                itemId: components["parameters"]["ChecklistItemId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateChecklistItemInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChecklistItemResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];

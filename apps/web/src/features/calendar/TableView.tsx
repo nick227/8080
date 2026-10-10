@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { isUrgent } from '@project/shared'
-import { Avatar, since } from './BoardView'
+import { Avatar, since, useParentKey } from './BoardView'
 import { FIELDS, openField, setField, targetsFor, taskShortcut } from './actions'
 import { todayKey } from './dates'
 import { useCalendar, type PickerField } from './store'
@@ -186,6 +186,7 @@ function GroupRows({ group, grouped, collapsed, onToggle, selection, toggleSelec
 function Row({ task, selected, toggleSelect, onOpen, moveFocus }: { task: CalTask; selected: boolean; toggleSelect: (id: string) => void; onOpen: (t: CalTask) => void; moveFocus: (from: HTMLElement, step: 1 | -1) => void }) {
   const { team, meId } = useTeam()
   const [editing, setEditing] = useState(false)
+  const parentKey = useParentKey(task.parentTaskId)
   const today = todayKey()
   const ctx = { today, now: Date.now() }
   const overdue = isUrgent(task, 'overdue', ctx)
@@ -224,6 +225,7 @@ function Row({ task, selected, toggleSelect, onOpen, moveFocus }: { task: CalTas
           <TitleEditor task={task} onDone={() => setEditing(false)} />
         ) : (
           <span className="cal-title-cell">
+            {parentKey && <span className="cal-parent-chip" title={`Subtask of ${parentKey}`}>↳ {parentKey}</span>}
             <button type="button" className="cal-title-link" disabled={task.pending} onClick={() => onOpen(task)} title="Open">
               {task.title}
             </button>

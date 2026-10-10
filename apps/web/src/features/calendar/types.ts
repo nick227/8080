@@ -36,6 +36,9 @@ export type CalTask = {
   rank: number
   version: number
   commentCount: number
+  /** The task this is a subtask of (one level). */
+  parentTaskId?: string | null
+  checklist?: { done: number; total: number }
   resolvedAt?: string | null
   /** Waiting on something (a flag on top of the status). */
   blocked?: { since: string; reason: string; byName: string | null } | null

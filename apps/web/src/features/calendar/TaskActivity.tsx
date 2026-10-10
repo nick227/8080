@@ -41,7 +41,15 @@ function changeLine(field: string, [from, to]: [unknown, unknown]): string {
 export function describe(a: Pick<Activity, 'type' | 'summary'>): string {
   const s = a.summary as Record<string, any>
   switch (a.type) {
-    case 'task.created': return s.assigneeName ? `created the task and assigned it to ${s.assigneeName}` : 'created the task'
+    case 'task.created': return `created the task${s.parentKey ? ` as a subtask of ${s.parentKey}` : ''}${s.assigneeName ? ` and assigned it to ${s.assigneeName}` : ''}`
+    case 'task.subtask.added': return `added subtask ${s.subtaskKey} “${s.subtaskTitle}”`
+    case 'task.subtask.removed': return `moved subtask ${s.subtaskKey} out`
+    case 'task.parent.changed': return s.parentKey ? `made it a subtask of ${s.parentKey}` : 'made it a standalone task'
+    case 'task.checklist.added': return `added a checklist step: “${s.text}”`
+    case 'task.checklist.checked': return s.done ? `checked off “${s.text}”` : `unchecked “${s.text}”`
+    case 'task.checklist.edited': return `renamed a checklist step to “${s.text}”`
+    case 'task.checklist.removed': return `removed a checklist step: “${s.text}”`
+    case 'task.checklist.moved': return `reordered the checklist`
     case 'task.moved': return `moved it from ${STATUS[s.from] ?? s.from} to ${STATUS[s.to] ?? s.to}`
     case 'task.assigned': return s.to ? `assigned it to ${s.toName ?? 'a member'}` : `unassigned ${s.fromName ?? 'it'}`
     case 'task.updated': return Object.entries((s.changes ?? {}) as Record<string, [unknown, unknown]>).map(([f, c]) => changeLine(f, c)).join('; ')

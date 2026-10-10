@@ -3,6 +3,7 @@ import { useCurrentWorkspace } from '../documents/workspace'
 import { useCalendar } from './store'
 import { useTeam } from './sync'
 import { BlockedControl, TaskActivity } from './TaskActivity'
+import { Checklist, ParentLink, Subtasks } from './TaskStructure'
 import { AREAS, STATUSES, type CalTask, type TaskPriority, type TaskStatus, type TaskType } from './types'
 
 const TYPE_LABEL: Record<TaskType, string> = { feature: 'Feature', story: 'Story', bug: 'Bug', task: 'Task', epic: 'Epic' }
@@ -121,6 +122,7 @@ function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBac
             />
           </div>
 
+          <ParentLink task={task} />
           <BlockedControl key={task.blocked?.reason ?? 'clear'} task={task} />
 
           <div className="ticket-section">
@@ -156,6 +158,8 @@ function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBac
             </div>
           )}
 
+          <Checklist task={task} />
+          <Subtasks task={task} />
           <TaskActivity task={task} />
         </div>
 

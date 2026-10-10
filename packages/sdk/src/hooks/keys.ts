@@ -42,6 +42,7 @@ export const keys = {
   tasks: (workspaceId: string) => ['workspaces', workspaceId, 'tasks'] as const,
   taskComments: (workspaceId: string, taskId: string) => ['workspaces', workspaceId, 'tasks', taskId, 'comments'] as const,
   taskActivity: (workspaceId: string, taskId: string) => ['workspaces', workspaceId, 'tasks', taskId, 'activity'] as const,
+  taskChecklist: (workspaceId: string, taskId: string) => ['workspaces', workspaceId, 'tasks', taskId, 'checklist'] as const,
   workLogs: (workspaceId: string) => ['workspaces', workspaceId, 'work-logs'] as const,
   taskBoard: (workspaceId: string) => ['workspaces', workspaceId, 'task-board'] as const,
 }

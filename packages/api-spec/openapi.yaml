@@ -5608,6 +5608,82 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/tasks/{taskId}/checklist:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      operationId: listTaskChecklist
+      summary: A task's checklist, in order
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChecklistList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: addChecklistItem
+      summary: Add a checklist line (at the end, or after/before another)
+      description: At most 100 per task (400 CHECKLIST_FULL).
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddChecklistItemInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChecklistItemResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/tasks/{taskId}/checklist/{itemId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/TaskId'
+      - $ref: '#/components/parameters/ChecklistItemId'
+    patch:
+      operationId: updateChecklistItem
+      summary: Check, uncheck, rename or move a checklist line
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateChecklistItemInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChecklistItemResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteChecklistItem
+      summary: Remove a checklist line
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /workspaces/{workspaceId}/tasks/{taskId}/comments:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -5858,6 +5934,11 @@ components:
     WorkLogId:
       in: path
       name: workLogId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    ChecklistItemId:
+      in: path
+      name: itemId
       required: true
       schema: { type: string, minLength: 1, maxLength: 64 }
     InventoryId:
@@ -7902,7 +7983,7 @@ components:
         avatarUrl: { type: [string, 'null'] }
     Task:
       type: object
-      required: [id, workspaceId, taskKey, number, title, description, status, issueType, area, priority, storyPoints, scheduledDate, scheduledTime, dueDate, assigneeMemberId, assignee, createdByMemberId, rank, version, commentCount, source, resolvedAt, blocked, createdAt, updatedAt]
+      required: [id, workspaceId, taskKey, number, title, description, status, issueType, area, priority, storyPoints, scheduledDate, scheduledTime, dueDate, assigneeMemberId, assignee, createdByMemberId, rank, version, commentCount, parentTaskId, checklist, source, resolvedAt, blocked, createdAt, updatedAt]
       properties:
         id: { type: string }
         workspaceId: { type: string }
@@ -7927,6 +8008,13 @@ components:
         rank: { type: number, description: Order inside the status column (ascending) }
         version: { type: integer, minimum: 1 }
         commentCount: { type: integer, minimum: 0 }
+        parentTaskId: { type: [string, 'null'], description: The task this is a subtask of (one level) }
+        checklist:
+          type: object
+          required: [done, total]
+          properties:
+            done: { type: integer, minimum: 0 }
+            total: { type: integer, minimum: 0 }
         source: { type: [string, 'null'] }
         resolvedAt: { type: [string, 'null'], format: date-time, description: When it last moved to done }
         blocked:
@@ -7985,6 +8073,46 @@ components:
                   properties:
                     reason: { type: string, minLength: 1, maxLength: 280 }
                 - type: 'null'
+    ChecklistItem:
+      type: object
+      required: [id, taskId, text, done, position, doneAt, doneByName, createdAt]
+      properties:
+        id: { type: string }
+        taskId: { type: string }
+        text: { type: string }
+        done: { type: boolean }
+        position: { type: number }
+        doneAt: { type: [string, 'null'], format: date-time }
+        doneByName: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+    ChecklistItemResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ChecklistItem' }
+    ChecklistList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ChecklistItem' }
+    AddChecklistItemInput:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 500 }
+        afterItemId: { type: [string, 'null'], maxLength: 64 }
+        beforeItemId: { type: [string, 'null'], maxLength: 64 }
+    UpdateChecklistItemInput:
+      type: object
+      additionalProperties: false
+      properties:
+        text: { type: string, minLength: 1, maxLength: 500 }
+        done: { type: boolean }
+        afterItemId: { type: [string, 'null'], maxLength: 64 }
+        beforeItemId: { type: [string, 'null'], maxLength: 64 }
     TaskBlocked:
       type: object
       required: [since, reason, byMemberId, byName]
@@ -8034,6 +8162,7 @@ components:
         scheduledTime: { type: [string, 'null'], pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
         dueDate: { type: [string, 'null'], format: date }
         assigneeMemberId: { type: [string, 'null'], maxLength: 64 }
+        parentTaskId: { type: [string, 'null'], maxLength: 64, description: Create it as a subtask of this task }
         afterTaskId: { type: [string, 'null'], maxLength: 64 }
         beforeTaskId: { type: [string, 'null'], maxLength: 64 }
     UpdateTaskInput:
@@ -8052,6 +8181,7 @@ components:
         scheduledTime: { type: [string, 'null'], pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
         dueDate: { type: [string, 'null'], format: date }
         assigneeMemberId: { type: [string, 'null'], maxLength: 64 }
+        parentTaskId: { type: [string, 'null'], maxLength: 64, description: 'Make it a subtask of this task, or null for standalone' }
     ImportTaskRow:
       type: object
       additionalProperties: false

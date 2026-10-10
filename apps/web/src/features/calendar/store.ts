@@ -75,6 +75,7 @@ export type NewTask = {
   dueDate?: string | null
   afterTaskId?: string | null
   beforeTaskId?: string | null
+  parentTaskId?: string | null
 }
 
 type Placement = { afterTaskId?: string | null; beforeTaskId?: string | null }
@@ -163,6 +164,8 @@ export function fromServer(t: Task): CalTask {
     rank: t.rank,
     version: t.version,
     commentCount: t.commentCount,
+    parentTaskId: t.parentTaskId,
+    checklist: t.checklist,
     resolvedAt: t.resolvedAt,
     blocked: t.blocked ? { since: t.blocked.since, reason: t.blocked.reason, byName: t.blocked.byName } : null,
     updatedAt: t.updatedAt,
@@ -183,6 +186,7 @@ function toUpdate(patch: Partial<CalTask>): UpdateTaskInput {
   if ('time' in patch) out.scheduledTime = patch.time || null
   if ('dueDate' in patch) out.dueDate = patch.dueDate || null
   if ('assigneeId' in patch) out.assigneeMemberId = patch.assigneeId || null
+  if ('parentTaskId' in patch) out.parentTaskId = patch.parentTaskId || null
   return out
 }
 
@@ -516,6 +520,8 @@ export const useCalendar = create<State>((set, get) => {
         // Neighbours that are still being created themselves: place by their real ids.
         body.afterTaskId = body.afterTaskId ? await realId(body.afterTaskId) : null
         body.beforeTaskId = body.beforeTaskId ? await realId(body.beforeTaskId) : null
+        // The parent may itself be a card still being created.
+        body.parentTaskId = input.parentTaskId ? await realId(input.parentTaskId) : null
         return tasksApi.create(ws, body)
       }, {
         onDone: (task) => {
@@ -675,6 +681,9 @@ export const useCalendar = create<State>((set, get) => {
       const task = get().tasks.find((t) => t.id === id)
       if (!task) return
       replaceTask(id, null)
+      // Its subtasks go with it (the server does the same; Undo restores them together).
+      const children = get().tasks.filter((t) => t.parentTaskId === id)
+      if (children.length) set({ tasks: get().tasks.filter((t) => t.parentTaskId !== id) })
       send('delete the task', async (ws) => tasksApi.remove(ws, await realId(id)), { taskId: id, snapshot: () => null })
       get().say(`Deleted ${task.taskKey}`, () => get().restore(task))
     },
@@ -780,6 +789,8 @@ function draft(input: NewTask): CalTask {
     category: input.category ?? 'task',
     area: input.area ?? null,
     storyPoints: input.storyPoints ?? null,
+    parentTaskId: input.parentTaskId ?? null,
+    checklist: { done: 0, total: 0 },
     rank: 0,
     version: 1,
     commentCount: 0,

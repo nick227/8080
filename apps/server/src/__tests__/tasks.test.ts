@@ -364,4 +364,86 @@ describe('tasks', () => {
     expect(back.json().data.map((t: any) => t.title).sort()).toEqual(['A', 'B'])
     expect(await column(base, 'open')).toEqual(['B'])
   })
+
+  it('subtasks: one level, parent history notes them, delete takes them along and restore brings them back', async () => {
+    const { base } = await setup()
+    const parent = await create(base, { title: 'Launch' })
+    const child = await create(base, { title: 'Write copy', parentTaskId: parent.id })
+    expect(child.parentTaskId).toBe(parent.id)
+    await validateResponse('createTask', 201, { data: child })
+
+    // One level only, no self-parenting, and a parent can't become a subtask.
+    expect((await call(testUserId, 'POST', base, { title: 'x', parentTaskId: child.id })).json().code).toBe('INVALID_PARENT')
+    expect((await call(testUserId, 'PATCH', `${base}/${parent.id}`, { parentTaskId: parent.id })).json().code).toBe('INVALID_PARENT')
+    const other = await create(base, { title: 'Other' })
+    expect((await call(testUserId, 'PATCH', `${base}/${parent.id}`, { parentTaskId: other.id })).json().code).toBe('INVALID_PARENT')
+
+    const parentHistory = (await call(testUserId, 'GET', `${base}/${parent.id}/activity`)).json().data.map((a: any) => a.type)
+    expect(parentHistory).toEqual(['task.created', 'task.subtask.added'])
+
+    // Re-parent the child onto Other, then make it standalone.
+    const moved = await call(testUserId, 'PATCH', `${base}/${child.id}`, { parentTaskId: other.id })
+    expect(moved.json().data.parentTaskId).toBe(other.id)
+    expect((await call(testUserId, 'GET', `${base}/${parent.id}/activity`)).json().data.at(-1).type).toBe('task.subtask.removed')
+    expect((await call(testUserId, 'PATCH', `${base}/${child.id}`, { parentTaskId: null })).json().data.parentTaskId).toBeNull()
+
+    // Delete takes live subtasks along; restore brings back exactly those.
+    const a = await create(base, { title: 'Sub A', parentTaskId: parent.id })
+    const b = await create(base, { title: 'Sub B', parentTaskId: parent.id })
+    await call(testUserId, 'DELETE', `${base}/${b.id}`) // deleted earlier, on its own
+    await call(testUserId, 'DELETE', `${base}/${parent.id}`)
+    const live = (await call(testUserId, 'GET', base)).json().data.map((t: any) => t.title)
+    expect(live).not.toContain('Launch')
+    expect(live).not.toContain('Sub A')
+    await call(testUserId, 'POST', `${base}/${parent.id}/restore`)
+    const back = (await call(testUserId, 'GET', base)).json().data.map((t: any) => t.title)
+    expect(back).toContain('Launch')
+    expect(back).toContain('Sub A')
+    expect(back).not.toContain('Sub B') // it wasn't deleted with the parent
+    expect(a.parentTaskId).toBe(parent.id)
+  })
+
+  it('checklist: add, check, rename, reorder, remove; progress on the task; history lines', async () => {
+    const { base } = await setup()
+    const task = await create(base, { title: 'Ship' })
+    const cl = `${base}/${task.id}/checklist`
+    const one = await call(testUserId, 'POST', cl, { text: ' Draft ' })
+    expect(one.statusCode).toBe(201)
+    await validateResponse('addChecklistItem', 201, one.json())
+    const two = (await call(testUserId, 'POST', cl, { text: 'Review' })).json().data
+    const zero = (await call(testUserId, 'POST', cl, { text: 'Plan', beforeItemId: one.json().data.id })).json().data
+    const list = await call(carolId, 'GET', cl)
+    await validateResponse('listTaskChecklist', 200, list.json())
+    expect(list.json().data.map((i: any) => i.text)).toEqual(['Plan', 'Draft', 'Review'])
+
+    const checked = await call(carolId, 'PATCH', `${cl}/${zero.id}`, { done: true })
+    await validateResponse('updateChecklistItem', 200, checked.json())
+    expect(checked.json().data).toMatchObject({ done: true, doneByName: 'Carol' })
+    const t1 = (await call(testUserId, 'GET', `${base}/${task.id}`)).json().data
+    expect(t1.checklist).toEqual({ done: 1, total: 3 })
+
+    await call(testUserId, 'PATCH', `${cl}/${two.id}`, { text: 'Review with legal', afterItemId: zero.id })
+    expect((await call(testUserId, 'GET', cl)).json().data.map((i: any) => i.text)).toEqual(['Plan', 'Review with legal', 'Draft'])
+    expect((await call(testUserId, 'DELETE', `${cl}/${one.json().data.id}`)).statusCode).toBe(200)
+    const t2 = (await call(testUserId, 'GET', `${base}/${task.id}`)).json().data
+    expect(t2.checklist).toEqual({ done: 1, total: 2 })
+    expect(t2.version).toBeGreaterThan(t1.version)
+
+    const types = (await call(testUserId, 'GET', `${base}/${task.id}/activity`)).json().data.map((a: any) => a.type)
+    expect(types).toEqual(['task.created', 'task.checklist.added', 'task.checklist.added', 'task.checklist.added', 'task.checklist.checked', 'task.checklist.edited', 'task.checklist.removed'])
+    expect((await call(testUserId, 'POST', cl, { text: '  ' })).statusCode).toBe(400)
+    expect(await crossWorkspaceViolations()).toEqual({})
+  })
+
+  it('placing with one neighbour lands right next to it, not past the next card', async () => {
+    const { base } = await setup()
+    const a = await create(base, { title: 'A' })
+    await create(base, { title: 'B' })
+    const c = await create(base, { title: 'C' })
+    await call(testUserId, 'POST', `${base}/${c.id}/move`, { status: 'open', afterTaskId: a.id })
+    expect(await column(base, 'open')).toEqual(['A', 'C', 'B'])
+    const d = await create(base, { title: 'D', beforeTaskId: c.id })
+    expect(d.title).toBe('D')
+    expect(await column(base, 'open')).toEqual(['A', 'D', 'C', 'B'])
+  })
 })

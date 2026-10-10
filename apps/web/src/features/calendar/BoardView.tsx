@@ -457,7 +457,21 @@ function Chip({ task, field, label, className, children }: { task: CalTask; fiel
   )
 }
 
+/** "1/3": done subtasks of a parent (a primitive, so the card only re-renders when it changes). */
+export function useSubtaskProgress(taskId: string) {
+  return useCalendar((s) => {
+    const kids = s.tasks.filter((t) => t.parentTaskId === taskId)
+    return kids.length ? `${kids.filter((t) => t.status === 'done').length}/${kids.length}` : ''
+  })
+}
+
+export function useParentKey(parentTaskId: string | null | undefined) {
+  return useCalendar((s) => (parentTaskId ? s.tasks.find((t) => t.id === parentTaskId)?.taskKey ?? null : null))
+}
+
 function CardBody({ task, overlay, interactive }: { task: CalTask; overlay?: boolean; interactive?: boolean }) {
+  const subtasks = useSubtaskProgress(task.id)
+  const parentKey = useParentKey(task.parentTaskId)
   const today = todayKey()
   const overdue = !!task.dueDate && task.dueDate < today && task.status !== 'done'
   return (
@@ -466,6 +480,7 @@ function CardBody({ task, overlay, interactive }: { task: CalTask; overlay?: boo
         <span className="cal-ticket-key-tag">{task.taskKey}</span>
         <span className="cal-type-tag" data-type={task.category ?? 'task'}>{TYPE_LABEL[task.category ?? 'task']}</span>
         {task.area && <span className="cal-area-chip">{task.area}</span>}
+        {parentKey && <span className="cal-parent-chip" title={`Subtask of ${parentKey}`}>↳ {parentKey}</span>}
       </div>
       <h4 className="cal-card-title">{task.title}</h4>
       {task.blocked && task.status !== 'done' && (
@@ -488,6 +503,12 @@ function CardBody({ task, overlay, interactive }: { task: CalTask; overlay?: boo
         ) : interactive && <Chip task={task} field="due" label="Set a due date" className="cal-card-due cal-chip-ghost"><span>+ Due</span></Chip>}
         {task.day && <span className="cal-card-due">{shortDate(task.day)}{task.time ? ` ${task.time}` : ''}</span>}
         {task.commentCount > 0 && <span className="cal-card-comments" title={`${task.commentCount} comments`}>{task.commentCount} ✎</span>}
+        {subtasks && <span className="cal-card-progress" title={`Subtasks done: ${subtasks}`}>◫ {subtasks}</span>}
+        {!!task.checklist?.total && (
+          <span className="cal-card-progress" data-complete={task.checklist.done === task.checklist.total || undefined} title={`Checklist: ${task.checklist.done} of ${task.checklist.total} done`}>
+            ☑ {task.checklist.done}/{task.checklist.total}
+          </span>
+        )}
         <span className="cal-card-right-tags">
           {task.storyPoints != null && <span className="cal-points-badge" title={`${task.storyPoints} story points`}>{task.storyPoints}</span>}
           {interactive

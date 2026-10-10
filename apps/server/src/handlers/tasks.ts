@@ -2,6 +2,7 @@
 import { workspaceCtx as ctx } from '../lib/session'
 import { TaskService } from '../services/TaskService'
 import { WorkLogService } from '../services/WorkLogService'
+import { ChecklistService } from '../services/ChecklistService'
 import { joinTaskStream, type TaskFrame } from '../services/taskStream'
 import { authorize } from '../services/workspacePolicy'
 
@@ -134,4 +135,27 @@ export async function streamTasks(request: any, reply: any) {
 
 export async function bulkTasks(request: any, reply: any) {
   return reply.send(await tasks.bulk(ctx(request), request.params.workspaceId, request.body))
+}
+
+const checklist = new ChecklistService()
+
+export async function listTaskChecklist(request: any, reply: any) {
+  const { workspaceId, taskId } = request.params
+  return reply.send(await checklist.list(request.user.id, workspaceId, taskId))
+}
+
+export async function addChecklistItem(request: any, reply: any) {
+  const { workspaceId, taskId } = request.params
+  return reply.status(201).send({ data: await checklist.add(ctx(request), workspaceId, taskId, request.body) })
+}
+
+export async function updateChecklistItem(request: any, reply: any) {
+  const { workspaceId, taskId, itemId } = request.params
+  return reply.send({ data: await checklist.update(ctx(request), workspaceId, taskId, itemId, request.body) })
+}
+
+export async function deleteChecklistItem(request: any, reply: any) {
+  const { workspaceId, taskId, itemId } = request.params
+  await checklist.remove(ctx(request), workspaceId, taskId, itemId)
+  return reply.send({ data: null })
 }

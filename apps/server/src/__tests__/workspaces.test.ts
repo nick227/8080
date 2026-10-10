@@ -151,6 +151,7 @@ function sampleBody(op: any) {
     UpdateTaskBoardInput: { wipLimits: {} },
     BlockTaskInput: { reason: 'x' },
     BulkTasksInput: { ids: ['x'], action: 'delete' },
+    AddChecklistItemInput: { text: 'x' },
     UpdatePipelineInput: { stages: [{ label: 'x', position: 0, kind: 'open' }] },
     UpdateContactFieldLabelsInput: { fields: [{ key: 'x', label: 'x' }] },
     RecipientConfig: { source: 'WORKSPACE_MEMBERS' },
