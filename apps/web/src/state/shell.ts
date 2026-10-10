@@ -24,7 +24,8 @@ type ShellState = {
   setRoom: (room: CrumbRoom | null) => void
 }
 
-const inRoom = typeof window !== 'undefined' && /^\/room\//.test(window.location.pathname)
+// Rooms and company pages both fall back to themselves (not the Lobby) when a sheet closes.
+const inRoom = typeof window !== 'undefined' && /^\/(?:room|c)\//.test(window.location.pathname)
 
 export const useShell = create<ShellState>((set, get) => ({
   surface: inRoom ? 'conversation' : 'lobby',

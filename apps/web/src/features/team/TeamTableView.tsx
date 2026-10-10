@@ -13,10 +13,12 @@ const ROLE_LABEL = { owner: 'Owner', admin: 'Admin', member: 'Member' } as const
 
 export function TeamTableView({
   seats,
+  inRoom,
   onSelectUser,
   onAssignTask,
 }: {
   seats: Seat[]
+  inRoom: boolean
   onSelectUser: (member: ExtendedMember) => void
   onAssignTask: (memberId: string) => void
 }) {
@@ -77,7 +79,7 @@ export function TeamTableView({
         <div className="team-header-title-block">
           <h2>Team</h2>
           <span className="team-header-subtitle">
-            {mergedMembers.length} {mergedMembers.length === 1 ? 'member' : 'members'} &bull; {activeCount} here now &bull; {totalCompletedCount}/{totalTasksCount} tasks done
+            {mergedMembers.length} {mergedMembers.length === 1 ? 'member' : 'members'} {inRoom && <> &bull; {activeCount} here now</>} &bull; {totalCompletedCount}/{totalTasksCount} tasks done
           </span>
         </div>
 
@@ -158,11 +160,13 @@ export function TeamTableView({
                               <PersonIcon guest={Boolean(member.guest)} />
                             </div>
                           )}
-                          <span
-                            className={`cell-presence-indicator ${
-                              presenceState === 'offline' ? 'offline' : 'online'
-                            }`}
-                          />
+                          {inRoom && (
+                            <span
+                              className={`cell-presence-indicator ${
+                                presenceState === 'offline' ? 'offline' : 'online'
+                              }`}
+                            />
+                          )}
                         </div>
                         <div className="team-member-name-block">
                           <span className="member-name-text">{member.name}</span>
@@ -183,7 +187,7 @@ export function TeamTableView({
                     {/* Presence */}
                     <td>
                       <div className="presence-block">
-                        <span className={`presence-pill presence-${presenceState}`}>
+                        {!inRoom ? <span className="presence-none" aria-label="No room open">—</span> : <span className={`presence-pill presence-${presenceState}`}>
                           {presenceState === 'typing'
                             ? 'Typing…'
                             : presenceState === 'recording'
@@ -195,7 +199,7 @@ export function TeamTableView({
                             : presenceState === 'offline'
                             ? 'Not in this room'
                             : 'In this room'}
-                        </span>
+                        </span>}
                       </div>
                     </td>
 

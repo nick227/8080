@@ -7,8 +7,10 @@ import './team.css'
 
 export function TeamDesk({
   seats,
+  roomId,
 }: {
   seats: Seat[]
+  /** Without a room (company pages) there is no presence to show. */
   roomId?: string
 }) {
   const [selectedUser, setSelectedUser] = useState<ExtendedMember | null>(null)
@@ -19,6 +21,7 @@ export function TeamDesk({
       {selectedUser ? (
         <UserProfilePage
           member={selectedUser}
+          inRoom={Boolean(roomId)}
           seat={seats.find((s) => s.id === (selectedUser.userId ?? selectedUser.id))}
           onBack={() => setSelectedUser(null)}
           onAssignTask={(userId) => setAssignModalUser(userId)}
@@ -26,6 +29,7 @@ export function TeamDesk({
       ) : (
         <TeamTableView
           seats={seats}
+          inRoom={Boolean(roomId)}
           onSelectUser={(member) => setSelectedUser(member)}
           onAssignTask={(userId) => setAssignModalUser(userId)}
         />

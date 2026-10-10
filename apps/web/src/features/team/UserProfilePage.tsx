@@ -28,11 +28,14 @@ export type ExtendedMember = {
 export function UserProfilePage({
   member,
   seat,
+  inRoom = true,
   onBack,
   onAssignTask,
 }: {
   member: ExtendedMember
   seat?: Seat
+  /** False on company pages: no room, so no presence. */
+  inRoom?: boolean
   onBack: () => void
   onAssignTask: (userId: string) => void
 }) {
@@ -122,7 +125,7 @@ export function UserProfilePage({
               <PersonIcon guest={Boolean(member.guest)} />
             </div>
           )}
-          <span className={`user-presence-dot ${isOnline ? 'online' : 'offline'}`} title={isOnline ? 'In this room' : 'Not in this room'} />
+          {inRoom && <span className={`user-presence-dot ${isOnline ? 'online' : 'offline'}`} title={isOnline ? 'In this room' : 'Not in this room'} />}
         </div>
 
         <div className="user-hero-details">
@@ -136,9 +139,11 @@ export function UserProfilePage({
             {member.role || 'Member'}{member.department && <> &bull; <span className="user-dept">{member.department}</span></>}
           </p>
           <div className="user-hero-meta">
-            <span className="user-meta-item">
-              <strong>{isOnline ? 'In this room' : 'Not in this room'}</strong>
-            </span>
+            {inRoom && (
+              <span className="user-meta-item">
+                <strong>{isOnline ? 'In this room' : 'Not in this room'}</strong>
+              </span>
+            )}
             {member.email && (
               <span className="user-meta-item">
                 <span className="meta-icon">✉️</span> {member.email}

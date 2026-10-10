@@ -2,16 +2,21 @@ import type { ReactNode } from 'react'
 import { BrowserRouter, Routes as RouterRoutes, Route, useLocation, useParams } from 'react-router-dom'
 import { Home } from '../views/Home'
 import { Room } from '../views/Room'
+import { Company } from '../views/Company'
+import { BASE_PATH } from '../features/tasks/links'
 
 // Routes switch instantly: no fade or scale between pages (redesign 00-decisions.md,
-// Phase 1). The key remounts the room page per room, not per desk or task.
+// Phase 1). The key remounts a room or company page per room/company, not per desk or task.
 function AppRoutes() {
   const location = useLocation()
   return (
-    <RouterRoutes location={location} key={location.pathname.match(/^\/room\/[^/]+/)?.[0] ?? location.pathname}>
+    <RouterRoutes location={location} key={location.pathname.match(BASE_PATH)?.[0] ?? location.pathname}>
       <Route path="/" element={<Page><Home /></Page>} />
       {['/room/:roomId', '/room/:roomId/tasks', '/room/:roomId/tasks/:taskKey'].map((path) => (
         <Route key={path} path={path} element={<Page><RoomWrapper /></Page>} />
+      ))}
+      {['/c/:workspaceId', '/c/:workspaceId/:desk', '/c/:workspaceId/tasks/:taskKey'].map((path) => (
+        <Route key={path} path={path} element={<Page><Company /></Page>} />
       ))}
     </RouterRoutes>
   )

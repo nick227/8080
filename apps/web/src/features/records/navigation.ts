@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { projectPath, taskPath, tasksPath } from '../tasks/links'
+import { onCompanyPath, projectPath, taskPath, tasksPath } from '../tasks/links'
 import { DESKS, type Desk } from '../work/sections'
 
 export type RecordKind = 'contacts' | 'inventory'
@@ -29,23 +29,40 @@ function read(path: string, desk: Desk) {
     return memory.get(key)
   }
 }
+/** Desks a company URL may name (`/c/:id/:desk`). The live floor belongs to rooms. */
+export const COMPANY_DESKS: readonly Desk[] = DESKS.map((d) => d.id).filter((id) => id !== 'stream' && id !== 'company')
+
 export function useWorkPlace() {
   const location = useLocation()
   const navigate = useNavigate()
   const params = new URLSearchParams(location.search)
   const legacyView = params.get('view')
   const basePath = projectPath(location.pathname)
+  const company = onCompanyPath(location.pathname)
+  const segment = company ? location.pathname.slice(basePath.length).split('/')[1] ?? '' : ''
   const onTasks = location.pathname.startsWith(`${basePath}/tasks`)
-  const requestedDesk = onTasks ? 'tasks' : params.get('desk')
+  const queryDesk = params.get('desk')
+  const requestedDesk = onTasks ? 'tasks' : company ? (segment || 'company') : queryDesk
   const legacyTicket = params.get('ticket')
   useEffect(() => {
     if (legacyTicket) navigate(taskPath(location.pathname, legacyTicket), { replace: true })
   }, [legacyTicket, location.pathname, navigate])
+  // On a company route, links that only set `?desk=` (record links, contact → automation)
+  // land on that desk's own path, keeping the rest of their query.
+  useEffect(() => {
+    if (!company || !queryDesk) return
+    const next = new URLSearchParams(location.search)
+    next.delete('desk')
+    navigate({ pathname: deskPath(basePath, queryDesk as Desk), search: next.toString() }, { replace: true, state: location.state })
+  }, [company, queryDesk, basePath, location.search, location.state, navigate])
   // Keep shared links to the former Calendar views working in their new home.
   const requested = requestedDesk === 'calendar' && legacyView === 'table' ? 'company'
     : requestedDesk === 'calendar' && ['board', 'backlog', 'reports'].includes(legacyView ?? '') ? 'board'
       : requestedDesk
-  const place: Desk = DESKS.some((d) => d.id === requested) ? (requested as Desk) : 'company'
+  const known = company
+    ? requested === 'company' || COMPANY_DESKS.includes(requested as Desk)
+    : DESKS.some((d) => d.id === requested)
+  const place: Desk = known ? (requested as Desk) : 'company'
   useEffect(() => {
     // Inspecting a related record must not replace the other area's working session.
     if ((location.state as RecordNavigationState | null)?.origin) return
@@ -62,11 +79,19 @@ export function useWorkPlace() {
     if (desk === place) return
     const saved = read(basePath, desk)
     const params = new URLSearchParams(saved?.search ?? '')
-    params.set('desk', desk)
     params.delete('ticket')
-    navigate({ pathname: desk === 'tasks' ? tasksPath(basePath) : basePath, search: params.toString() }, { state: saved?.state ?? null })
+    if (company) params.delete('desk')
+    else params.set('desk', desk)
+    const pathname = company ? deskPath(basePath, desk) : desk === 'tasks' ? tasksPath(basePath) : basePath
+    navigate({ pathname, search: params.toString() }, { state: saved?.state ?? null })
   }
-  return [place, select] as const
+  // Third item: a company URL that names a desk that doesn't exist (the page shows not-found).
+  return [place, select, company && !known] as const
+}
+
+/** A desk's address under a company base path. */
+export function deskPath(base: string, desk: Desk) {
+  return desk === 'company' ? base : `${base}/${desk}`
 }
 
 export function useRecordNavigation(kind: RecordKind) {
@@ -79,7 +104,9 @@ export function useRecordNavigation(kind: RecordKind) {
   const previewKind: RecordKind = params.get('previewKind') === 'inventory' ? 'inventory' : 'contacts'
   function search(patch: Record<string, string | null>) {
     const next = new URLSearchParams(location.search)
-    next.set('desk', kind)
+    // Company routes carry the desk in the path; rooms in the query.
+    if (onCompanyPath(location.pathname)) next.delete('desk')
+    else next.set('desk', kind)
     for (const [key, value] of Object.entries(patch)) value === null ? next.delete(key) : next.set(key, value)
     return `?${next.toString()}`
   }

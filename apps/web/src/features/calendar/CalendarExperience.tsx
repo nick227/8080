@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { isUrgencyKey } from '@project/shared'
 import { useCreateCompany, useCurrentWorkspace } from '../documents/workspace'
-import { taskPath, tasksPath } from '../tasks/links'
+import { onCompanyPath, taskPath, tasksPath } from '../tasks/links'
 import { SectionHeader } from '../work/SectionHeader'
 import { DayView } from './DayView'
 import { addDays, dayKey, dayTitle, monthName, parseDay, todayKey } from './dates'
@@ -156,13 +156,15 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
     // The store takes the URL's values on the next render; don't overwrite them first.
     if (justRead.current) { justRead.current = false; return }
     const params = new URLSearchParams(location.search)
-    params.set('desk', section === 'table' ? 'company' : section)
+    // Rooms keep the desk in the query; company routes carry it in the path.
+    if (onCompanyPath(location.pathname)) params.delete('desk')
+    else params.set('desk', section === 'table' ? 'company' : section)
     const next = writeUrl(params.toString(), view, filters)
     if (next !== location.search.replace(/^\?/, '')) {
       fromUrl.current = `?${next}`
       navigate({ search: next }, { replace: true })
     }
-  }, [view, filters, location.search, navigate, section, pageTaskKey])
+  }, [view, filters, location.search, location.pathname, navigate, section, pageTaskKey])
 
   // Notices fade on their own; Undo stays a few seconds.
   useEffect(() => {

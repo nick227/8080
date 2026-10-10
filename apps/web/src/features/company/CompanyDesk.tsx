@@ -13,6 +13,8 @@ import { IntegrationsSection } from './IntegrationsSection'
 import { OverviewSection } from './OverviewSection'
 import { VocabularySection } from './VocabularySection'
 import { applyDeskLink, type DeskLink } from './links'
+import { deskPath } from '../records/navigation'
+import { onCompanyPath, projectPath } from '../tasks/links'
 import '../records/records.css'
 import './company.css'
 import { useCurrentWorkspace } from '../../app/workspace'
@@ -32,6 +34,12 @@ export function CompanyDesk({ roomId, onPlace }: { roomId?: string; onPlace?: (d
   const visibility = room?.visibility ?? 'public'
 
   const go = (link: DeskLink) => {
+    if (onCompanyPath(location.pathname)) {
+      // One navigation straight to the desk's path, carrying the link's filters.
+      const params = new URLSearchParams(Object.entries(link.params ?? {}).filter(([, v]) => v))
+      navigate({ pathname: deskPath(projectPath(location.pathname), link.desk as Desk), search: params.toString() })
+      return
+    }
     applyDeskLink(link, (desk) => onPlace?.(desk), (params) => {
       navigate({ pathname: location.pathname, search: params.toString() })
     })
