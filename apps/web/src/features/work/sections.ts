@@ -14,11 +14,16 @@ export const DESKS: { id: Desk; label: string }[] = [
   { id: 'agents', label: 'Automations' },
 ]
 
-/** How the work nav groups desks (redesign 00-decisions.md, Phase 2). Company and Stream stand alone. */
-export const NAV_GROUPS: { id: 'work' | 'manage'; label: string; desks: Desk[] }[] = [
-  { id: 'work', label: 'Work', desks: ['tasks', 'board', 'calendar'] },
-  { id: 'manage', label: 'Manage', desks: ['contacts', 'inventory', 'team', 'agents', 'documents'] },
+/** The tabular collections (redesign D9): one shared view, switched in its header. */
+export const COLLECTIONS: { id: Desk; label: string; singular: string }[] = [
+  { id: 'tasks', label: 'Tasks', singular: 'task' },
+  { id: 'contacts', label: 'Contacts', singular: 'contact' },
+  { id: 'inventory', label: 'Inventory', singular: 'item' },
+  { id: 'team', label: 'Team', singular: 'member' },
+  { id: 'documents', label: 'Documents', singular: 'document' },
+  { id: 'agents', label: 'Automations', singular: 'automation' },
 ]
+export const isCollection = (desk: Desk) => COLLECTIONS.some((c) => c.id === desk)
 
 export type InboxNote = { id: string; from: string; subject: string }
 export type CalendarEvent = { id: string; title: string; when: string }

@@ -6,7 +6,7 @@
   flex-direction: column;
   background: var(--surface-deep, #0e0f12);
   color: var(--ink, #f3f4f6);
-  padding: 1rem 1.25rem;
+  padding: 0 var(--space-sm);
   overflow: auto;
 }
 
@@ -925,3 +925,9 @@
 }
 
 .team-empty { padding: var(--space-lg) var(--space-md); color: var(--muted); text-align: center; }
+
+/* Team rows in the shared collection table (redesign D9). */
+.team-member-cell { display: inline-flex; align-items: center; gap: var(--space-sm); min-width: 0; }
+.team-member-cell .team-cell-avatar, .team-member-cell .team-cell-avatar-placeholder { width: 24px; height: 24px; flex: none; border-radius: 50%; display: grid; place-items: center; overflow: hidden; object-fit: cover; }
+.team-member-cell .member-name-text { overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+.team-muted { color: var(--muted); }

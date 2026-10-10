@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMyWorkspaces } from '@project/sdk'
 import { chooseWorkspace, useCurrentWorkspace } from '../../app/workspace'
 import { useShell } from '../../state/shell'
-import { DESKS, NAV_GROUPS, type Desk } from '../work/sections'
+import { DESKS, isCollection, type Desk } from '../work/sections'
 import './command.css'
 
 const OPEN_EVENT = '8080:command-palette'
@@ -29,7 +29,7 @@ const SYNONYMS: Partial<Record<Desk, string>> = {
 }
 
 function groupOf(desk: Desk) {
-  return NAV_GROUPS.find((g) => g.desks.includes(desk))?.label ?? (desk === 'company' ? 'Company' : 'Stream')
+  return isCollection(desk) ? 'List' : desk === 'company' ? 'Company' : desk === 'board' || desk === 'calendar' ? 'Work' : 'Stream'
 }
 
 /** Cmd/Ctrl+K: jump to any desk, company, the account page or the Lobby. Navigation only. */

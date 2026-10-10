@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react'
 import { PersonName } from '../../components/PersonName'
 import { FormSlideout } from '../work/FormSlideout'
-import { SectionHeader } from '../work/SectionHeader'
+import { CollectionView } from '../collections/CollectionView'
+import { ColumnsMenu, FilterChips } from '../collections/ColumnsMenu'
+import { DataTable } from '../collections/DataTable'
+import { matches, useTableState, useUrlSearch, type Column } from '../collections/table'
 import { DocIcon, kindOf, type DocKind } from './DocIcon'
 import { markOf, whenLabel } from './format'
 import { blankDoc } from './seed'
@@ -9,40 +12,58 @@ import { useDocuments } from './store'
 import type { DocumentRecord } from './types'
 import './DocumentsList.css'
 
-type SortKey = 'title' | 'owner' | 'updated' | 'type'
-type Sort = { key: SortKey; dir: 1 | -1 }
-
-const COLUMNS: { key: SortKey; label: string; first: 1 | -1 }[] = [
-  { key: 'title', label: 'Name', first: 1 },
-  { key: 'owner', label: 'Owner', first: 1 },
-  { key: 'updated', label: 'Updated', first: -1 },
-  { key: 'type', label: 'Type', first: 1 },
+type Show = 'all' | 'doc' | 'sheet' | 'map'
+const GROUPS: { id: Exclude<Show, 'all'>; label: string; kinds: DocKind[] }[] = [
+  { id: 'doc', label: 'Documents', kinds: ['doc', 'gdoc'] },
+  { id: 'sheet', label: 'Sheets', kinds: ['sheet', 'gsheet', 'contacts'] },
+  { id: 'map', label: 'Maps', kinds: ['map'] },
 ]
+const groupOf = (doc: DocumentRecord) => GROUPS.find((g) => g.kinds.includes(kindOf(doc)))?.id ?? 'doc'
 
-const text = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-
-function compare(key: SortKey, a: DocumentRecord, b: DocumentRecord) {
-  if (key === 'title') return text(a.title, b.title)
-  if (key === 'owner') return text(a.ownerName, b.ownerName)
-  if (key === 'type') return text(markOf(a), markOf(b))
-  return a.updatedAt - b.updatedAt
-}
-
-const GROUPS: { kind: DocKind; surface: DocumentRecord['surface']; title: string; label: string; kinds: DocKind[] }[] = [
-  { kind: 'doc', surface: 'blocks', title: 'Documents', label: 'document', kinds: ['doc', 'gdoc'] },
-  { kind: 'sheet', surface: 'grid', title: 'Sheets', label: 'sheet', kinds: ['sheet', 'gsheet', 'contacts'] },
-  { kind: 'map', surface: 'mental_map', title: 'Maps', label: 'map', kinds: ['map'] },
-]
-
+/** Documents as a shared collection (redesign D9): one table, filtered by type. */
 export function DocumentsList({ owner }: { owner: string }) {
   const docs = useDocuments((state) => state.docs)
   const add = useDocuments((state) => state.add)
+  const open = useDocuments((state) => state.open)
   const [adding, setAdding] = useState(false)
   const [surface, setSurface] = useState<DocumentRecord['surface']>('blocks')
+  const [show, setShow] = useState<Show>('all')
+  const search = useUrlSearch()
+  const columns = useMemo<Column<DocumentRecord>[]>(() => [
+    {
+      id: 'title', header: 'Name', width: '44%', hideable: false, sortValue: (d) => d.title || 'Untitled', title: (d) => d.title || 'Untitled',
+      cell: (doc) => (
+        <span className="docs-name">
+          <DocIcon kind={kindOf(doc)} />
+          <span className="docs-name-text">{doc.title || 'Untitled'}</span>
+          {doc.surface === 'external' && <span className="docs-out" aria-label="Opens in a new tab">↗</span>}
+        </span>
+      ),
+    },
+    { id: 'type', header: 'Type', cell: (d) => markOf(d), sortValue: (d) => markOf(d) },
+    { id: 'owner', header: 'Owner', cell: (d) => <PersonName name={d.ownerName} />, sortValue: (d) => d.ownerName },
+    { id: 'updated', header: 'Updated', firstDir: -1, cell: (d) => <time dateTime={new Date(d.updatedAt).toISOString()}>{whenLabel(d.updatedAt)}</time>, sortValue: (d) => d.updatedAt },
+  ], [])
+  const table = useTableState('documents', columns, { id: 'updated', dir: -1 })
+  const count = (id: Exclude<Show, 'all'>) => docs.filter((d) => groupOf(d) === id).length
+  // Ties fall back to most recently updated, so the order never jumps.
+  const rows = table.sortRows(
+    docs.filter((d) => (show === 'all' || groupOf(d) === show) && matches(search.q, d.title, d.ownerName, markOf(d))),
+    (a, b) => b.updatedAt - a.updatedAt,
+  )
 
   return (
-    <div className="docs-table-wrap">
-      <SectionHeader title="Documents" level={1} newLabel="document" onNew={() => setAdding(true)} />
+    <CollectionView
+      collection="documents"
+      count={docs.length}
+      onNew={() => setAdding(true)}
+      search={{ value: search.value, onChange: search.setValue }}
+      filters={<FilterChips label="Type" value={show} onChange={setShow} options={[
+        { id: 'all', label: 'All', count: docs.length },
+        ...GROUPS.map((g) => ({ id: g.id, label: g.label, count: count(g.id) })),
+      ]} />}
+      view={<ColumnsMenu state={table} />}
+    >
       {adding && (
         <FormSlideout title="New document" onClose={() => setAdding(false)}>
           <form className="record-form" onSubmit={(event) => {
@@ -67,81 +88,15 @@ export function DocumentsList({ owner }: { owner: string }) {
           </form>
         </FormSlideout>
       )}
-      {GROUPS.map((group) => (
-        <DocumentsTable key={group.kind} group={group} docs={docs.filter((doc) => group.kinds.includes(kindOf(doc)))} />
-      ))}
-    </div>
-  )
-}
-
-function DocumentsTable({ group, docs }: { group: typeof GROUPS[number]; docs: DocumentRecord[] }) {
-  const open = useDocuments((state) => state.open)
-  const [sort, setSort] = useState<Sort>({ key: 'updated', dir: -1 })
-
-  // Ties fall back to most recently updated, so the order never jumps.
-  const rows = useMemo(
-    () => [...docs].sort((a, b) => sort.dir * compare(sort.key, a, b) || b.updatedAt - a.updatedAt),
-    [docs, sort],
-  )
-
-  const sortBy = (key: SortKey, first: 1 | -1) =>
-    setSort((current) => (current.key === key ? { key, dir: current.dir === 1 ? -1 : 1 } : { key, dir: first }))
-
-  return (
-    <section className="docs-group" aria-labelledby={`docs-group-${group.kind}`}>
-      <SectionHeader
-        title={group.title}
-        titleId={`docs-group-${group.kind}`}
+      <DataTable
+        label="Documents"
+        rows={rows}
+        getId={(d) => d.id}
+        state={table}
+        onOpen={(d) => open(d.id)}
+        rowProps={(d) => ({ 'data-kind': kindOf(d) })}
+        empty={docs.length === 0 ? 'No documents yet. Start one with + New document.' : 'No documents match.'}
       />
-      <table className="docs-table" aria-labelledby={`docs-group-${group.kind}`}>
-        <thead>
-          <tr>
-            {COLUMNS.map((column) => {
-              const active = sort.key === column.key
-              return (
-                <th
-                  key={column.key}
-                  className={`docs-col-${column.key}`}
-                  aria-sort={active ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}
-                >
-                  <button type="button" className="docs-sort" data-active={active || undefined} onClick={() => sortBy(column.key, column.first)}>
-                    {column.label}
-                    <span className="docs-sort-dir" aria-hidden>{active ? (sort.dir === 1 ? '↑' : '↓') : '↕'}</span>
-                  </button>
-                </th>
-              )
-            })}
-            <th className="docs-col-action"><span className="docs-sort">Preview</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr className="docs-none"><td colSpan={5}>No {group.title.toLowerCase()} yet. Start one with + New.</td></tr>
-          ) : rows.map((doc) => {
-            const kind = kindOf(doc)
-            const external = doc.surface === 'external'
-            return (
-              <tr key={doc.id} data-kind={kind} onClick={() => open(doc.id)}>
-                <td className="docs-col-title">
-                  <button type="button" className="docs-name" onClick={(event) => { event.stopPropagation(); open(doc.id) }}>
-                    <DocIcon kind={kind} />
-                    <span className="docs-name-text">{doc.title || 'Untitled'}</span>
-                    {external && <span className="docs-out" aria-label="Opens in a new tab">↗</span>}
-                  </button>
-                </td>
-                <td className="docs-col-owner"><PersonName name={doc.ownerName} /></td>
-                <td className="docs-col-updated"><time dateTime={new Date(doc.updatedAt).toISOString()}>{whenLabel(doc.updatedAt)}</time></td>
-                <td className="docs-col-type">{markOf(doc)}</td>
-                <td className="docs-col-action" onClick={(event) => event.stopPropagation()}>
-                  <button type="button" className="docs-preview-btn" onClick={() => open(doc.id)}>
-                    Preview ↗
-                  </button>
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </section>
+    </CollectionView>
   )
 }

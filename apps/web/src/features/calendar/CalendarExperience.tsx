@@ -4,6 +4,7 @@ import { isUrgencyKey } from '@project/shared'
 import { useCreateCompany, useCurrentWorkspace } from '../documents/workspace'
 import { onCompanyPath, taskPath, tasksPath } from '../tasks/links'
 import { SectionHeader } from '../work/SectionHeader'
+import { CollectionHeader } from '../collections/CollectionView'
 import { DayView } from './DayView'
 import { addDays, dayKey, dayTitle, monthName, parseDay, todayKey } from './dates'
 import { ImportModal } from './ImportModal'
@@ -232,23 +233,35 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
   return (
     <div className="cal" data-surface={section} data-expanded={expanded || undefined}>
       {!pageTaskKey && <>
-      <SectionHeader
-        title={sectionTitle}
-        level={section === 'table' ? 2 : 1}
-        newLabel="task"
-        onNew={() => {
+      {(() => {
+        const newTask = () => {
           if (view === 'board') { setCreateIn(workflow.firstTodo); return }
           setSelectedDayForNewTask(section === 'tasks' ? '' : cursor)
           setComposing(true)
-        }}
-        onImport={() => setImporting(true)}
-      >
-        {datedView && <button type="button" className="section-add-btn" onClick={() => setLoggingAcc(true)}>Log work</button>}
-        <ForYou workspaceId={workspaceId} onOpenTask={openTicketKey} />
-        {canManage && (view === 'board' || view === 'table') && (
-          <button type="button" className="section-add-btn" onClick={() => setEditingWorkflow(true)}>Columns</button>
-        )}
-      </SectionHeader>
+        }
+        const extras = (
+          <>
+            {datedView && <button type="button" className="section-add-btn" onClick={() => setLoggingAcc(true)}>Log work</button>}
+            <ForYou workspaceId={workspaceId} onOpenTask={openTicketKey} />
+            {canManage && (view === 'board' || view === 'table') && (
+              <button type="button" className="section-add-btn" onClick={() => setEditingWorkflow(true)}>Workflow</button>
+            )}
+          </>
+        )
+        // Tasks is a shared collection (redesign D9); Board and Calendar are their own canvases.
+        return section === 'tasks' ? (
+          <CollectionHeader
+            collection="tasks"
+            count={tasks.length}
+            onNew={newTask}
+            actions={<>{extras}<button type="button" className="section-add-btn" onClick={() => setImporting(true)}>Import</button></>}
+          />
+        ) : (
+          <SectionHeader title={sectionTitle} level={section === 'table' ? 2 : 1} newLabel="task" onNew={newTask} onImport={() => setImporting(true)}>
+            {extras}
+          </SectionHeader>
+        )
+      })()}
 
       {local.count + local.logCount > 0 && (
         <div className="cal-banner" role="status">

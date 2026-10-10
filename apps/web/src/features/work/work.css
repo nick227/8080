@@ -60,39 +60,11 @@
 .work-nav-company[aria-current="page"] .work-nav-company-name { text-decoration: underline; text-underline-offset: 3px; }
 .work-nav-company:hover .work-nav-company-name,
 .work-nav-company:focus-visible .work-nav-company-name { text-decoration: underline; text-underline-offset: 3px; }
-.work-nav-group {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding-left: var(--space-sm);
-  border-left: var(--line-width) solid var(--line);
-}
-.work-nav-group-label {
-  flex: none;
-  padding: 2px;
-  margin-right: 2px;
-  font-family: var(--mono);
-  font-size: var(--text-label);
-  letter-spacing: var(--tracking-spaced);
-  text-transform: uppercase;
-  color: var(--muted);
-  font-weight: 700;
-}
-.work-nav-group[data-active] .work-nav-group-label { color: var(--ink); }
-.work-nav-group-label:hover,
-.work-nav-group-label:focus-visible { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.work-nav-lists { padding-left: var(--space-sm); border-left: var(--line-width) solid var(--line); }
 .work-nav-stream { padding-left: var(--space-sm); border-left: var(--line-width) solid var(--line); }
-/* Rooms: Work and Manage open the company page; their labels are enough. */
-.work-nav[data-compact] .work-nav-group .work-nav-item { display: none; }
-/* Narrow screens: the group labels are the choice; only the active group lists its desks. */
+/* Narrow screens: keep the company name short. */
 @media (max-width: 760px) {
-  /* Line 1: company, group labels, Stream. Line 2: the current group's desks (scrolls). */
-  .work-nav { flex-wrap: wrap; height: auto; min-height: var(--work-nav-height); row-gap: var(--space-xs); padding-block: var(--space-xs); overflow-x: visible; }
   .work-nav-company-name { max-width: 12ch; }
-  .work-nav-group:not([data-active]) .work-nav-item { display: none; }
-  .work-nav-group[data-active] { order: 10; flex: 1 0 100%; overflow-x: auto; padding-left: 0; border-left: 0; scrollbar-width: none; }
-  .work-nav-search { order: 11; }
 }
 .work-nav-item:hover,
 .work-nav-item:focus-visible { color: var(--ink); }

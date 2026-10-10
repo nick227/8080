@@ -2,7 +2,7 @@ import { audienceRules, CONTACT_FOCUSES, CONTACT_SORTS, CONTACT_MILESTONES, type
 import { ContactTable, ContactUndoBar, type ContactUndo, useContactColumns, readContactPreference, saveContactPreference } from './ContactTable'
 import { ContactViewPicker, ContactColumnPicker, ContactFilterChips } from './ContactTableControls'
 import { InventoryTable } from './InventoryTable'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -25,7 +25,8 @@ import {
 } from '@project/sdk'
 import { useCreateCompany, useCurrentWorkspace } from '../documents/workspace'
 import { Composer } from '../compose/Composer'
-import { SectionHeader } from '../work/SectionHeader'
+import { CollectionBar, CollectionHeader } from '../collections/CollectionView'
+import { useUrlSearch } from '../collections/table'
 import {
   RecordPreviewPanel,
   RecordStepper,
@@ -199,6 +200,65 @@ function RecordWorkspace({
   const scroller = useRef<HTMLDivElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
   const label = `${archived ? 'Archived' : stage && kind === 'contacts' ? titleCase(stage) : 'All'} ${kind}`
+  // Search lives in the shared collection bar (redesign D9); a new search closes an open record.
+  const clearRecord = useCallback((next: URLSearchParams) => {
+    if (kind === 'contacts') { next.delete('record'); next.delete('preview'); next.delete('previewKind') }
+  }, [kind])
+  const search = useUrlSearch(clearRecord)
+  const toolbar = (part: 'filters' | 'view' | 'bulk') => (
+    <CollectionToolbar
+      part={part}
+              kind={kind}
+              archived={archived}
+              focus={focus}
+              sort={sort}
+              dir={dir}
+              stage={stage}
+              stages={stageOptions.length ? stageOptions : undefined}
+              categories={inventoryCategories}
+              category={categoryParam}
+              tags={contactTags}
+              tagId={tagId}
+              layout={layout}
+              counts={counts}
+              selectedCount={selected.length}
+              matchingTotal={typeof total === 'number' ? total : undefined}
+              onFilter={filter}
+              onFilters={filters}
+              onLayout={chooseLayout}
+              onBulk={(action, extra) => void runBulk(action, extra)}
+              contactViewPicker={
+                kind === 'contacts' ? (
+                  <ContactViewPicker
+                    workspaceId={workspaceId}
+                    preferenceKey={preferenceKey}
+                    params={tableParams}
+                    columns={columns}
+                    onColumns={setColumns}
+                    onFilters={filters}
+                    layout={layout}
+                    onLayout={chooseLayout}
+                  />
+                ) : undefined
+              }
+              contactColumnPicker={
+                kind === 'contacts' ? (
+                  <ContactColumnPicker
+                    workspaceId={workspaceId}
+                    columns={columns}
+                    onColumns={setColumns}
+                    layout={layout}
+                    onLayout={chooseLayout}
+                  />
+                ) : undefined
+              }
+              filterChips={
+                kind === 'contacts' ? (
+                  <ContactFilterChips params={tableParams} onFilters={filters} />
+                ) : undefined
+              }
+    />
+  )
   const browseParams = new URLSearchParams(location.search)
   browseParams.delete('record')
   browseParams.delete('preview')
@@ -430,66 +490,21 @@ function RecordWorkspace({
           </>
         ) : (
           <>
-            <SectionHeader
-              title={title}
-              level={1}
-              newLabel={kind === 'contacts' ? 'contact' : 'item'}
+            <CollectionHeader
+              collection={kind}
+              count={typeof total === 'number' ? total : undefined}
               onNew={() => setAdding(true)}
-              onImport={() => setImporting(true)}
+              actions={<button type="button" className="section-add-btn" onClick={() => setImporting(true)}>Import</button>}
             />
+            <CollectionBar
+              collection={kind}
+              search={{ value: search.value, onChange: search.setValue, placeholder: kind === 'contacts' ? 'Search contacts, companies, interests…' : 'Search inventory…' }}
+              filters={toolbar('filters')}
+              view={toolbar('view')}
+            />
+            {toolbar('bulk')}
             {kind === 'contacts' && selected.length > 0 && <button type="button" className="agents-button" onClick={() => navigate({ search: new URLSearchParams({ desk: 'agents', add: '1', contactIds: selected.join(',') }).toString() })}>New automation for {selected.length} selected {selected.length === 1 ? 'contact' : 'contacts'}</button>}
             {kind === 'contacts' && nav.params.get('audience') && <div className="audience-chips"><span>{audienceSummary}</span><button type="button" onClick={() => nav.setFilter('audience', '')}>Clear audience</button></div>}
-            <CollectionToolbar
-              kind={kind}
-              archived={archived}
-              focus={focus}
-              sort={sort}
-              dir={dir}
-              stage={stage}
-              stages={stageOptions.length ? stageOptions : undefined}
-              categories={inventoryCategories}
-              category={categoryParam}
-              tags={contactTags}
-              tagId={tagId}
-              layout={layout}
-              counts={counts}
-              selectedCount={selected.length}
-              matchingTotal={typeof total === 'number' ? total : undefined}
-              onFilter={filter}
-              onFilters={filters}
-              onLayout={chooseLayout}
-              onBulk={(action, extra) => void runBulk(action, extra)}
-              contactViewPicker={
-                kind === 'contacts' ? (
-                  <ContactViewPicker
-                    workspaceId={workspaceId}
-                    preferenceKey={preferenceKey}
-                    params={tableParams}
-                    columns={columns}
-                    onColumns={setColumns}
-                    onFilters={filters}
-                    layout={layout}
-                    onLayout={chooseLayout}
-                  />
-                ) : undefined
-              }
-              contactColumnPicker={
-                kind === 'contacts' ? (
-                  <ContactColumnPicker
-                    workspaceId={workspaceId}
-                    columns={columns}
-                    onColumns={setColumns}
-                    layout={layout}
-                    onLayout={chooseLayout}
-                  />
-                ) : undefined
-              }
-              filterChips={
-                kind === 'contacts' ? (
-                  <ContactFilterChips params={tableParams} onFilters={filters} />
-                ) : undefined
-              }
-            />
             {kind === 'contacts' && <ContactUndoBar workspaceId={workspaceId} undo={undo} onDismiss={() => setUndo(null)} />}
             {bulkError && (
               <p role="alert" className="record-error">

@@ -25,3 +25,16 @@
 }
 .section-add-btn:hover,
 .section-add-btn:focus-visible { color: var(--signal); }
+
+/* The shared collection view's title: a list switcher (redesign D9). */
+.collection-switcher { position: relative; min-width: 0; }
+.collection-switcher-title { margin: 0; font-size: var(--text-lg); font-weight: 600; }
+.collection-switcher-title button { display: inline-flex; align-items: center; gap: var(--space-xs); padding: 2px var(--space-xs); margin-left: calc(var(--space-xs) * -1); border-radius: var(--radius-sm); color: var(--ink); font: inherit; }
+.collection-switcher-title button:hover, .collection-switcher-title button:focus-visible, .collection-switcher-title button[aria-expanded="true"] { background: var(--surface-active); }
+.collection-switcher-caret { font-size: 0.7em; color: var(--muted); }
+.collection-switcher-menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 40; min-width: 200px; margin: 0; padding: var(--space-xs) 0; list-style: none; background: var(--panel); border: var(--line-width) solid var(--line); border-radius: var(--radius-sm); box-shadow: 0 8px 24px var(--shadow-color); }
+.collection-switcher-menu li { padding: var(--space-sm) var(--space-md); font-size: var(--text-sm); color: var(--ink); cursor: pointer; outline: none; }
+.collection-switcher-menu li:focus, .collection-switcher-menu li:hover { background: var(--surface-active); }
+.collection-switcher-menu li[aria-checked="true"] { font-weight: 700; }
+.collection-switcher-menu li[aria-checked="true"]::after { content: ' ✓'; color: var(--muted); }
+.section-count { font-family: var(--mono); font-size: var(--text-label); color: var(--muted); }

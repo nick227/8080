@@ -28,7 +28,6 @@
 .agents-catalog-table .docs-sort { cursor: default; }
 .agents-catalog-table .docs-preview-btn:disabled { opacity: 0.45; cursor: default; }
 
-.agents-list-table { min-width: 1500px; }
 .agents-list-table .agents-col-type { width: 110px; }
 .agents-list-table .agents-col-channel { width: 100px; }
 .agents-activity-table { min-width: 960px; }
@@ -387,3 +386,8 @@
 .audience-attribute > * { min-width: 0; }
 .audience-form > .audience-person { flex-direction: row; align-items: center; }
 .audience-form footer { display: flex; justify-content: space-between; gap: 1rem; }
+
+/* Run history under the shared list (redesign D9). */
+.agents .collection-body { overflow-y: auto; }
+.agents .collection-table-wrap { flex: none; overflow-x: auto; }
+.agents-activity { margin-top: var(--space-lg); padding: 0 0 var(--space-2xl); }

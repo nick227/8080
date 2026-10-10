@@ -1,0 +1,62 @@
+/* The shared collection view (redesign D9): one frame for every tabular list. */
+.collection { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.collection-head { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-md) var(--table-cell-padding-x) var(--space-sm); min-width: 0; }
+.collection .collection-head .collection-switcher-title { margin: 0; font-size: var(--text-lg); font-weight: 600; }
+.collection-head .collection-switcher-title button,
+.records-experience .collection-head .collection-switcher-title button { min-height: 0; padding: 2px var(--space-xs); border: 0; background: transparent; color: var(--ink); font: inherit; }
+.collection-head .collection-switcher-title button:hover,
+.collection-head .collection-switcher-title button:focus-visible,
+.collection-head .collection-switcher-title button[aria-expanded="true"] { background: var(--surface-active); }
+.collection-count { font-family: var(--mono); font-size: var(--text-label); color: var(--muted); }
+.collection-actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; justify-content: flex-end; }
+.collection-head .collection-new { height: 32px; min-height: 32px; padding: 0 var(--space-md); border: 0; border-radius: var(--radius); background: var(--ink); color: var(--bg); font-family: var(--sans); font-size: var(--text-sm); font-weight: 600; white-space: nowrap; }
+.collection-head .collection-new:hover, .collection-head .collection-new:focus-visible { background: var(--ink); opacity: .88; }
+.collection-actions .section-add-btn { padding: 0 var(--space-xs); }
+
+.collection-bar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm); padding: 0 var(--table-cell-padding-x) var(--space-sm); min-width: 0; }
+.collection-search { display: inline-flex; align-items: center; gap: var(--space-xs); flex: 0 1 280px; min-width: 160px; height: 32px; box-sizing: border-box; padding: 0 var(--space-sm); border: var(--input-border-width) var(--input-border-style) var(--input-border-color); border-radius: var(--input-radius); background: var(--input-bg); color: var(--muted); }
+.collection-search:focus-within { border-color: var(--ink); }
+.collection-bar .collection-search input { flex: 1; min-width: 0; min-height: 0; height: 100%; padding: 0; border: 0; outline: none; background: transparent; color: var(--input-color); font: inherit; font-size: var(--text-sm); }
+.collection-filters { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; min-width: 0; }
+.collection-view-controls { margin-left: auto; display: flex; align-items: center; gap: var(--space-sm); }
+/* Every control in the bar has one look (the app's 32px control), whichever list it belongs to. */
+.collection-control,
+.collection-bar select,
+.collection-bar .record-dir-btn,
+.collection-bar .collection-filters > * > button:not([role="radio"]) {
+  height: 32px; min-height: 32px; box-sizing: border-box; padding: 0 10px;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface-subtle); color: var(--ink);
+  font-family: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); white-space: nowrap; cursor: pointer;
+}
+.collection-control:hover, .collection-control[aria-expanded="true"], .collection-bar select:hover { background: var(--surface-active); }
+.collection-control:focus-visible, .collection-bar select:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+/* A domain's own control group inside a slot lays out like the bar itself. */
+.collection-bar .record-sort-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); margin: 0; padding: 0; }
+
+.collection-chips { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; min-height: 32px; box-sizing: border-box; align-items: center; border: var(--line-width) solid var(--line); border-radius: var(--radius-sm); }
+.collection-chips button { height: 24px; padding: 0 var(--space-sm); border-radius: calc(var(--radius-sm) - 1px); color: var(--muted); font-size: var(--text-sm); white-space: nowrap; }
+.collection-chips button[aria-checked="true"] { background: var(--surface-active); color: var(--ink); font-weight: 600; }
+.collection-chips button:hover, .collection-chips button:focus-visible { color: var(--ink); }
+.collection-chip-count { margin-left: var(--space-xs); font-family: var(--mono); font-size: var(--text-xs); color: var(--muted); }
+
+.collection-menu { position: relative; }
+.collection-menu-panel { position: absolute; right: 0; top: calc(100% + 4px); z-index: 40; min-width: 200px; margin: 0; padding: var(--space-sm); display: flex; flex-direction: column; gap: var(--space-xs); background: var(--panel); border: var(--line-width) solid var(--line); border-radius: var(--radius-sm); box-shadow: 0 8px 24px var(--shadow-color); }
+.collection-menu-legend { padding: 0 0 var(--space-xs); font-size: var(--text-xs); color: var(--muted); }
+.collection-menu-panel label { display: flex; align-items: center; gap: var(--space-sm); font-size: var(--text-sm); color: var(--ink); white-space: nowrap; }
+
+.collection-note { margin: 0 0 var(--space-sm); padding: 0 var(--table-cell-padding-x); font-size: var(--text-sm); color: var(--muted); }
+.collection-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.collection-table tbody tr[data-open] { cursor: pointer; }
+.collection-table tbody tr:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.collection-table tbody tr[aria-selected="true"] td { background: var(--surface-active); }
+.collection-table th[data-align="end"], .collection-table td[data-align="end"] { text-align: right; }
+.collection-select-cell { text-align: center !important; padding: 0 !important; }
+.collection-table td a { color: var(--ink); }
+
+@media (max-width: 640px) {
+  .collection-search { flex: 1 1 100%; }
+  .collection-view-controls { margin-left: 0; }
+}
+.collection-row-action { height: 24px; padding: 0 var(--space-sm); border: var(--line-width) solid var(--line); border-radius: var(--radius-sm); color: var(--muted); font-size: var(--text-xs); white-space: nowrap; }
+.collection-row-action:hover, .collection-row-action:focus-visible { color: var(--ink); border-color: var(--ink); }
