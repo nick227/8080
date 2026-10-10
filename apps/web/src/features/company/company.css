@@ -9,6 +9,15 @@
 }
 
 /* Vocabulary Icon Button Trigger */
+.company-room-visibility {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
 .vocab-icon-btn {
   display: inline-flex;
   align-items: center;

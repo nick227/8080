@@ -235,7 +235,7 @@ export function AgentEditor({ workspaceId, agentId, timeZone, canManage, onBack,
       </div>
 
       {agent.status === 'active' && editable && (
-        <p className="agents-live-note" role="note">Changes to this active automation may affect its next scheduled delivery.</p>
+        <p className="agents-live-note" role="note">Changes save as you make them and apply from the next scheduled delivery.</p>
       )}
       {actionError && <p className="agents-status agents-status-bad" role="alert">{errorText(actionError, 'Action failed.')}</p>}
       

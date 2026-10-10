@@ -51,6 +51,20 @@ export function CompanyDesk({ roomId, onPlace }: { roomId?: string; onPlace?: (d
   return (
     <div className="company company-with-table">
       <SectionHeader title="Company overview" titleId="company-title" level={1}>
+        {/* The current room's own setting; it saves on change, so it stays out of the profile form. Moves to Stream with D3. */}
+        {roomId && (
+          <label className="company-room-visibility">
+            <span>This conversation is</span>
+            <select
+              value={visibility}
+              disabled={!canEdit || updateRoom.isPending}
+              onChange={(e) => handleVisibilityChange(e.target.value as 'public' | 'private')}
+            >
+              <option value="public">Public</option>
+              <option value="private">Private</option>
+            </select>
+          </label>
+        )}
         <button
           type="button"
           className="vocab-icon-btn"
@@ -65,14 +79,7 @@ export function CompanyDesk({ roomId, onPlace }: { roomId?: string; onPlace?: (d
 
       <div className="company-split">
         <div className="company-col company-col-profile">
-          <CompanyProfileSection
-            workspaceId={workspaceId}
-            canEdit={!!canEdit}
-            visibility={visibility}
-            onVisibilityChange={handleVisibilityChange}
-            updatingVisibility={updateRoom.isPending}
-            showVisibility={!!roomId}
-          />
+          <CompanyProfileSection workspaceId={workspaceId} canEdit={!!canEdit} />
           <div className="company-gallery">
             <RecordGallery workspaceId={workspaceId} kind="company" recordId={workspaceId} name={workspace?.name ?? 'Company'} />
           </div>

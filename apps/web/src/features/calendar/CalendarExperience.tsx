@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { isUrgencyKey } from '@project/shared'
-import { useCurrentWorkspace } from '../documents/workspace'
+import { useCreateCompany, useCurrentWorkspace } from '../documents/workspace'
 import { taskPath, tasksPath } from '../tasks/links'
 import { SectionHeader } from '../work/SectionHeader'
 import { DayView } from './DayView'
@@ -81,14 +81,15 @@ function writeUrl(search: string, view: View, filters: Filters) {
 
 export function CalendarExperience({ section = 'calendar' }: { section?: TaskSection }) {
   const { taskKey } = useParams()
-  const { workspace, loading, guest, create, creating, createError } = useCurrentWorkspace()
+  const { workspace, loading, guest } = useCurrentWorkspace()
+  const { create, creating, createError } = useCreateCompany()
   if (loading) return <p className="cal-gate" role="status">Loading workspace…</p>
   if (!workspace) {
     return (
       <div className="cal-gate">
-        <h2>{guest ? 'Sign in to plan work with your team' : 'Create your workspace'}</h2>
-        <p>Tasks belong to a workspace, so everyone on the team sees the same calendar and board.</p>
-        {!guest && <button type="button" className="cal-btn" data-primary="" onClick={create} disabled={creating}>{creating ? 'Creating…' : 'Create workspace'}</button>}
+        <h2>{guest ? 'Sign in to plan work with your team' : 'Create your company'}</h2>
+        <p>Tasks belong to a company, so everyone on the team sees the same calendar and board.</p>
+        {!guest && <button type="button" className="cal-btn" data-primary="" onClick={create} disabled={creating}>{creating ? 'Creating…' : 'Create company'}</button>}
         {createError && <p role="alert">{createError}</p>}
       </div>
     )

@@ -23,7 +23,7 @@ import {
   type Contact,
   type InventoryItem,
 } from '@project/sdk'
-import { useCurrentWorkspace } from '../documents/workspace'
+import { useCreateCompany, useCurrentWorkspace } from '../documents/workspace'
 import { Composer } from '../compose/Composer'
 import { SectionHeader } from '../work/SectionHeader'
 import {
@@ -45,7 +45,8 @@ import './records.css'
 const positions = new Map<string, number>()
 
 export function RecordsExperience({ kind }: { kind: RecordKind }) {
-  const { workspace, loading, guest, create, creating, createError } = useCurrentWorkspace()
+  const { workspace, loading, guest } = useCurrentWorkspace()
+  const { create, creating, createError } = useCreateCompany()
   if (loading)
     return (
       <p className="record-loading" role="status">
@@ -55,10 +56,10 @@ export function RecordsExperience({ kind }: { kind: RecordKind }) {
   if (!workspace)
     return (
       <div className="record-empty">
-        <h2>{guest ? 'Sign in to manage your records' : 'Create your workspace'}</h2>
+        <h2>{guest ? 'Sign in to manage your records' : 'Create your company'}</h2>
         {!guest && (
           <button onClick={create} disabled={creating}>
-            {creating ? 'Creating…' : 'Create workspace'}
+            {creating ? 'Creating…' : 'Create company'}
           </button>
         )}
         {createError && <p role="alert">{createError}</p>}
@@ -117,7 +118,7 @@ function RecordWorkspace({
   tableParams.set('dir', dir)
   if (thenSort) tableParams.set('thenSort', thenSort)
   tableParams.set('thenDir', thenDir)
-  let audienceSummary = 'Agent audience rules active'
+  let audienceSummary = 'Automation audience rules active'
   try { const audience = JSON.parse(nav.params.get('audience') || 'null'); audienceSummary = audienceRules(audience).map(r => r.label).join(' AND ') || audienceSummary } catch { /* The API reports malformed audience rules. */ }
   const contactParams = {
     audience: nav.params.get('audience') || undefined,
@@ -432,7 +433,7 @@ function RecordWorkspace({
               onNew={() => setAdding(true)}
               onImport={() => setImporting(true)}
             />
-            {kind === 'contacts' && selected.length > 0 && <button type="button" className="agents-button" onClick={() => navigate({ search: new URLSearchParams({ desk: 'agents', add: '1', contactIds: selected.join(',') }).toString() })}>Start Agent with {selected.length} selected contacts</button>}
+            {kind === 'contacts' && selected.length > 0 && <button type="button" className="agents-button" onClick={() => navigate({ search: new URLSearchParams({ desk: 'agents', add: '1', contactIds: selected.join(',') }).toString() })}>New automation for {selected.length} selected {selected.length === 1 ? 'contact' : 'contacts'}</button>}
             {kind === 'contacts' && nav.params.get('audience') && <div className="audience-chips"><span>{audienceSummary}</span><button type="button" onClick={() => nav.setFilter('audience', '')}>Clear audience</button></div>}
             <CollectionToolbar
               kind={kind}

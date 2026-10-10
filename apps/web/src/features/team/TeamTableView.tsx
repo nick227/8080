@@ -1,6 +1,6 @@
 import { TaskLink } from '../tasks/TaskLink'
 import React, { useMemo, useState } from 'react'
-import { useWorkspaceMembers } from '@project/sdk'
+import { useSession, useWorkspaceMembers } from '@project/sdk'
 import { useCurrentWorkspace } from '../../app/workspace'
 import { useCalendar, useWorkflow } from '../calendar/store'
 import { MaximizeIcon, PersonIcon, SearchIcon } from '../../components/icons'
@@ -31,6 +31,7 @@ export function TeamTableView({
   // assignees reference); the room's seats only add who is here right now.
   const { workspace } = useCurrentWorkspace()
   const members = useWorkspaceMembers(workspace?.id)
+  const meUserId = useSession().data?.data.id
   const mergedMembers = useMemo(() => {
     const here = new Map(seats.map((seat) => [seat.id, seat]))
     return (members.data ?? [])
@@ -47,10 +48,10 @@ export function TeamTableView({
           email: m.email ?? undefined,
           presence: seat ? 'online' : 'offline',
           activity: seat?.activity ?? undefined,
-          self: seat?.self,
+          self: m.user.id === meUserId,
         }
       })
-  }, [members.data, seats])
+  }, [members.data, seats, meUserId])
 
   // Filter members by search & department
   const filteredMembers = useMemo(() => {
@@ -76,7 +77,7 @@ export function TeamTableView({
         <div className="team-header-title-block">
           <h2>Team</h2>
           <span className="team-header-subtitle">
-            {mergedMembers.length} {mergedMembers.length === 1 ? 'member' : 'members'} &bull; {activeCount} in this room &bull; {totalCompletedCount}/{totalTasksCount} tasks done
+            {mergedMembers.length} {mergedMembers.length === 1 ? 'member' : 'members'} &bull; {activeCount} here now &bull; {totalCompletedCount}/{totalTasksCount} tasks done
           </span>
         </div>
 
@@ -97,8 +98,8 @@ export function TeamTableView({
             )}
           </div>
 
-          <button type="button" className="team-btn-primary" onClick={() => onAssignTask(mergedMembers[0]?.id || '')}>
-            + Assign Task
+          <button type="button" className="team-btn-primary" onClick={() => onAssignTask('')}>
+            + Assign task
           </button>
         </div>
       </div>
@@ -109,10 +110,10 @@ export function TeamTableView({
           <thead>
             <tr>
               <th scope="col">Member</th>
-              <th scope="col">Role & Area</th>
+              <th scope="col">Role</th>
               <th scope="col">Presence</th>
-              <th scope="col">Daily Work / Focus</th>
-              <th scope="col">Assigned Tasks</th>
+              <th scope="col">Daily work / focus</th>
+              <th scope="col">Assigned tasks</th>
               <th scope="col" className="text-right">Actions</th>
             </tr>
           </thead>
@@ -184,16 +185,16 @@ export function TeamTableView({
                       <div className="presence-block">
                         <span className={`presence-pill presence-${presenceState}`}>
                           {presenceState === 'typing'
-                            ? 'Typing message...'
+                            ? 'Typing…'
                             : presenceState === 'recording'
-                            ? 'Recording voice'
+                            ? 'Recording'
                             : presenceState === 'focus'
-                            ? 'Focus Mode'
+                            ? 'Focus mode'
                             : presenceState === 'in_meeting'
-                            ? 'In Meeting'
+                            ? 'In a meeting'
                             : presenceState === 'offline'
-                            ? 'Offline'
-                            : 'Online - In Room'}
+                            ? 'Not in this room'
+                            : 'In this room'}
                         </span>
                       </div>
                     </td>
@@ -225,7 +226,7 @@ export function TeamTableView({
                           title="Click to expand member's task list"
                         >
                           <span className="workload-count">
-                            {memberTasks.length} Tasks ({doneTasks.length} Done)
+                            {memberTasks.length} {memberTasks.length === 1 ? 'task' : 'tasks'} ({doneTasks.length} done)
                           </span>
                           <span className="workload-arrow">{isExpanded ? '▲' : '▼'}</span>
                         </button>
@@ -241,7 +242,7 @@ export function TeamTableView({
                           onClick={() => onAssignTask(member.id)}
                           title={`Assign task to ${member.name}`}
                         >
-                          + Assign Task
+                          + Assign task
                         </button>
                         <button
                           type="button"
@@ -249,7 +250,7 @@ export function TeamTableView({
                           onClick={() => onSelectUser(member)}
                           title={`View dedicated page for ${member.name}`}
                         >
-                          <MaximizeIcon /> View Page
+                          <MaximizeIcon /> View page
                         </button>
                       </div>
                     </td>
@@ -261,13 +262,13 @@ export function TeamTableView({
                       <td colSpan={6}>
                         <div className="drawer-container">
                           <h4>
-                            Tasks & Accomplishments for {member.name}
+                            Tasks & accomplishments for {member.name}
                             <button
                               type="button"
                               className="drawer-assign-btn"
                               onClick={() => onAssignTask(member.id)}
                             >
-                              + Quick Assign Task
+                              + Assign task
                             </button>
                           </h4>
 

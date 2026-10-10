@@ -5,7 +5,7 @@ import { useCreateWorkspace, useMyWorkspaces, useSession } from '@project/sdk'
 // The one place that decides which company (workspace) the app is showing
 // (docs/8080-redesign-proposal/00-decisions.md, D1). Order: the `:workspaceId`
 // route param, then the workspace this browser last chose, then the first
-// membership. Anything that isn't a current membership is ignored. Guests never
+// membership. A remembered id that isn't a current membership is ignored. Guests never
 // hold workspace data (doc/09 D8), so they always resolve to null.
 
 const KEY = '8080.workspace'
@@ -16,6 +16,11 @@ function load(): string | null {
 
 const useChosen = create<{ id: string | null }>(() => ({ id: load() }))
 
+/** The remembered company id, for stores outside React (they can't read the route). */
+export function rememberedWorkspace(): string | null {
+  return useChosen.getState().id
+}
+
 /** Remember a company as this browser's current one (the future switcher calls this). */
 export function chooseWorkspace(id: string) {
   useChosen.setState({ id })
@@ -24,23 +29,29 @@ export function chooseWorkspace(id: string) {
 
 export function useCurrentWorkspace() {
   const session = useSession()
-  const me = session.data?.data
-  const guest = me?.isGuest ?? true
+  const guest = session.data?.data.isGuest ?? true
   const workspaces = useMyWorkspaces()
-  const creator = useCreateWorkspace()
   const routed = useParams().workspaceId
   const chosen = useChosen((s) => s.id)
   const list = guest ? [] : workspaces.data ?? []
-  const workspace = list.find((w) => w.id === routed)
-    ?? list.find((w) => w.id === chosen)
-    ?? list[0]
-    ?? null
+  const loading = session.isLoading || (!guest && workspaces.isLoading)
+  // A routed company you don't belong to is "missing": never show another one under its URL.
+  const missing = Boolean(routed) && !loading && !list.some((w) => w.id === routed)
+  const workspace = missing ? null
+    : list.find((w) => w.id === routed)
+      ?? list.find((w) => w.id === chosen)
+      ?? list[0]
+      ?? null
+  return { workspace, loading, guest, missing }
+}
+
+/** For the "create your company" empty states only (one mutation per screen, not per consumer). */
+export function useCreateCompany() {
+  const me = useSession().data?.data
+  const creator = useCreateWorkspace()
   return {
-    workspace,
-    loading: session.isLoading || (!guest && workspaces.isLoading),
-    guest,
     creating: creator.isPending,
     createError: creator.error ? (creator.error as Error).message : null,
-    create: () => creator.mutate({ name: `${me?.displayName ?? 'My'}’s workspace` }),
+    create: () => creator.mutate({ name: `${me?.displayName ?? 'My'}’s company` }),
   }
 }

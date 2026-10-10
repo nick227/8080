@@ -8,14 +8,14 @@ The product direction is unchanged: Work / Manage / Stream, company identity and
 
 | # | Decision | Status |
 |---|---|---|
-| D1 | **Company-rooted application.** A room is a destination inside a company, not the owner of the app. Introduced incrementally: one current-workspace resolver first, then company routes, with every existing `/room/:roomId…` URL kept working. | Approved |
+| D1 | **Company-rooted application.** A room is a destination inside a company, not the owner of the app. Introduced incrementally: one current-workspace resolver first, then company routes, with every existing `/room/:roomId…` URL kept working. Resolver order: `/c/:workspaceId` (must be a membership) → on a room page, the room's linked company if you belong to it (D3) → the company this browser last chose → the first membership. A `/c/:id` you don't belong to (or that doesn't exist) shows a not-found page with a link back; it never falls back to another company under that URL. Opening `/c/:id` remembers it as the current company. | Approved |
 | D2 | **Stream includes the original conversation product**: room list and discovery, create/join, room chat and history, live participants and media, guest access and invite links. The Lobby stays an account-level landing page. | Approved |
-| D3 | **Rooms attach to a company through a link table** (`WorkspaceRoom`, shaped like `DocumentRoomLink`), not through `Room.workspaceId`. Rooms stay platform-level (doc 09 D5 holds): linking a room to a company changes where it is listed, never who can see it. Membership-based room access, if ever wanted, is a separate permissions decision. | Approved (additive schema, Stream epic) |
-| D4 | **The chat rail keeps current-room context.** "Global chat" never merges histories from several rooms. A conversation selector may switch rooms. | Approved |
+| D3 | **Rooms attach to a company through a link table** (`WorkspaceRoom`, shaped like `DocumentRoomLink`), not through `Room.workspaceId`. Rooms stay platform-level (doc 09 D5 holds): linking a room to a company changes where it is listed, never who can see it. **A room links to at most one company** (unique `roomId`, allowed because the table is new). The company's shared channel is linked automatically. Membership-based room access, if ever wanted, is a separate permissions decision. | Approved (additive schema, Phase 2b) |
+| D4 | **The chat rail keeps current-room context.** "Global chat" never merges histories from several rooms. A conversation selector may switch rooms. On company pages (`/c/:id/…`), where no room is open, the rail shows the company's shared channel (the existing workspace channel room); until that is wired, the rail is collapsed there. | Approved |
 | D5 | **Active agents eventually get a published revision plus an editable draft.** The runner reads only the published revision; `scheduleNext` runs on publish, not on save. The draft covers *everything* that affects a send: sender, `recipientConfig`, `deliveryConfig`, `ruleConfig`, template, theme and `AgentMessage` content. Additive schema; its own backend epic, not part of the visual overhaul. | Approved direction, not scheduled |
-| D6 | **Until D5 ships, editing an active agent changes its live configuration**, and the editor says so: "Changes to this active automation may affect its next scheduled delivery." Save, Test, Activate/Resume and Pause stay distinct actions. | Approved, Phase 1 |
+| D6 | **Until D5 ships, editing an active agent changes its live configuration**, and the editor says so: "Changes save as you make them and apply from the next scheduled delivery." (neutral styling, not an error colour). Save, Test, Activate/Resume and Pause stay distinct actions. | Approved, Phase 1 |
 | D7 | **Customer-facing labels:** `Messaging` → **Automations** (internal `agents` route, types and API unchanged); `Project` (the company desk) → **Company**. | Approved, Phase 1 |
-| D8 | **Guests** never belong to a company. A guest sees the Lobby and the conversations they joined (Stream content they have access to); Work and Manage are not shown to them. | Approved |
+| D8 | **Who sees what.** A *guest* never belongs to a company: Lobby plus the conversations they joined; no Work or Manage anywhere, including the work nav inside a room (hidden for them from Phase 2). A *registered account with no company*: same as a guest plus a "Create a company" entry in the Lobby and avatar menu. A *member*: everything for their companies; inside a room linked to a company they don't belong to, they see only the conversation. | Approved |
 
 ## 2. Phases
 
@@ -23,7 +23,8 @@ The product direction is unchanged: Work / Manage / Stream, company identity and
 |---|---|
 | 0 — Foundation | `useCurrentWorkspace()` as the single resolver (replaces every `useMyWorkspaces().data?.[0]`); company-rooted route plan; guest / Lobby / Stream placement (D1–D4, D8). |
 | 1 — Quick wins | D7 labels; remove the fake Team roster; remove the search box where it does nothing (real global search is Phase 2); drop the fade/scale on every route change; D6 notice. |
-| 2 — Shell | Company identity, Work / Manage / Stream, prominent avatar, account profile, Cmd/Ctrl+K search. |
+| 2 — Shell | Company routes (§4), company identity, Work / Manage / Stream, prominent avatar, account profile, Cmd/Ctrl+K search. Projects and Sprints stay out of the nav until Phase 6 (no empty entries). |
+| 2b — Stream epic | D3 `WorkspaceRoom` table + API, `/c/:id/conversations`, the D4 company-channel rail. The Stream tab in the shell links to the Lobby until this lands. |
 | 3 — Shared UI | Standardize page headers, collection toolbars, tables and item layouts by growing the existing `SectionHeader` and `CollectionToolbar`, not a parallel set. |
 | 4 — Domains | Contacts and Inventory pilot, then Team, Documents and the existing Work surfaces. |
 | 5 — Agent Studio | Discovery, full-page agent item and create, email composition, audience and schedule sections (doc 08). D5 is a prerequisite only for a "Publish changes" button. |
@@ -40,6 +41,10 @@ The product direction is unchanged: Work / Manage / Stream, company identity and
 - Board keyboard moves and the card ⋯ menu (the non-drag move that doc 12 requires).
 - Task route `/room/:roomId/tasks/:taskKey` (full page) and the `?ticket=` redirect.
 
+**No fabricated data.** Anything shown as real (people, accounts, emails, integrations) comes from the server or isn't shown. Remaining known cases: Integrations' sample accounts (Phase 4, Company).
+
+**Copy:** sentence case for headings, buttons and labels.
+
 **Schema:** additive only. Deploys run `prisma db push` without `--accept-data-loss`: new tables and nullable columns are fine; a new unique index on an existing table blocks the deploy. There are no reversible migrations to write.
 
 **Themes:** the real model is 23 presets plus light/dark, stored as `8080.theme`. There is no separate density setting (`ultra-compact` and `ultra-large` are themes); don't invent one. Each PR is checked in four contrasting presets: **dark, light, retro-terminal, ultra-large**. The full sweep (every preset) runs before release.
@@ -48,21 +53,31 @@ The product direction is unchanged: Work / Manage / Stream, company identity and
 
 **Safety:** never send email unexpectedly, never widen an audience (clearing the last rule clears the audience), never fall back to another sender, never show Saved / Published before the server confirms it.
 
-## 4. Phase 0 route plan (D1)
+## 4. Company route plan (D1, built in Phase 2)
 
-Target shapes, added beside the existing routes:
+This replaces the illustrative paths in doc 02 (no `work/` or `manage/` segment: the nav groups desks, the URL doesn't).
 
 ```
-/                         Lobby (account level; guests land here)
-/account                  personal profile and settings
-/c/:workspaceId           Company overview
-/c/:workspaceId/:desk     Work / Manage desks (tasks, board, calendar, contacts, …)
-/c/:workspaceId/stream    company conversations (linked rooms, D3)
-/room/:roomId…            unchanged; a room page, opened from Stream or the Lobby
+/                              Lobby (account level; guests land here)
+/account                       personal profile and settings
+/c/:workspaceId                Company overview (desk "company")
+/c/:workspaceId/:desk          desk ∈ tasks | board | calendar | contacts | inventory | team | documents | agents
+/c/:workspaceId/tasks/:taskKey full-page task
+/c/:workspaceId/conversations  the company's linked rooms (Phase 2b)
+/room/:roomId…                 unchanged: a conversation (Stream). Its live floor keeps the room-level "stream" view.
 ```
 
-Order: (1) the resolver; (2) the resolver reads `:workspaceId` from the URL when present, else the remembered workspace, else the first membership; (3) company routes render the same desks the room page renders today; (4) the room page's work nav links into company routes; old `?desk=` links redirect. Each step ships on its own.
+`stream` is not a company desk segment: the room page owns the live floor, and the company's room list is `conversations`. Unknown desk segments show not-found.
+
+Engineering changes this needs (the reviewers' blockers):
+- `features/tasks/links.ts` `projectPath` / `tasksPath` and the route key in `app/routes.tsx` recognise `^/(room|c)/[^/]+` as the base, so per-desk memory keys stay stable and a desk switch or task open never remounts the page.
+- `useWorkPlace` reads the desk from the path segment under `/c/…` and from `?desk=` under `/room/…`; selecting a desk under `/c` navigates to `/c/:id/:desk` (keeping that desk's remembered query).
+- Desks rendered without a room: `TeamDesk` gets no seats (presence column shows "—"); `CompanyDesk` gets no `roomId` (the conversation-visibility control is hidden).
+- The company route element calls `chooseWorkspace(id)` for a membership and renders not-found otherwise (the resolver exposes `missing`).
+- `features/documents/store.ts` takes the resolver's workspace instead of its own `workspaces[0]` pick (keeping `openFromLink`'s explicit workspace).
+- Old links: `/room/:id?desk=<work desk>` keeps working during Phase 2; once the shell ships, it redirects to `/c/<current company>/<desk>` with the same query, and `/room/:id/tasks/:key` redirects to `/c/<company>/tasks/:key`. Each step ships on its own.
 
 ## 5. Progress log
 
-- 2026-10-10 — This document written. Phase 0 step 1 and Phase 1 started.
+- 2026-10-10 — This document written. Phase 0 step 1 (resolver, cdc1b9e) and Phase 1 (7e7d4ef) committed.
+- 2026-10-10 — Design committee round 1 (product/UX + engineering): changes requested. D1, D3, D4, D6, D8, phase 2b and §4 amended as above; Phase 1 follow-ups applied.

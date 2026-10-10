@@ -100,14 +100,14 @@ export function UserProfilePage({
       {/* Navigation Header */}
       <div className="user-page-nav">
         <button type="button" className="user-back-btn" onClick={onBack}>
-          ← Back to Team Table
+          ← Back to team
         </button>
         <div className="user-page-actions">
           <button type="button" className="team-btn-secondary" onClick={() => setShowLogModal(true)}>
-            + Log Work / Accomplishment
+            + Log work
           </button>
           <button type="button" className="team-btn-primary" onClick={() => onAssignTask(member.id)}>
-            + Assign Task
+            + Assign task
           </button>
         </div>
       </div>
@@ -122,7 +122,7 @@ export function UserProfilePage({
               <PersonIcon guest={Boolean(member.guest)} />
             </div>
           )}
-          <span className={`user-presence-dot ${isOnline ? 'online' : 'offline'}`} title={presenceStatus} />
+          <span className={`user-presence-dot ${isOnline ? 'online' : 'offline'}`} title={isOnline ? 'In this room' : 'Not in this room'} />
         </div>
 
         <div className="user-hero-details">
@@ -137,7 +137,7 @@ export function UserProfilePage({
           </p>
           <div className="user-hero-meta">
             <span className="user-meta-item">
-              <span className="meta-icon">🟢</span> Presence: <strong>{presenceStatus.toUpperCase()}</strong>
+              <strong>{isOnline ? 'In this room' : 'Not in this room'}</strong>
             </span>
             {member.email && (
               <span className="user-meta-item">
@@ -151,7 +151,7 @@ export function UserProfilePage({
       {/* KPI Stats Row */}
       <div className="user-kpi-row">
         <div className="user-kpi-card">
-          <span className="kpi-label">Active Tasks</span>
+          <span className="kpi-label">Active tasks</span>
           <span className="kpi-value">{inProgressTasksCount}</span>
           <span className="kpi-sub">{completedTasksCount} completed</span>
         </div>
@@ -163,7 +163,7 @@ export function UserProfilePage({
         <div className="user-kpi-card">
           <span className="kpi-label">Current Focus</span>
           <span className="kpi-value focus-text">
-            {userTasks.find((t) => t.status === 'in_progress')?.title || userLogs[0]?.title || 'General Development'}
+            {userTasks.find((t) => !workflow.isDone(t.status))?.title || userLogs[0]?.title || 'Nothing in progress'}
           </span>
           <span className="kpi-sub">Updated today</span>
         </div>
@@ -205,7 +205,7 @@ export function UserProfilePage({
                 placeholder="Hours"
               />
               <button type="submit" className="team-btn-primary">
-                Save Work Log
+                Save work log
               </button>
             </div>
           </form>
@@ -219,21 +219,21 @@ export function UserProfilePage({
           className={`user-tab-btn ${activeTab === 'log' ? 'active' : ''}`}
           onClick={() => setActiveTab('log')}
         >
-          Work Log & Activity Timeline ({userLogs.length})
+          Work log & activity ({userLogs.length})
         </button>
         <button
           type="button"
           className={`user-tab-btn ${activeTab === 'tasks' ? 'active' : ''}`}
           onClick={() => setActiveTab('tasks')}
         >
-          Assigned Tasks ({userTasks.length})
+          Assigned tasks ({userTasks.length})
         </button>
         <button
           type="button"
           className={`user-tab-btn ${activeTab === 'info' ? 'active' : ''}`}
           onClick={() => setActiveTab('info')}
         >
-          User Information & Bio
+          Profile
         </button>
       </div>
 
@@ -245,7 +245,7 @@ export function UserProfilePage({
               <div className="user-empty-state">
                 <p>No work logs recorded yet for {member.name}.</p>
                 <button type="button" className="team-btn-secondary" onClick={() => setShowLogModal(true)}>
-                  + Log First Work Accomplishment
+                  + Log work
                 </button>
               </div>
             ) : (
@@ -277,9 +277,9 @@ export function UserProfilePage({
         {activeTab === 'tasks' && (
           <div className="user-tasks-section">
             <div className="user-section-header">
-              <h3>Tasks Assigned to {member.name}</h3>
+              <h3>Tasks assigned to {member.name}</h3>
               <button type="button" className="team-btn-primary" onClick={() => onAssignTask(member.id)}>
-                + Assign New Task
+                + Assign task
               </button>
             </div>
 
@@ -287,7 +287,7 @@ export function UserProfilePage({
               <div className="user-empty-state">
                 <p>No tasks currently assigned to {member.name}.</p>
                 <button type="button" className="team-btn-primary" onClick={() => onAssignTask(member.id)}>
-                  + Assign Task Now
+                  + Assign task
                 </button>
               </div>
             ) : (
@@ -341,18 +341,18 @@ export function UserProfilePage({
           <div className="user-info-section">
             <div className="info-grid">
               <div className="info-block">
-                <h4>Role & Department</h4>
+                <h4>Role & department</h4>
                 <p>{member.role || 'Member'}</p>
                 {member.department && <p className="text-muted">Department: {member.department}</p>}
               </div>
               <div className="info-block">
-                <h4>Contact Details</h4>
+                <h4>Contact details</h4>
                 {member.email ? <p>Email: {member.email}</p> : <p className="text-muted">No email shared.</p>}
                 {member.tag && <p>Handle: {member.tag}</p>}
               </div>
               {member.skills?.length ? (
                 <div className="info-block">
-                  <h4>Skills & Expertise</h4>
+                  <h4>Skills & expertise</h4>
                   <div className="skills-tags">
                     {member.skills.map((s) => (
                       <span className="skill-tag" key={s}>
@@ -364,7 +364,7 @@ export function UserProfilePage({
               ) : null}
               {member.bio && (
                 <div className="info-block">
-                  <h4>Summary & Notes</h4>
+                  <h4>Summary & notes</h4>
                   <p className="user-bio">{member.bio}</p>
                 </div>
               )}

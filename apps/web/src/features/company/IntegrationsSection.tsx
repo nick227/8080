@@ -644,7 +644,7 @@ export function IntegrationsSection({ workspaceId, canEdit }: { workspaceId: str
                 checked={makeDefault}
                 onChange={(e) => setMakeDefault(e.target.checked)}
               />
-              <span>Make this sender the default for new Agents</span>
+              <span>Make this sender the default for new automations</span>
             </label>
 
             <footer>

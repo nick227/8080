@@ -61,18 +61,10 @@ export function CompanyProfileSection({
   workspaceId,
   canEdit,
   onOpenChannel,
-  visibility,
-  onVisibilityChange,
-  updatingVisibility,
-  showVisibility = true,
 }: {
   workspaceId: string
   canEdit: boolean
   onOpenChannel?: () => void
-  visibility?: string
-  onVisibilityChange?: (visibility: 'public' | 'private') => void
-  updatingVisibility?: boolean
-  showVisibility?: boolean
 }) {
   const queryClient = useQueryClient()
   const key = ['company-profile', workspaceId]
@@ -137,7 +129,7 @@ export function CompanyProfileSection({
       ) : (
         <form className="company-form" onSubmit={(e) => void save(e)}>
           <div className="company-section-block">
-            <SectionHeader title="Overview" titleId="company-profile-title">
+            <SectionHeader title="Profile" titleId="company-profile-title">
               {onOpenChannel && (
                 <button type="button" className="section-add-btn" onClick={onOpenChannel}>
                   Setup with chatbot
@@ -146,22 +138,9 @@ export function CompanyProfileSection({
             </SectionHeader>
             <div className="record-form-fields">
               <label>
-                <span>Display name</span>
+                <span>Name shown in 8080</span>
                 <input value={form.name} disabled={!canEdit} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               </label>
-              {showVisibility && (
-                <label>
-                  <span>This conversation is</span>
-                  <select
-                    value={visibility ?? 'public'}
-                    disabled={!canEdit || updatingVisibility}
-                    onChange={(e) => onVisibilityChange?.(e.target.value as 'public' | 'private')}
-                  >
-                    <option value="public">Public</option>
-                    <option value="private">Private</option>
-                  </select>
-                </label>
-              )}
               <label className="company-full-width">
                 <span>Goals & objectives</span>
                 <textarea rows={3} value={form.purpose} disabled={!canEdit} onChange={(e) => setForm({ ...form, purpose: e.target.value })} placeholder="Key goals, scope, and objectives" />
@@ -170,10 +149,10 @@ export function CompanyProfileSection({
           </div>
 
           <div className="company-section-block">
-            <SectionHeader title="Company Profile" titleId="company-details-title" />
+            <SectionHeader title="Business details" titleId="company-details-title" />
             <div className="record-form-fields">
               <label>
-                <span>Company name</span>
+                <span>Legal or trading name</span>
                 <input
                   value={form.companyName}
                   disabled={!canEdit}

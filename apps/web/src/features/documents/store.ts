@@ -4,6 +4,7 @@ import type { DocumentRecord, NativeSheet, SharedInfo } from './types'
 import { starterDocs } from './seed'
 import { attachBlocks, attachSheet, blocksChanged, detachBlocks, isAttached } from './liveBlocks'
 import { fromContent, toContent } from './sheetModel'
+import { rememberedWorkspace } from '../../app/workspace'
 
 // The Documents list. With a workspace, entries come from the shared server
 // registry (identity, title, owner, sharing, room links, deletion — doc/10 §3);
@@ -250,8 +251,9 @@ export const useDocuments = create<State>((set, get) => {
 
   async function startShared(owner: string) {
     const workspaces = unwrap(await getApiClient().GET('/workspaces')).data
-    // The workspace a chat link pointed at, else the first membership (doc/09 D15).
-    const workspace = workspaces.find((w) => w.id === preferredWorkspace) ?? workspaces[0]
+    // The workspace a chat link pointed at, else the app's current company (app/workspace.ts).
+    const remembered = rememberedWorkspace()
+    const workspace = workspaces.find((w) => w.id === preferredWorkspace) ?? workspaces.find((w) => w.id === remembered) ?? workspaces[0]
     if (!workspace) return false
     const memberRows = unwrap(await getApiClient().GET('/workspaces/{workspaceId}/members', { params: { path: { workspaceId: workspace.id } } })).data
     const me = unwrap(await getApiClient().GET('/auth/me')).data

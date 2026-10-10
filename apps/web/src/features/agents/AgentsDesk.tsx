@@ -44,7 +44,7 @@ export function AgentsDesk({ onPlace }: { onPlace?: (desk: Desk) => void }) {
           </button>
         )}
       </SectionHeader>
-      {!adding && !agentId && !eventId && <p className="agents-purpose">Scheduled emails, team briefs and customer reports.</p>}
+      {!adding && !agentId && !eventId && <p className="agents-purpose">Scheduled team briefs, reports and emails.</p>}
       <div className="agents-full-width">
         {adding ? (
           <AgentCatalog recipientConfig={params.get('contactIds') ? { source: 'SELECTED_CONTACTS', ids: params.get('contactIds')!.split(',') } : undefined} workspaceId={workspace.id} onCancel={() => go({ add: null })} onCreated={(id) => go({ add: null, agent: id, contactIds: null })} />

@@ -28,7 +28,7 @@ export function OverviewSection({ workspaceId }: { workspaceId: string }) {
 
   return (
     <section className="company-group" aria-labelledby="company-overview-title">
-      <SectionHeader title="Overview" titleId="company-overview-title" />
+      <SectionHeader title="At a glance" titleId="company-overview-title" />
       {insights.isError ? (
         <p className="company-status" role="status">
           Couldn’t load overview.{' '}

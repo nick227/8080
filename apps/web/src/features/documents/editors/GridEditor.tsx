@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { DataGrid, type ColumnWidths, type DataGridHandle, type SortColumn } from 'react-data-grid'
 import 'react-data-grid/lib/styles.css'
 import { datasetAdapter, useDatasetEdit, useDatasetRows } from '../dataset'
-import { useCurrentWorkspace } from '../workspace'
+import { useCreateCompany, useCurrentWorkspace } from '../workspace'
 import { usePeers } from '../presence'
 import { useDocuments } from '../store'
 import { cellText, convertColumn, formatCell, parseCell, sheetTotals, type CellType, type CellValue } from '@project/shared'
@@ -41,6 +41,7 @@ export function GridEditor({ doc }: { doc: DocumentRecord }) {
   const sheet = doc.sheet?.mode === 'sheet' ? doc.sheet : null
   const generated = !!doc.shared?.generated
   const current = useCurrentWorkspace()
+  const company = useCreateCompany()
   const workspaceId = dataset ? (current.workspace?.id ?? null) : null
   const live = useDatasetRows(workspaceId)
   const editRecord = useDatasetEdit(workspaceId)
@@ -204,8 +205,8 @@ export function GridEditor({ doc }: { doc: DocumentRecord }) {
             : current.guest ? <span role="status">Sign in to work with contacts.</span>
             : (
               <>
-                <span role="status">{current.createError ?? 'Contacts live in a workspace.'}</span>
-                <button type="button" disabled={current.creating} onClick={current.create}>Create workspace</button>
+                <span role="status">{company.createError ?? 'Contacts belong to a company.'}</span>
+                <button type="button" disabled={company.creating} onClick={company.create}>Create company</button>
               </>
             )}
         </div>
