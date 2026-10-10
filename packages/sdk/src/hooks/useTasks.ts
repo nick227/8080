@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getApiClient, unwrap } from '../client'
-import type { UpdateTaskStatusesInput, BulkTasksInput, CreateTaskInput, CreateWorkLogInput, ImportTasksInput, ImportWorkLogsInput, MoveTaskInput, TaskNotificationSettings, UpdateTaskBoardInput, UpdateTaskInput } from '../models'
+import type { UpdateTaskStatusesInput, BulkTasksInput, CreateTaskInput, CreateWorkLogInput, ImportTasksInput, ImportWorkLogsInput, MoveTaskInput, CreateTaskViewInput, TaskNotificationSettings, UpdateTaskBoardInput, UpdateTaskInput } from '../models'
 import { keys } from './keys'
 
 // Calendar / Boards tasks. The web keeps an optimistic copy for drag-and-drop,
@@ -108,6 +108,32 @@ export function useUpdateTaskBoard(workspaceId: string) {
     mutationFn: async (body: UpdateTaskBoardInput) =>
       unwrap(await getApiClient().PUT('/workspaces/{workspaceId}/task-board', { ...path(workspaceId), body })).data,
     onSuccess: (data) => queryClient.setQueryData(keys.taskBoard(workspaceId), data),
+  })
+}
+
+/** The caller's saved Calendar views (personal). */
+export function useTaskViews(workspaceId: string | undefined) {
+  return useQuery({
+    queryKey: [...keys.tasks(workspaceId ?? ''), 'views'],
+    enabled: !!workspaceId,
+    queryFn: async () => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/task-views', path(workspaceId!))).data,
+  })
+}
+
+export function useCreateTaskView(workspaceId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: CreateTaskViewInput) => unwrap(await getApiClient().POST('/workspaces/{workspaceId}/task-views', { ...path(workspaceId), body })).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [...keys.tasks(workspaceId), 'views'] }),
+  })
+}
+
+export function useDeleteTaskView(workspaceId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (viewId: string) =>
+      unwrap(await getApiClient().DELETE('/workspaces/{workspaceId}/task-views/{viewId}', { params: { path: { workspaceId, viewId } } })).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [...keys.tasks(workspaceId), 'views'] }),
   })
 }
 

@@ -6006,6 +6006,58 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/task-views:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listTaskViews
+      summary: The caller's saved Calendar views
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskViewList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createTaskView
+      summary: Save the current view and filters under a name (personal, up to 20)
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTaskViewInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskViewResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/task-views/{viewId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - in: path
+        name: viewId
+        required: true
+        schema: { type: string }
+    delete:
+      operationId: deleteTaskView
+      summary: Delete one of the caller's saved views
+      tags: [workspaces]
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskViewResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /workspaces/{workspaceId}/task-notifications:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -8685,6 +8737,31 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/TaskBoard' }
+    TaskView:
+      type: object
+      required: [id, name, query, createdAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        query: { type: string, description: 'The Calendar URL query it restores (view, who, type, area, priority, attention, q)' }
+        createdAt: { type: string, format: date-time }
+    TaskViewList:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/TaskView' } }
+    TaskViewResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/TaskView' }
+    CreateTaskViewInput:
+      type: object
+      additionalProperties: false
+      required: [name, query]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 60 }
+        query: { type: string, maxLength: 2000 }
     TaskNotificationSettings:
       type: object
       additionalProperties: false

@@ -6,6 +6,9 @@ import { ChecklistService } from '../services/ChecklistService'
 import { TaskWorkflowService } from '../services/TaskWorkflowService'
 import { taskReport } from '../services/taskReport'
 import { setTaskEmailSettings, taskEmailSettings } from '../services/taskEmail'
+import { TaskViewService } from '../services/TaskViewService'
+
+const views = new TaskViewService()
 import { joinTaskStream, type TaskFrame } from '../services/taskStream'
 import { authorize } from '../services/workspacePolicy'
 
@@ -84,6 +87,18 @@ export async function getTaskBoard(request: any, reply: any) {
 
 export async function updateTaskBoard(request: any, reply: any) {
   return reply.send({ data: await workLogs.setBoard(ctx(request), request.params.workspaceId, request.body) })
+}
+
+export async function listTaskViews(request: any, reply: any) {
+  return reply.send(await views.list(request.user.id, request.params.workspaceId))
+}
+
+export async function createTaskView(request: any, reply: any) {
+  return reply.code(201).send(await views.create(ctx(request), request.params.workspaceId, request.body))
+}
+
+export async function deleteTaskView(request: any, reply: any) {
+  return reply.send(await views.remove(ctx(request), request.params.workspaceId, request.params.viewId))
 }
 
 export async function getTaskNotificationSettings(request: any, reply: any) {

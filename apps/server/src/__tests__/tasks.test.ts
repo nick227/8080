@@ -580,4 +580,32 @@ describe('tasks', () => {
     expect(r2.throughput.at(-1).done).toBe(2)
     expect((await call(testUserId, 'GET', `/workspaces/${ws.id}/tasks/report?weeks=99`)).statusCode).toBe(400)
   })
+
+  it('saved views: personal, named, normalized; up to 20; deleting someone else\'s is 404', async () => {
+    const { ws } = await setup()
+    const url = `/workspaces/${ws.id}/task-views`
+    const res = await call(testUserId, 'POST', url, { name: ' My bugs ', query: '?desk=calendar&q=login&type=bug&view=board&ticket=VC-1' })
+    expect(res.statusCode).toBe(201)
+    await validateResponse('createTaskView', 201, res.json())
+    // Only the view and filter keys are kept, in one order.
+    expect(res.json().data).toMatchObject({ name: 'My bugs', query: 'view=board&type=bug&q=login' })
+    expect((await call(testUserId, 'POST', url, { name: 'my BUGS', query: 'view=table' })).json().code).toBe('DUPLICATE_NAME')
+    expect((await call(testUserId, 'POST', url, { name: '  ', query: '' })).statusCode).toBe(400)
+
+    const list = await call(testUserId, 'GET', url)
+    await validateResponse('listTaskViews', 200, list.json())
+    expect(list.json().data.map((v: any) => v.name)).toEqual(['My bugs'])
+    // Carol sees only her own, and can't delete Alice's.
+    expect((await call(carolId, 'GET', url)).json().data).toEqual([])
+    const id = res.json().data.id
+    expect((await call(carolId, 'DELETE', `${url}/${id}`)).statusCode).toBe(404)
+
+    for (let i = 1; i < 20; i++) await call(testUserId, 'POST', url, { name: `View ${i}`, query: `view=board&q=${i}` })
+    expect((await call(testUserId, 'POST', url, { name: 'One more', query: '' })).json().code).toBe('TOO_MANY_VIEWS')
+
+    const del = await call(testUserId, 'DELETE', `${url}/${id}`)
+    await validateResponse('deleteTaskView', 200, del.json())
+    expect((await call(testUserId, 'GET', url)).json().data).toHaveLength(19)
+    expect(await crossWorkspaceViolations()).toEqual({})
+  })
 })

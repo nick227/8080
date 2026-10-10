@@ -12,6 +12,7 @@ import { BoardView } from './BoardView'
 import { BacklogView } from './BacklogView'
 import { TableView } from './TableView'
 import { ReportsView } from './ReportsView'
+import { SavedViews } from './SavedViews'
 import { NewTaskSlideout } from './NewTaskSlideout'
 import { LogAccomplishmentModal } from './LogAccomplishmentModal'
 import { TicketPage } from './TicketPage'
@@ -282,6 +283,7 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
           </div>
         </header>
         {/* Reports have their own date range; the board filters narrow them too. */}
+        <SavedViews workspaceId={workspaceId} />
         <CalendarFilters ref={searchRef} count={filteredTasks.length} total={scopedTasks.length} scoped={scopedTasks} reports={view === 'reports'} />
 
         {sync.error && !loaded ? (

@@ -193,6 +193,7 @@ const CHECKS: { name: string; sql: string }[] = [
   { name: 'InboxItem.task', sql: "SELECT c.id FROM InboxItem c JOIN WorkTask p ON p.id = c.sourceId WHERE c.sourceType = 'task' AND c.workspaceId <> p.workspaceId" },
   { name: 'WorkTask.parent', sql: 'SELECT c.id FROM WorkTask c JOIN WorkTask p ON p.id = c.parentTaskId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'WorkChecklistItem.task', sql: 'SELECT c.id FROM WorkChecklistItem c JOIN WorkTask p ON p.id = c.taskId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'TaskView.member', sql: 'SELECT v.id FROM TaskView v JOIN WorkspaceMember p ON p.id = v.memberId WHERE v.workspaceId <> p.workspaceId' },
   { name: 'WorkChecklistItem.doneBy', sql: 'SELECT c.id FROM WorkChecklistItem c JOIN WorkspaceMember p ON p.id = c.doneByMemberId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'WorkLog.member', sql: 'SELECT c.id FROM WorkLog c JOIN WorkspaceMember p ON p.id = c.memberId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'WorkLog.author', sql: 'SELECT c.id FROM WorkLog c JOIN WorkspaceMember p ON p.id = c.authorMemberId WHERE c.workspaceId <> p.workspaceId' },

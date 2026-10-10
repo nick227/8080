@@ -497,6 +497,7 @@ enum TeamRole {
 }
 
 model Workspace {
+  taskViews        TaskView[]
   documents Document[]
   documentGrants DocumentGrant[]
   documentRoomLinks DocumentRoomLink[]
@@ -617,6 +618,7 @@ model WorkspaceMember {
   workComments      WorkComment[]
   workLogs          WorkLog[] @relation("WorkLogAuthor")
   workLogsDone      WorkLog[] @relation("WorkLogMember")
+  taskViews         TaskView[]
 
   @@unique([workspaceId, userId])
   @@index([userId, status])
@@ -2333,4 +2335,21 @@ model TaskBoardSettings {
   updatedAt   DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// A member's saved Calendar view: a name and the view + filters as a URL query
+// (view, who, type, area, priority, attention, q). Personal; at most 20 per member.
+model TaskView {
+  id          String   @id @default(cuid())
+  workspaceId String
+  memberId    String
+  name        String   @db.VarChar(60)
+  query       String   @db.VarChar(1000)
+  position    Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, memberId, position])
 }
