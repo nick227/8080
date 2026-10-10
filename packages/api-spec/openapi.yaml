@@ -8367,7 +8367,7 @@ components:
         data: { $ref: '#/components/schemas/TaskReport' }
     TaskReport:
       type: object
-      required: [range, filtered, now, done, throughput, cycleTime, flow, people]
+      required: [range, filtered, now, done, throughput, cycleTime, flow, hours, people]
       properties:
         filtered:
           type: boolean
@@ -8430,6 +8430,30 @@ components:
               todo: { type: integer }
               doing: { type: integer }
               done: { type: integer }
+        hours:
+          type: object
+          description: Hours logged with Log work in the range, by week and by the person credited (null = whole team).
+          required: [total, entries, weekly, people]
+          properties:
+            total: { type: number }
+            entries: { type: integer }
+            weekly:
+              type: array
+              items:
+                type: object
+                required: [weekStart, hours]
+                properties:
+                  weekStart: { type: string, format: date }
+                  hours: { type: number }
+            people:
+              type: array
+              items:
+                type: object
+                required: [memberId, name, hours]
+                properties:
+                  memberId: { type: [string, 'null'] }
+                  name: { type: string }
+                  hours: { type: number }
         people:
           type: array
           items:

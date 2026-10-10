@@ -5605,6 +5605,21 @@ export interface components {
                 doing: number;
                 done: number;
             }[];
+            /** @description Hours logged with Log work in the range, by week and by the person credited (null = whole team). */
+            hours: {
+                total: number;
+                entries: number;
+                weekly: {
+                    /** Format: date */
+                    weekStart: string;
+                    hours: number;
+                }[];
+                people: {
+                    memberId: string | null;
+                    name: string;
+                    hours: number;
+                }[];
+            };
             people: {
                 memberId: string | null;
                 name: string;

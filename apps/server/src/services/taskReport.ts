@@ -182,6 +182,41 @@ export async function taskReport(userId: string, workspaceId: string, opts: { we
     if (isUrgent(view(t), 'overdue', ctx)) p.overdue++
   }
 
+  // ─── hours logged (Log work): per week and per person ─────────────────────
+  // "Who" is the person credited with the work (null = the whole team); the other
+  // filters keep entries linked to a matching task.
+  const f = opts.filters ?? {}
+  const taskWhere = filterWhere(workspaceId, { ...f, members: [] })
+  const taskIds = taskWhere ? (await db.workTask.findMany({ where: taskWhere, select: { id: true } })).map((t) => t.id) : null
+  const memberIds = (f.members ?? []).filter((m) => m !== 'unassigned')
+  const logs = await db.workLog.findMany({
+    where: {
+      workspaceId,
+      day: { gte: firstWeek, lte: today },
+      hoursSpent: { gt: 0 },
+      ...(taskIds ? { taskId: { in: taskIds } } : {}),
+      ...(f.members?.length ? { OR: [...(memberIds.length ? [{ memberId: { in: memberIds } }] : []), ...(f.members.includes('unassigned') ? [{ memberId: null }] : [])] } : {}),
+    },
+    select: { day: true, hoursSpent: true, memberId: true, member: { include: { user: { include: { profile: true } } } } },
+  })
+  const round = (n: number) => Math.round(n * 100) / 100
+  const hoursByWeek = new Map(weekKeys.map((w) => [w, 0]))
+  const hoursByPerson = new Map<string, { memberId: string | null; name: string; hours: number }>()
+  for (const l of logs) {
+    const h = l.hoursSpent ?? 0
+    const w = weekStart(l.day)
+    if (hoursByWeek.has(w)) hoursByWeek.set(w, hoursByWeek.get(w)! + h)
+    const key = l.memberId ?? ''
+    if (!hoursByPerson.has(key)) hoursByPerson.set(key, { memberId: l.memberId, name: l.member ? toAuthor(l.member.user).name : 'Whole team', hours: 0 })
+    hoursByPerson.get(key)!.hours += h
+  }
+  const logged = {
+    total: round(logs.reduce((sum, l) => sum + (l.hoursSpent ?? 0), 0)),
+    entries: logs.length,
+    weekly: weekKeys.map((w) => ({ weekStart: w, hours: round(hoursByWeek.get(w)!) })),
+    people: [...hoursByPerson.values()].map((p) => ({ ...p, hours: round(p.hours) })).sort((a, b) => b.hours - a.hours || a.name.localeCompare(b.name)),
+  }
+
   return {
     range: { from: firstWeek, to: today, weeks, timezone: tz },
     filtered: !!narrowed,
@@ -190,6 +225,7 @@ export async function taskReport(userId: string, workspaceId: string, opts: { we
     throughput,
     cycleTime,
     flow: counts,
+    hours: logged,
     people: [...people.values()].sort((a, b) => b.doing + b.todo - (a.doing + a.todo) || a.name.localeCompare(b.name)),
   }
 }

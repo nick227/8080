@@ -538,6 +538,22 @@ describe('tasks', () => {
     expect(carolRow).toMatchObject({ doing: 1, todo: 0 })
     expect(r.people.find((p: any) => p.name === 'Unassigned')).toMatchObject({ todo: 1, blocked: 1, overdue: 1 })
     expect(r.filtered).toBe(false)
+    expect(r.hours).toEqual({ total: 0, entries: 0, weekly: expect.any(Array), people: [] })
+
+    // Hours from Log work, in range only, by week and by the person credited.
+    const logs = `/workspaces/${ws.id}/work-logs`
+    await call(testUserId, 'POST', logs, { summary: 'Built A', day: r.range.to, memberId: carol, hoursSpent: 3, taskId: a.id })
+    await call(testUserId, 'POST', logs, { summary: 'Standup', day: r.range.to, hoursSpent: 1.5 })
+    await call(testUserId, 'POST', logs, { summary: 'Long ago', day: '2020-01-06', memberId: carol, hoursSpent: 8 })
+    await call(testUserId, 'POST', logs, { summary: 'No hours', day: r.range.to, memberId: carol })
+    const h = (await call(testUserId, 'GET', url)).json().data.hours
+    expect(h).toMatchObject({ total: 4.5, entries: 2 })
+    expect(h.weekly.at(-1).hours).toBe(4.5)
+    expect(h.people).toEqual([{ memberId: carol, name: 'Carol', hours: 3 }, { memberId: null, name: 'Whole team', hours: 1.5 }])
+    // "Who" = the person credited; task filters keep entries on matching tasks.
+    expect((await call(testUserId, 'GET', `${url}&who=${carol}`)).json().data.hours.total).toBe(3)
+    expect((await call(testUserId, 'GET', `${url}&who=unassigned`)).json().data.hours.total).toBe(1.5)
+    expect((await call(testUserId, 'GET', `${url}&type=bug`)).json().data.hours.total).toBe(0)
 
     // Board filters narrow every number by the tasks' current fields.
     const mine = (await call(testUserId, 'GET', `${url}&who=${carol}`)).json().data

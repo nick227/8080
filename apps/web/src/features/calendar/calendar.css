@@ -2285,6 +2285,7 @@
 .cal-viz-tip strong { color: var(--ink); font-size: var(--text-sm); }
 .cal-viz-tip-row { display: flex; align-items: center; gap: 6px; }
 .cal-chart-table { overflow-x: auto; }
+.cal-hours-people { margin-top: var(--space-sm); }
 .cal-chart-table table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
 .cal-chart-table th { text-align: left; font-weight: normal; font-size: var(--text-label); color: var(--muted); padding: 4px var(--space-sm); border-bottom: var(--line-width) solid var(--line); }
 .cal-chart-table td { padding: 4px var(--space-sm); border-bottom: var(--line-width) solid var(--line); color: var(--ink); font-variant-numeric: tabular-nums; }

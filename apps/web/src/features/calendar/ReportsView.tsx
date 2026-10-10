@@ -77,6 +77,7 @@ export function ReportsView({ workspaceId, filters }: { workspaceId: string; fil
             <CycleTime r={r} />
             <Flow r={r} />
             <People r={r} />
+            <Hours r={r} />
           </div>
         </>
       )}
@@ -94,6 +95,7 @@ function Tiles({ r }: { r: TaskReport }) {
     { label: 'Overdue', value: String(r.now.overdue) },
     { label: 'Blocked', value: String(r.now.blocked) },
     { label: 'Due this week', value: String(r.now.dueWeek) },
+    { label: 'Hours logged', value: hoursText(r.hours.total), note: `last ${r.range.weeks} weeks` },
   ]
   return (
     <ul className="cal-tiles" aria-label="Summary">
@@ -132,55 +134,88 @@ function Tooltip({ x, y, width, children }: { x: number; y: number; width: numbe
 }
 
 function Throughput({ r }: { r: TaskReport }) {
+  const data = r.throughput.map((d) => ({ weekStart: d.weekStart, value: d.done }))
+  return (
+    <Card title="Throughput" sub="Tasks finished per week"
+      table={<table><thead><tr><th>Week of</th><th>Done</th></tr></thead><tbody>{data.map((d) => <tr key={d.weekStart}><td>{shortDay(d.weekStart)}</td><td>{d.value}</td></tr>)}</tbody></table>}>
+      <WeeklyColumns name="Throughput" data={data} format={(v) => String(v)} unit="done" />
+    </Card>
+  )
+}
+
+const hoursText = (h: number) => `${Math.round(h * 10) / 10} h`
+
+function Hours({ r }: { r: TaskReport }) {
+  const data = r.hours.weekly.map((d) => ({ weekStart: d.weekStart, value: d.hours }))
+  const people = (
+    <table>
+      <thead><tr><th>Credited to</th><th>Hours</th></tr></thead>
+      <tbody>{r.hours.people.map((p) => <tr key={p.memberId ?? 'team'}><td>{p.name}</td><td>{hoursText(p.hours)}</td></tr>)}</tbody>
+    </table>
+  )
+  return (
+    <Card title="Hours logged" sub={r.hours.entries ? `${hoursText(r.hours.total)} from ${r.hours.entries} work ${r.hours.entries === 1 ? 'entry' : 'entries'}` : 'Hours from Log work, per week'}
+      table={<>
+        <table><thead><tr><th>Week of</th><th>Hours</th></tr></thead><tbody>{data.map((d) => <tr key={d.weekStart}><td>{shortDay(d.weekStart)}</td><td>{hoursText(d.value)}</td></tr>)}</tbody></table>
+        {r.hours.people.length > 0 && people}
+      </>}>
+      {r.hours.entries === 0 ? <p className="cal-board-note">No hours logged in this range. Add hours when you log work.</p> : (
+        <>
+          <WeeklyColumns name="Hours logged" data={data} format={hoursText} unit="logged" />
+          <div className="cal-chart-table cal-hours-people">{people}</div>
+        </>
+      )}
+    </Card>
+  )
+}
+
+/** One series of weekly columns: thin bars, a label on the latest and the peak, hover/focus readout. */
+function WeeklyColumns({ name, data, format, unit }: { name: string; data: { weekStart: string; value: number }[]; format: (v: number) => string; unit: string }) {
   const { ref, width } = useWidth()
   const [hover, setHover] = useState<number | null>(null)
-  const data = r.throughput
-  const max = Math.max(...data.map((d) => d.done), 1)
+  const max = Math.max(...data.map((d) => d.value), 1)
   const tk = ticks(max)
   const top = tk.at(-1)!
   const plotW = width - AXIS_W
   const band = plotW / data.length
   const barW = Math.min(24, band * 0.6)
   const y = (v: number) => PLOT_H - (v / top) * PLOT_H
-  const maxIdx = data.reduce((m, d, i) => (d.done > data[m]!.done ? i : m), 0)
+  const maxIdx = data.reduce((m, d, i) => (d.value > data[m]!.value ? i : m), 0)
   return (
-    <Card title="Throughput" sub="Tasks finished per week"
-      table={<table><thead><tr><th>Week of</th><th>Done</th></tr></thead><tbody>{data.map((d) => <tr key={d.weekStart}><td>{shortDay(d.weekStart)}</td><td>{d.done}</td></tr>)}</tbody></table>}>
-      <div ref={ref} className="cal-viz">
-        <svg width={width} height={PLOT_H + AXIS_H + 8} role="img" aria-label={`Throughput: ${data.map((d) => `${shortDay(d.weekStart)} ${d.done}`).join(', ')}`}>
-          <g transform="translate(0,8)">
-            {tk.map((v) => (
-              <g key={v}>
-                <line className="viz-grid" x1={AXIS_W} x2={width} y1={y(v)} y2={y(v)} />
-                <text className="viz-axis" x={AXIS_W - 6} y={y(v)} dy="0.32em" textAnchor="end">{v}</text>
+    <div ref={ref} className="cal-viz">
+      <svg width={width} height={PLOT_H + AXIS_H + 8} role="img" aria-label={`${name}: ${data.map((d) => `${shortDay(d.weekStart)} ${format(d.value)}`).join(', ')}`}>
+        <g transform="translate(0,8)">
+          {tk.map((v) => (
+            <g key={v}>
+              <line className="viz-grid" x1={AXIS_W} x2={width} y1={y(v)} y2={y(v)} />
+              <text className="viz-axis" x={AXIS_W - 6} y={y(v)} dy="0.32em" textAnchor="end">{v}</text>
+            </g>
+          ))}
+          {data.map((d, i) => {
+            const cx = AXIS_W + band * i + band / 2
+            const h = PLOT_H - y(d.value)
+            const showLabel = d.value > 0 && (i === data.length - 1 || i === maxIdx)
+            return (
+              <g key={d.weekStart}>
+                {h > 0 && <path className="viz-bar" data-hover={hover === i || undefined} d={roundedTop(cx - barW / 2, y(d.value), barW, h, Math.min(4, h))} />}
+                {showLabel && <text className="viz-label" x={cx} y={y(d.value) - 6} textAnchor="middle">{format(d.value)}</text>}
+                <text className="viz-axis" x={cx} y={PLOT_H + 16} textAnchor="middle">{data.length > 8 && i % 2 ? '' : shortDay(d.weekStart)}</text>
+                {/* The hit target is the whole band, not the painted bar. */}
+                <rect className="viz-hit" x={AXIS_W + band * i} y={0} width={band} height={PLOT_H} tabIndex={0}
+                  aria-label={`Week of ${shortDay(d.weekStart)}: ${format(d.value)} ${unit}`}
+                  onPointerEnter={() => setHover(i)} onPointerLeave={() => setHover(null)} onFocus={() => setHover(i)} onBlur={() => setHover(null)} />
               </g>
-            ))}
-            {data.map((d, i) => {
-              const cx = AXIS_W + band * i + band / 2
-              const h = PLOT_H - y(d.done)
-              const showLabel = d.done > 0 && (i === data.length - 1 || i === maxIdx)
-              return (
-                <g key={d.weekStart}>
-                  {h > 0 && <path className="viz-bar" data-hover={hover === i || undefined} d={roundedTop(cx - barW / 2, y(d.done), barW, h, Math.min(4, h))} />}
-                  {showLabel && <text className="viz-label" x={cx} y={y(d.done) - 6} textAnchor="middle">{d.done}</text>}
-                  <text className="viz-axis" x={cx} y={PLOT_H + 16} textAnchor="middle">{data.length > 8 && i % 2 ? '' : shortDay(d.weekStart)}</text>
-                  {/* The hit target is the whole band, not the painted bar. */}
-                  <rect className="viz-hit" x={AXIS_W + band * i} y={0} width={band} height={PLOT_H} tabIndex={0}
-                    aria-label={`Week of ${shortDay(d.weekStart)}: ${d.done} done`}
-                    onPointerEnter={() => setHover(i)} onPointerLeave={() => setHover(null)} onFocus={() => setHover(i)} onBlur={() => setHover(null)} />
-                </g>
-              )
-            })}
-            <line className="viz-baseline" x1={AXIS_W} x2={width} y1={PLOT_H} y2={PLOT_H} />
-          </g>
-        </svg>
-        {hover !== null && (
-          <Tooltip x={AXIS_W + band * hover + band / 2} y={y(data[hover]!.done)} width={width}>
-            <strong>{data[hover]!.done}</strong> done<br /><span>Week of {shortDay(data[hover]!.weekStart)}</span>
-          </Tooltip>
-        )}
-      </div>
-    </Card>
+            )
+          })}
+          <line className="viz-baseline" x1={AXIS_W} x2={width} y1={PLOT_H} y2={PLOT_H} />
+        </g>
+      </svg>
+      {hover !== null && (
+        <Tooltip x={AXIS_W + band * hover + band / 2} y={y(data[hover]!.value)} width={width}>
+          <strong>{format(data[hover]!.value)}</strong> {unit}<br /><span>Week of {shortDay(data[hover]!.weekStart)}</span>
+        </Tooltip>
+      )}
+    </div>
   )
 }
 
