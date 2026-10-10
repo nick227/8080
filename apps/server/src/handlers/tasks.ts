@@ -5,6 +5,7 @@ import { WorkLogService } from '../services/WorkLogService'
 import { ChecklistService } from '../services/ChecklistService'
 import { TaskWorkflowService } from '../services/TaskWorkflowService'
 import { taskReport } from '../services/taskReport'
+import { setTaskEmailSettings, taskEmailSettings } from '../services/taskEmail'
 import { joinTaskStream, type TaskFrame } from '../services/taskStream'
 import { authorize } from '../services/workspacePolicy'
 
@@ -83,6 +84,14 @@ export async function getTaskBoard(request: any, reply: any) {
 
 export async function updateTaskBoard(request: any, reply: any) {
   return reply.send({ data: await workLogs.setBoard(ctx(request), request.params.workspaceId, request.body) })
+}
+
+export async function getTaskNotificationSettings(request: any, reply: any) {
+  return reply.send({ data: await taskEmailSettings(request.user.id, request.params.workspaceId) })
+}
+
+export async function updateTaskNotificationSettings(request: any, reply: any) {
+  return reply.send({ data: await setTaskEmailSettings(ctx(request), request.params.workspaceId, request.body) })
 }
 
 export async function blockTask(request: any, reply: any) {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useInboxItems, useInboxStream, useReadInboxItem, type InboxItem } from '@project/sdk'
+import { useInboxItems, useInboxStream, useReadInboxItem, useTaskNotificationSettings, useUpdateTaskNotificationSettings, type InboxItem, type TaskNotificationSettings } from '@project/sdk'
 import { since } from './BoardView'
 import { useCalendar } from './store'
 
@@ -9,6 +9,8 @@ export function ForYou({ workspaceId, onOpenTask }: { workspaceId: string; onOpe
   const list = useInboxItems(workspaceId, { sourceType: 'task' })
   useInboxStream(workspaceId)
   const read = useReadInboxItem(workspaceId)
+  const settings = useTaskNotificationSettings(workspaceId)
+  const saveSettings = useUpdateTaskNotificationSettings(workspaceId)
   const navigate = useNavigate()
   const tasks = useCalendar((s) => s.tasks)
   const say = useCalendar((s) => s.say)
@@ -72,6 +74,18 @@ export function ForYou({ workspaceId, onOpenTask }: { workspaceId: string; onOpe
                 ))}
               </ul>
             )}
+          <label className="cal-foryou-email">
+            <span>Also email me</span>
+            <select
+              value={saveSettings.isPending ? saveSettings.variables.email : settings.data?.email ?? 'direct'}
+              disabled={!settings.data || saveSettings.isPending}
+              onChange={(e) => saveSettings.mutate({ email: e.target.value as TaskNotificationSettings['email'] }, { onError: () => say("Couldn't save your email setting.") })}
+            >
+              <option value="direct">Mentions and assignments</option>
+              <option value="all">Every notification</option>
+              <option value="off">Nothing</option>
+            </select>
+          </label>
         </div>
       )}
     </div>

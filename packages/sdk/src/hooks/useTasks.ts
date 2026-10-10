@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getApiClient, unwrap } from '../client'
-import type { UpdateTaskStatusesInput, BulkTasksInput, CreateTaskInput, CreateWorkLogInput, ImportTasksInput, ImportWorkLogsInput, MoveTaskInput, UpdateTaskBoardInput, UpdateTaskInput } from '../models'
+import type { UpdateTaskStatusesInput, BulkTasksInput, CreateTaskInput, CreateWorkLogInput, ImportTasksInput, ImportWorkLogsInput, MoveTaskInput, TaskNotificationSettings, UpdateTaskBoardInput, UpdateTaskInput } from '../models'
 import { keys } from './keys'
 
 // Calendar / Boards tasks. The web keeps an optimistic copy for drag-and-drop,
@@ -108,6 +108,24 @@ export function useUpdateTaskBoard(workspaceId: string) {
     mutationFn: async (body: UpdateTaskBoardInput) =>
       unwrap(await getApiClient().PUT('/workspaces/{workspaceId}/task-board', { ...path(workspaceId), body })).data,
     onSuccess: (data) => queryClient.setQueryData(keys.taskBoard(workspaceId), data),
+  })
+}
+
+/** The caller's task notification channels (For you always; email per member). */
+export function useTaskNotificationSettings(workspaceId: string | undefined) {
+  return useQuery({
+    queryKey: [...keys.tasks(workspaceId ?? ''), 'notifications'],
+    enabled: !!workspaceId,
+    queryFn: async () => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/task-notifications', path(workspaceId!))).data,
+  })
+}
+
+export function useUpdateTaskNotificationSettings(workspaceId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: TaskNotificationSettings) =>
+      unwrap(await getApiClient().PUT('/workspaces/{workspaceId}/task-notifications', { ...path(workspaceId), body })).data,
+    onSuccess: (data) => queryClient.setQueryData([...keys.tasks(workspaceId), 'notifications'], data),
   })
 }
 

@@ -1,11 +1,13 @@
 // Who hears about what happens to a task: in-app inbox rows for the people it
 // concerns, never a broadcast (doc/11: recipient-owned delivery). Derived from the
 // task's recorded Activity rows; one row per recipient, deduped by activity.
-// Channels: in-app now; email and chat attach here later as per-member choices.
+// Channels: in-app always; email per member (`taskEmail`: off, direct = mentions
+// and assignments, or all), sent by taskEmail.ts after the commit.
 import type { Activity, Prisma } from '@project/db'
 import type { AfterCommit } from './activityFeed'
 import { fanOut } from './inboxFanOut'
 import { releaseInbox } from './inboxHub'
+import { queueTaskEmails, sendTaskEmails, wantsEmail } from './taskEmail'
 
 type Tx = Prisma.TransactionClient
 
@@ -23,7 +25,8 @@ type Summary = {
   assigneeMemberId?: string | null
 }
 
-type Notice = { memberIds: string[]; title: string; summary: string }
+/** `direct`: addressed to the recipient personally (mentioned, assigned). */
+type Notice = { memberIds: string[]; title: string; summary: string; direct?: boolean }
 
 /** What one task activity tells whom, given the task's people. */
 export function noticesFor(
@@ -39,9 +42,9 @@ export function noticesFor(
   const concerned = [people.assigneeId, people.creatorId]
   switch (activity.type) {
     case 'task.created':
-      return s.assigneeMemberId ? [{ memberIds: [s.assigneeMemberId], title: `${who} assigned you ${key}`, summary: title }] : []
+      return s.assigneeMemberId ? [{ memberIds: [s.assigneeMemberId], title: `${who} assigned you ${key}`, summary: title, direct: true }] : []
     case 'task.assigned':
-      return s.to ? [{ memberIds: [s.to], title: `${who} assigned you ${key}`, summary: title }] : []
+      return s.to ? [{ memberIds: [s.to], title: `${who} assigned you ${key}`, summary: title, direct: true }] : []
     case 'task.moved':
       // Handoffs only (statuses flagged so in the workflow, e.g. In review, Done).
       return s.to && s.via !== 'workflow' && handoff(s.to)
@@ -56,7 +59,7 @@ export function noticesFor(
       const others = [...concerned, ...people.commenterIds].filter((id): id is string => !!id && !mentioned.includes(id))
       const excerpt = s.excerpt ? `${title}: “${s.excerpt}”` : title
       return [
-        { memberIds: mentioned, title: `${who} mentioned you on ${key}`, summary: excerpt },
+        { memberIds: mentioned, title: `${who} mentioned you on ${key}`, summary: excerpt, direct: true },
         { memberIds: others, title: `${who} commented on ${key}`, summary: excerpt },
       ]
     }
@@ -95,7 +98,7 @@ export async function notifyTaskActivity(tx: Tx, activities: Activity[]): Promis
       // Never yourself, never twice for one event, only active members.
       const wanted = [...new Set(notice.memberIds)].filter((id) => id !== activity.actorMemberId && !told.has(id))
       if (!wanted.length) continue
-      const active = await tx.workspaceMember.findMany({ where: { id: { in: wanted }, workspaceId: activity.workspaceId, status: 'active' }, select: { id: true } })
+      const active = await tx.workspaceMember.findMany({ where: { id: { in: wanted }, workspaceId: activity.workspaceId, status: 'active' }, select: { id: true, taskEmail: true } })
       const memberIds = active.map((m) => m.id)
       memberIds.forEach((id) => told.add(id))
       const rows = await fanOut(tx, activity.workspaceId, {
@@ -111,7 +114,13 @@ export async function notifyTaskActivity(tx: Tx, activities: Activity[]): Promis
         actorMemberId: activity.actorMemberId,
         memberIds,
       })
-      effects.push(() => rows.forEach(releaseInbox))
+      const emailed = new Set(active.filter((m) => wantsEmail(m.taskEmail, !!notice.direct)).map((m) => m.id))
+      const emailRows = rows.filter((r) => emailed.has(r.memberId)).map((r) => r.id)
+      await queueTaskEmails(tx, emailRows)
+      effects.push(() => {
+        rows.forEach(releaseInbox)
+        sendTaskEmails(emailRows)
+      })
     }
   }
   return effects

@@ -4,6 +4,7 @@ import { startBots, stopBots } from './bots/runtime'
 import { startWorkspaceHost } from './services/WorkspaceHost'
 import { startAgentRunner, stopAgentRunner } from './services/agents/runner'
 import { describeEmailSetup } from './services/agents/email'
+import { startTaskEmailSweep, stopTaskEmailSweep } from './services/taskEmail'
 
 async function main() {
   const server = await buildApp({ logger: true })
@@ -18,6 +19,8 @@ async function main() {
   const host = startWorkspaceHost()
   // Agents job runner (docs/agents/07 S0): single instance; AGENTS_SCHEDULER=off disables it.
   server.log.info(`agents runner: ${startAgentRunner() ? 'on' : 'off'}`)
+  // Task notice emails: retries what an immediate send didn't finish.
+  server.log.info(`task email sweep: ${startTaskEmailSweep() ? 'on' : 'off'}`)
   const email = describeEmailSetup()
   if (email.ok) server.log.info(email.line)
   else server.log.error(email.line)
@@ -26,6 +29,7 @@ async function main() {
     server.log.info(`Received ${signal}, shutting down server...`)
     try {
       stopAgentRunner()
+      stopTaskEmailSweep()
       host.stop()
       await stopBots()
       await server.close()

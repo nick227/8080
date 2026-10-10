@@ -138,6 +138,7 @@ function sampleBody(op: any) {
     SaveDocumentContentInput: { expectedVersion: 0, content: [] },
     SetDocumentWorkspaceAccessInput: { role: 'viewer' },
     ReadInboxItemInput: { unread: false },
+    TaskNotificationSettings: { email: 'off' },
     StarInboxItemInput: { starred: true },
     ArchiveInboxItemInput: { archived: true },
     SendComposeInput: { contactId: 'x', channel: 'email', destination: 'a@b.co', subject: 'x', body: 'x', contextType: 'contact', contextId: 'x' },

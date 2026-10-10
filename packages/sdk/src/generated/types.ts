@@ -4013,6 +4013,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/task-notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The caller's task notification channels
+         * @description Every task notification reaches For you; email is per member.
+         */
+        get: operations["getTaskNotificationSettings"];
+        /** Choose which task notifications the caller also gets by email */
+        put: operations["updateTaskNotificationSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5765,6 +5788,16 @@ export interface components {
         };
         TaskBoardResponse: {
             data: components["schemas"]["TaskBoard"];
+        };
+        TaskNotificationSettings: {
+            /**
+             * @description off = For you only; direct = also email mentions and assignments; all = email every task notification
+             * @enum {string}
+             */
+            email: "off" | "direct" | "all";
+        };
+        TaskNotificationSettingsResponse: {
+            data: components["schemas"]["TaskNotificationSettings"];
         };
         UpdateTaskBoardInput: {
             wipLimits: components["schemas"]["WipLimits"];
@@ -14327,6 +14360,59 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getTaskNotificationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskNotificationSettingsResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateTaskNotificationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskNotificationSettings"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskNotificationSettingsResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
         };
     };

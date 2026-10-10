@@ -577,6 +577,8 @@ model WorkspaceMember {
   status      MemberStatus  @default(active)
   title       String?       @db.VarChar(120)
   timezone    String?       @db.VarChar(64)
+  // Task notifications by email: off | direct (mentions + assignments) | all
+  taskEmail   String        @default("direct") @db.VarChar(16)
   // The WorkspaceMember who invited them (no FK: history only)
   invitedById String?       @db.VarChar(64)
   joinedAt    DateTime      @default(now())
@@ -1509,12 +1511,20 @@ model InboxItem {
   dedupeKey   String    @db.VarChar(160)
   deliverAt   DateTime  @default(now())
   createdAt   DateTime  @default(now())
+  // Email copy of this notice (null = none wanted): pending | sent | failed | skipped
+  emailStatus   String?   @db.VarChar(16)
+  emailAttempts Int       @default(0)
+  // Earliest next attempt (also the lease of an attempt in progress)
+  emailNextAt   DateTime?
+  emailedAt     DateTime?
+  emailError    String?   @db.VarChar(200)
 
   workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   member    WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@unique([memberId, dedupeKey])
   @@index([workspaceId, memberId, archivedAt, createdAt])
+  @@index([emailStatus, emailNextAt])
 }
 
 

@@ -6006,6 +6006,40 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/task-notifications:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: getTaskNotificationSettings
+      summary: The caller's task notification channels
+      description: Every task notification reaches For you; email is per member.
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskNotificationSettingsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateTaskNotificationSettings
+      summary: Choose which task notifications the caller also gets by email
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskNotificationSettings' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskNotificationSettingsResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
 components:
   securitySchemes:
     bearerAuth:
@@ -8627,6 +8661,20 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/TaskBoard' }
+    TaskNotificationSettings:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          enum: ['off', direct, all]
+          description: "off = For you only; direct = also email mentions and assignments; all = email every task notification"
+    TaskNotificationSettingsResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/TaskNotificationSettings' }
     UpdateTaskBoardInput:
       type: object
       additionalProperties: false
