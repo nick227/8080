@@ -35,6 +35,7 @@ afterEach(async () => {
   await db.activityEvent.deleteMany()
   await db.inboxItem.deleteMany()
   await db.compose.deleteMany()
+  await db.workspaceRoom.deleteMany()
   await db.workspaceChannel.deleteMany()
   await db.documentRelation.deleteMany()
   await db.documentRoomLink.deleteMany()

@@ -129,3 +129,53 @@ export function useLiveToken(roomId: string | undefined) {
       unwrap(await getApiClient().GET('/rooms/{roomId}/live-token', { params: { path: { roomId: roomId! } } })).data,
   })
 }
+
+// ─── conversations listed under a company (redesign D3) ─────────────────────────
+
+/** The company's linked rooms and its channel, of those the viewer can see. */
+export function useCompanyConversations(workspaceId: string | undefined, params: { limit?: number } = {}) {
+  return useInfiniteQuery({
+    queryKey: keys.companyRooms(workspaceId ?? ''),
+    enabled: !!workspaceId,
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) =>
+      unwrap(await getApiClient().GET('/workspaces/{workspaceId}/conversations', { params: { path: { workspaceId: workspaceId! }, query: { ...params, cursor: pageParam } } })),
+    getNextPageParam: (last) => last.meta.nextCursor ?? undefined,
+  })
+}
+
+/** The company a room is listed under (null unless you're a member of it). */
+export function useRoomCompany(roomId: string | undefined) {
+  return useQuery({
+    queryKey: keys.roomCompany(roomId ?? ''),
+    enabled: !!roomId,
+    retry: false, // a 404 (room not visible) is an answer, not a blip
+    queryFn: async () => unwrap(await getApiClient().GET('/rooms/{roomId}/company', { params: { path: { roomId: roomId! } } })).data,
+  })
+}
+
+/** List a room you own under a company. */
+export function useLinkCompanyConversation(workspaceId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (roomId: string) =>
+      unwrap(await getApiClient().POST('/workspaces/{workspaceId}/conversations', { params: { path: { workspaceId } }, body: { roomId } })).data,
+    onSuccess: (_room, roomId) => {
+      void queryClient.invalidateQueries({ queryKey: keys.companyRooms(workspaceId) })
+      void queryClient.invalidateQueries({ queryKey: keys.roomCompany(roomId) })
+    },
+  })
+}
+
+/** Stop listing a room under a company (its owner, or an admin). */
+export function useUnlinkCompanyConversation(workspaceId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (roomId: string) =>
+      unwrap(await getApiClient().DELETE('/workspaces/{workspaceId}/conversations/{roomId}', { params: { path: { workspaceId, roomId } } })),
+    onSuccess: (_res, roomId) => {
+      void queryClient.invalidateQueries({ queryKey: keys.companyRooms(workspaceId) })
+      void queryClient.invalidateQueries({ queryKey: keys.roomCompany(roomId) })
+    },
+  })
+}

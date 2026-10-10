@@ -118,6 +118,7 @@ model Room {
   links      RecordLink[]
   activities Activity[]
   workspaceChannel WorkspaceChannel?
+  companyLink      WorkspaceRoom?
 
   @@index([visibility, lastActivityAt, id])
   @@index([topic])
@@ -523,6 +524,7 @@ model Workspace {
   actions          ActionExecution[]
   activities       Activity[]
   activitySubjects ActivitySubject[]
+  conversations    WorkspaceRoom[]
   businessEvents AgentBusinessEvent[]
   emailSuppressions AgentEmailSuppression[]
   unsubscribeTokens AgentUnsubscribeToken[]
@@ -1596,6 +1598,23 @@ model WorkspaceChannel {
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   room      Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
+
+// A conversation listed under a company (redesign 00-decisions.md D3). Rooms stay
+// platform-level (doc/09 D5): a link changes where a room is listed, never who can
+// see it. One company per room. The company's channel (WorkspaceChannel) is listed
+// with these without a row of its own.
+model WorkspaceRoom {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  roomId           String   @unique
+  linkedByMemberId String
+  createdAt        DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  room      Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
 }
 
 enum WorkflowStatus {

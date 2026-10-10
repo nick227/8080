@@ -4,6 +4,9 @@ export const keys = {
   rooms: (params?: object) => ['rooms', 'list', params ?? {}] as const,
   roomsAll: ['rooms'] as const,
   myRooms: ['rooms', 'mine'] as const,
+  // Under ['rooms'] so room changes that invalidate roomsAll refresh company lists too.
+  companyRooms: (workspaceId: string) => ['rooms', 'company', workspaceId] as const,
+  roomCompany: (roomId: string) => ['roomCompany', roomId] as const,
   room: (roomId: string) => ['room', roomId] as const,
   items: (roomId: string) => ['items', roomId] as const,
   item: (itemId: string) => ['item', itemId] as const,

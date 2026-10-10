@@ -94,6 +94,26 @@ export class RoomService {
     return activityPage(rows, limit)
   }
 
+  // A company's conversations (redesign D3): its linked rooms and its channel, of those
+  // the viewer may see. Linking never changes who can see a room.
+  async listForCompany(viewerId: string, workspaceId: string, opts: ListOpts) {
+    const limit = normalizeLimit(opts.limit)
+    const rows = await db.room.findMany({
+      where: {
+        deletedAt: null,
+        AND: [
+          { OR: [{ companyLink: { workspaceId } }, { workspaceChannel: { workspaceId } }] },
+          { OR: [{ visibility: 'public' }, { members: { some: { userId: viewerId } } }] },
+          afterCursor(opts.cursor),
+        ],
+      },
+      orderBy: activityOrder,
+      take: limit + 1,
+      include: roomInclude(viewerId),
+    })
+    return activityPage(rows, limit)
+  }
+
   // A thumbnail is the caller's own stored image, or a YouTube video they added
   // (shown by its YouTube thumbnail).
   async ownImage(ownerId: string, mediaId: string) {

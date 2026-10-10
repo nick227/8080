@@ -56,6 +56,11 @@ export type WorkspaceVerb =
   | 'worklog.delete'
   // Board settings (WIP limits): admins.
   | 'task.board.manage'
+  // Conversations listed under the company (redesign D3): everyone sees the list and
+  // adds rooms they own; removing someone else's room from the list is for admins.
+  | 'conversation.read'
+  | 'conversation.link'
+  | 'conversation.unlink'
 
 const OWNERS: readonly WorkspaceRole[] = ['owner']
 const ADMINS: readonly WorkspaceRole[] = ['owner', 'admin']
@@ -103,6 +108,9 @@ const ROLES: Record<WorkspaceVerb, readonly WorkspaceRole[]> = {
   'task.delete': EVERYONE,
   'worklog.delete': ADMINS, // + the entry's author and member (below)
   'task.board.manage': ADMINS,
+  'conversation.read': EVERYONE,
+  'conversation.link': EVERYONE,
+  'conversation.unlink': ADMINS, // + the room's owner (CompanyRoomService)
 }
 
 // What a verb is applied to, when the answer depends on it.

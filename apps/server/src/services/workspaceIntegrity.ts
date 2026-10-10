@@ -5,6 +5,8 @@
 import { db } from '@project/db'
 
 const CHECKS: { name: string; sql: string }[] = [
+  // Conversations listed under a company (redesign D3)
+  { name: 'WorkspaceRoom.linkedBy', sql: 'SELECT r.id FROM WorkspaceRoom r JOIN WorkspaceMember m ON m.id = r.linkedByMemberId WHERE m.workspaceId <> r.workspaceId' },
   // Chatbot host + company profile (doc/12)
   { name: 'WorkflowRun.member', sql: 'SELECT r.id FROM WorkflowRun r JOIN WorkspaceMember m ON m.id = r.memberId WHERE m.workspaceId <> r.workspaceId' },
   { name: 'CompanyFact.setBy', sql: 'SELECT f.id FROM CompanyFact f JOIN WorkspaceMember m ON m.id = f.setByMemberId WHERE m.workspaceId <> f.workspaceId' },

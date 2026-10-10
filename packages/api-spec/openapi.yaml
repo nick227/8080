@@ -380,6 +380,23 @@ paths:
               schema: { $ref: '#/components/schemas/PaginatedRooms' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /rooms/{roomId}/company:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    get:
+      operationId: getRoomCompany
+      summary: The company a room is listed under
+      description: Named only to that company's active members; null otherwise (and for rooms in no company). Private rooms return 404 to non-members.
+      tags: [rooms]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoomCompanyResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /rooms/{roomId}:
     parameters:
       - $ref: '#/components/parameters/RoomId'
@@ -6027,6 +6044,63 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/conversations:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listCompanyConversations
+      summary: The company's conversations (linked rooms and its channel), most recently active first
+      description: Only rooms the caller can see; listing a room under a company never changes who can see it.
+      tags: [workspaces]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Paginated rooms
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedRooms' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: linkCompanyConversation
+      summary: List a room you own under this company
+      description: One company per room. 403 NOT_ROOM_OWNER unless you own the room; 409 ALREADY_LINKED / ROOM_LINKED if it is already listed.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LinkCompanyConversationInput' }
+      responses:
+        '201':
+          description: Linked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoomResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/conversations/{roomId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/RoomId'
+    delete:
+      operationId: unlinkCompanyConversation
+      summary: Stop listing a room under this company (its owner, or an admin)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: Unlinked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /workspaces/{workspaceId}/tasks/{taskId}/links:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -6557,6 +6631,30 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/Room' }
+
+    RoomCompany:
+      type: object
+      required: [id, name, channel]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        channel: { type: boolean, description: "The room is the company's shared channel" }
+
+    RoomCompanyResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/RoomCompany'
+            - type: 'null'
+
+    LinkCompanyConversationInput:
+      type: object
+      additionalProperties: false
+      required: [roomId]
+      properties:
+        roomId: { type: string, minLength: 1, maxLength: 64 }
 
     PaginatedRooms:
       type: object

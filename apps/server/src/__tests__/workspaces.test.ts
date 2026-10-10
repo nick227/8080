@@ -141,6 +141,7 @@ function sampleBody(op: any) {
     TaskNotificationSettings: { email: 'off' },
     CreateTaskViewInput: { name: 'x', query: '' },
     CreateTaskLinkInput: { contactId: 'x' },
+    LinkCompanyConversationInput: { roomId: 'x' },
     StarInboxItemInput: { starred: true },
     ArchiveInboxItemInput: { archived: true },
     SendComposeInput: { contactId: 'x', channel: 'email', destination: 'a@b.co', subject: 'x', body: 'x', contextType: 'contact', contextId: 'x' },

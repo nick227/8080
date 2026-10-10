@@ -1,5 +1,7 @@
 import { RoomService } from '../services/RoomService'
 import { liveToken } from '../services/live'
+import { CompanyRoomService } from '../services/CompanyRoomService'
+import { workspaceCtx } from '../lib/session'
 
 const roomService = new RoomService()
 
@@ -62,4 +64,23 @@ export async function kickRoomBot(request: any, reply: any) {
 // A short-lived LiveKit token for this room (services/live.ts); room access decides.
 export async function getLiveToken(request: any, reply: any) {
   return reply.send({ data: await liveToken(request.user.id, request.params.roomId) })
+}
+
+// ─── conversations listed under a company (redesign D3) ─────────────────────────
+const companyRooms = new CompanyRoomService()
+
+export async function listCompanyConversations(request: any, reply: any) {
+  return reply.send(await companyRooms.list(request.user.id, request.params.workspaceId, request.query ?? {}))
+}
+
+export async function linkCompanyConversation(request: any, reply: any) {
+  return reply.code(201).send(await companyRooms.link(workspaceCtx(request), request.params.workspaceId, request.body.roomId))
+}
+
+export async function unlinkCompanyConversation(request: any, reply: any) {
+  return reply.send(await companyRooms.unlink(workspaceCtx(request), request.params.workspaceId, request.params.roomId))
+}
+
+export async function getRoomCompany(request: any, reply: any) {
+  return reply.send(await companyRooms.companyOf(request.user.id, request.params.roomId))
 }

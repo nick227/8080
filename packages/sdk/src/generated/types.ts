@@ -253,6 +253,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rooms/{roomId}/company": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: components["parameters"]["RoomId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The company a room is listed under
+         * @description Named only to that company's active members; null otherwise (and for rooms in no company). Private rooms return 404 to non-members.
+         */
+        get: operations["getRoomCompany"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rooms/{roomId}": {
         parameters: {
             query?: never;
@@ -4035,6 +4057,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The company's conversations (linked rooms and its channel), most recently active first
+         * @description Only rooms the caller can see; listing a room under a company never changes who can see it.
+         */
+        get: operations["listCompanyConversations"];
+        put?: never;
+        /**
+         * List a room you own under this company
+         * @description One company per room. 403 NOT_ROOM_OWNER unless you own the room; 409 ALREADY_LINKED / ROOM_LINKED if it is already listed.
+         */
+        post: operations["linkCompanyConversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/conversations/{roomId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                roomId: components["parameters"]["RoomId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Stop listing a room under this company (its owner, or an admin) */
+        delete: operations["unlinkCompanyConversation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/tasks/{taskId}/links": {
         parameters: {
             query?: never;
@@ -4293,6 +4361,18 @@ export interface components {
         };
         RoomResponse: {
             data: components["schemas"]["Room"];
+        };
+        RoomCompany: {
+            id: string;
+            name: string;
+            /** @description The room is the company's shared channel */
+            channel: boolean;
+        };
+        RoomCompanyResponse: {
+            data: components["schemas"]["RoomCompany"] | null;
+        };
+        LinkCompanyConversationInput: {
+            roomId: string;
         };
         PaginatedRooms: {
             data: components["schemas"]["Room"][];
@@ -7601,6 +7681,30 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    getRoomCompany: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: components["parameters"]["RoomId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomCompanyResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
     getRoom: {
@@ -14562,6 +14666,91 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listCompanyConversations: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor returned by the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated rooms */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedRooms"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    linkCompanyConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkCompanyConversationInput"];
+            };
+        };
+        responses: {
+            /** @description Linked */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    unlinkCompanyConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                roomId: components["parameters"]["RoomId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unlinked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };
