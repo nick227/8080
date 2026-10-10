@@ -5,6 +5,7 @@ import { DevOutboxProvider } from './devOutbox'
 import { ResendPlatformProvider } from './resendPlatform'
 import { platformFrom } from './platform'
 import { SmtpProvider } from './smtp'
+import { GoogleGmailProvider } from './googleGmail'
 import type { EmailProvider } from './provider'
 
 export * from './provider'
@@ -44,14 +45,16 @@ export function setEmailProvider(provider: EmailProvider | null) {
 
 const dev = new DevOutboxProvider()
 const smtp = new SmtpProvider()
+const google = new GoogleGmailProvider()
 
 /**
- * The platform follows emailTransport(). An own SMTP sender always sends for real,
- * in every environment: someone entered those mailbox credentials to send with them.
+ * The platform follows emailTransport(). An own SMTP or Google sender always sends using its credentials.
  */
 export function providerFor(connection: EmailConnection): EmailProvider {
   if (override) return override
   if (connection.strategy === 'smtp') return smtp
+  if (connection.strategy === 'google') return google
   if (connection.strategy !== 'platform') throw new Error(`Email strategy ${connection.strategy} is not available yet`)
   return emailTransport() === 'resend' ? new ResendPlatformProvider() : dev
 }
+

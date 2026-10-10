@@ -90,6 +90,11 @@ export async function buildApp(opts: BuildOptions = {}) {
   // Liveness — not in spec, always public.
   server.get('/health', async () => ({ status: 'ok' }))
 
+  // Alias routes for /api prefix on OAuth callbacks
+  server.get('/api/auth/google/callback', handlers.handleGoogleLoginCallback)
+  server.get('/api/integrations/google/callback', handlers.handleGoogleGmailCallback)
+  server.get('/workspaces/:workspaceId/integrations/google/url', handlers.getGoogleGmailUrl)
+
   // Bot tuning endpoints (doc/08 R25): local opt-in only, never in production.
   if (process.env.BOTS_DEV === '1' && process.env.NODE_ENV !== 'production') {
     await server.register((await import('./plugins/devBots')).default)

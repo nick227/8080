@@ -92,6 +92,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/google/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Google OAuth Login URL */
+        get: operations["getGoogleLoginUrl"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/google/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Google OAuth Login Callback */
+        get: operations["handleGoogleLoginCallback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/google/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Google OAuth Gmail Callback */
+        get: operations["handleGoogleGmailCallback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/me": {
         parameters: {
             query?: never;
@@ -3599,6 +3650,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/tasks/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Board reports (throughput, cycle time, cumulative flow, open work)
+         * @description Derived from recorded history and current tasks, in the workspace's time zone
+         *     (weeks start Monday). Done and started follow workflow categories; overdue, due
+         *     this week and blocked use the shared urgency definitions. Cumulative flow counts
+         *     live tasks only.
+         */
+        get: operations["getTaskReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/tasks/import": {
         parameters: {
             query?: never;
@@ -5457,6 +5533,62 @@ export interface components {
                 [key: string]: components["schemas"]["TaskStatus"];
             };
         };
+        TaskReportResponse: {
+            data: components["schemas"]["TaskReport"];
+        };
+        TaskReport: {
+            range: {
+                /** Format: date */
+                from: string;
+                /** Format: date */
+                to: string;
+                weeks: number;
+                timezone: string;
+            };
+            now: {
+                todo: number;
+                doing: number;
+                overdue: number;
+                dueWeek: number;
+                blocked: number;
+            };
+            done: {
+                thisPeriod: number;
+                previousPeriod: number;
+            };
+            throughput: {
+                /** Format: date */
+                weekStart: string;
+                done: number;
+            }[];
+            cycleTime: {
+                medianHours: number | null;
+                p85Hours: number | null;
+                samples: number;
+                weekly: {
+                    /** Format: date */
+                    weekStart: string;
+                    medianHours: number | null;
+                    p85Hours: number | null;
+                    samples: number;
+                }[];
+            };
+            flow: {
+                /** Format: date */
+                day: string;
+                todo: number;
+                doing: number;
+                done: number;
+            }[];
+            people: {
+                memberId: string | null;
+                name: string;
+                todo: number;
+                doing: number;
+                blocked: number;
+                overdue: number;
+            }[];
+        };
         TaskBlocked: {
             /** Format: date-time */
             since: string;
@@ -6969,6 +7101,76 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    getGoogleLoginUrl: {
+        parameters: {
+            query?: {
+                state?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Google Auth URL */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data?: {
+                            url?: string;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    handleGoogleLoginCallback: {
+        parameters: {
+            query?: {
+                code?: string;
+                state?: string;
+                error?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirects to frontend */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    handleGoogleGmailCallback: {
+        parameters: {
+            query?: {
+                code?: string;
+                state?: string;
+                error?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirects to workspace settings */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     updateCurrentUser: {
@@ -13417,6 +13619,34 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    getTaskReport: {
+        parameters: {
+            query?: {
+                weeks?: number;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskReportResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     importTasks: {

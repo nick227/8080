@@ -116,6 +116,73 @@ export class EmailConnectionService {
     return rows.map(toEmailConnection)
   }
 
+  /** Adds or updates a Google/Gmail OAuth email connection */
+  async createOrUpdateGoogleConnection(input: {
+    workspaceId: string
+    memberId: string
+    emailAddress: string
+    accessToken: string
+    refreshToken: string | null
+    expiresIn: number
+    scope?: string
+  }) {
+    const { workspaceId, memberId, emailAddress, accessToken, refreshToken, expiresIn, scope } = input
+    const normalizedEmail = emailAddress.toLowerCase().trim()
+
+    const existing = await db.emailConnection.findFirst({
+      where: { workspaceId, strategy: 'google', fromAddress: normalizedEmail },
+    })
+
+    let finalRefreshToken = refreshToken
+    if (!finalRefreshToken && existing?.secret) {
+      try {
+        const oldSecret = decryptSecret<{ refreshToken?: string }>(existing.secret)
+        if (oldSecret.refreshToken) finalRefreshToken = oldSecret.refreshToken
+      } catch {
+        // ignore
+      }
+    }
+
+    const secretPayload = {
+      accessToken,
+      refreshToken: finalRefreshToken,
+      expiresAt: Date.now() + expiresIn * 1000,
+      emailAddress: normalizedEmail,
+      scope,
+    }
+
+    const encryptedSecret = encryptSecret(secretPayload)
+    const displayName = `Gmail (${normalizedEmail})`
+
+    if (existing) {
+      const updated = await db.emailConnection.update({
+        where: { id: existing.id },
+        data: {
+          displayName,
+          secret: encryptedSecret,
+          status: 'active',
+          lastError: null,
+          lastTestedAt: new Date(),
+        },
+      })
+      return toEmailConnection(updated)
+    }
+
+    const created = await db.emailConnection.create({
+      data: {
+        workspaceId,
+        strategy: 'google',
+        displayName,
+        fromAddress: normalizedEmail,
+        secret: encryptedSecret,
+        createdByMemberId: memberId,
+        status: 'active',
+        lastTestedAt: new Date(),
+      },
+    })
+    return toEmailConnection(created)
+  }
+
   /** Adds an own sender ("Use my own email/domain"). Not the default unless asked. */
   async create(ctx: WorkspaceCtx, workspaceId: string, input: CreateConnectionInput) {
     const actor = await authorize(ctx.user.id, workspaceId, 'email.manage')

@@ -86,6 +86,26 @@ function GuestAuth({ user }: { user: User }) {
       <button type="submit" className="account-submit" disabled={!email || !password}>
         {mode === 'login' ? 'Sign in' : 'Create account'}
       </button>
+      <button
+        type="button"
+        className="account-submit"
+        style={{ marginTop: '0.5rem', background: '#ffffff', color: '#1f2937', border: '1px solid #d1d5db' }}
+        onClick={async () => {
+          setError('')
+          try {
+            const res = await getApiClient().GET('/auth/google/url', {})
+            if (res.data?.data?.url) {
+              window.location.href = res.data.data.url
+            } else {
+              setError('Google login is not available')
+            }
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Could not start Google login')
+          }
+        }}
+      >
+        Continue with Google
+      </button>
     </form>
   )
 }

@@ -109,3 +109,55 @@ export async function agentUnsubscribe(request: any, reply: any) {
   await unsubscribe(request.params.token)
   return reply.type('text/html').header('Cache-Control', 'no-store').send('<!doctype html><html lang="en"><meta charset="utf-8"><title>Unsubscribed</title><main><h1>You are unsubscribed</h1><p>You will no longer receive customer emails from this workspace.</p></main></html>')
 }
+
+import { getGoogleGmailAuthUrl, exchangeGoogleGmailCode } from '../services/googleAuth'
+import { db } from '@project/db'
+
+export async function getGoogleGmailUrl(request: any, reply: any) {
+  const { workspaceId } = request.params
+  const url = getGoogleGmailAuthUrl(workspaceId, request.user.id)
+  return reply.send({ data: { url } })
+}
+
+export async function handleGoogleGmailCallback(request: any, reply: any) {
+  const frontendUrl = (process.env.CORS_ORIGIN ?? 'http://localhost:5173').split(',')[0] || 'http://localhost:5173'
+  const { code, state, error } = request.query ?? {}
+
+  if (error || !code || !state) {
+    return reply.redirect(`${frontendUrl}?desk=company&gmailError=${encodeURIComponent(error || 'canceled')}`)
+  }
+
+  try {
+    const stateData = JSON.parse(Buffer.from(state, 'base64url').toString('utf8')) as { workspaceId: string; userId: string }
+    const { workspaceId, userId } = stateData
+
+    if (!workspaceId) {
+      return reply.redirect(`${frontendUrl}?desk=company&gmailError=invalid_state`)
+    }
+
+    const member = await db.workspaceMember.findFirst({
+      where: { workspaceId, userId: request.user?.id || userId, status: 'active' },
+    })
+
+    if (!member) {
+      return reply.redirect(`${frontendUrl}?desk=company&gmailError=unauthorized`)
+    }
+
+    const exchanged = await exchangeGoogleGmailCode(code)
+    await connections.createOrUpdateGoogleConnection({
+      workspaceId,
+      memberId: member.id,
+      emailAddress: exchanged.emailAddress,
+      accessToken: exchanged.accessToken,
+      refreshToken: exchanged.refreshToken,
+      expiresIn: exchanged.expiresIn,
+      scope: exchanged.scope,
+    })
+
+    return reply.redirect(`${frontendUrl}?desk=company&gmailSuccess=1`)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Gmail connect failed'
+    return reply.redirect(`${frontendUrl}?desk=company&gmailError=${encodeURIComponent(msg)}`)
+  }
+}
+

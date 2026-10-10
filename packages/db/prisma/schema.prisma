@@ -22,6 +22,7 @@ model User {
   id           String    @id @default(cuid())
   email        String?   @unique
   passwordHash String?
+  googleSub    String?   @unique @db.VarChar(191)
   isGuest      Boolean   @default(true)
   kind         UserKind  @default(human)
   suspendedAt  DateTime?

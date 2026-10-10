@@ -153,6 +153,77 @@ paths:
               schema: { $ref: '#/components/schemas/UserResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /auth/google/url:
+    get:
+      operationId: getGoogleLoginUrl
+      summary: Get Google OAuth Login URL
+      security: []
+      tags: [auth]
+      parameters:
+        - name: state
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Google Auth URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      url: { type: string }
+
+  /auth/google/callback:
+    get:
+      operationId: handleGoogleLoginCallback
+      summary: Google OAuth Login Callback
+      security: []
+      tags: [auth]
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema: { type: string }
+        - name: state
+          in: query
+          required: false
+          schema: { type: string }
+        - name: error
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '302':
+          description: Redirects to frontend
+
+  /integrations/google/callback:
+    get:
+      operationId: handleGoogleGmailCallback
+      summary: Google OAuth Gmail Callback
+      security: []
+      tags: [agents]
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema: { type: string }
+        - name: state
+          in: query
+          required: false
+          schema: { type: string }
+        - name: error
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '302':
+          description: Redirects to workspace settings
+
+
   # ─── users ─────────────────────────────────────────────────────────────────
   /users/me:
     patch:
@@ -5428,6 +5499,32 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/tasks/report:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: getTaskReport
+      summary: Board reports (throughput, cycle time, cumulative flow, open work)
+      description: |
+        Derived from recorded history and current tasks, in the workspace's time zone
+        (weeks start Monday). Done and started follow workflow categories; overdue, due
+        this week and blocked use the shared urgency definitions. Cumulative flow counts
+        live tasks only.
+      tags: [workspaces]
+      parameters:
+        - in: query
+          name: weeks
+          schema: { type: integer, minimum: 1, maximum: 26, default: 8 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskReportResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /workspaces/{workspaceId}/tasks/import:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -8199,6 +8296,85 @@ components:
           type: object
           description: Where the tasks of a newly archived status go (status key → status key)
           additionalProperties: { $ref: '#/components/schemas/TaskStatus' }
+    TaskReportResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/TaskReport' }
+    TaskReport:
+      type: object
+      required: [range, now, done, throughput, cycleTime, flow, people]
+      properties:
+        range:
+          type: object
+          required: [from, to, weeks, timezone]
+          properties:
+            from: { type: string, format: date }
+            to: { type: string, format: date }
+            weeks: { type: integer }
+            timezone: { type: string }
+        now:
+          type: object
+          required: [todo, doing, overdue, dueWeek, blocked]
+          properties:
+            todo: { type: integer }
+            doing: { type: integer }
+            overdue: { type: integer }
+            dueWeek: { type: integer }
+            blocked: { type: integer }
+        done:
+          type: object
+          required: [thisPeriod, previousPeriod]
+          properties:
+            thisPeriod: { type: integer }
+            previousPeriod: { type: integer }
+        throughput:
+          type: array
+          items:
+            type: object
+            required: [weekStart, done]
+            properties:
+              weekStart: { type: string, format: date }
+              done: { type: integer }
+        cycleTime:
+          type: object
+          required: [medianHours, p85Hours, samples, weekly]
+          properties:
+            medianHours: { type: [number, 'null'] }
+            p85Hours: { type: [number, 'null'] }
+            samples: { type: integer }
+            weekly:
+              type: array
+              items:
+                type: object
+                required: [weekStart, medianHours, p85Hours, samples]
+                properties:
+                  weekStart: { type: string, format: date }
+                  medianHours: { type: [number, 'null'] }
+                  p85Hours: { type: [number, 'null'] }
+                  samples: { type: integer }
+        flow:
+          type: array
+          items:
+            type: object
+            required: [day, todo, doing, done]
+            properties:
+              day: { type: string, format: date }
+              todo: { type: integer }
+              doing: { type: integer }
+              done: { type: integer }
+        people:
+          type: array
+          items:
+            type: object
+            required: [memberId, name, todo, doing, blocked, overdue]
+            properties:
+              memberId: { type: [string, 'null'] }
+              name: { type: string }
+              todo: { type: integer }
+              doing: { type: integer }
+              blocked: { type: integer }
+              overdue: { type: integer }
     TaskBlocked:
       type: object
       required: [since, reason, byMemberId, byName]

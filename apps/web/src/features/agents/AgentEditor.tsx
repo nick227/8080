@@ -16,6 +16,7 @@ import {
 } from '@project/sdk'
 import { EMAIL_TEMPLATES, EMAIL_THEMES, MERGE_FIELDS } from '@project/shared'
 import { DESTINATION_LABEL, when } from './format'
+import { TestEmailSlideout } from '../company/TestEmailSlideout'
 
 const DESTINATIONS: AgentDestination[] = ['email', 'internal_chat']
 
@@ -45,6 +46,7 @@ export function AgentEditor({ workspaceId, agentId, timeZone, canManage, onBack,
   const [pending, setPending] = useState<UpdateAgentInput>({})
   const [showMenu, setShowMenu] = useState(false)
   const [showVarModal, setShowVarModal] = useState(false)
+  const [showTestModal, setShowTestModal] = useState(false)
   const [copiedVar, setCopiedVar] = useState<string | null>(null)
 
   const agent = query.data
@@ -233,25 +235,19 @@ export function AgentEditor({ workspaceId, agentId, timeZone, canManage, onBack,
       </div>
 
       {actionError && <p className="agents-status agents-status-bad" role="alert">{errorText(actionError, 'Action failed.')}</p>}
-      {agent.problems.length > 0 && (
-        <ul className="agents-problems" aria-label="Before publishing">
-          {agent.problems.map((p) => (
-            <li key={p}>{p}</li>
-          ))}
-        </ul>
-      )}
+      
 
       <div className="agents-editor-grid">
         <div className="agents-fields">
         <label className="agents-field" style={{ gridTemplateColumns: '9rem minmax(0, 1fr)' }}>
           <span className="agents-field-name">FROM</span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             {editable && connections.length > 0 ? (
               <select
                 value={agent.sender.id}
                 disabled={!editable}
                 onChange={(e) => save({ emailConnectionId: e.target.value })}
-                style={{ width: '100%', maxWidth: '28rem' }}
+                style={{ flex: 1, maxWidth: '28rem' }}
               >
                 {connections.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -265,6 +261,14 @@ export function AgentEditor({ workspaceId, agentId, timeZone, canManage, onBack,
                 {agent.sender.fromAddress ? ` (${agent.sender.fromAddress})` : ''}
               </span>
             )}
+            <button
+              type="button"
+              className="agents-button agents-button-quiet"
+              style={{ fontSize: 'var(--text-xs)', padding: '4px 10px' }}
+              onClick={() => setShowTestModal(true)}
+            >
+              Test sender
+            </button>
           </div>
         </label>
 
@@ -558,6 +562,17 @@ export function AgentEditor({ workspaceId, agentId, timeZone, canManage, onBack,
           </div>
         </div>
       )}
+
+      {showTestModal && (
+        <TestEmailSlideout
+          workspaceId={workspaceId}
+          senderLabel={agent.sender.label}
+          senderFromAddress={agent.sender.fromAddress ?? undefined}
+          connectionId={agent.sender.id}
+          onClose={() => setShowTestModal(false)}
+        />
+      )}
     </section>
   )
 }
+
