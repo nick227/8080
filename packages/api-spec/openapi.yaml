@@ -5800,6 +5800,48 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/task-statuses:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listTaskStatuses
+      summary: The workspace's task workflow (statuses = board columns), in order, archived last
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskStatusList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateTaskStatuses
+      summary: Replace the workflow (admins)
+      description: |
+        Statuses in the new order. A listed `key` must be an existing status (keys never
+        change); entries without a key are new. An existing status left out is archived.
+        Keep at least one active todo and one active done status (400 INVALID_WORKFLOW).
+        A status archived while it still has tasks needs `reassign[key]` = an active status
+        to move them to (400 STATUS_IN_USE otherwise); each moved task gets a history line.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateTaskStatusesInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskStatusList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /workspaces/{workspaceId}/task-board:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -7967,7 +8009,8 @@ components:
 
     TaskStatus:
       type: string
-      enum: [open, in_progress, in_review, done]
+      pattern: '^[a-z][a-z0-9_]{0,31}$'
+      description: A status key from the workspace workflow (listTaskStatuses). Defaults are open, in_progress, in_review, done.
     TaskType:
       type: string
       enum: [task, feature, bug, story, epic]
@@ -8028,7 +8071,10 @@ components:
       description: SDK-only typing for the streamTasks SSE payloads.
       required: [event]
       properties:
-        event: { type: string, enum: [ready, task.changed, worklogs.changed, board.updated, reset] }
+        event: { type: string, enum: [ready, task.changed, worklogs.changed, board.updated, workflow.updated, reset] }
+        statuses:
+          type: array
+          items: { $ref: '#/components/schemas/TaskStatusDef' }
         replayed: { type: boolean }
         activityId: { type: string }
         type: { type: string }
@@ -8113,6 +8159,46 @@ components:
         done: { type: boolean }
         afterItemId: { type: [string, 'null'], maxLength: 64 }
         beforeItemId: { type: [string, 'null'], maxLength: 64 }
+    TaskStatusDef:
+      type: object
+      required: [key, label, category, position, handoff, archived]
+      properties:
+        key: { $ref: '#/components/schemas/TaskStatus' }
+        label: { type: string }
+        category: { type: string, enum: [todo, doing, done] }
+        position: { type: integer }
+        handoff: { type: boolean, description: Moving a task here notifies its creator and assignee }
+        archived: { type: boolean }
+    TaskStatusList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/TaskStatusDef' }
+    UpdateTaskStatusesInput:
+      type: object
+      additionalProperties: false
+      required: [statuses]
+      properties:
+        statuses:
+          type: array
+          minItems: 2
+          maxItems: 12
+          items:
+            type: object
+            additionalProperties: false
+            required: [label, category]
+            properties:
+              key: { $ref: '#/components/schemas/TaskStatus' }
+              label: { type: string, minLength: 1, maxLength: 40 }
+              category: { type: string, enum: [todo, doing, done] }
+              handoff: { type: boolean }
+              archived: { type: boolean }
+        reassign:
+          type: object
+          description: Where the tasks of a newly archived status go (status key → status key)
+          additionalProperties: { $ref: '#/components/schemas/TaskStatus' }
     TaskBlocked:
       type: object
       required: [since, reason, byMemberId, byName]
@@ -8320,13 +8406,8 @@ components:
           items: { $ref: '#/components/schemas/ImportWorkLogRow' }
     WipLimits:
       type: object
-      additionalProperties: false
-      description: Soft limit of cards per column; a missing column has none
-      properties:
-        open: { type: [integer, 'null'], minimum: 1, maximum: 999 }
-        in_progress: { type: [integer, 'null'], minimum: 1, maximum: 999 }
-        in_review: { type: [integer, 'null'], minimum: 1, maximum: 999 }
-        done: { type: [integer, 'null'], minimum: 1, maximum: 999 }
+      description: Soft limit of cards per status key; a missing status has none
+      additionalProperties: { type: [integer, 'null'], minimum: 1, maximum: 999 }
     TaskBoard:
       type: object
       required: [wipLimits]

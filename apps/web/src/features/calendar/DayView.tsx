@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { HOURS, hourLabel } from './dates'
 import type { CalTask, CalAccomplishment } from './types'
+import { wf } from './store'
 import { WorkEntryChip } from './WorkEntryChip'
 
 export function DayView({
@@ -289,7 +290,7 @@ function TaskLine({
   onRemove: (id: string) => void
   onSelectTask?: (task: CalTask) => void
 }) {
-  const done = task.status === 'done'
+  const done = wf().isDone(task.status)
   const categoryIcons: Record<string, string> = {
     feature: '⚡',
     bug: '🐛',

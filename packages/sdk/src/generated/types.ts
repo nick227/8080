@@ -3887,6 +3887,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/task-statuses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** The workspace's task workflow (statuses = board columns), in order, archived last */
+        get: operations["listTaskStatuses"];
+        /**
+         * Replace the workflow (admins)
+         * @description Statuses in the new order. A listed `key` must be an existing status (keys never
+         *     change); entries without a key are new. An existing status left out is archived.
+         *     Keep at least one active todo and one active done status (400 INVALID_WORKFLOW).
+         *     A status archived while it still has tasks needs `reassign[key]` = an active status
+         *     to move them to (400 STATUS_IN_USE otherwise); each moved task gets a history line.
+         */
+        put: operations["updateTaskStatuses"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/task-board": {
         parameters: {
             query?: never;
@@ -5283,8 +5310,8 @@ export interface components {
             data: components["schemas"]["Contact"][];
             meta: components["schemas"]["PaginatedMeta"];
         };
-        /** @enum {string} */
-        TaskStatus: "open" | "in_progress" | "in_review" | "done";
+        /** @description A status key from the workspace workflow (listTaskStatuses). Defaults are open, in_progress, in_review, done. */
+        TaskStatus: string;
         /** @enum {string} */
         TaskType: "task" | "feature" | "bug" | "story" | "epic";
         /** @enum {string} */
@@ -5340,7 +5367,8 @@ export interface components {
         /** @description SDK-only typing for the streamTasks SSE payloads. */
         TaskStreamEvent: {
             /** @enum {string} */
-            event: "ready" | "task.changed" | "worklogs.changed" | "board.updated" | "reset";
+            event: "ready" | "task.changed" | "worklogs.changed" | "board.updated" | "workflow.updated" | "reset";
+            statuses?: components["schemas"]["TaskStatusDef"][];
             replayed?: boolean;
             activityId?: string;
             type?: string;
@@ -5401,6 +5429,33 @@ export interface components {
             done?: boolean;
             afterItemId?: string | null;
             beforeItemId?: string | null;
+        };
+        TaskStatusDef: {
+            key: components["schemas"]["TaskStatus"];
+            label: string;
+            /** @enum {string} */
+            category: "todo" | "doing" | "done";
+            position: number;
+            /** @description Moving a task here notifies its creator and assignee */
+            handoff: boolean;
+            archived: boolean;
+        };
+        TaskStatusList: {
+            data: components["schemas"]["TaskStatusDef"][];
+        };
+        UpdateTaskStatusesInput: {
+            statuses: {
+                key?: components["schemas"]["TaskStatus"];
+                label: string;
+                /** @enum {string} */
+                category: "todo" | "doing" | "done";
+                handoff?: boolean;
+                archived?: boolean;
+            }[];
+            /** @description Where the tasks of a newly archived status go (status key → status key) */
+            reassign?: {
+                [key: string]: components["schemas"]["TaskStatus"];
+            };
         };
         TaskBlocked: {
             /** Format: date-time */
@@ -5567,12 +5622,9 @@ export interface components {
             idempotencyKey?: string;
             entries: components["schemas"]["ImportWorkLogRow"][];
         };
-        /** @description Soft limit of cards per column; a missing column has none */
+        /** @description Soft limit of cards per status key; a missing status has none */
         WipLimits: {
-            open?: number | null;
-            in_progress?: number | null;
-            in_review?: number | null;
-            done?: number | null;
+            [key: string]: number | null;
         };
         TaskBoard: {
             wipLimits: components["schemas"]["WipLimits"];
@@ -13909,6 +13961,62 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listTaskStatuses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskStatusList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateTaskStatuses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTaskStatusesInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskStatusList"];
                 };
             };
             400: components["responses"]["BadRequest"];

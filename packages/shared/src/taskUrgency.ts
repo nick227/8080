@@ -3,7 +3,7 @@
 // filters if it matches ANY of them (like the other filter groups); groups
 // combine with AND.
 //
-// Done tasks never need attention. Dates are calendar days (YYYY-MM-DD) in the
+// Done tasks (any done-category status) never need attention. Dates are calendar days (YYYY-MM-DD) in the
 // viewer's or workspace's own time zone; `today` is passed in, never guessed.
 
 export type UrgencyKey = 'overdue' | 'due_week' | 'recent' | 'blocked'
@@ -25,7 +25,12 @@ export type UrgencyTask = {
   blocked?: unknown
 }
 
-export type UrgencyContext = { today: string; now: number }
+export type UrgencyContext = {
+  today: string
+  now: number
+  /** Whether a status counts as done (the workspace workflow); defaults to the key 'done'. */
+  isDone?: (status: string) => boolean
+}
 
 /** Sunday of today's week (weeks run Monday–Sunday), as YYYY-MM-DD. */
 export function weekEnd(today: string): string {
@@ -36,7 +41,7 @@ export function weekEnd(today: string): string {
 }
 
 export function isUrgent(task: UrgencyTask, key: UrgencyKey, ctx: UrgencyContext): boolean {
-  const done = task.status === 'done'
+  const done = ctx.isDone ? ctx.isDone(task.status) : task.status === 'done'
   switch (key) {
     case 'overdue':
       return !done && !!task.dueDate && task.dueDate < ctx.today

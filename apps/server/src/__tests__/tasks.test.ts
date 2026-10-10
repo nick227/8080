@@ -446,4 +446,64 @@ describe('tasks', () => {
     expect(d.title).toBe('D')
     expect(await column(base, 'open')).toEqual(['A', 'D', 'C', 'B'])
   })
+
+  it('workflow: defaults, custom statuses by category, rename keeps the key, archive moves tasks', async () => {
+    const { ws, base, carol } = await setup()
+    const wfUrl = `/workspaces/${ws.id}/task-statuses`
+    const first = await call(carolId, 'GET', wfUrl)
+    await validateResponse('listTaskStatuses', 200, first.json())
+    expect(first.json().data.map((s: any) => s.key)).toEqual(['open', 'in_progress', 'in_review', 'done'])
+
+    // Members can't change it.
+    expect((await call(carolId, 'PUT', wfUrl, { statuses: [{ label: 'a', category: 'todo' }, { label: 'b', category: 'done' }] })).statusCode).toBe(403)
+
+    // Admin: rename To do, add QA (a handoff) and Shipped (done), drop In review.
+    const put = await call(testUserId, 'PUT', wfUrl, {
+      statuses: [
+        { key: 'open', label: 'Backlog', category: 'todo' },
+        { key: 'in_progress', label: 'In progress', category: 'doing' },
+        { label: 'Ready for QA', category: 'doing', handoff: true },
+        { key: 'done', label: 'Done', category: 'done', handoff: true },
+        { label: 'Shipped', category: 'done' },
+      ],
+    })
+    expect(put.statusCode).toBe(200)
+    await validateResponse('updateTaskStatuses', 200, put.json())
+    const keys = put.json().data.filter((s: any) => !s.archived).map((s: any) => s.key)
+    expect(keys).toEqual(['open', 'in_progress', 'ready_for_qa', 'done', 'shipped'])
+    expect(put.json().data.find((s: any) => s.key === 'in_review').archived).toBe(true)
+
+    // New statuses work everywhere; done is a category, not a key.
+    const t = await create(base, { title: 'Feature', assigneeMemberId: carol })
+    expect(t.status).toBe('open')
+    const qa = await call(testUserId, 'POST', `${base}/${t.id}/move`, { status: 'ready_for_qa' })
+    expect(qa.json().data.status).toBe('ready_for_qa')
+    const shipped = await call(testUserId, 'POST', `${base}/${t.id}/move`, { status: 'shipped' })
+    expect(shipped.json().data.resolvedAt).not.toBeNull()
+    expect((await call(testUserId, 'POST', `${base}/${t.id}/move`, { status: 'in_review' })).json().code).toBe('INVALID_STATUS')
+    expect((await call(testUserId, 'POST', base, { title: 'x', status: 'nope' })).json().code).toBe('INVALID_STATUS')
+
+    // History keeps the labels; QA is a handoff, so Carol (assignee) heard about it.
+    const moves = (await call(testUserId, 'GET', `${base}/${t.id}/activity`)).json().data.filter((a: any) => a.type === 'task.moved')
+    expect(moves.map((a: any) => a.summary.toLabel)).toEqual(['Ready for QA', 'Shipped'])
+    const inbox = (await call(carolId, 'GET', `/workspaces/${ws.id}/inbox?sourceType=task`)).json().data.map((i: any) => i.title)
+    expect(inbox.some((x: string) => x.includes('to Ready for QA'))).toBe(true)
+    expect(inbox.some((x: string) => x.includes('to Shipped'))).toBe(false) // not a handoff
+
+    // Archiving a status with tasks needs a destination; tasks move, nobody is notified.
+    const waiting = await create(base, { title: 'Waiting', status: 'ready_for_qa', assigneeMemberId: carol })
+    const keep = put.json().data.filter((s: any) => !s.archived && s.key !== 'ready_for_qa').map((s: any) => ({ key: s.key, label: s.label, category: s.category, handoff: s.handoff }))
+    const refused = await call(testUserId, 'PUT', wfUrl, { statuses: keep })
+    expect(refused.json().code).toBe('STATUS_IN_USE')
+    const before = (await call(carolId, 'GET', `/workspaces/${ws.id}/inbox?sourceType=task`)).json().data.length
+    const archived = await call(testUserId, 'PUT', wfUrl, { statuses: keep, reassign: { ready_for_qa: 'in_progress' } })
+    expect(archived.statusCode).toBe(200)
+    expect((await call(testUserId, 'GET', `${base}/${waiting.id}`)).json().data.status).toBe('in_progress')
+    expect((await call(carolId, 'GET', `/workspaces/${ws.id}/inbox?sourceType=task`)).json().data.length).toBe(before)
+
+    // A workflow needs a To do and a Done status, and distinct names.
+    expect((await call(testUserId, 'PUT', wfUrl, { statuses: [{ key: 'open', label: 'A', category: 'todo' }, { key: 'in_progress', label: 'B', category: 'doing' }], reassign: { done: 'open', shipped: 'open' } })).json().code).toBe('INVALID_WORKFLOW')
+    expect((await call(testUserId, 'PUT', wfUrl, { statuses: [{ key: 'open', label: 'Same', category: 'todo' }, { key: 'done', label: 'same', category: 'done' }], reassign: { in_progress: 'open', shipped: 'done' } })).json().code).toBe('INVALID_WORKFLOW')
+    expect(await crossWorkspaceViolations()).toEqual({})
+  })
 })

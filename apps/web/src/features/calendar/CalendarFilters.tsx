@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useRef, useState } from 'react'
 import { Avatar } from './BoardView'
-import { filtersActive, useCalendar, type Filters } from './store'
+import { filtersActive, useCalendar, useWorkflow, type Filters } from './store'
 import { useTeam } from './sync'
 import { URGENCY, isUrgent } from '@project/shared'
 import { todayKey } from './dates'
@@ -21,7 +21,7 @@ export const CalendarFilters = forwardRef<HTMLInputElement, { count: number; tot
   const clear = useCalendar((s) => s.clearFilters)
   const { team: members, meId } = useTeam()
   const tasks = useCalendar((s) => s.tasks)
-  const ctx = { today: todayKey(), now: Date.now() }
+  const ctx = { today: todayKey(), now: Date.now(), isDone: useWorkflow().isDone }
   // People assigned work but missing from the member list (left, or just joined).
   const team = [...members]
   for (const t of tasks) {

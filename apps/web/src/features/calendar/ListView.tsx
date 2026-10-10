@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { monthCells, dayTitle, parseDay, HOURS, hourLabel } from './dates'
 import type { CalTask, CalAccomplishment } from './types'
+import { wf } from './store'
 import { WorkEntryChip } from './WorkEntryChip'
 
 export function ListView({
@@ -107,7 +108,7 @@ function DayListSection({
     setAdding(false)
   }
 
-  const openCount = tasks.filter((t) => t.status !== 'done').length
+  const openCount = tasks.filter((t) => !wf().isDone(t.status)).length
 
   return (
     <section className="cal-list-day" data-today={isToday ? '' : undefined}>
@@ -225,7 +226,7 @@ function ListTaskLine({
   onRemove: (id: string) => void
   onSelectTask?: (task: CalTask) => void
 }) {
-  const done = task.status === 'done'
+  const done = wf().isDone(task.status)
   const categoryIcons: Record<string, string> = {
     feature: '⚡',
     bug: '🐛',

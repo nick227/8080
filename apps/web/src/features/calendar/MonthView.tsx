@@ -1,6 +1,7 @@
 import { monthCells, monthName, dayTitle, parseDay } from './dates'
 import { orderTasks } from './store'
 import type { CalTask, CalAccomplishment } from './types'
+import { wf } from './store'
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const SHOWN = 3
@@ -48,7 +49,7 @@ export function MonthView({
         {monthCells(cursor).map((cell) => {
           const dayTasks = orderTasks(byDayTasks.get(cell.key) ?? [])
           const dayAccs = byDayAccs.get(cell.key) ?? []
-          const open = dayTasks.filter((task) => task.status !== 'done')
+          const open = dayTasks.filter((task) => !wf().isDone(task.status))
           const shownTasks = dayTasks.slice(0, SHOWN)
           const more = dayTasks.length - shownTasks.length
 
@@ -104,7 +105,7 @@ export function MonthView({
                     key={task.id}
                     type="button"
                     className="cal-task-title"
-                    data-done={task.status === 'done' ? '' : undefined}
+                    data-done={wf().isDone(task.status) ? '' : undefined}
                     onClick={(e) => {
                       e.stopPropagation()
                       onSelectTask?.(task)

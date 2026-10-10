@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useCurrentWorkspace } from '../documents/workspace'
-import { useCalendar } from './store'
+import { useCalendar, useWorkflow } from './store'
 import { useTeam } from './sync'
 import { BlockedControl, TaskActivity } from './TaskActivity'
 import { Checklist, ParentLink, Subtasks } from './TaskStructure'
-import { AREAS, STATUSES, type CalTask, type TaskPriority, type TaskStatus, type TaskType } from './types'
+import { AREAS, type CalTask, type TaskPriority, type TaskStatus, type TaskType } from './types'
 
 const TYPE_LABEL: Record<TaskType, string> = { feature: 'Feature', story: 'Story', bug: 'Bug', task: 'Task', epic: 'Epic' }
 const PRIORITY_LABEL: Record<TaskPriority, string> = { low: 'Low', medium: 'Medium', high: 'High', highest: 'Highest' }
@@ -46,6 +46,7 @@ export function TicketPage({
 function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBack: () => void; variant: 'page' | 'panel'; backLabel: string }) {
   const { workspace } = useCurrentWorkspace()
   const { team } = useTeam()
+  const workflow = useWorkflow()
   const updateTask = useCalendar((state) => state.updateTask)
   const moveTask = useCalendar((state) => state.updateTaskStatus)
   const remove = useCalendar((state) => state.remove)
@@ -100,7 +101,7 @@ function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBac
         <div className="ticket-nav-right">
           <label className="ticket-status-label" htmlFor={`status-${task.id}`}>Status</label>
           <select id={`status-${task.id}`} className="cal-status-select" data-status={task.status} value={task.status} onChange={(e) => moveTask(task.id, e.target.value as TaskStatus)}>
-            {STATUSES.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+            {workflow.active.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
           </select>
           <button type="button" className="cal-btn ticket-delete-btn" onClick={() => { remove(task.id); onBack() }}>
             Delete

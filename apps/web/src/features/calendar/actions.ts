@@ -2,8 +2,8 @@
 // shortcuts, the bulk bar and table cells all go through these definitions and
 // `setField` — never their own mutation paths. One id = the single-task write;
 // several = one bulk write. Both end in the same store (optimistic, versioned).
-import { useCalendar, type BulkChange, type PickerField } from './store'
-import { AREAS, STATUSES, TASK_TYPES, type CalTask, type TaskPriority, type TaskStatus, type TaskType, type TeamMember } from './types'
+import { useCalendar, wf, type BulkChange, type PickerField } from './store'
+import { AREAS, TASK_TYPES, type CalTask, type TaskPriority, type TaskStatus, type TaskType, type TeamMember } from './types'
 
 export type FieldOption = { value: string; label: string; hint?: string; avatar?: { name: string | null; url: string | null } }
 
@@ -27,7 +27,7 @@ const PRIORITY: { value: TaskPriority; label: string }[] = [
 const POINTS = [1, 2, 3, 5, 8, 13]
 
 export const FIELDS: Record<PickerField, FieldDef> = {
-  status: { label: 'Status', key: 's', kind: 'choice', options: () => STATUSES.map((s) => ({ value: s.id, label: s.title })), current: (t) => t.status },
+  status: { label: 'Status', key: 's', kind: 'choice', options: () => wf().active.map((s) => ({ value: s.key, label: s.label })), current: (t) => t.status },
   assignee: {
     label: 'Assignee',
     key: 'a',

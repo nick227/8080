@@ -1,4 +1,5 @@
-export type TaskStatus = 'open' | 'in_progress' | 'in_review' | 'done'
+/** A status key from the workspace workflow (see store `useWorkflow`). */
+export type TaskStatus = string
 export type TaskType = 'feature' | 'bug' | 'task' | 'story' | 'epic'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'highest'
 
@@ -82,9 +83,3 @@ export type TeamMember = {
 
 export const AREAS = ['Engineering', 'Marketing', 'Operations', 'Design', 'Product', 'Sales'] as const
 export const TASK_TYPES: TaskType[] = ['task', 'feature', 'bug', 'story', 'epic']
-export const STATUSES: { id: TaskStatus; title: string }[] = [
-  { id: 'open', title: 'To do' },
-  { id: 'in_progress', title: 'In progress' },
-  { id: 'in_review', title: 'In review' },
-  { id: 'done', title: 'Done' },
-]

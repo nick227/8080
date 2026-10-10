@@ -2,7 +2,7 @@ import { useInboxItems, useInboxStream, useReadInboxItem } from '@project/sdk'
 import { useCurrentWorkspace } from '../documents/workspace'
 import { SectionHeader } from '../work/SectionHeader'
 import { dayTitle, hourLabel } from './dates'
-import { orderTasks, useCalendar } from './store'
+import { orderTasks, useCalendar, wf } from './store'
 
 export function CalendarToday({ today }: { today: string }) {
   const tasks = useCalendar((state) => state.tasks)
@@ -21,14 +21,14 @@ export function CalendarToday({ today }: { today: string }) {
       <section aria-label="Today's tasks">
         <div className="cal-surface-heading">
           <h3>Today's tasks</h3>
-          <span>{todayTasks.filter((task) => task.status === 'open').length} open</span>
+          <span>{todayTasks.filter((task) => !wf().isDone(task.status)).length} open</span>
         </div>
         {todayTasks.length ? (
           <ul className="cal-surface-list">
             {todayTasks.map((task) => (
               <li key={task.id}>
-                <label className="cal-today-task" data-done={task.status === 'done' || undefined}>
-                  <input type="checkbox" checked={task.status === 'done'} onChange={() => toggle(task.id)} />
+                <label className="cal-today-task" data-done={wf().isDone(task.status) || undefined}>
+                  <input type="checkbox" checked={wf().isDone(task.status)} onChange={() => toggle(task.id)} />
                   <span>{task.title}</span>
                   <time>{task.time ? hourLabel(task.time) : 'Anytime'}</time>
                 </label>

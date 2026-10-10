@@ -1,4 +1,5 @@
 import type { CalTask } from './types'
+import { wf } from './store'
 
 export function BacklogView({
   tasks,
@@ -7,9 +8,9 @@ export function BacklogView({
 }: {
   tasks: CalTask[]
   onSelectTask: (task: CalTask) => void
-  onUpdateStatus: (taskId: string, status: 'open' | 'in_progress' | 'in_review' | 'done') => void
+  onUpdateStatus: (taskId: string, status: string) => void
 }) {
-  const backlogTasks = tasks.filter(t => t.status !== 'done')
+  const backlogTasks = tasks.filter(t => !wf().isDone(t.status))
 
   const categoryIcons: Record<string, string> = {
     feature: '⚡',
@@ -72,9 +73,9 @@ function BacklogRow({
   categoryIcons: Record<string, string>
   priorityColors: Record<string, string>
   onSelectTask: (task: CalTask) => void
-  onUpdateStatus: (taskId: string, status: 'open' | 'in_progress' | 'in_review' | 'done') => void
+  onUpdateStatus: (taskId: string, status: string) => void
 }) {
-  const done = task.status === 'done'
+  const done = wf().isDone(task.status)
 
   return (
     <div className="cal-backlog-row" data-done={done ? '' : undefined}>

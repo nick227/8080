@@ -44,6 +44,10 @@ async function framesFor(workspaceId: string, e: WorkspaceEvent): Promise<{ even
     const board = await db.taskBoardSettings.findUnique({ where: { workspaceId } })
     out.push({ event: 'board.updated', data: { ...base, wipLimits: board?.wipLimits ?? {} } })
   }
+  if (e.type === 'task.workflow.updated') {
+    const statuses = await db.taskStatusDef.findMany({ where: { workspaceId }, orderBy: { position: 'asc' } })
+    out.push({ event: 'workflow.updated', data: { ...base, statuses: statuses.map(({ key, label, category, position, handoff, archived }) => ({ key, label, category, position, handoff, archived })) } })
+  }
   // Many tasks at once (import) or ranks rewritten (column renumbered): cheaper to reconcile.
   if (e.type === 'task.imported' || e.type === 'task.column.renumbered') out.push({ event: 'reset', data: { ...base, reason: e.type } })
   return out

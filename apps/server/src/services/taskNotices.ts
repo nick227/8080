@@ -9,12 +9,14 @@ import { releaseInbox } from './inboxHub'
 
 type Tx = Prisma.TransactionClient
 
-const STATUS_TITLE: Record<string, string> = { open: 'To do', in_progress: 'In progress', in_review: 'In review', done: 'Done' }
 
 type Summary = {
   taskKey?: string
   title?: string
   to?: string | null
+  toLabel?: string
+  /** 'workflow' = moved because its status was archived: nobody is told. */
+  via?: string
   reason?: string
   excerpt?: string
   mentions?: string[]
@@ -27,6 +29,8 @@ type Notice = { memberIds: string[]; title: string; summary: string }
 export function noticesFor(
   activity: Pick<Activity, 'type' | 'actorMemberId'> & { summary: unknown },
   people: { actorName: string; assigneeId: string | null; creatorId: string | null; commenterIds: string[] },
+  /** Statuses that are handoffs (the workspace workflow). */
+  handoff: (status: string) => boolean = (st) => st === 'in_review' || st === 'done',
 ): Notice[] {
   const s = (activity.summary ?? {}) as Summary
   const key = s.taskKey ?? 'a task'
@@ -39,9 +43,9 @@ export function noticesFor(
     case 'task.assigned':
       return s.to ? [{ memberIds: [s.to], title: `${who} assigned you ${key}`, summary: title }] : []
     case 'task.moved':
-      // Handoffs: ready for review, or finished.
-      return s.to === 'in_review' || s.to === 'done'
-        ? [{ memberIds: concerned.filter(Boolean) as string[], title: `${who} moved ${key} to ${STATUS_TITLE[s.to]}`, summary: title }]
+      // Handoffs only (statuses flagged so in the workflow, e.g. In review, Done).
+      return s.to && s.via !== 'workflow' && handoff(s.to)
+        ? [{ memberIds: concerned.filter(Boolean) as string[], title: `${who} moved ${key} to ${s.toLabel ?? s.to}`, summary: title }]
         : []
     case 'task.blocked':
       return [{ memberIds: concerned.filter(Boolean) as string[], title: `${who} marked ${key} blocked`, summary: s.reason ? `${title}: ${s.reason}` : title }]
@@ -65,8 +69,15 @@ export function noticesFor(
 
 export async function notifyTaskActivity(tx: Tx, activities: Activity[]): Promise<AfterCommit[]> {
   const effects: AfterCommit[] = []
+  const handoffs = new Map<string, Set<string>>()
   for (const activity of activities) {
     if (!activity.taskId || !activity.type.startsWith('task.')) continue
+    if (!handoffs.has(activity.workspaceId)) {
+      const rows = await tx.taskStatusDef.findMany({ where: { workspaceId: activity.workspaceId, handoff: true }, select: { key: true } })
+      // A workspace that never loaded its workflow still has the defaults.
+      handoffs.set(activity.workspaceId, new Set(rows.length ? rows.map((r) => r.key) : ['in_review', 'done']))
+    }
+    const handoff = handoffs.get(activity.workspaceId)!
     const task = await tx.workTask.findUnique({ where: { id: activity.taskId }, select: { assigneeMemberId: true, createdByMemberId: true } })
     if (!task) continue
     const commenters = await tx.workComment.findMany({ where: { taskId: activity.taskId, authorMemberId: { not: null } }, select: { authorMemberId: true }, distinct: ['authorMemberId'] })
@@ -78,7 +89,7 @@ export async function notifyTaskActivity(tx: Tx, activities: Activity[]): Promis
       assigneeId: task.assigneeMemberId,
       creatorId: task.createdByMemberId,
       commenterIds: commenters.map((c) => c.authorMemberId!),
-    })
+    }, (st) => handoff.has(st))
     const told = new Set<string>()
     for (const notice of notices) {
       // Never yourself, never twice for one event, only active members.

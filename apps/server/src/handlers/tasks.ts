@@ -3,6 +3,7 @@ import { workspaceCtx as ctx } from '../lib/session'
 import { TaskService } from '../services/TaskService'
 import { WorkLogService } from '../services/WorkLogService'
 import { ChecklistService } from '../services/ChecklistService'
+import { TaskWorkflowService } from '../services/TaskWorkflowService'
 import { joinTaskStream, type TaskFrame } from '../services/taskStream'
 import { authorize } from '../services/workspacePolicy'
 
@@ -158,4 +159,14 @@ export async function deleteChecklistItem(request: any, reply: any) {
   const { workspaceId, taskId, itemId } = request.params
   await checklist.remove(ctx(request), workspaceId, taskId, itemId)
   return reply.send({ data: null })
+}
+
+const workflow = new TaskWorkflowService()
+
+export async function listTaskStatuses(request: any, reply: any) {
+  return reply.send(await workflow.list(request.user.id, request.params.workspaceId))
+}
+
+export async function updateTaskStatuses(request: any, reply: any) {
+  return reply.send(await workflow.update(ctx(request), request.params.workspaceId, request.body))
 }

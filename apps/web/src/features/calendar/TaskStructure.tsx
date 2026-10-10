@@ -5,14 +5,12 @@ import { checklistApi, keys, useTaskChecklist, type ChecklistItem } from '@proje
 import { useCurrentWorkspace } from '../documents/workspace'
 import { Avatar } from './BoardView'
 import { openField } from './actions'
-import { useCalendar } from './store'
-import { STATUSES, type CalTask } from './types'
+import { useCalendar, useWorkflow } from './store'
+import type { CalTask } from './types'
 
 // Structure inside a task: its parent (if it is a subtask), its subtasks (real
 // tasks, edited through the shared picker), and its checklist (small steps).
 
-const STATUS_TITLE = Object.fromEntries(STATUSES.map((s) => [s.id, s.title])) as Record<string, string>
-const STATUS_ORDER = Object.fromEntries(STATUSES.map((s, i) => [s.id, i])) as Record<string, number>
 
 function useOpenTicket() {
   const navigate = useNavigate()
@@ -44,12 +42,13 @@ export function Subtasks({ task }: { task: CalTask }) {
   const all = useCalendar((s) => s.tasks)
   const children = useMemo(() => all.filter((t) => t.parentTaskId === task.id), [all, task.id])
   const add = useCalendar((s) => s.add)
+  const workflow = useWorkflow()
   const open = useOpenTicket()
   const [text, setText] = useState('')
   // Subtasks can't have subtasks (one level).
   if (task.parentTaskId) return null
-  const sorted = [...children].sort((a, b) => STATUS_ORDER[a.status]! - STATUS_ORDER[b.status]! || a.rank - b.rank)
-  const done = children.filter((t) => t.status === 'done').length
+  const sorted = [...children].sort((a, b) => workflow.order(a.status) - workflow.order(b.status) || a.rank - b.rank)
+  const done = children.filter((t) => workflow.isDone(t.status)).length
   const create = () => {
     const title = text.trim()
     if (!title || task.pending) return
@@ -65,11 +64,11 @@ export function Subtasks({ task }: { task: CalTask }) {
       {children.length > 0 && (
         <ul className="ticket-subtasks">
           {sorted.map((t) => (
-            <li key={t.id} data-done={t.status === 'done' || undefined}>
+            <li key={t.id} data-done={workflow.isDone(t.status) || undefined}>
               <span className="cal-ticket-key-tag">{t.taskKey}</span>
               <button type="button" className="cal-title-link" disabled={t.pending} onClick={() => open(t.taskKey)}>{t.title}</button>
-              <button type="button" className="cal-cell ticket-subtask-status" disabled={t.pending} aria-label={`Status of ${t.taskKey}: ${STATUS_TITLE[t.status]}. Change`} onClick={(e) => openField('status', [t.id], e.currentTarget)}>
-                {STATUS_TITLE[t.status]}
+              <button type="button" className="cal-cell ticket-subtask-status" disabled={t.pending} aria-label={`Status of ${t.taskKey}: ${workflow.label(t.status)}. Change`} onClick={(e) => openField('status', [t.id], e.currentTarget)}>
+                {workflow.label(t.status)}
               </button>
               <button type="button" className="cal-chip" disabled={t.pending} aria-label={t.assigneeName ? `${t.taskKey} assigned to ${t.assigneeName}. Change` : `Assign ${t.taskKey}`} onClick={(e) => openField('assignee', [t.id], e.currentTarget)}>
                 <Avatar name={t.assigneeName ?? null} url={t.assigneeAvatar ?? null} />

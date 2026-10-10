@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { tasksApi, workLogsApi, type CreateTaskInput, type ImportTaskRow, type Task, type UpdateTaskInput, type WorkLog } from '@project/sdk'
-import { matchesUrgency, type UrgencyKey } from '@project/shared'
+import { DEFAULT_TASK_STATUSES, matchesUrgency, workflowOf, type StatusDef, type UrgencyKey, type Workflow } from '@project/shared'
+import { useMemo } from 'react'
 import { todayKey, shiftMonthKey } from './dates'
 import { WORK_CATEGORIES, type CalAccomplishment, type CalTask, type TaskPriority, type TaskStatus, type TaskType, type WorkCategory } from './types'
 
@@ -134,6 +135,10 @@ type State = {
   selectMany: (ids: string[], on: boolean) => void
   clearSelection: () => void
 
+  /** The workspace workflow (statuses = board columns). */
+  statuses: StatusDef[]
+  setStatuses: (statuses: StatusDef[]) => void
+
   /** The one field picker every surface opens (see actions.ts). */
   picker: Picker | null
   openPicker: (picker: Picker) => void
@@ -194,7 +199,7 @@ function toRow(t: NewTask): ImportTaskRow {
   return {
     title: t.title,
     description: t.description ?? null,
-    status: t.status ?? 'open',
+    status: t.status ?? wf().firstTodo,
     issueType: t.category ?? 'task',
     area: t.area ?? null,
     priority: t.priority ?? 'medium',
@@ -222,7 +227,7 @@ function rankBetween(tasks: CalTask[], status: TaskStatus, place: Placement, mov
   return (above + below) / 2
 }
 
-export function applyFilters(tasks: CalTask[], f: Filters, ctx = { today: todayKey(), now: Date.now() }): CalTask[] {
+export function applyFilters(tasks: CalTask[], f: Filters, ctx = { today: todayKey(), now: Date.now(), isDone: wf().isDone }): CalTask[] {
   const needle = f.search.trim().toLowerCase()
   return tasks.filter((t) => {
     if (f.members.length && !f.members.includes(t.assigneeId ?? 'unassigned')) return false
@@ -260,8 +265,8 @@ export function logFromServer(l: WorkLog): CalAccomplishment {
 export function orderTasks(tasks: CalTask[]): CalTask[] {
   return [...tasks].sort((a, b) => {
     if (a.status !== b.status) {
-      if (a.status === 'done') return 1
-      if (b.status === 'done') return -1
+      if (wf().isDone(a.status)) return 1
+      if (wf().isDone(b.status)) return -1
     }
     if (a.time && b.time) return a.time.localeCompare(b.time)
     if (a.time) return -1
@@ -383,7 +388,7 @@ export const useCalendar = create<State>((set, get) => {
     if (!rows.length) return 0
     const temps: CalTask[] = rows.map((row, i) => ({
       ...draft(row),
-      rank: rankBetween(get().tasks, row.status ?? 'open', {}) + i * RANK_STEP,
+      rank: rankBetween(get().tasks, row.status ?? wf().firstTodo, {}) + i * RANK_STEP,
     }))
     set({ tasks: [...get().tasks, ...temps] })
     creates++
@@ -413,6 +418,8 @@ export const useCalendar = create<State>((set, get) => {
     filters: NO_FILTERS,
     selection: [],
     picker: null,
+    statuses: DEFAULT_TASK_STATUSES,
+    setStatuses(statuses) { set({ statuses }) },
 
     toggleSelect(id) {
       const sel = get().selection
@@ -505,7 +512,7 @@ export const useCalendar = create<State>((set, get) => {
     add(input) {
       const title = input.title.trim()
       if (!title) return null
-      const status = input.status ?? 'open'
+      const status = input.status ?? wf().firstTodo
       const temp: CalTask = { ...draft({ ...input, title }), rank: rankBetween(get().tasks, status, input) }
       set({ tasks: [...get().tasks, temp] })
       let resolve!: (id: string) => void
@@ -560,7 +567,7 @@ export const useCalendar = create<State>((set, get) => {
       if (!task) return
       const rank = rankBetween(get().tasks, status, place, id)
       if (task.status === status && task.rank === rank) return
-      patchLocal(id, { status, rank, resolvedAt: status === 'done' ? task.resolvedAt ?? new Date().toISOString() : null })
+      patchLocal(id, { status, rank, resolvedAt: wf().isDone(status) ? task.resolvedAt ?? new Date().toISOString() : null })
       send('move the task', async (ws) =>
         tasksApi.move(ws, await realId(id), {
           status,
@@ -616,8 +623,9 @@ export const useCalendar = create<State>((set, get) => {
       }
       set({ accomplishments: [temp, ...get().accomplishments] })
       const task = input.completeTask && input.taskId ? get().tasks.find((t) => t.id === input.taskId) : null
-      if (task && task.status !== 'done') {
-        patchLocal(task.id, { status: 'done', rank: rankBetween(get().tasks, 'done', {}, task.id), resolvedAt: new Date().toISOString() })
+      if (task && !wf().isDone(task.status)) {
+        const to = wf().firstDone
+        patchLocal(task.id, { status: to, rank: rankBetween(get().tasks, to, {}, task.id), resolvedAt: new Date().toISOString() })
       }
       const drop = () => set({ accomplishments: get().accomplishments.filter((a) => a.id !== temp.id) })
       send('log the work', async (ws) => workLogsApi.create(ws, {
@@ -655,7 +663,7 @@ export const useCalendar = create<State>((set, get) => {
         const key = `${row.day}\0${title.toLowerCase()}`
         if (!title || existing.has(key)) continue
         existing.add(key)
-        fresh.push({ title, day: row.day, time: row.time, status: row.status, source: 'import' })
+        fresh.push({ title, day: row.day, time: row.time, status: row.status === 'done' ? wf().firstDone : wf().firstTodo, source: 'import' })
       }
       return importRows(fresh, 'import the tasks')
     },
@@ -674,7 +682,7 @@ export const useCalendar = create<State>((set, get) => {
 
     toggle(id) {
       const task = get().tasks.find((t) => t.id === id)
-      if (task) get().moveTask(id, task.status === 'done' ? 'open' : 'done', {})
+      if (task) get().moveTask(id, wf().isDone(task.status) ? wf().firstTodo : wf().firstDone, {})
     },
 
     remove(id) {
@@ -740,7 +748,7 @@ export const useCalendar = create<State>((set, get) => {
     closeMatching(query, day) {
       const needle = query.trim().toLowerCase()
       if (!needle) return null
-      const open = get().tasks.filter((task) => task.status !== 'done')
+      const open = get().tasks.filter((task) => !wf().isDone(task.status))
       const match =
         open.find((task) => task.day === day && (task.title.toLowerCase().includes(needle) || task.taskKey.toLowerCase().includes(needle))) ??
         open.find((task) => task.title.toLowerCase().includes(needle) || task.taskKey.toLowerCase().includes(needle))
@@ -765,7 +773,7 @@ export const useCalendar = create<State>((set, get) => {
     settleTaskByNumber(query) {
       const task = get().findTaskByNumber(query)
       if (!task) return null
-      get().updateTaskStatus(task.id, 'done')
+      get().updateTaskStatus(task.id, wf().firstDone)
       return task
     },
   }
@@ -780,7 +788,7 @@ function draft(input: NewTask): CalTask {
     day: input.day ?? null,
     time: input.day ? input.time ?? null : null,
     dueDate: input.dueDate ?? null,
-    status: input.status ?? 'open',
+    status: input.status ?? wf().firstTodo,
     source: input.source ?? null,
     assigneeId: input.assigneeId ?? null,
     assigneeName: input.assigneeName ?? null,
@@ -801,4 +809,14 @@ function draft(input: NewTask): CalTask {
 export function targetDay(): string {
   const { view, cursor } = useCalendar.getState()
   return view === 'day' ? cursor : todayKey()
+}
+
+/** The workflow now (for code outside React). */
+// Typed explicitly: the store body calls it, and inference would loop through useCalendar.
+export const wf = (): Workflow => workflowOf(useCalendar.getState().statuses)
+
+/** The workflow, for components: active statuses in order, labels, and what counts as done. */
+export function useWorkflow(): Workflow {
+  const statuses = useCalendar((s) => s.statuses)
+  return useMemo(() => workflowOf(statuses), [statuses])
 }

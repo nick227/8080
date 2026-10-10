@@ -6,7 +6,7 @@ import { toAuthor } from '../lib/serialize'
 import { runAction, type ActivityDraft } from './actions'
 import { authorize, permit, type Actor } from './workspacePolicy'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
-import { TASK_STATUSES } from './TaskService'
+import { loadWorkflow } from './TaskWorkflowService'
 
 type Tx = Prisma.TransactionClient
 
@@ -89,12 +89,15 @@ function createData(workspaceId: string, actor: Actor, author: string, input: Wo
   }
 }
 
+/** Move a task to the workflow's first done status (no-op if it is already done). */
 async function closeTask(tx: Tx, taskId: string) {
   const task = await tx.workTask.findUniqueOrThrow({ where: { id: taskId } })
-  if (task.status === 'done') return null
-  const last = await tx.workTask.findFirst({ where: { workspaceId: task.workspaceId, status: 'done', deletedAt: null }, orderBy: { rank: 'desc' }, select: { rank: true } })
-  await tx.workTask.update({ where: { id: taskId }, data: { status: 'done', resolvedAt: new Date(), rank: (last?.rank ?? 0) + 1024, version: { increment: 1 } } })
-  return { from: task.status, taskKey: task.taskKey, title: task.title }
+  const wf = await loadWorkflow(tx, task.workspaceId)
+  if (wf.isDone(task.status)) return null
+  const to = wf.firstDone
+  const last = await tx.workTask.findFirst({ where: { workspaceId: task.workspaceId, status: to, deletedAt: null }, orderBy: { rank: 'desc' }, select: { rank: true } })
+  await tx.workTask.update({ where: { id: taskId }, data: { status: to, resolvedAt: new Date(), rank: (last?.rank ?? 0) + 1024, version: { increment: 1 } } })
+  return { from: task.status, to, fromLabel: wf.label(task.status), toLabel: wf.label(to), taskKey: task.taskKey, title: task.title }
 }
 
 export class WorkLogService {
@@ -128,7 +131,7 @@ export class WorkLogService {
         }]
         if (input.completeTask && task) {
           const closed = await closeTask(tx, task.id)
-          if (closed) activities.push({ type: 'task.moved', object, summary: { taskId: task.id, taskKey: closed.taskKey, title: closed.title, from: closed.from, to: 'done' } })
+          if (closed) activities.push({ type: 'task.moved', object, summary: { taskId: task.id, taskKey: closed.taskKey, title: closed.title, from: closed.from, to: closed.to, fromLabel: closed.fromLabel, toLabel: closed.toLabel } })
         }
         return { value: toWorkLog(created), targetId: created.id, activities }
       },
@@ -191,9 +194,10 @@ export class WorkLogService {
 
   async setBoard(ctx: WorkspaceCtx, workspaceId: string, input: { wipLimits: Record<string, number | null> }) {
     const actor = await authorize(ctx.user.id, workspaceId, 'task.board.manage')
+    const wf = await loadWorkflow(db, workspaceId)
     const limits: Record<string, number> = {}
     for (const [status, value] of Object.entries(input.wipLimits)) {
-      if (!(TASK_STATUSES as readonly string[]).includes(status)) throw badRequest(`Unknown column "${status}"`, 'INVALID_COLUMN')
+      if (!wf.isActive(status)) throw badRequest(`Unknown column "${status}"`, 'INVALID_COLUMN')
       if (value === null) continue
       if (!Number.isInteger(value) || value < 1 || value > 999) throw badRequest('A WIP limit is a whole number from 1 to 999', 'INVALID_WIP_LIMIT')
       limits[status] = value

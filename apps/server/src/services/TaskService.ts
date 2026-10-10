@@ -6,14 +6,16 @@ import { badRequest, conflict, notFound } from '../lib/errors'
 import { activityInclude, toActivity, toAuthor } from '../lib/serialize'
 import { runAction, diff, type ActivityDraft } from './actions'
 import { authorize, permit, type Actor } from './workspacePolicy'
+import { assertStatus, loadWorkflow } from './TaskWorkflowService'
+import type { Workflow } from '@project/shared'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
 
 type Tx = Prisma.TransactionClient
 
-export const TASK_STATUSES = ['open', 'in_progress', 'in_review', 'done'] as const
+// Statuses are workspace vocabulary (TaskWorkflowService); code reads categories.
 export const TASK_TYPES = ['task', 'feature', 'bug', 'story', 'epic'] as const
 export const TASK_PRIORITIES = ['low', 'medium', 'high', 'highest'] as const
-export type TaskStatus = (typeof TASK_STATUSES)[number]
+export type TaskStatus = string
 
 const KEY_PREFIX = 'VC'
 const RANK_STEP = 1024
@@ -177,8 +179,8 @@ async function withNumberRetry<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-function createData(workspaceId: string, number: number, rank: number, actor: Actor, input: TaskInput) {
-  const status = input.status ?? 'open'
+function createData(workspaceId: string, number: number, rank: number, actor: Actor, input: TaskInput, wf: Workflow) {
+  const status = input.status ?? wf.firstTodo
   return {
     workspaceId,
     taskNumber: number,
@@ -198,11 +200,13 @@ function createData(workspaceId: string, number: number, rank: number, actor: Ac
     source: blank(input.source)?.slice(0, 64) ?? null,
     parentTaskId: input.parentTaskId ?? null,
     rank,
-    resolvedAt: status === 'done' ? new Date() : null,
+    resolvedAt: wf.isDone(status) ? new Date() : null,
   }
 }
 
-const statusChange = (before: string, after: string) => (before === after ? {} : { resolvedAt: after === 'done' ? new Date() : null })
+/** resolvedAt follows the done category: set on entering it, cleared on leaving it. */
+const statusChange = (before: string, after: string, wf: Workflow) =>
+  before === after || wf.isDone(before) === wf.isDone(after) ? {} : { resolvedAt: wf.isDone(after) ? new Date() : null }
 
 const TRACKED = ['title', 'description', 'status', 'issueType', 'area', 'priority', 'storyPoints', 'scheduledDate', 'scheduledTime', 'dueDate', 'assigneeMemberId'] as const
 
@@ -213,11 +217,12 @@ const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null)
 const EDITED = ['title', 'description', 'issueType', 'area', 'priority', 'storyPoints', 'scheduledDate', 'scheduledTime', 'dueDate'] as const
 
 /** History lines for one change (every task activity carries taskId: the task's timeline). */
-function activitiesFor(before: TaskRow, after: TaskRow): ActivityDraft[] {
+function activitiesFor(before: TaskRow, after: TaskRow, wf: Workflow): ActivityDraft[] {
   const object = { taskId: after.id }
   const summary = { taskId: after.id, taskKey: after.taskKey, title: after.title }
   const out: ActivityDraft[] = []
-  if (before.status !== after.status) out.push({ type: 'task.moved', object, summary: { ...summary, from: before.status, to: after.status } })
+  // Labels are kept as they were when it moved (statuses can be renamed later).
+  if (before.status !== after.status) out.push({ type: 'task.moved', object, summary: { ...summary, from: before.status, to: after.status, fromLabel: wf.label(before.status), toLabel: wf.label(after.status) } })
   if (before.assigneeMemberId !== after.assigneeMemberId) {
     out.push({ type: 'task.assigned', object, summary: { ...summary, from: before.assigneeMemberId, to: after.assigneeMemberId, fromName: nameOf(before.assignee), toName: nameOf(after.assignee) } })
   }
@@ -254,7 +259,7 @@ export function mentionedIn(text: string, members: { id: string; name: string }[
 }
 
 /** The row changes for an edit (one task; shared by update and bulk). A status change lands at the bottom of the new column. */
-async function patchData(tx: Tx, workspaceId: string, before: TaskRow, input: TaskInput) {
+async function patchData(tx: Tx, workspaceId: string, before: TaskRow, input: TaskInput, wf: Workflow) {
   const status = input.status ?? before.status
   const scheduledDate = 'scheduledDate' in input ? input.scheduledDate || null : before.scheduledDate
   return {
@@ -262,7 +267,7 @@ async function patchData(tx: Tx, workspaceId: string, before: TaskRow, input: Ta
     description: 'description' in input ? blank(input.description) : undefined,
     status: input.status,
     rank: status !== before.status ? await rankFor(tx, workspaceId, status, {}, before.id) : undefined,
-    ...statusChange(before.status, status),
+    ...statusChange(before.status, status, wf),
     issueType: input.issueType,
     area: 'area' in input ? blank(input.area) : undefined,
     priority: input.priority,
@@ -344,15 +349,17 @@ export class TaskService {
     const actor = await authorize(ctx.user.id, workspaceId, 'task.write')
     if (input.title === undefined) throw badRequest('A task needs a title', 'INVALID_TITLE')
     assertValid(input)
+    const wf = await loadWorkflow(db, workspaceId)
+    assertStatus(wf, input.status)
     await assertAssignee(workspaceId, input.assigneeMemberId)
     const parent = await assertParent(workspaceId, input.parentTaskId)
     return withNumberRetry(() =>
       runAction(
         { action: 'task.create', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { ...input }, target: { type: 'task' } },
         async (tx) => {
-          const status = input.status ?? 'open'
+          const status = input.status ?? wf.firstTodo
           const rank = await rankFor(tx, workspaceId, status, input)
-          const created = await tx.workTask.create({ data: createData(workspaceId, await nextNumber(tx, workspaceId), rank, actor, input), include: taskInclude })
+          const created = await tx.workTask.create({ data: createData(workspaceId, await nextNumber(tx, workspaceId), rank, actor, input, wf), include: taskInclude })
           const value = toTask(created)
           return {
             value,
@@ -375,6 +382,8 @@ export class TaskService {
     if ('assigneeMemberId' in input) await assertAssignee(workspaceId, input.assigneeMemberId)
     const scheduledDate = 'scheduledDate' in input ? input.scheduledDate || null : before.scheduledDate
     if ('scheduledTime' in input && input.scheduledTime && !scheduledDate) throw badRequest('A time needs a date', 'INVALID_TIME')
+    const wf = await loadWorkflow(db, workspaceId)
+    assertStatus(wf, input.status)
     const newParent = 'parentTaskId' in input ? await assertParent(workspaceId, input.parentTaskId, taskId) : undefined
     const oldParent = newParent !== undefined && before.parentTaskId && before.parentTaskId !== input.parentTaskId
       ? await db.workTask.findFirst({ where: { id: before.parentTaskId, workspaceId }, select: { id: true, taskKey: true, title: true } })
@@ -387,9 +396,9 @@ export class TaskService {
           data: { version: { increment: 1 } },
         })
         if (!claimed.count) throw conflict('Task changed; reload it before saving again', 'TASK_VERSION_CONFLICT')
-        await tx.workTask.update({ where: { id: taskId }, data: { ...(await patchData(tx, workspaceId, before, input)), ...('parentTaskId' in input ? { parentTaskId: input.parentTaskId ?? null } : {}) } })
+        await tx.workTask.update({ where: { id: taskId }, data: { ...(await patchData(tx, workspaceId, before, input, wf)), ...('parentTaskId' in input ? { parentTaskId: input.parentTaskId ?? null } : {}) } })
         const after = await liveTask(tx, workspaceId, taskId)
-        const activities = activitiesFor(before, after)
+        const activities = activitiesFor(before, after, wf)
         if (before.parentTaskId !== after.parentTaskId) {
           const sub = { subtaskId: after.id, subtaskKey: after.taskKey, subtaskTitle: after.title }
           if (oldParent) activities.push({ type: 'task.subtask.removed', object: { taskId: oldParent.id }, summary: { taskId: oldParent.id, taskKey: oldParent.taskKey, title: oldParent.title, ...sub } })
@@ -406,16 +415,18 @@ export class TaskService {
     const actor = await authorize(ctx.user.id, workspaceId, 'task.write')
     const before = await liveTask(db, workspaceId, taskId)
     if (input.afterTaskId && input.afterTaskId === input.beforeTaskId) throw badRequest('A card cannot sit on both sides of itself', 'INVALID_POSITION')
+    const wf = await loadWorkflow(db, workspaceId)
+    assertStatus(wf, input.status)
     return runAction(
       { action: 'task.move', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { taskId, ...input }, target: { type: 'task', id: taskId } },
       async (tx) => {
         const rank = await rankFor(tx, workspaceId, input.status, input, taskId)
         await tx.workTask.update({
           where: { id: taskId },
-          data: { status: input.status, rank, version: { increment: 1 }, ...statusChange(before.status, input.status) },
+          data: { status: input.status, rank, version: { increment: 1 }, ...statusChange(before.status, input.status, wf) },
         })
         const after = await liveTask(tx, workspaceId, taskId)
-        return { value: toTask(after), changes: diff(before, after, ['status', 'rank'] as const), activities: [...renumberActivity(tx, input.status), ...activitiesFor(before, after)] }
+        return { value: toTask(after), changes: diff(before, after, ['status', 'rank'] as const), activities: [...renumberActivity(tx, input.status), ...activitiesFor(before, after, wf)] }
       },
     )
   }
@@ -457,7 +468,10 @@ export class TaskService {
     const memberIds = new Set(
       (await db.workspaceMember.findMany({ where: { workspaceId, status: 'active' }, select: { id: true } })).map((m) => m.id),
     )
-    const rows = input.tasks.map((t) => ({ ...t, assigneeMemberId: t.assigneeMemberId && memberIds.has(t.assigneeMemberId) ? t.assigneeMemberId : null }))
+    // Statuses this workspace doesn't use map to its first to-do (or done) status: imported data is loose.
+    const wf = await loadWorkflow(db, workspaceId)
+    const statusFor = (s?: string) => (s && wf.isActive(s) ? s : s === 'done' ? wf.firstDone : wf.firstTodo)
+    const rows = input.tasks.map((t) => ({ ...t, status: statusFor(t.status), assigneeMemberId: t.assigneeMemberId && memberIds.has(t.assigneeMemberId) ? t.assigneeMemberId : null }))
     const load = async (ids: string[]) => {
       const found = await db.workTask.findMany({ where: { id: { in: ids }, workspaceId }, include: taskInclude, orderBy: { taskNumber: 'asc' } })
       return { data: found.map(toTask) }
@@ -469,8 +483,8 @@ export class TaskService {
           let number = await nextNumber(tx, workspaceId)
           const ids: string[] = []
           for (const row of rows) {
-            const rank = await rankFor(tx, workspaceId, row.status ?? 'open', {})
-            const created = await tx.workTask.create({ data: createData(workspaceId, number++, rank, actor, row), select: { id: true } })
+            const rank = await rankFor(tx, workspaceId, row.status, {})
+            const created = await tx.workTask.create({ data: createData(workspaceId, number++, rank, actor, row, wf), select: { id: true } })
             ids.push(created.id)
           }
           const value = await (async () => {
@@ -492,11 +506,13 @@ export class TaskService {
   async bulk(ctx: WorkspaceCtx, workspaceId: string, input: { ids: string[]; action: 'update' | 'delete' | 'restore'; patch?: BulkPatch; idempotencyKey?: string }) {
     const actor = await authorize(ctx.user.id, workspaceId, input.action === 'update' ? 'task.write' : 'task.delete')
     const ids = [...new Set(input.ids)]
+    const wf = await loadWorkflow(db, workspaceId)
     if (!ids.length || ids.length > BULK_MAX) throw badRequest(`Choose between 1 and ${BULK_MAX} tasks`, 'INVALID_SELECTION')
     const patch = input.patch ?? {}
     if (input.action === 'update') {
       if (!Object.keys(patch).length) throw badRequest('Nothing to change', 'EMPTY_PATCH')
       assertValid(patch)
+      assertStatus(wf, patch.status)
       if ('assigneeMemberId' in patch) await assertAssignee(workspaceId, patch.assigneeMemberId)
       if (patch.blocked && !patch.blocked.reason?.trim()) throw badRequest('Say what they are waiting on', 'INVALID_REASON')
     }
@@ -528,12 +544,12 @@ export class TaskService {
             continue
           }
           const { blocked, ...fields } = patch
-          const data: Record<string, unknown> = { ...(await patchData(tx, workspaceId, before, fields)), version: { increment: 1 } }
+          const data: Record<string, unknown> = { ...(await patchData(tx, workspaceId, before, fields, wf)), version: { increment: 1 } }
           if (blocked) Object.assign(data, { blockedAt: before.blockedAt ?? new Date(), blockedReason: blocked.reason.trim().slice(0, 280), blockedByMemberId: actor.member.id })
           if (blocked === null) Object.assign(data, { blockedAt: null, blockedReason: null, blockedByMemberId: null })
           await tx.workTask.update({ where: { id: before.id }, data })
           const after = await liveTask(tx, workspaceId, before.id)
-          activities.push(...activitiesFor(before, after))
+          activities.push(...activitiesFor(before, after, wf))
           if (blocked && after.blockedReason !== before.blockedReason) activities.push({ type: 'task.blocked', object, summary: { ...summary, reason: after.blockedReason, previous: before.blockedReason } })
           if (blocked === null && before.blockedAt) activities.push({ type: 'task.unblocked', object, summary: { ...summary, reason: before.blockedReason, blockedForMs: Date.now() - before.blockedAt.getTime() } })
           out.push(toTask(after))

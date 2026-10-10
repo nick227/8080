@@ -2,16 +2,15 @@ import { useMemo, useRef, useState } from 'react'
 import { useAddTaskComment, useTaskActivity, useTaskComments, type Activity, type TaskComment } from '@project/sdk'
 import { useCurrentWorkspace } from '../documents/workspace'
 import { since } from './BoardView'
-import { useCalendar } from './store'
+import { useCalendar, wf } from './store'
 import { useTeam } from './sync'
-import { STATUSES, type CalTask } from './types'
+import type { CalTask } from './types'
 
 // A task's activity: comments and history (recorded events) in one timeline.
 // History reads the same Activity rows notifications are made from.
 
 type View = 'all' | 'comments' | 'history'
 
-const STATUS = Object.fromEntries(STATUSES.map((s) => [s.id, s.title])) as Record<string, string>
 const LABEL: Record<string, string> = { issueType: 'type', area: 'area', priority: 'priority', storyPoints: 'points' }
 const VALUE: Record<string, Record<string, string>> = {
   issueType: { task: 'Task', feature: 'Feature', bug: 'Bug', story: 'Story', epic: 'Epic' },
@@ -50,7 +49,8 @@ export function describe(a: Pick<Activity, 'type' | 'summary'>): string {
     case 'task.checklist.edited': return `renamed a checklist step to “${s.text}”`
     case 'task.checklist.removed': return `removed a checklist step: “${s.text}”`
     case 'task.checklist.moved': return `reordered the checklist`
-    case 'task.moved': return `moved it from ${STATUS[s.from] ?? s.from} to ${STATUS[s.to] ?? s.to}`
+    // Labels as they were when it moved; older lines fall back to today's names.
+    case 'task.moved': return `moved it from ${s.fromLabel ?? wf().label(s.from)} to ${s.toLabel ?? wf().label(s.to)}${s.via === 'workflow' ? ' (its status was retired)' : ''}`
     case 'task.assigned': return s.to ? `assigned it to ${s.toName ?? 'a member'}` : `unassigned ${s.fromName ?? 'it'}`
     case 'task.updated': return Object.entries((s.changes ?? {}) as Record<string, [unknown, unknown]>).map(([f, c]) => changeLine(f, c)).join('; ')
     case 'task.blocked': return s.previous ? `changed what it's waiting on: “${s.reason}”` : `marked it blocked: “${s.reason}”`

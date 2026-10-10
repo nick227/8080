@@ -2218,3 +2218,21 @@
 /* Chips keep the size of what they replace (the generic reset above would inherit the card's). */
 .cal-chip.cal-card-due { font-family: var(--mono); font-size: 10px; }
 .cal-chip.cal-priority-mark { font-family: var(--mono); font-size: var(--text-sm); line-height: 1; }
+
+/* Workflow editor */
+.cal-workflow { width: min(44rem, calc(100vw - 32px)); max-height: calc(100vh - 64px); overflow-y: auto; }
+.cal-workflow-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-xs); }
+.cal-workflow-list li { display: grid; grid-template-columns: auto minmax(8rem, 1fr) auto auto auto auto; align-items: center; gap: var(--space-sm); }
+.cal-workflow-list input:not([type]), .cal-workflow-list input[type="text"], .cal-workflow-list select, .cal-workflow-reassign select { height: var(--button-height-sm); padding: 0 var(--space-sm); border: var(--line-width) solid var(--line); border-radius: var(--input-radius); background: var(--surface-deep); color: var(--ink); font: inherit; font-size: var(--text-sm); }
+.cal-workflow-move { display: flex; }
+.cal-workflow-handoff { display: flex; align-items: center; gap: 4px; font-size: var(--text-label); color: var(--muted); white-space: nowrap; }
+.cal-workflow-count { font-family: var(--mono); font-size: var(--text-label); color: var(--muted); white-space: nowrap; }
+.cal-workflow-add { align-self: flex-start; }
+.cal-workflow-reassign, .cal-workflow-retired { display: flex; flex-direction: column; gap: var(--space-xs); font-size: var(--text-sm); }
+.cal-workflow-reassign h3, .cal-workflow-retired h3 { margin: var(--space-sm) 0 0; font-size: var(--text-label); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.cal-workflow-reassign label { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
+.cal-workflow-retired span { color: var(--muted); }
+.cal-workflow-problem { margin: 0; color: var(--danger); font-size: var(--text-sm); }
+@media (max-width: 640px) { .cal-workflow-list li { grid-template-columns: auto 1fr; } }
+.cal-workflow .cal-dialog-sub { margin: var(--space-xs) 0 0; font-size: var(--text-sm); color: var(--muted); line-height: 1.45; }
+.cal-workflow h2 { margin: 0; }

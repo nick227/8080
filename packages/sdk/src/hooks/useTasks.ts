@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getApiClient, unwrap } from '../client'
-import type { BulkTasksInput, CreateTaskInput, CreateWorkLogInput, ImportTasksInput, ImportWorkLogsInput, MoveTaskInput, UpdateTaskBoardInput, UpdateTaskInput } from '../models'
+import type { UpdateTaskStatusesInput, BulkTasksInput, CreateTaskInput, CreateWorkLogInput, ImportTasksInput, ImportWorkLogsInput, MoveTaskInput, UpdateTaskBoardInput, UpdateTaskInput } from '../models'
 import { keys } from './keys'
 
 // Calendar / Boards tasks. The web keeps an optimistic copy for drag-and-drop,
@@ -132,4 +132,22 @@ export const checklistApi = {
   remove: async (workspaceId: string, taskId: string, itemId: string) => {
     unwrap(await getApiClient().DELETE('/workspaces/{workspaceId}/tasks/{taskId}/checklist/{itemId}', itemPath(workspaceId, taskId, itemId)))
   },
+}
+
+/** The workspace's task workflow (statuses = board columns). */
+export function useTaskStatuses(workspaceId: string | undefined) {
+  return useQuery({
+    queryKey: keys.taskStatuses(workspaceId ?? ''),
+    enabled: !!workspaceId,
+    queryFn: async () => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/task-statuses', path(workspaceId!))).data,
+  })
+}
+
+export function useUpdateTaskStatuses(workspaceId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: UpdateTaskStatusesInput) =>
+      unwrap(await getApiClient().PUT('/workspaces/{workspaceId}/task-statuses', { ...path(workspaceId), body })).data,
+    onSuccess: (data) => queryClient.setQueryData(keys.taskStatuses(workspaceId), data),
+  })
 }

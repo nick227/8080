@@ -17,8 +17,9 @@ import { TicketPage } from './TicketPage'
 import { ForYou } from './ForYou'
 import { BulkBar } from './BulkBar'
 import { FieldPickerHost } from './FieldPicker'
+import { WorkflowEditor } from './WorkflowEditor'
 import { CalendarFilters } from './CalendarFilters'
-import { applyFilters, filtersActive, NO_FILTERS, useCalendar, type Filters, type View } from './store'
+import { applyFilters, filtersActive, NO_FILTERS, useCalendar, useWorkflow, type Filters, type View } from './store'
 import { useLocalTasks, useTaskSync } from './sync'
 import type { CalTask, TaskStatus } from './types'
 import './calendar.css'
@@ -79,10 +80,10 @@ export function CalendarExperience() {
       </div>
     )
   }
-  return <Calendar key={workspace.id} workspaceId={workspace.id} />
+  return <Calendar key={workspace.id} workspaceId={workspace.id} canManage={workspace.role === 'owner' || workspace.role === 'admin'} />
 }
 
-function Calendar({ workspaceId }: { workspaceId: string }) {
+function Calendar({ workspaceId, canManage }: { workspaceId: string; canManage: boolean }) {
   const location = useLocation()
   const navigate = useNavigate()
   const ticketParam = new URLSearchParams(location.search).get('ticket')
@@ -95,6 +96,7 @@ function Calendar({ workspaceId }: { workspaceId: string }) {
   const cursor = useCalendar((state) => state.cursor)
   const view = useCalendar((state) => state.view)
   const filters = useCalendar((state) => state.filters)
+  const workflow = useWorkflow()
   const notice = useCalendar((state) => state.notice)
 
   const setView = useCalendar((state) => state.setView)
@@ -117,6 +119,7 @@ function Calendar({ workspaceId }: { workspaceId: string }) {
   const [loggingAcc, setLoggingAcc] = useState(false)
   const [selectedDayForNewTask, setSelectedDayForNewTask] = useState<string>(cursor)
   const [createIn, setCreateIn] = useState<TaskStatus | null>(null)
+  const [editingWorkflow, setEditingWorkflow] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
   // URL → store once, then store → URL.
@@ -153,10 +156,10 @@ function Calendar({ workspaceId }: { workspaceId: string }) {
   const scopedTasks = tasks.filter((t) =>
     view === 'day' ? t.day === cursor
       : view === 'month' || view === 'list' ? !!t.day && t.day.slice(0, 7) === cursor.slice(0, 7)
-        : view === 'backlog' ? t.status !== 'done'
+        : view === 'backlog' ? !workflow.isDone(t.status)
           : true,
   )
-  const filteredTasks = applyFilters(scopedTasks, filters)
+  const filteredTasks = applyFilters(scopedTasks, filters, { today, now: Date.now(), isDone: workflow.isDone })
   const filteredAccomplishments = filters.members.length ? accomplishments.filter((a) => filters.members.includes(a.assigneeId ?? 'unassigned')) : accomplishments
   const dayTasks = filteredTasks.filter((task) => task.day === cursor)
 
@@ -196,7 +199,7 @@ function Calendar({ workspaceId }: { workspaceId: string }) {
       if (event.key === '/') { event.preventDefault(); searchRef.current?.focus() }
       if (event.key === 'c' && !ticketParam) {
         event.preventDefault()
-        if (view === 'board') setCreateIn('open')
+        if (view === 'board') setCreateIn(workflow.firstTodo)
         else { setSelectedDayForNewTask(cursor); setComposing(true) }
       }
     }
@@ -216,7 +219,7 @@ function Calendar({ workspaceId }: { workspaceId: string }) {
         level={1}
         newLabel="task"
         onNew={() => {
-          if (view === 'board') { setCreateIn('open'); return }
+          if (view === 'board') { setCreateIn(workflow.firstTodo); return }
           setSelectedDayForNewTask(cursor)
           setComposing(true)
         }}
@@ -224,6 +227,9 @@ function Calendar({ workspaceId }: { workspaceId: string }) {
       >
         {datedView && <button type="button" className="section-add-btn" onClick={() => setLoggingAcc(true)}>Log work</button>}
         <ForYou workspaceId={workspaceId} onOpenTask={openTicketKey} />
+        {canManage && (view === 'board' || view === 'table') && (
+          <button type="button" className="section-add-btn" onClick={() => setEditingWorkflow(true)}>Columns</button>
+        )}
       </SectionHeader>
 
       {local.count + local.logCount > 0 && (
@@ -326,6 +332,7 @@ function Calendar({ workspaceId }: { workspaceId: string }) {
         </div>
       )}
 
+      {editingWorkflow && <WorkflowEditor workspaceId={workspaceId} onClose={() => setEditingWorkflow(false)} />}
       <BulkBar />
       <FieldPickerHost />
 

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { getApiBaseUrl, keys, tasksApi, useSession, useTasks, useWorkLogs, useWorkspaceMembers, workLogsApi, type ImportTaskRow, type ImportWorkLogRow, type TaskStreamEvent } from '@project/sdk'
+import { getApiBaseUrl, keys, tasksApi, useSession, useTaskStatuses, useTasks, useWorkLogs, useWorkspaceMembers, workLogsApi, type ImportTaskRow, type ImportWorkLogRow, type TaskStreamEvent } from '@project/sdk'
 import { useCurrentWorkspace } from '../documents/workspace'
-import { LOCAL_LOGS_KEY, LOCAL_TASKS_KEY, useCalendar } from './store'
+import { LOCAL_LOGS_KEY, LOCAL_TASKS_KEY, useCalendar, wf } from './store'
 import type { CalAccomplishment, TeamMember } from './types'
 
 // Teammates' changes arrive over the task stream. The full list is still fetched
@@ -23,6 +23,10 @@ export function useTaskSync() {
   const logs = useWorkLogs(workspaceId, { refetchInterval: poll })
   const queryClient = useQueryClient()
   const applyServer = useCalendar((s) => s.applyServer)
+  const setStatuses = useCalendar((s) => s.setStatuses)
+  // The workflow (board columns); live changes arrive as workflow.updated.
+  const statuses = useTaskStatuses(workspaceId)
+  useEffect(() => { if (statuses.data) setStatuses(statuses.data) }, [statuses.data, setStatuses])
 
   // The live stream: each change patches one card; `reset` (or a reconnect that
   // couldn't replay) reconciles with one list fetch. The browser reconnects by
@@ -35,6 +39,7 @@ export function useTaskSync() {
       void queryClient.invalidateQueries({ queryKey: keys.tasks(workspaceId), exact: true })
       void queryClient.invalidateQueries({ queryKey: keys.workLogs(workspaceId) })
       void queryClient.invalidateQueries({ queryKey: keys.taskBoard(workspaceId) })
+      void queryClient.invalidateQueries({ queryKey: keys.taskStatuses(workspaceId) })
     }
     source.addEventListener('ready', (e) => {
       setLive('live')
@@ -49,6 +54,10 @@ export function useTaskSync() {
     })
     source.addEventListener('worklogs.changed', () => void queryClient.invalidateQueries({ queryKey: keys.workLogs(workspaceId) }))
     source.addEventListener('board.updated', (e) => queryClient.setQueryData(keys.taskBoard(workspaceId), { wipLimits: read(e).wipLimits ?? {} }))
+    source.addEventListener('workflow.updated', (e) => {
+      const list = read(e).statuses
+      if (list) queryClient.setQueryData(keys.taskStatuses(workspaceId), list)
+    })
     source.addEventListener('reset', reconcile)
     source.onerror = () => setLive('reconnecting')
     return () => {
@@ -115,7 +124,6 @@ type LocalTask = {
 
 // The old built-in demo tickets (task-1…6) are not the person's work.
 const DEMO = /^task-\d$/
-const STATUSES = ['open', 'in_progress', 'in_review', 'done']
 const PRIORITIES = ['low', 'medium', 'high', 'highest']
 const TYPES = ['task', 'feature', 'bug', 'story', 'epic']
 const DAY = /^\d{4}-\d{2}-\d{2}$/
@@ -165,7 +173,8 @@ function toRow(t: LocalTask): ImportTaskRow {
   return {
     title: t.title!.trim().slice(0, 255),
     description: t.description ?? null,
-    status: (STATUSES.includes(t.status ?? '') ? t.status : 'open') as ImportTaskRow['status'],
+    // Statuses this workspace doesn't use land in its first to-do (or done) status.
+    status: t.status && wf().isActive(t.status) ? t.status : t.status === 'done' ? wf().firstDone : wf().firstTodo,
     priority: (PRIORITIES.includes(t.priority ?? '') ? t.priority : 'medium') as ImportTaskRow['priority'],
     issueType: (TYPES.includes(t.category ?? '') ? t.category : 'task') as ImportTaskRow['issueType'],
     area: t.area ?? null,

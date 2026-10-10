@@ -3,9 +3,10 @@ import { isUrgent } from '@project/shared'
 import { Avatar, since, useParentKey } from './BoardView'
 import { FIELDS, openField, setField, targetsFor, taskShortcut } from './actions'
 import { todayKey } from './dates'
-import { useCalendar, type PickerField } from './store'
+import { useCalendar, useWorkflow, type PickerField } from './store'
+import type { Workflow } from '@project/shared'
 import { useTeam } from './sync'
-import { STATUSES, type CalTask } from './types'
+import type { CalTask } from './types'
 
 // A dense, editable list of the same tasks the board shows. Every field cell opens
 // the shared picker (actions.ts), so a cell, a card chip, a shortcut and the bulk
@@ -14,8 +15,6 @@ import { STATUSES, type CalTask } from './types'
 type SortKey = 'key' | 'title' | 'status' | 'assignee' | 'priority' | 'type' | 'area' | 'points' | 'due' | 'day' | 'updated'
 type GroupKey = 'none' | 'status' | 'assignee' | 'priority' | 'type' | 'area'
 
-const STATUS_ORDER = Object.fromEntries(STATUSES.map((s, i) => [s.id, i])) as Record<string, number>
-const STATUS_TITLE = Object.fromEntries(STATUSES.map((s) => [s.id, s.title])) as Record<string, string>
 const PRIORITY_ORDER: Record<string, number> = { highest: 0, high: 1, medium: 2, low: 3 }
 const PRIORITY_LABEL: Record<string, string> = { highest: 'Highest', high: 'High', medium: 'Medium', low: 'Low' }
 const TYPE_LABEL: Record<string, string> = { task: 'Task', feature: 'Feature', bug: 'Bug', story: 'Story', epic: 'Epic' }
@@ -34,11 +33,11 @@ const COLUMNS: { key: SortKey; label: string; field?: PickerField; className?: s
   { key: 'updated', label: 'Updated' },
 ]
 
-function sortValue(t: CalTask, key: SortKey): string | number {
+function sortValue(t: CalTask, key: SortKey, wf: Workflow): string | number {
   switch (key) {
     case 'key': return Number(t.taskKey.replace(/\D/g, '')) || 0
     case 'title': return t.title.toLowerCase()
-    case 'status': return STATUS_ORDER[t.status]! * 1e9 + t.rank
+    case 'status': return wf.order(t.status) * 1e9 + t.rank
     case 'assignee': return (t.assigneeName ?? '￿').toLowerCase()
     case 'priority': return PRIORITY_ORDER[t.priority ?? 'medium']!
     case 'type': return t.category ?? 'task'
@@ -50,9 +49,9 @@ function sortValue(t: CalTask, key: SortKey): string | number {
   }
 }
 
-function groupOf(t: CalTask, key: GroupKey): { id: string; label: string; order: number | string } {
+function groupOf(t: CalTask, key: GroupKey, wf: Workflow): { id: string; label: string; order: number | string } {
   switch (key) {
-    case 'status': return { id: t.status, label: STATUS_TITLE[t.status]!, order: STATUS_ORDER[t.status]! }
+    case 'status': return { id: t.status, label: wf.label(t.status), order: wf.order(t.status) }
     case 'assignee': return { id: t.assigneeId ?? '', label: t.assigneeName ?? 'Unassigned', order: t.assigneeName ? t.assigneeName.toLowerCase() : '￿' }
     case 'priority': return { id: t.priority ?? 'medium', label: PRIORITY_LABEL[t.priority ?? 'medium']!, order: PRIORITY_ORDER[t.priority ?? 'medium']! }
     case 'type': return { id: t.category ?? 'task', label: TYPE_LABEL[t.category ?? 'task']!, order: t.category ?? 'task' }
@@ -69,27 +68,28 @@ export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { 
   const selectMany = useCalendar((s) => s.selectMany)
   const toggleSelect = useCalendar((s) => s.toggleSelect)
   const bodyRef = useRef<HTMLTableSectionElement>(null)
+  const workflow = useWorkflow()
 
   const sorted = useMemo(() => {
     const rows = [...tasks]
     rows.sort((a, b) => {
-      const x = sortValue(a, sort.key)
-      const y = sortValue(b, sort.key)
+      const x = sortValue(a, sort.key, workflow)
+      const y = sortValue(b, sort.key, workflow)
       return (x < y ? -1 : x > y ? 1 : 0) * sort.dir || a.rank - b.rank
     })
     return rows
-  }, [tasks, sort])
+  }, [tasks, sort, workflow])
 
   const groups = useMemo(() => {
     if (group === 'none') return [{ id: 'all', label: '', rows: sorted }]
     const map = new Map<string, { id: string; label: string; order: number | string; rows: CalTask[] }>()
     for (const t of sorted) {
-      const g = groupOf(t, group)
+      const g = groupOf(t, group, workflow)
       if (!map.has(g.id)) map.set(g.id, { ...g, rows: [] })
       map.get(g.id)!.rows.push(t)
     }
     return [...map.values()].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0))
-  }, [sorted, group])
+  }, [sorted, group, workflow])
 
   const visibleIds = groups.flatMap((g) => (collapsed.has(g.id) ? [] : g.rows.map((r) => r.id)))
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selection.includes(id))
@@ -187,8 +187,10 @@ function Row({ task, selected, toggleSelect, onOpen, moveFocus }: { task: CalTas
   const { team, meId } = useTeam()
   const [editing, setEditing] = useState(false)
   const parentKey = useParentKey(task.parentTaskId)
+  const workflow = useWorkflow()
+  const done = workflow.isDone(task.status)
   const today = todayKey()
-  const ctx = { today, now: Date.now() }
+  const ctx = { today, now: Date.now(), isDone: workflow.isDone }
   const overdue = isUrgent(task, 'overdue', ctx)
 
   const cell = (field: PickerField, content: React.ReactNode, label: string) => (
@@ -203,7 +205,7 @@ function Row({ task, selected, toggleSelect, onOpen, moveFocus }: { task: CalTas
       data-task-id={task.id}
       data-selected={selected || undefined}
       data-pending={task.pending || undefined}
-      data-done={task.status === 'done' || undefined}
+      data-done={done || undefined}
       tabIndex={0}
       aria-label={`${task.taskKey} ${task.title}`}
       onKeyDown={(e) => {
@@ -230,11 +232,11 @@ function Row({ task, selected, toggleSelect, onOpen, moveFocus }: { task: CalTas
               {task.title}
             </button>
             <button type="button" className="cal-icon-btn cal-rename-btn" disabled={task.pending} aria-label={`Rename ${task.taskKey}`} title="Rename (F2)" onClick={() => setEditing(true)}>✎</button>
-            {task.blocked && task.status !== 'done' && <span className="cal-table-blocked" title={task.blocked.reason}>Blocked</span>}
+            {task.blocked && !done && <span className="cal-table-blocked" title={task.blocked.reason}>Blocked</span>}
           </span>
         )}
       </td>
-      <td>{cell('status', STATUS_TITLE[task.status], STATUS_TITLE[task.status]!)}</td>
+      <td>{cell('status', workflow.label(task.status), workflow.label(task.status))}</td>
       <td>{cell('assignee', <><Avatar name={task.assigneeName ?? null} url={task.assigneeAvatar ?? null} /><span>{task.assigneeName ?? 'Unassigned'}</span></>, task.assigneeName ?? 'Unassigned')}</td>
       <td>{cell('priority', <span data-priority={task.priority ?? 'medium'}>{PRIORITY_LABEL[task.priority ?? 'medium']}</span>, PRIORITY_LABEL[task.priority ?? 'medium']!)}</td>
       <td>{cell('type', TYPE_LABEL[task.category ?? 'task'], TYPE_LABEL[task.category ?? 'task']!)}</td>

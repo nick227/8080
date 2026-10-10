@@ -1,7 +1,7 @@
 import { dayTitle, parseSpokenDay, cleanTime, monthName, shortDay, todayKey } from '../calendar/dates'
 import { listByName } from '../calendar/lists'
 import { taskSheets } from '../calendar/sheets'
-import { targetDay, useCalendar } from '../calendar/store'
+import { targetDay, useCalendar, wf } from '../calendar/store'
 import { useDocuments } from '../documents/store'
 import type { Desk } from '../work/sections'
 
@@ -115,7 +115,7 @@ function placed(count: number, day: string, source: string): AgentResult {
 }
 
 function openSummary(day: string): string {
-  const tasks = useCalendar.getState().tasks.filter((task) => task.status === 'open')
+  const tasks = useCalendar.getState().tasks.filter((task) => !wf().isDone(task.status))
   const here = tasks.filter((task) => task.day === day)
   const names = here.slice(0, 4).map((task) => task.title).join(', ')
   const more = here.length > 4 ? `, and ${here.length - 4} more` : ''

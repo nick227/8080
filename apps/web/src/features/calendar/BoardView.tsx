@@ -20,9 +20,9 @@ import { useTaskBoard, useUpdateTaskBoard, type WipLimits } from '@project/sdk'
 import { useCurrentWorkspace } from '../documents/workspace'
 import { todayKey } from './dates'
 import { FIELDS, assignToMe, deleteTasks, openField, setField, targetsFor, taskShortcut } from './actions'
-import { columnOf, useCalendar } from './store'
+import { columnOf, useCalendar, useWorkflow, wf } from './store'
 import { useTeam } from './sync'
-import { STATUSES, type CalTask, type TaskStatus } from './types'
+import type { CalTask, TaskStatus } from './types'
 
 // Done cards older than this fold away (Jira's Kanban does the same).
 const DONE_FRESH_DAYS = 14
@@ -31,7 +31,7 @@ type Columns = Record<TaskStatus, string[]>
 
 const TYPE_LABEL: Record<string, string> = { feature: 'Feature', bug: 'Bug', task: 'Task', story: 'Story', epic: 'Epic' }
 const PRIORITY_MARK: Record<string, string> = { highest: '⇈', high: '↑', medium: '=', low: '↓' }
-const statusTitle = (s: TaskStatus) => STATUSES.find((c) => c.id === s)!.title
+const statusTitle = (s: TaskStatus) => wf().label(s)
 
 export function BoardView({
   tasks,
@@ -56,23 +56,24 @@ export function BoardView({
   const board = useTaskBoard(workspace?.id)
   const limits: WipLimits = board.data?.wipLimits ?? {}
   const canManage = workspace?.role === 'owner' || workspace?.role === 'admin'
+  const workflow = useWorkflow()
   // WIP counts every card in the column, whatever the filters show.
   const totals = useMemo(() => {
-    const out = { open: 0, in_progress: 0, in_review: 0, done: 0 } as Record<TaskStatus, number>
-    for (const t of allTasks) out[t.status]++
+    const out = Object.fromEntries(workflow.active.map((s) => [s.key, 0])) as Record<TaskStatus, number>
+    for (const t of allTasks) out[t.status] = (out[t.status] ?? 0) + 1
     return out
-  }, [allTasks])
+  }, [allTasks, workflow])
   // Say so when a column goes over its limit (by anyone's move); limits are soft.
   const prevTotals = useRef<Record<TaskStatus, number> | null>(null)
   useEffect(() => {
     const prev = prevTotals.current
     prevTotals.current = totals
     if (!prev) return
-    for (const { id, title } of STATUSES) {
-      const limit = limits[id]
-      if (limit && totals[id] > limit && prev[id] <= limit) say(`${title} is over its WIP limit (${totals[id]} of ${limit})`)
+    for (const { key, label } of workflow.active) {
+      const limit = limits[key]
+      if (limit && (totals[key] ?? 0) > limit && (prev[key] ?? 0) <= limit) say(`${label} is over its WIP limit (${totals[key]} of ${limit})`)
     }
-  }, [totals, limits, say])
+  }, [totals, limits, say, workflow])
   const [showOldDone, setShowOldDone] = useState(false)
   const [creating, setCreating] = useState<TaskStatus | null>(null)
 
@@ -85,16 +86,17 @@ export function BoardView({
 
   const byId = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
   const cutoff = Date.now() - DONE_FRESH_DAYS * 86_400_000
-  const oldDone = tasks.filter((t) => t.status === 'done' && t.resolvedAt && Date.parse(t.resolvedAt) < cutoff)
+  // Old done cards fold away in every done-category column.
+  const oldDone = tasks.filter((t) => workflow.isDone(t.status) && t.resolvedAt && Date.parse(t.resolvedAt) < cutoff)
   const hidden = showOldDone ? new Set<string>() : new Set(oldDone.map((t) => t.id))
 
   const settled: Columns = useMemo(() => {
     const cols = {} as Columns
-    for (const { id } of STATUSES) cols[id] = columnOf(tasks, id).filter((t) => !hidden.has(t.id)).map((t) => t.id)
+    for (const { key } of workflow.active) cols[key] = columnOf(tasks, key).filter((t) => !hidden.has(t.id)).map((t) => t.id)
     return cols
     // `hidden` is derived from tasks + showOldDone.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, showOldDone])
+  }, [tasks, showOldDone, workflow])
 
   // While dragging, the board shows where the card would land.
   const [dragging, setDragging] = useState<{ id: string; from: TaskStatus; columns: Columns } | null>(null)
@@ -109,7 +111,7 @@ export function BoardView({
   )
 
   const containerOf = (cols: Columns, id: string): TaskStatus | null =>
-    (STATUSES.find((s) => s.id === id)?.id as TaskStatus | undefined) ?? (Object.keys(cols) as TaskStatus[]).find((s) => cols[s].includes(id)) ?? null
+    (workflow.isActive(id) ? id : undefined) ?? (Object.keys(cols) as TaskStatus[]).find((s) => cols[s]!.includes(id)) ?? null
 
   const onDragStart = ({ active }: DragStartEvent) => {
     const from = containerOf(settled, String(active.id))
@@ -184,22 +186,22 @@ export function BoardView({
         }}
       >
         <div className="cal-kanban-grid">
-          {STATUSES.map((col) => (
+          {workflow.active.map((col) => (
             <Column
-              key={col.id}
-              status={col.id}
-              title={col.title}
-              ids={columns[col.id]}
+              key={col.key}
+              status={col.key}
+              title={col.label}
+              ids={columns[col.key] ?? []}
               byId={byId}
-              creating={creating === col.id}
-              onCreating={(on) => setCreating(on ? col.id : null)}
+              creating={creating === col.key}
+              onCreating={(on) => setCreating(on ? col.key : null)}
               onSelectTask={onSelectTask}
-              total={totals[col.id]}
-              limit={limits[col.id] ?? null}
+              total={totals[col.key] ?? 0}
+              limit={limits[col.key] ?? null}
               canManage={canManage}
               workspaceId={workspace?.id ?? ''}
               limits={limits}
-              footer={col.id === 'done' && oldDone.length > 0 ? (
+              footer={col.key === workflow.firstDone && oldDone.length > 0 ? (
                 <button type="button" className="cal-link-btn cal-kanban-more" onClick={() => setShowOldDone((v) => !v)}>
                   {showOldDone ? `Hide ${oldDone.length} done over ${DONE_FRESH_DAYS} days ago` : `Show ${oldDone.length} older done`}
                 </button>
@@ -284,7 +286,7 @@ function Column({
             ? <span className="cal-kanban-count cal-wip" title={`WIP limit ${limit}: ${total} in this column${total !== cards.length ? `, ${cards.length} shown` : ''}`}>{total}/{limit}</span>
             : <span className="cal-kanban-count">{cards.length}</span>}
           {points > 0 && <span className="cal-kanban-points">{points} pts</span>}
-          {blocked > 0 && status !== 'done' && <span className="cal-kanban-blocked">{blocked} blocked</span>}
+          {blocked > 0 && !wf().isDone(status) && <span className="cal-kanban-blocked">{blocked} blocked</span>}
         </div>
         <div className="cal-kanban-tools">
           {canManage && (
@@ -387,6 +389,7 @@ function SortableCard({ task, onOpen, onSelect }: { task: CalTask; onOpen: () =>
   const style = { transform: CSS.Transform.toString(transform), transition }
   const selected = useCalendar((s) => s.selection.includes(task.id))
   const selecting = useCalendar((s) => s.selection.length > 0)
+  const done = useWorkflow().isDone(task.status)
   const { team, meId } = useTeam()
   return (
     <li
@@ -402,9 +405,9 @@ function SortableCard({ task, onOpen, onSelect }: { task: CalTask; onOpen: () =>
         className="cal-kanban-card"
         aria-roledescription="Draggable task"
         aria-label={`${task.taskKey} ${task.title}${task.blocked ? `, blocked: ${task.blocked.reason}` : ''}${selected ? ', selected' : ''}`}
-        data-done={task.status === 'done' || undefined}
+        data-done={done || undefined}
         data-pending={task.pending || undefined}
-        data-blocked={(task.blocked && task.status !== 'done') || undefined}
+        data-blocked={(task.blocked && !done) || undefined}
         data-task-id={task.id}
         onClick={(e) => {
           // Ctrl/⌘-click and Shift-click select; a plain click opens.
@@ -461,7 +464,7 @@ function Chip({ task, field, label, className, children }: { task: CalTask; fiel
 export function useSubtaskProgress(taskId: string) {
   return useCalendar((s) => {
     const kids = s.tasks.filter((t) => t.parentTaskId === taskId)
-    return kids.length ? `${kids.filter((t) => t.status === 'done').length}/${kids.length}` : ''
+    return kids.length ? `${kids.filter((t) => wf().isDone(t.status)).length}/${kids.length}` : ''
   })
 }
 
@@ -473,7 +476,8 @@ function CardBody({ task, overlay, interactive }: { task: CalTask; overlay?: boo
   const subtasks = useSubtaskProgress(task.id)
   const parentKey = useParentKey(task.parentTaskId)
   const today = todayKey()
-  const overdue = !!task.dueDate && task.dueDate < today && task.status !== 'done'
+  const isDone = useWorkflow().isDone(task.status)
+  const overdue = !!task.dueDate && task.dueDate < today && !isDone
   return (
     <div className="cal-card-body" data-overlay={overlay || undefined}>
       <div className="cal-card-top-row">
@@ -483,7 +487,7 @@ function CardBody({ task, overlay, interactive }: { task: CalTask; overlay?: boo
         {parentKey && <span className="cal-parent-chip" title={`Subtask of ${parentKey}`}>↳ {parentKey}</span>}
       </div>
       <h4 className="cal-card-title">{task.title}</h4>
-      {task.blocked && task.status !== 'done' && (
+      {task.blocked && !isDone && (
         <p className="cal-card-blocked" title={`Blocked ${since(task.blocked.since)}${task.blocked.byName ? ` by ${task.blocked.byName}` : ''}`}>
           <strong>Blocked</strong> {task.blocked.reason}
         </p>
@@ -590,8 +594,8 @@ function CardMenu({ task }: { task: CalTask }) {
       {open && (
         <div className="cal-menu" role="menu" aria-label={`Actions for ${task.taskKey}`} onKeyDown={(e) => menuKeys(e)}>
           <span className="cal-menu-heading">{ids.length > 1 ? `${ids.length} selected · move to` : 'Move to'}</span>
-          {STATUSES.filter((st) => ids.length > 1 || st.id !== task.status).map((st) => (
-            <button key={st.id} type="button" role="menuitem" onClick={run(() => setField(ids, 'status', st.id, team))}>{st.title}</button>
+          {wf().active.filter((st) => ids.length > 1 || st.key !== task.status).map((st) => (
+            <button key={st.key} type="button" role="menuitem" onClick={run(() => setField(ids, 'status', st.key, team))}>{st.label}</button>
           ))}
           {ids.length === 1 && first && first.id !== task.id && <button type="button" role="menuitem" onClick={run(() => moveTask(task.id, task.status, { beforeTaskId: first.id }))}>Top of column</button>}
           {ids.length === 1 && last && last.id !== task.id && <button type="button" role="menuitem" onClick={run(() => moveTask(task.id, task.status, { afterTaskId: last.id }))}>Bottom of column</button>}
