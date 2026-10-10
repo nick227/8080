@@ -537,6 +537,21 @@ describe('tasks', () => {
     const carolRow = r.people.find((p: any) => p.name === 'Carol')
     expect(carolRow).toMatchObject({ doing: 1, todo: 0 })
     expect(r.people.find((p: any) => p.name === 'Unassigned')).toMatchObject({ todo: 1, blocked: 1, overdue: 1 })
+    expect(r.filtered).toBe(false)
+
+    // Board filters narrow every number by the tasks' current fields.
+    const mine = (await call(testUserId, 'GET', `${url}&who=${carol}`)).json().data
+    expect(mine.filtered).toBe(true)
+    expect(mine.done.thisPeriod).toBe(1) // A
+    expect(mine.now).toMatchObject({ todo: 0, doing: 1, overdue: 0, blocked: 0 })
+    expect(mine.flow.at(-1)).toMatchObject({ todo: 0, doing: 1, done: 1 })
+    expect(mine.people.map((p: any) => p.name)).toEqual(['Carol'])
+    const nobody = (await call(testUserId, 'GET', `${url}&who=unassigned`)).json().data
+    expect(nobody.done.thisPeriod).toBe(0)
+    expect(nobody.now).toMatchObject({ todo: 1, blocked: 1 })
+    const searched = (await call(testUserId, 'GET', `${url}&q=${encodeURIComponent(b.taskKey)}&priority=medium`)).json().data
+    expect(searched.now.todo + searched.now.doing).toBe(1)
+    expect((await call(testUserId, 'GET', `${url}&type=bug`)).json().data.flow.at(-1)).toMatchObject({ todo: 0, doing: 0, done: 0 })
 
     // A custom done status counts as done in the report too.
     await call(testUserId, 'PUT', `/workspaces/${ws.id}/task-statuses`, { statuses: [

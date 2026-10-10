@@ -281,8 +281,8 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
             </div>
           </div>
         </header>
-        {/* Reports cover the whole workspace; they have their own date range. */}
-        {view !== 'reports' && <CalendarFilters ref={searchRef} count={filteredTasks.length} total={scopedTasks.length} scoped={scopedTasks} />}
+        {/* Reports have their own date range; the board filters narrow them too. */}
+        <CalendarFilters ref={searchRef} count={filteredTasks.length} total={scopedTasks.length} scoped={scopedTasks} reports={view === 'reports'} />
 
         {sync.error && !loaded ? (
           <p className="cal-board-note" role="alert">
@@ -324,7 +324,7 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
         ) : view === 'table' ? (
           <TableView tasks={filteredTasks} onSelectTask={openTicket} filtersOn={filtersActive(filters)} onClearFilters={clearFilters} />
         ) : view === 'reports' ? (
-          <ReportsView workspaceId={workspaceId} />
+          <ReportsView workspaceId={workspaceId} filters={filters} />
         ) : view === 'backlog' ? (
           <BacklogView tasks={filteredTasks} onSelectTask={openTicket} onUpdateStatus={updateTaskStatus} />
         ) : (

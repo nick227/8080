@@ -173,6 +173,9 @@ export async function updateTaskStatuses(request: any, reply: any) {
 }
 
 export async function getTaskReport(request: any, reply: any) {
-  const weeks = request.query?.weeks !== undefined ? Number(request.query.weeks) : undefined
-  return reply.send({ data: await taskReport(request.user.id, request.params.workspaceId, { weeks }) })
+  const q = request.query ?? {}
+  const weeks = q.weeks !== undefined ? Number(q.weeks) : undefined
+  const list = (v: unknown) => (typeof v === 'string' ? v.split(',').map((x) => x.trim()).filter(Boolean) : [])
+  const filters = { members: list(q.who), types: list(q.type), areas: list(q.area), priorities: list(q.priority), q: typeof q.q === 'string' ? q.q : '' }
+  return reply.send({ data: await taskReport(request.user.id, request.params.workspaceId, { weeks, filters }) })
 }

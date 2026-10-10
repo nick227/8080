@@ -5537,6 +5537,8 @@ export interface components {
             data: components["schemas"]["TaskReport"];
         };
         TaskReport: {
+            /** @description True when the board filters narrowed the tasks counted. */
+            filtered: boolean;
             range: {
                 /** Format: date */
                 from: string;
@@ -13632,6 +13634,16 @@ export interface operations {
         parameters: {
             query?: {
                 weeks?: number;
+                /** @description Comma-separated member ids; `unassigned` = no assignee (current assignee). */
+                who?: string;
+                /** @description Comma-separated issue types. */
+                type?: string;
+                /** @description Comma-separated areas. */
+                area?: string;
+                /** @description Comma-separated priorities. */
+                priority?: string;
+                /** @description Title or key contains. */
+                q?: string;
             };
             header?: never;
             path: {

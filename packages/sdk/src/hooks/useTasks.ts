@@ -153,11 +153,15 @@ export function useUpdateTaskStatuses(workspaceId: string) {
 }
 
 /** Board reports; refetched when tasks change (live) and on focus. */
-export function useTaskReport(workspaceId: string | undefined, weeks: number) {
+/** Board filters a report can narrow by (comma-separated, as in the board's URL). */
+export type TaskReportFilters = { who?: string; type?: string; area?: string; priority?: string; q?: string }
+
+export function useTaskReport(workspaceId: string | undefined, weeks: number, filters: TaskReportFilters = {}) {
+  const query = Object.fromEntries(Object.entries(filters).filter(([, v]) => !!v?.trim())) as TaskReportFilters
   return useQuery({
-    queryKey: [...keys.tasks(workspaceId ?? ''), 'report', weeks],
+    queryKey: [...keys.tasks(workspaceId ?? ''), 'report', weeks, query],
     enabled: !!workspaceId,
-    queryFn: async () => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/tasks/report', { ...path(workspaceId!), params: { path: { workspaceId: workspaceId! }, query: { weeks } } })).data,
+    queryFn: async () => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/tasks/report', { ...path(workspaceId!), params: { path: { workspaceId: workspaceId! }, query: { weeks, ...query } } })).data,
     placeholderData: (previous) => previous,
   })
 }

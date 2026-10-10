@@ -2,7 +2,7 @@
 // and current task state. Days and weeks (Monday start) are the workspace's own,
 // in its time zone. "Done" and "started" come from workflow categories; "needs
 // attention" from the shared urgency definitions — the same ones the board uses.
-import { db } from '@project/db'
+import { db, type Prisma } from '@project/db'
 import { isUrgent } from '@project/shared'
 import { badRequest } from '../lib/errors'
 import { toAuthor } from '../lib/serialize'
@@ -34,7 +34,25 @@ function percentile(sorted: number[], p: number) {
 
 type Move = { taskId: string; at: Date; day: string; from: string; to: string }
 
-export async function taskReport(userId: string, workspaceId: string, opts: { weeks?: number }) {
+/** The board's filters, minus "needs attention" (that is current state, not history). */
+export type ReportFilters = { members?: string[]; types?: string[]; areas?: string[]; priorities?: string[]; q?: string }
+
+/** Tasks the filters keep, by their current fields; deleted tasks too, so past throughput still counts them. */
+function filterWhere(workspaceId: string, f: ReportFilters): Prisma.WorkTaskWhereInput | null {
+  const and: Prisma.WorkTaskWhereInput[] = []
+  if (f.members?.length) {
+    const ids = f.members.filter((m) => m !== 'unassigned')
+    and.push({ OR: [...(ids.length ? [{ assigneeMemberId: { in: ids } }] : []), ...(f.members.includes('unassigned') ? [{ assigneeMemberId: null }] : [])] })
+  }
+  if (f.types?.length) and.push({ issueType: { in: f.types } })
+  if (f.areas?.length) and.push({ area: { in: f.areas } })
+  if (f.priorities?.length) and.push({ priority: { in: f.priorities } })
+  const q = f.q?.trim()
+  if (q) and.push({ OR: [{ title: { contains: q } }, { taskKey: { contains: q } }] })
+  return and.length ? { workspaceId, AND: and } : null
+}
+
+export async function taskReport(userId: string, workspaceId: string, opts: { weeks?: number; filters?: ReportFilters }) {
   const actor = await authorize(userId, workspaceId, 'task.read')
   const weeks = opts.weeks ?? 8
   if (!Number.isInteger(weeks) || weeks < 1 || weeks > 26) throw badRequest('weeks must be 1–26', 'INVALID_RANGE')
@@ -47,7 +65,11 @@ export async function taskReport(userId: string, workspaceId: string, opts: { we
   // Load a little before the previous period so time-zone edges don't drop events.
   const since = new Date(Date.parse(`${previousFrom}T00:00:00Z`) - DAY_MS)
 
-  const [tasks, moveRows, createdRows] = await Promise.all([
+  const narrowed = filterWhere(workspaceId, opts.filters ?? {})
+  const kept = narrowed ? new Set((await db.workTask.findMany({ where: narrowed, select: { id: true } })).map((t) => t.id)) : null
+  const keep = (taskId: string | null) => !kept || (!!taskId && kept.has(taskId))
+
+  const [allTasks, moveRows, createdRows] = await Promise.all([
     db.workTask.findMany({
       where: { workspaceId, deletedAt: null },
       select: { id: true, status: true, dueDate: true, blockedAt: true, assigneeMemberId: true, createdAt: true, updatedAt: true, assignee: { include: { user: { include: { profile: true } } } } },
@@ -55,12 +77,13 @@ export async function taskReport(userId: string, workspaceId: string, opts: { we
     db.activity.findMany({ where: { workspaceId, type: 'task.moved', occurredAt: { gte: since } }, select: { taskId: true, occurredAt: true, summary: true }, orderBy: { occurredAt: 'asc' } }),
     db.activity.findMany({ where: { workspaceId, type: 'task.created', occurredAt: { gte: since } }, select: { taskId: true, occurredAt: true } }),
   ])
+  const tasks = allTasks.filter((t) => keep(t.id))
   const toMove = (r: { taskId: string | null; occurredAt: Date; summary: unknown }): Move | null => {
     const s = r.summary as { from?: string; to?: string }
     if (!r.taskId || !s?.from || !s?.to) return null
     return { taskId: r.taskId, at: r.occurredAt, day: localDayKey(r.occurredAt, tz), from: s.from, to: s.to }
   }
-  const moves = moveRows.map(toMove).filter((m): m is Move => !!m)
+  const moves = moveRows.map(toMove).filter((m): m is Move => !!m && keep(m.taskId))
 
   // ─── now ──────────────────────────────────────────────────────────────────
   const ctx = { today, now: now.getTime(), isDone: wf.isDone }
@@ -96,7 +119,7 @@ export async function taskReport(userId: string, workspaceId: string, opts: { we
         .map(toMove).filter((m): m is Move => !!m)
     : []
   const created = new Map<string, Date>()
-  for (const r of createdRows) if (r.taskId) created.set(r.taskId, r.occurredAt)
+  for (const r of createdRows) if (r.taskId && keep(r.taskId)) created.set(r.taskId, r.occurredAt)
   for (const t of tasks) if (!created.has(t.id)) created.set(t.id, t.createdAt)
   const missing = ids.filter((id) => !created.has(id))
   if (missing.length) {
@@ -161,6 +184,7 @@ export async function taskReport(userId: string, workspaceId: string, opts: { we
 
   return {
     range: { from: firstWeek, to: today, weeks, timezone: tz },
+    filtered: !!narrowed,
     now: nowCounts,
     done: { thisPeriod: doneInRange.length ? new Set(doneInRange.map((m) => m.taskId)).size : 0, previousPeriod: previous },
     throughput,

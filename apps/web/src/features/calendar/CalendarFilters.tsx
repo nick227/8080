@@ -15,7 +15,8 @@ const PRIORITIES: { id: TaskPriority; label: string }[] = [
 ]
 
 /** Filters apply to whatever the selected view shows. They live in the URL too. */
-export const CalendarFilters = forwardRef<HTMLInputElement, { count: number; total: number; scoped: CalTask[] }>(function CalendarFilters({ count, total, scoped }, searchRef) {
+/** `reports`: the same filters narrow the reports, except "needs attention" (current state, not history). */
+export const CalendarFilters = forwardRef<HTMLInputElement, { count: number; total: number; scoped: CalTask[]; reports?: boolean }>(function CalendarFilters({ count, total, scoped, reports }, searchRef) {
   const filters = useCalendar((s) => s.filters)
   const setFilters = useCalendar((s) => s.setFilters)
   const clear = useCalendar((s) => s.clearFilters)
@@ -61,22 +62,26 @@ export const CalendarFilters = forwardRef<HTMLInputElement, { count: number; tot
           Only my tasks
         </button>
       )}
-<div className="cal-urgency" role="group" aria-label="Needs attention">
-        {URGENCY.map((u) => {
-          const n = scoped.filter((t) => isUrgent(t, u.key, ctx)).length
-          return (
-            <button key={u.key} type="button" className="cal-urgency-chip" data-key={u.key} aria-pressed={filters.urgency.includes(u.key)} title={u.hint} onClick={() => toggle('urgency', u.key)}>
-              {u.label}{n ? <span className="cal-urgency-count">{n}</span> : null}
-            </button>
-          )
-        })}
-      </div>
+      {!reports && (
+        <div className="cal-urgency" role="group" aria-label="Needs attention">
+          {URGENCY.map((u) => {
+            const n = scoped.filter((t) => isUrgent(t, u.key, ctx)).length
+            return (
+              <button key={u.key} type="button" className="cal-urgency-chip" data-key={u.key} aria-pressed={filters.urgency.includes(u.key)} title={u.hint} onClick={() => toggle('urgency', u.key)}>
+                {u.label}{n ? <span className="cal-urgency-count">{n}</span> : null}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       <Pick label="Type" chosen={filters.types} options={TASK_TYPES.map((t) => ({ id: t, label: TYPE_LABEL[t]! }))} onToggle={(v) => toggle('types', v as Filters['types'][number])} />
       <Pick label="Area" chosen={filters.areas} options={AREAS.map((a) => ({ id: a, label: a }))} onToggle={(v) => toggle('areas', v)} />
       <Pick label="Priority" chosen={filters.priorities} options={PRIORITIES} onToggle={(v) => toggle('priorities', v as TaskPriority)} />
 
-      <span className="cal-view-count" aria-live="polite">{count === total ? `${count} tasks` : `${count} of ${total} tasks`}</span>
+      {reports
+        ? filters.urgency.length > 0 && <span className="cal-view-count">Needs-attention filters don't apply to reports</span>
+        : <span className="cal-view-count" aria-live="polite">{count === total ? `${count} tasks` : `${count} of ${total} tasks`}</span>}
       {filtersActive(filters) && <button className="cal-btn" type="button" onClick={clear}>Clear filters</button>}
     </div>
   )

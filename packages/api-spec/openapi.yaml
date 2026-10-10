@@ -5525,6 +5525,26 @@ paths:
         - in: query
           name: weeks
           schema: { type: integer, minimum: 1, maximum: 26, default: 8 }
+        - in: query
+          name: who
+          description: Comma-separated member ids; `unassigned` = no assignee (current assignee).
+          schema: { type: string, maxLength: 2000 }
+        - in: query
+          name: type
+          description: Comma-separated issue types.
+          schema: { type: string, maxLength: 500 }
+        - in: query
+          name: area
+          description: Comma-separated areas.
+          schema: { type: string, maxLength: 1000 }
+        - in: query
+          name: priority
+          description: Comma-separated priorities.
+          schema: { type: string, maxLength: 200 }
+        - in: query
+          name: q
+          description: Title or key contains.
+          schema: { type: string, maxLength: 200 }
       responses:
         '200':
           description: OK
@@ -8313,8 +8333,11 @@ components:
         data: { $ref: '#/components/schemas/TaskReport' }
     TaskReport:
       type: object
-      required: [range, now, done, throughput, cycleTime, flow, people]
+      required: [range, filtered, now, done, throughput, cycleTime, flow, people]
       properties:
+        filtered:
+          type: boolean
+          description: True when the board filters narrowed the tasks counted.
         range:
           type: object
           required: [from, to, weeks, timezone]

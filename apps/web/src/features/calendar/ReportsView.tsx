@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useTaskReport, type TaskReport } from '@project/sdk'
+import type { Filters } from './store'
 
 // Board reports. Forms follow the data's job: headline numbers are stat tiles;
 // throughput is a single-series column chart; cycle time is two lines on one axis
@@ -49,9 +50,15 @@ function useWidth() {
   return { ref, width }
 }
 
-export function ReportsView({ workspaceId }: { workspaceId: string }) {
+export function ReportsView({ workspaceId, filters }: { workspaceId: string; filters: Filters }) {
   const [weeks, setWeeks] = useState<number>(8)
-  const query = useTaskReport(workspaceId, weeks)
+  const query = useTaskReport(workspaceId, weeks, {
+    who: filters.members.join(','),
+    type: filters.types.join(','),
+    area: filters.areas.join(','),
+    priority: filters.priorities.join(','),
+    q: filters.search.trim(),
+  })
   const r = query.data
   return (
     <div className="cal-reports" data-loading={query.isFetching || undefined}>
@@ -59,7 +66,7 @@ export function ReportsView({ workspaceId }: { workspaceId: string }) {
         {RANGES.map((w) => (
           <button key={w} type="button" className="cal-urgency-chip" aria-pressed={weeks === w} onClick={() => setWeeks(w)}>Last {w} weeks</button>
         ))}
-        <span className="cal-view-count">Whole workspace{r ? ` · ${r.range.timezone}` : ''}</span>
+        <span className="cal-view-count">{r?.filtered ? 'Filtered tasks, by their current fields' : 'Whole workspace'}{r ? ` · ${r.range.timezone}` : ''}</span>
       </div>
       {query.isError && <p className="cal-board-note" role="alert">Reports couldn't load. <button type="button" className="cal-link-btn" onClick={() => void query.refetch()}>Retry</button></p>}
       {!r ? <p className="cal-board-note" role="status">Loading reports…</p> : (
