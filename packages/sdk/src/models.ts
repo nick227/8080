@@ -44,6 +44,7 @@ export type ContactBrief = S['ContactBrief']
 export type BriefClaim = S['BriefClaim']
 export type BriefEvidence = S['BriefEvidence']
 export type CompanyProfile = S['CompanyProfile']
+export type UpdateCompanyProfileInput = S['UpdateCompanyProfileInput']
 export type CompanyFact = S['CompanyFact']
 
 // Workspaces (doc/09)

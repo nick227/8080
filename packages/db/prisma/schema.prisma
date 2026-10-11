@@ -248,6 +248,7 @@ model Media {
   message Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
   roomsAsThumbnail Room[] @relation("RoomThumbnail")
   recordImages RecordImage[]
+  companyLogos CompanyProfile[] @relation("CompanyLogo")
 
   @@index([messageId, position])
   @@index([ownerId, createdAt])
@@ -1703,6 +1704,7 @@ enum CompanyFactKind {
   goal
   term
   avoid
+  link
 }
 
 // The workspace's durable understanding of the business (doc/12 §5.2). Scalar facts
@@ -1717,9 +1719,19 @@ model CompanyProfile {
   brandVoice  CompanyVoice?
   // Denormalized primary gallery projection — written only by RecordImageService.
   imageUrl    String?             @db.VarChar(512)
+  // Profile page details (2026-10-11): set by people on the company page, not the setup.
+  legalName   String?             @db.VarChar(200)
+  website     String?             @db.VarChar(512)
+  industry    String?             @db.VarChar(120)
+  sizeRange   String?             @db.VarChar(16) // 1 | 2-10 | 11-50 | 51-200 | 201-1000 | 1000+
+  foundedYear Int?
+  logoMediaId String?
   updatedAt   DateTime            @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  logo      Media?    @relation("CompanyLogo", fields: [logoMediaId], references: [id], onDelete: SetNull)
+
+  @@index([logoMediaId])
 }
 
 // Where each scalar fact came from.

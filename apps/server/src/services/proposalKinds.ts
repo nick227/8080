@@ -2,7 +2,7 @@
 // validate, show, apply and undo its change. New kinds (contact status, follow-up,
 // inventory…) are added here as their slices land.
 import { badRequest } from '../lib/errors'
-import { CompanyProfileService, LISTS, isList, type FieldSnapshot, type Scalar } from './CompanyProfileService'
+import { CompanyProfileService, INTERVIEW_LISTS as LISTS, isList, type FieldSnapshot, type Scalar } from './CompanyProfileService'
 import { registerProposalKind, type ProposalHandler } from '../lib/proposal'
 import { db } from '@project/db'
 import { normalizePoint } from './contactMatch'
@@ -71,7 +71,8 @@ const companyProfileFact: ProposalHandler<FactChange> = {
   },
 
   revert(undoData: FieldSnapshot) {
-    return 'facts' in undoData ? { field: undoData.field, value: undoData.facts.map((f) => f.value) } : { field: undoData.field, value: undoData.value }
+    // Proposals only ever touch interview fields, so the snapshot's field is one of them.
+    return ('facts' in undoData ? { field: undoData.field, value: undoData.facts.map((f) => f.value) } : { field: undoData.field, value: undoData.value }) as FactChange
   },
 }
 

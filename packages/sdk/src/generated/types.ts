@@ -4729,7 +4729,7 @@ export interface components {
         CompanyFact: {
             id: string;
             /** @enum {string} */
-            kind: "offering" | "customer" | "differentiator" | "goal" | "term" | "avoid";
+            kind: "offering" | "customer" | "differentiator" | "goal" | "term" | "avoid" | "link";
             value: string;
             /**
              * @description inferred = drafted by a model; stated = a person said it; corrected = a person fixed it
@@ -4747,8 +4747,15 @@ export interface components {
             purpose: string | null;
             /** @enum {string|null} */
             brandVoice: "professional" | "friendly" | "bold" | "technical" | null;
-            /** @description Primary gallery image URL (denormalized) */
+            /** @description Primary gallery image URL (denormalized); the page shows it as the cover */
             imageUrl: string | null;
+            legalName: string | null;
+            website: string | null;
+            industry: string | null;
+            /** @enum {string|null} */
+            sizeRange: "1" | "2-10" | "11-50" | "51-200" | "201-1000" | "1000+" | null;
+            foundedYear: number | null;
+            logoUrl: string | null;
             facts: components["schemas"]["CompanyFact"][];
             /** Format: date-time */
             updatedAt: string | null;
@@ -4766,6 +4773,18 @@ export interface components {
                 offerings?: string[];
                 customers?: string[];
                 differentiators?: string[];
+                goals?: string[];
+                /** @description Full http(s) addresses: social profiles and listings */
+                links?: string[];
+                legalName?: string | null;
+                /** @description A full http(s) address */
+                website?: string | null;
+                industry?: string | null;
+                /** @enum {string|null} */
+                sizeRange?: "1" | "2-10" | "11-50" | "51-200" | "201-1000" | "1000+" | null;
+                foundedYear?: number | null;
+                /** @description An image the caller uploaded via POST /media */
+                logoMediaId?: string | null;
             };
         };
         EmailConnection: {

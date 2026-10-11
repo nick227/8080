@@ -3,7 +3,7 @@
 // undo that never reverses newer work, revert / refresh, permissions.
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { db } from '@project/db'
-import { buildTestApp, testUserId, testOtherUserId, seedBotUser, validateResponse } from './helpers'
+import { buildTestApp, testUserId, testOtherUserId, seedBotUser, seedImage, validateResponse } from './helpers'
 import { caller, carolId, createWorkspace, join, seedPeople } from './helpers/workspace'
 import { startWorkspaceHost } from '../services/WorkspaceHost'
 import { CompanyProfileService } from '../services/CompanyProfileService'
@@ -79,6 +79,41 @@ describe('Edit company profile: ordinary fields', () => {
     const before = await db.item.count({ where: { roomId } })
     await say(testUserId, roomId, 'fix a fact')
     expect(await db.item.count({ where: { roomId } })).toBe(before + 1) // only the person's line
+  })
+
+  it('page details: goals, links, legal name, website, industry, size, founded year and logo', async () => {
+    const { ws } = await setup()
+    const logo = await seedImage(testUserId)
+    const before = await profiles.current(ws.id)
+    const res = await edit(testUserId, ws.id, {
+      expectedRevision: before.revision,
+      changes: {
+        goals: ['Grow retainers'], links: ['https://instagram.com/midnight'], legalName: 'Midnight Creative LLC',
+        website: 'https://midnight.example', industry: 'Design studio', sizeRange: '2-10', foundedYear: 2019, logoMediaId: logo.id,
+      },
+    })
+    expect(res.statusCode).toBe(200)
+    await validateResponse('updateCompanyProfile', 200, res.json())
+    const p = res.json().data
+    expect(p).toMatchObject({ legalName: 'Midnight Creative LLC', website: 'https://midnight.example', industry: 'Design studio', sizeRange: '2-10', foundedYear: 2019 })
+    expect(p.logoUrl).toContain(logo.id)
+    expect(p.facts.filter((f: { kind: string }) => f.kind === 'goal').map((f: { value: string }) => f.value)).toEqual(['Grow retainers'])
+    expect(p.facts.filter((f: { kind: string }) => f.kind === 'link').map((f: { value: string }) => f.value)).toEqual(['https://instagram.com/midnight'])
+
+    const cleared = await edit(testUserId, ws.id, { expectedRevision: p.revision, changes: { foundedYear: null, logoMediaId: null } })
+    expect(cleared.json().data).toMatchObject({ foundedYear: null, logoUrl: null })
+  })
+
+  it('page details are validated', async () => {
+    const { ws } = await setup()
+    const { revision } = await profiles.current(ws.id)
+    const code = async (changes: object) => (await edit(testUserId, ws.id, { expectedRevision: revision, changes })).json().code
+    expect(await code({ website: 'midnight.example' })).toBe('INVALID_PROFILE')
+    expect(await code({ links: ['javascript:alert(1)'] })).toBe('INVALID_PROFILE')
+    expect(await code({ foundedYear: 1700 })).toBe('VALIDATION')
+    expect(await code({ sizeRange: 'huge' })).toBe('VALIDATION')
+    expect(await code({ logoMediaId: (await seedImage(carolId)).id })).toBe('INVALID_LOGO')
+    expect((await profiles.current(ws.id)).revision).toBe(revision)
   })
 })
 

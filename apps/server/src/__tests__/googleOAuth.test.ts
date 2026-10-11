@@ -328,7 +328,7 @@ describe('Google OAuth state binding', () => {
     const res = await app.inject({ method: 'GET', url: `/integrations/google/callback?code=good&state=${encodeURIComponent(state)}`, headers: await session(testUserId) })
     fetchMock.mockRestore()
     expect(res.statusCode).toBe(302)
-    expect(res.headers.location).toContain(`/c/${ws.id}?tab=integrations&gmailSuccess=1`)
+    expect(res.headers.location).toContain(`/c/${ws.id}?settings=integrations&gmailSuccess=1`)
     const rows = await db.emailConnection.findMany({ where: { workspaceId: ws.id, strategy: 'google' } })
     expect(rows.map((r) => r.fromAddress)).toEqual(['owner@gmail.com'])
   })

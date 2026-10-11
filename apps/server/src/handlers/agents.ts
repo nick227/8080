@@ -146,7 +146,7 @@ export async function handleGoogleGmailCallback(request: any, reply: any) {
   const frontendUrl = (process.env.CORS_ORIGIN ?? 'http://localhost:5173').split(',')[0] || 'http://localhost:5173'
   const { code, state: rawState, error } = request.query ?? {}
   const back = (workspaceId: string | null, outcome: string) =>
-    reply.redirect(`${frontendUrl}${workspaceId ? `/c/${encodeURIComponent(workspaceId)}?tab=integrations&` : '/?'}${outcome}`)
+    reply.redirect(`${frontendUrl}${workspaceId ? `/c/${encodeURIComponent(workspaceId)}?settings=integrations&` : '/?'}${outcome}`)
 
   const state = typeof rawState === 'string' ? openGmailState(rawState) : null
   if (!state) return back(null, 'gmailError=invalid_state')

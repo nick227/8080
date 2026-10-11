@@ -7180,13 +7180,13 @@ components:
       required: [id, kind, value, status]
       properties:
         id: { type: string }
-        kind: { type: string, enum: [offering, customer, differentiator, goal, term, avoid] }
+        kind: { type: string, enum: [offering, customer, differentiator, goal, term, avoid, link] }
         value: { type: string }
         status: { type: string, enum: [inferred, stated, corrected], description: 'inferred = drafted by a model; stated = a person said it; corrected = a person fixed it' }
 
     CompanyProfile:
       type: object
-      required: [revision, name, location, serviceArea, purpose, brandVoice, imageUrl, facts, updatedAt]
+      required: [revision, name, location, serviceArea, purpose, brandVoice, imageUrl, legalName, website, industry, sizeRange, foundedYear, logoUrl, facts, updatedAt]
       properties:
         revision: { type: integer, description: 0 until the first save }
         name: { type: [string, 'null'] }
@@ -7194,7 +7194,13 @@ components:
         serviceArea: { type: [string, 'null'], enum: [local, regional, national, global, null] }
         purpose: { type: [string, 'null'] }
         brandVoice: { type: [string, 'null'], enum: [professional, friendly, bold, technical, null] }
-        imageUrl: { type: [string, 'null'], description: Primary gallery image URL (denormalized) }
+        imageUrl: { type: [string, 'null'], description: Primary gallery image URL (denormalized); the page shows it as the cover }
+        legalName: { type: [string, 'null'] }
+        website: { type: [string, 'null'] }
+        industry: { type: [string, 'null'] }
+        sizeRange: { type: [string, 'null'], enum: ['1', '2-10', '11-50', '51-200', '201-1000', '1000+', null] }
+        foundedYear: { type: [integer, 'null'] }
+        logoUrl: { type: [string, 'null'] }
         facts: { type: array, items: { $ref: '#/components/schemas/CompanyFact' } }
         updatedAt: { type: [string, 'null'], format: date-time }
 
@@ -7217,6 +7223,14 @@ components:
             offerings: { type: array, maxItems: 12, items: { type: string, maxLength: 500 } }
             customers: { type: array, maxItems: 12, items: { type: string, maxLength: 500 } }
             differentiators: { type: array, maxItems: 12, items: { type: string, maxLength: 500 } }
+            goals: { type: array, maxItems: 12, items: { type: string, maxLength: 500 } }
+            links: { type: array, maxItems: 12, items: { type: string, maxLength: 500 }, description: 'Full http(s) addresses: social profiles and listings' }
+            legalName: { type: [string, 'null'], maxLength: 200 }
+            website: { type: [string, 'null'], maxLength: 512, description: 'A full http(s) address' }
+            industry: { type: [string, 'null'], maxLength: 120 }
+            sizeRange: { type: [string, 'null'], enum: ['1', '2-10', '11-50', '51-200', '201-1000', '1000+', null] }
+            foundedYear: { type: [integer, 'null'], minimum: 1800, maximum: 2100 }
+            logoMediaId: { type: [string, 'null'], description: An image the caller uploaded via POST /media }
 
     EmailConnection:
       type: object
