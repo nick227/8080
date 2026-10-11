@@ -6340,6 +6340,31 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /workspaces/{workspaceId}/budget/import:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: importBudgetItems
+      summary: Add many budget items at once (CSV import)
+      description: At most 500, all or nothing. Repeat with the same idempotencyKey to get the first result back.
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ImportBudgetItemsInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BudgetItemList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /workspaces/{workspaceId}/budget/summary:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -11411,6 +11436,38 @@ components:
         taskId: { type: [string, 'null'] }
         inventoryId: { type: [string, 'null'] }
         expectedVersion: { type: integer }
+
+    ImportBudgetRow:
+      type: object
+      additionalProperties: false
+      required: [title, direction, category, amountMinor, scheduledDate]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: string, maxLength: 2000 }
+        direction: { $ref: '#/components/schemas/BudgetDirection' }
+        category: { $ref: '#/components/schemas/BudgetCategory' }
+        amountMinor: { type: integer, minimum: 0 }
+        status: { $ref: '#/components/schemas/BudgetStatus' }
+        scheduledDate: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+
+    ImportBudgetItemsInput:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        idempotencyKey: { type: string, minLength: 1, maxLength: 128 }
+        items:
+          type: array
+          maxItems: 500
+          items: { $ref: '#/components/schemas/ImportBudgetRow' }
+
+    BudgetItemList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/BudgetItem' }
 
     BudgetItemResponse:
       type: object

@@ -191,4 +191,6 @@ export type CreateBudgetItemInput = S['CreateBudgetItemInput']
 export type UpdateBudgetItemInput = S['UpdateBudgetItemInput']
 export type BudgetSummary = S['BudgetSummary']
 export type PaginatedBudgetResponse = S['PaginatedBudgetResponse']
+export type ImportBudgetRow = S['ImportBudgetRow']
+export type ImportBudgetItemsInput = S['ImportBudgetItemsInput']
 

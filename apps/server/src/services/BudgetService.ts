@@ -7,7 +7,9 @@ import {
   type BudgetStatus,
 } from '@project/db'
 import { badRequest, notFound } from '../lib/errors'
+import { runAction } from './actions'
 import { authorize } from './workspacePolicy'
+import { memberActor, type WorkspaceCtx } from './WorkspaceService'
 
 export type CreateBudgetItemInput = {
   title: string
@@ -32,6 +34,15 @@ export type CreateBudgetItemInput = {
 export type UpdateBudgetItemInput = Partial<CreateBudgetItemInput> & {
   expectedVersion?: number
 }
+
+export type ImportBudgetRow = Pick<CreateBudgetItemInput, 'title' | 'description' | 'direction' | 'category' | 'amountMinor' | 'status' | 'scheduledDate'>
+
+const IMPORT_MAX = 500
+const itemInclude = {
+  contact: { select: { id: true, displayName: true } },
+  task: { select: { id: true, taskKey: true, title: true } },
+  inventory: { select: { id: true, name: true, sku: true } },
+} satisfies Prisma.BudgetItemInclude
 
 export type ListBudgetQuery = {
   direction?: BudgetDirection
@@ -208,6 +219,48 @@ export class BudgetService {
         inventory: { select: { id: true, name: true, sku: true } },
       },
     })
+  }
+
+  /** Many rows at once (CSV import): all or nothing, replayable by idempotency key. */
+  async import(ctx: WorkspaceCtx, workspaceId: string, input: { items: ImportBudgetRow[]; idempotencyKey?: string }) {
+    const actor = await authorize(ctx.user.id, workspaceId, 'budget.write')
+    if (!input.items.length) throw badRequest('Nothing to import', 'EMPTY_IMPORT')
+    if (input.items.length > IMPORT_MAX) throw badRequest(`At most ${IMPORT_MAX} budget items per import`, 'TOO_MANY_ITEMS')
+    input.items.forEach((row, i) => {
+      if (!row.title?.trim()) throw badRequest(`Row ${i + 1}: a title is required`, 'INVALID_TITLE')
+    })
+    const currency = actor.workspace.defaultCurrency || 'USD'
+    const load = async (ids: string[]) => ({
+      data: await db.budgetItem.findMany({ where: { id: { in: ids }, workspaceId, deletedAt: null }, include: itemInclude, orderBy: [{ scheduledDate: 'asc' }, { id: 'asc' }] }),
+    })
+    return runAction(
+      { action: 'budget.import', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { count: input.items.length, items: input.items }, idempotencyKey: input.idempotencyKey, target: { type: 'budget' } },
+      async (tx) => {
+        const ids: string[] = []
+        for (const row of input.items) {
+          const created = await tx.budgetItem.create({
+            data: {
+              workspaceId,
+              title: row.title.trim(),
+              description: row.description?.trim() || null,
+              direction: row.direction,
+              category: row.category,
+              amountMinor: row.amountMinor,
+              currency,
+              status: row.status || 'planned',
+              clearedAt: row.status === 'cleared' ? new Date() : null,
+              scheduledDate: row.scheduledDate,
+              authorMemberId: actor.member.id,
+            },
+            select: { id: true },
+          })
+          ids.push(created.id)
+        }
+        const value = { data: await tx.budgetItem.findMany({ where: { id: { in: ids } }, include: itemInclude, orderBy: [{ scheduledDate: 'asc' }, { id: 'asc' }] }) }
+        return { value, result: { budgetItemIds: ids }, activities: [{ type: 'budget.imported', summary: { count: ids.length } }] }
+      },
+      async (previous) => load((previous.result as { budgetItemIds?: string[] } | null)?.budgetItemIds ?? []),
+    )
   }
 
   async get(userId: string, workspaceId: string, budgetItemId: string) {

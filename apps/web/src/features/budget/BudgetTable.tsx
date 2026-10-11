@@ -1,15 +1,17 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   useBudgetItems,
   useBudgetSummary,
   useCreateBudgetItem,
   useUpdateBudgetItem,
   useDeleteBudgetItem,
+  useImportBudgetItems,
   useContacts,
   type BudgetItem,
   type BudgetDirection,
   type BudgetStatus,
   type BudgetCategory,
+  type BudgetSummary,
 } from '@project/sdk'
 import {
   BUDGET_CATEGORIES,
@@ -21,7 +23,11 @@ import {
   type BudgetIncomeCategoryKey,
   type BudgetExpenseCategoryKey,
 } from '@project/shared'
+import { CsvExample } from '../../components/CsvExample'
 import { CollectionView } from '../collections/CollectionView'
+import { FilterChips } from '../collections/ColumnsMenu'
+import '../documents/DocumentsList.css'
+import { parseBudgetCsv } from './importParse'
 import './budget.css'
 
 export function BudgetTable({ workspaceId }: { workspaceId: string }) {
@@ -29,7 +35,8 @@ export function BudgetTable({ workspaceId }: { workspaceId: string }) {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [search, setSearch] = useState('')
-  const [isSlideoutOpen, setIsSlideoutOpen] = useState(false)
+  const [panel, setPanel] = useState<'new' | 'import' | null>(null)
+  const [notice, setNotice] = useState('')
 
   // Queries
   const queryParams = useMemo(() => {
@@ -52,59 +59,34 @@ export function BudgetTable({ workspaceId }: { workspaceId: string }) {
 
   return (
     <div className="budget-experience">
-      {/* Top Aggregate KPI Strip */}
-      <BudgetKPIBar summary={summary} />
-
       {/* Collection Tabular View */}
       <CollectionView
         collection="budget"
         count={totalCount}
-        onNew={() => setIsSlideoutOpen(true)}
-        subtitle="Manage expenditures and incomes affecting aggregate cashflow and scheduled calendars."
+        onNew={() => setPanel('new')}
+        onImport={() => setPanel('import')}
         search={{
           value: search,
           onChange: setSearch,
           placeholder: 'Search budget descriptions and notes…',
         }}
         filters={
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* Segmented Direction Tabs */}
-            <div className="budget-tabs" role="tablist" aria-label="Budget type tabs">
-              <button
-                type="button"
-                className={`budget-tab-btn ${activeTab === 'all' ? 'active' : ''}`}
-                onClick={() => {
-                  setActiveTab('all')
-                  setCategoryFilter('all')
-                }}
-              >
-                All Entries
-              </button>
-              <button
-                type="button"
-                className={`budget-tab-btn ${activeTab === 'income' ? 'active' : ''}`}
-                onClick={() => {
-                  setActiveTab('income')
-                  setCategoryFilter('all')
-                }}
-              >
-                Income
-              </button>
-              <button
-                type="button"
-                className={`budget-tab-btn ${activeTab === 'expense' ? 'active' : ''}`}
-                onClick={() => {
-                  setActiveTab('expense')
-                  setCategoryFilter('all')
-                }}
-              >
-                Expenses
-              </button>
-            </div>
+          <>
+            <FilterChips
+              label="Budget type"
+              value={activeTab}
+              options={[
+                { id: 'all', label: 'All' },
+                { id: 'income', label: 'Income' },
+                { id: 'expense', label: 'Expenses' },
+              ]}
+              onChange={(tab) => {
+                setActiveTab(tab)
+                setCategoryFilter('all')
+              }}
+            />
 
-            {/* Category Filter */}
             <select
-              className="budget-filter-select"
               aria-label="Filter by category"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
@@ -126,9 +108,7 @@ export function BudgetTable({ workspaceId }: { workspaceId: string }) {
                 : null}
             </select>
 
-            {/* Status Filter */}
             <select
-              className="budget-filter-select"
               aria-label="Filter by status"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -139,10 +119,12 @@ export function BudgetTable({ workspaceId }: { workspaceId: string }) {
               <option value="cleared">Cleared</option>
               <option value="cancelled">Cancelled</option>
             </select>
-          </div>
+          </>
         }
+        view={<BudgetTotals summary={summary} />}
+        notice={notice ? <p className="collection-note" role="status">{notice}</p> : undefined}
       >
-        <div className="budget-table-wrap">
+        <div className="docs-table-wrap collection-table-wrap" role="region" aria-label="Budget register" tabIndex={-1}>
           {isLoading ? (
             <p className="budget-empty">Loading budget records…</p>
           ) : items.length === 0 ? (
@@ -152,24 +134,33 @@ export function BudgetTable({ workspaceId }: { workspaceId: string }) {
               <button
                 type="button"
                 className="section-add-btn"
-                style={{ marginTop: '12px' }}
-                onClick={() => setIsSlideoutOpen(true)}
+                onClick={() => setPanel('new')}
               >
                 + Add budget entry
               </button>
             </div>
           ) : (
-            <table className="budget-table" aria-label="Budget Register">
+            <table className="docs-table collection-table budget-table" aria-label="Budget register">
+              <colgroup>
+                <col className="budget-col-title" />
+                <col className="budget-col-date" />
+                <col className="budget-col-type" />
+                <col className="budget-col-category" />
+                <col className="budget-col-status" />
+                <col className="budget-col-contact" />
+                <col className="budget-col-amount" />
+                <col className="budget-col-action" />
+              </colgroup>
               <thead>
                 <tr>
-                  <th>Scheduled Date</th>
-                  <th>Title</th>
-                  <th>Type</th>
-                  <th>Category</th>
-                  <th>Status</th>
-                  <th>Contact</th>
-                  <th style={{ textAlign: 'right' }}>Amount</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                  <th scope="col">Title</th>
+                  <th scope="col">Date</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Category</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Contact</th>
+                  <th scope="col" data-align="end">Amount</th>
+                  <th scope="col" aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
@@ -187,14 +178,24 @@ export function BudgetTable({ workspaceId }: { workspaceId: string }) {
         </div>
       </CollectionView>
 
-      {/* Slideout for Creating New Budget Items */}
-      {isSlideoutOpen && (
+      {panel === 'new' && (
         <NewBudgetItemSlideout
           workspaceId={workspaceId}
           initialDirection={activeTab === 'expense' ? 'expense' : 'income'}
-          onClose={() => setIsSlideoutOpen(false)}
+          onClose={() => setPanel(null)}
           onCreated={() => {
-            setIsSlideoutOpen(false)
+            setPanel(null)
+            void refetch()
+          }}
+        />
+      )}
+      {panel === 'import' && (
+        <ImportBudgetSlideout
+          workspaceId={workspaceId}
+          onClose={() => setPanel(null)}
+          onImported={(count) => {
+            setPanel(null)
+            setNotice(`Imported ${count} budget ${count === 1 ? 'item' : 'items'}.`)
             void refetch()
           }}
         />
@@ -203,56 +204,36 @@ export function BudgetTable({ workspaceId }: { workspaceId: string }) {
   )
 }
 
-function BudgetKPIBar({ summary }: { summary?: any }) {
-  const currency = summary?.currency ?? 'USD'
-  const incomeTotal = summary?.totalIncomeMinor ?? 0
-  const expenseTotal = summary?.totalExpenseMinor ?? 0
-  const netTotal = summary?.netBalanceMinor ?? 0
-  const pendingCount = (summary?.pendingIncomeMinor ? 1 : 0) + (summary?.pendingExpenseMinor ? 1 : 0)
-
+/** Income, expenses, net and pending as one line on the right of the controls bar. */
+function BudgetTotals({ summary }: { summary?: BudgetSummary }) {
+  if (!summary?.itemCount) return null
+  const currency = summary.currency ?? 'USD'
+  const net = summary.netBalanceMinor ?? 0
+  const pending = (summary.pendingIncomeMinor ?? 0) + (summary.pendingExpenseMinor ?? 0)
   return (
-    <div className="budget-kpi-grid" aria-label="Budget aggregates">
-      <div className="budget-kpi-card">
-        <span className="budget-kpi-label">Total Inflow (Income)</span>
-        <span className="budget-kpi-value inflow">
-          +{formatMinorMoney(incomeTotal, currency)}
-        </span>
-        <span className="budget-kpi-sub">
-          Cleared: {formatMinorMoney(summary?.clearedIncomeMinor ?? 0, currency)}
-        </span>
+    <dl className="budget-totals" aria-label="Budget totals">
+      <div title={`Cleared ${formatMinorMoney(summary.clearedIncomeMinor ?? 0, currency)}`}>
+        <dt>In</dt>
+        <dd data-tone="income">+{formatMinorMoney(summary.totalIncomeMinor ?? 0, currency)}</dd>
       </div>
-
-      <div className="budget-kpi-card">
-        <span className="budget-kpi-label">Total Outflow (Expenses)</span>
-        <span className="budget-kpi-value outflow">
-          -{formatMinorMoney(expenseTotal, currency)}
-        </span>
-        <span className="budget-kpi-sub">
-          Cleared: {formatMinorMoney(summary?.clearedExpenseMinor ?? 0, currency)}
-        </span>
+      <div title={`Cleared ${formatMinorMoney(summary.clearedExpenseMinor ?? 0, currency)}`}>
+        <dt>Out</dt>
+        <dd data-tone="expense">-{formatMinorMoney(summary.totalExpenseMinor ?? 0, currency)}</dd>
       </div>
-
-      <div className="budget-kpi-card">
-        <span className="budget-kpi-label">Net Cashflow / Margin</span>
-        <span className={`budget-kpi-value ${netTotal >= 0 ? 'positive' : 'negative'}`}>
-          {netTotal >= 0 ? '+' : ''}
-          {formatMinorMoney(netTotal, currency)}
-        </span>
-        <span className="budget-kpi-sub">
-          {netTotal >= 0 ? 'Positive Operating Margin' : 'Net Cash Burn'}
-        </span>
+      <div>
+        <dt>Net</dt>
+        <dd data-tone={net >= 0 ? 'income' : 'expense'}>
+          {net >= 0 ? '+' : ''}
+          {formatMinorMoney(net, currency)}
+        </dd>
       </div>
-
-      <div className="budget-kpi-card">
-        <span className="budget-kpi-label">Pending Settlements</span>
-        <span className="budget-kpi-value" style={{ color: '#d97706' }}>
-          {formatMinorMoney((summary?.pendingIncomeMinor ?? 0) + (summary?.pendingExpenseMinor ?? 0), currency)}
-        </span>
-        <span className="budget-kpi-sub">
-          {summary?.itemCount ?? 0} total entries tracked
-        </span>
-      </div>
-    </div>
+      {pending > 0 && (
+        <div>
+          <dt>Pending</dt>
+          <dd data-tone="pending">{formatMinorMoney(pending, currency)}</dd>
+        </div>
+      )}
+    </dl>
   )
 }
 
@@ -293,50 +274,48 @@ function BudgetTableRow({
   }
 
   return (
-    <tr className="budget-row">
-      <td className="budget-date">{item.scheduledDate}</td>
-      <td>
-        <strong>{item.title}</strong>
-        {item.description && (
-          <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-            {item.description}
-          </div>
-        )}
+    <tr className="budget-row" data-row-id={item.id}>
+      <td title={item.description ? `${item.title} — ${item.description}` : item.title}>
+        <span className="budget-title">{item.title}</span>
+        {item.description && <span className="budget-note">{item.description}</span>}
       </td>
-      <td>
-        <span className={`budget-direction-chip ${isIncome ? 'income' : 'expense'}`}>
+      <td className="budget-date" data-label="Date">{item.scheduledDate}</td>
+      <td data-label="Type">
+        <span className="budget-chip" data-direction={item.direction}>
           {isIncome ? '↑ Income' : '↓ Expense'}
         </span>
       </td>
-      <td>
-        <span className="budget-category-label">{categoryLabel}</span>
+      <td data-label="Category">
+        <span className="budget-chip" data-kind="category">{categoryLabel}</span>
       </td>
-      <td>
+      <td data-label="Status">
         <button
           type="button"
-          className={`budget-badge ${item.status}`}
+          className="budget-chip budget-status"
+          data-status={item.status}
           title="Click to cycle status: Planned → Pending → Cleared"
+          disabled={updateMutation.isPending}
           onClick={() => void handleNextStatus()}
-          style={{ cursor: 'pointer', borderStyle: 'solid' }}
         >
           {BUDGET_STATUS_LABELS[item.status as BudgetStatus] ?? item.status}
         </button>
       </td>
-      <td className="budget-contact">
+      <td className="budget-contact" data-label="Contact" data-empty={item.contact ? undefined : ''}>
         {item.contact?.displayName ?? '—'}
       </td>
-      <td style={{ textAlign: 'right' }}>
-        <span className={`budget-amount ${isIncome ? 'income' : 'expense'}`}>
+      <td data-label="Amount" data-align="end">
+        <span className="budget-amount" data-direction={item.direction}>
           {isIncome ? '+' : '-'}
           {formatMinorMoney(item.amountMinor, item.currency)}
         </span>
       </td>
-      <td className="budget-actions-cell">
+      <td data-align="end">
         <button
           type="button"
-          className="budget-action-btn delete"
+          className="collection-row-action budget-delete"
           onClick={() => void handleDelete()}
           aria-label={`Delete ${item.title}`}
+          title="Delete"
         >
           ✕
         </button>
@@ -370,6 +349,7 @@ function NewBudgetItemSlideout({
   const [contactId, setContactId] = useState('')
 
   const contactsQuery = useContacts(workspaceId)
+  useEscape(onClose)
   const createMutation = useCreateBudgetItem(workspaceId)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -402,20 +382,23 @@ function NewBudgetItemSlideout({
 
   return (
     <div className="budget-slideout-backdrop" onClick={onClose}>
-      <div className="budget-slideout" onClick={(e) => e.stopPropagation()}>
+      <div className="budget-slideout" role="dialog" aria-modal="true" aria-labelledby="budget-new-title" onClick={(e) => e.stopPropagation()}>
         <div className="budget-slideout-head">
-          <h2>New Budget Line Item</h2>
-          <button type="button" className="budget-slideout-close" onClick={onClose}>
+          <h2 id="budget-new-title">New budget item</h2>
+          <button type="button" className="budget-slideout-close" onClick={onClose} aria-label="Close">
             ✕
           </button>
         </div>
 
         <form className="budget-form" onSubmit={(e) => void handleSubmit(e)}>
+          <div className="budget-form-fields">
           {/* Direction toggle */}
           <div className="budget-direction-selector">
             <button
               type="button"
-              className={`budget-dir-toggle ${direction === 'income' ? 'active income' : ''}`}
+              className="budget-dir-toggle"
+              data-direction="income"
+              aria-pressed={direction === 'income'}
               onClick={() => {
                 setDirection('income')
                 setCategory('client_retainer')
@@ -425,7 +408,9 @@ function NewBudgetItemSlideout({
             </button>
             <button
               type="button"
-              className={`budget-dir-toggle ${direction === 'expense' ? 'active expense' : ''}`}
+              className="budget-dir-toggle"
+              data-direction="expense"
+              aria-pressed={direction === 'expense'}
               onClick={() => {
                 setDirection('expense')
                 setCategory('software_tools')
@@ -534,18 +519,126 @@ function NewBudgetItemSlideout({
             />
           </div>
 
+          </div>
+
           <div className="budget-slideout-foot">
-            <button type="button" className="budget-action-btn" onClick={onClose}>
+            <button type="button" className="budget-cancel" onClick={onClose}>
               Cancel
             </button>
             <button
               type="submit"
-              className="section-add-btn"
+              className="budget-submit"
               disabled={createMutation.isPending || !title.trim() || !amountDollars}
             >
               {createMutation.isPending ? 'Saving…' : '+ Add to Budget'}
             </button>
           </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+/** Close on Escape, like the other side panels. */
+function useEscape(onClose: () => void) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+}
+
+function ImportBudgetSlideout({
+  workspaceId,
+  onClose,
+  onImported,
+}: {
+  workspaceId: string
+  onClose: () => void
+  onImported: (count: number) => void
+}) {
+  const [text, setText] = useState('')
+  const [error, setError] = useState('')
+  // One key per file contents: a retry after a lost response replays instead of duplicating.
+  const [key, setKey] = useState(() => crypto.randomUUID())
+  const fileRef = useRef<HTMLInputElement>(null)
+  const importMutation = useImportBudgetItems(workspaceId)
+  useEscape(onClose)
+
+  const change = (value: string) => {
+    setText(value)
+    setError('')
+    setKey(crypto.randomUUID())
+  }
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const parsed = parseBudgetCsv(text)
+    if ('error' in parsed) {
+      setError(parsed.error)
+      return
+    }
+    try {
+      const created = await importMutation.mutateAsync({ items: parsed.items, idempotencyKey: key })
+      onImported(created.length)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Import failed. Nothing was added.')
+    }
+  }
+
+  return (
+    <div className="budget-slideout-backdrop" onClick={onClose}>
+      <div className="budget-slideout" role="dialog" aria-modal="true" aria-labelledby="budget-import-title" onClick={(e) => e.stopPropagation()}>
+        <div className="budget-slideout-head">
+          <h2 id="budget-import-title">Import budget items</h2>
+          <button type="button" className="budget-slideout-close" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+
+        <form className="budget-form" onSubmit={(e) => void submit(e)}>
+          <div className="budget-form-fields">
+            <div className="budget-form-field">
+              <label htmlFor="budget-import-csv">CSV</label>
+              <textarea
+                id="budget-import-csv"
+                rows={10}
+                spellCheck={false}
+                autoFocus
+                placeholder={'title,date,amount,type\nFigma,2026-11-03,75.00,expense'}
+                value={text}
+                onChange={(e) => change(e.target.value)}
+              />
+            </div>
+            <CsvExample
+              example={'title,date,amount,type,category,status,notes\nAcme retainer,2026-11-01,4500,income,Client Retainer,cleared,Invoice 1042\nFigma,2026-11-03,-75,,Tools & Software,,'}
+              note="Required: title, date (YYYY-MM-DD or M/D/YYYY), amount. Optional: type (income or expense; otherwise a negative amount is an expense), category (name or key; unknown → Other), status (planned, pending, cleared, cancelled), notes. Up to 500 rows; one bad row stops the whole import."
+            />
+            {error && <p className="budget-error" role="alert">{error}</p>}
+          </div>
+
+          <div className="budget-slideout-foot">
+            <button type="button" className="budget-cancel" onClick={() => fileRef.current?.click()}>
+              Choose file
+            </button>
+            <button type="button" className="budget-cancel" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="budget-submit" disabled={importMutation.isPending || !text.trim()}>
+              {importMutation.isPending ? 'Importing…' : 'Import'}
+            </button>
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,text/csv,text/plain"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) void file.text().then(change)
+              e.target.value = ''
+            }}
+          />
         </form>
       </div>
     </div>

@@ -107,6 +107,7 @@ function sampleBody(op: any) {
     CreateSheetInput: { preset: 'x', idempotencyKey: 'x' },
     RegenerateDocumentInput: { idempotencyKey: 'x' },
     CreateMarketingBudgetInput: { monthlyBudgetMinor: 100, goal: 'leads', idempotencyKey: 'x' },
+    ImportBudgetItemsInput: { items: [] },
     UpdateCompanyProfileInput: { expectedRevision: 0, changes: { name: 'x' } },
     UpdateEmailConnectionInput: { displayName: 'x' },
     CreateAgentInput: { typeKey: 'daily_team_brief' },

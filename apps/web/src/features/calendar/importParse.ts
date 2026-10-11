@@ -78,7 +78,7 @@ function statusOf(value: string): 'open' | 'done' | null {
   return null
 }
 
-function parseCsv(text: string): string[][] | null {
+export function parseCsv(text: string): string[][] | null {
   if (!text) return null
   const rows: string[][] = []
   let row: string[] = []

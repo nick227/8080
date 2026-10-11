@@ -4253,6 +4253,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/budget/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add many budget items at once (CSV import)
+         * @description At most 500, all or nothing. Repeat with the same idempotencyKey to get the first result back.
+         */
+        post: operations["importBudgetItems"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/budget/summary": {
         parameters: {
             query?: never;
@@ -7349,6 +7371,22 @@ export interface components {
             taskId?: string | null;
             inventoryId?: string | null;
             expectedVersion?: number;
+        };
+        ImportBudgetRow: {
+            title: string;
+            description?: string;
+            direction: components["schemas"]["BudgetDirection"];
+            category: components["schemas"]["BudgetCategory"];
+            amountMinor: number;
+            status?: components["schemas"]["BudgetStatus"];
+            scheduledDate: string;
+        };
+        ImportBudgetItemsInput: {
+            idempotencyKey?: string;
+            items: components["schemas"]["ImportBudgetRow"][];
+        };
+        BudgetItemList: {
+            data: components["schemas"]["BudgetItem"][];
         };
         BudgetItemResponse: {
             data: components["schemas"]["BudgetItem"];
@@ -15291,6 +15329,37 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    importBudgetItems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportBudgetItemsInput"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetItemList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     getBudgetSummary: {

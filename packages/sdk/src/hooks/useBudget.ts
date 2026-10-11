@@ -7,6 +7,7 @@ import type {
   BudgetStatus,
   BudgetSummary,
   CreateBudgetItemInput,
+  ImportBudgetItemsInput,
   PaginatedBudgetResponse,
   UpdateBudgetItemInput,
 } from '../models'
@@ -71,6 +72,23 @@ export function useCreateBudgetItem(workspaceId: string) {
     mutationFn: async (body: CreateBudgetItemInput) =>
       unwrap(
         await getApiClient().POST('/workspaces/{workspaceId}/budget', {
+          params: { path: { workspaceId } },
+          body,
+        }),
+      ).data,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['workspaces', workspaceId, 'budget'] })
+    },
+  })
+}
+
+/** CSV import: all rows or none; reuse the idempotencyKey when retrying the same file. */
+export function useImportBudgetItems(workspaceId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: ImportBudgetItemsInput) =>
+      unwrap(
+        await getApiClient().POST('/workspaces/{workspaceId}/budget/import', {
           params: { path: { workspaceId } },
           body,
         }),

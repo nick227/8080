@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildTestApp, testUserId, validateResponse } from './helpers'
+import { buildTestApp, testOtherUserId, testUserId, validateResponse } from './helpers'
 import { caller, createWorkspace } from './helpers/workspace'
 
 const app = buildTestApp()
@@ -72,5 +72,54 @@ describe('workspace budget entity and summary calculations', () => {
     // List after delete
     const afterDel = await call(testUserId, 'GET', `${base}/budget`)
     expect(afterDel.json().total).toBe(1)
+  })
+
+  describe('import', () => {
+    const rows = [
+      { title: 'Retainer — Acme', direction: 'income', category: 'client_retainer', amountMinor: 450000, scheduledDate: '2026-11-01', status: 'cleared', description: 'Invoice 1042' },
+      { title: 'Figma', direction: 'expense', category: 'software_tools', amountMinor: 7500, scheduledDate: '2026-11-03' },
+    ]
+
+    it('creates every row in one go and replays by idempotency key', async () => {
+      const ws = await createWorkspace(app, testUserId, { name: 'Import Co' })
+      const base = `/workspaces/${ws.id}`
+      const res = await call(testUserId, 'POST', `${base}/budget/import`, { items: rows, idempotencyKey: 'csv-1' })
+      expect(res.statusCode).toBe(201)
+      await validateResponse('importBudgetItems', 201, res.json())
+      const created = res.json().data
+      expect(created.map((r: { title: string }) => r.title)).toEqual(['Retainer — Acme', 'Figma'])
+      expect(created[0]).toMatchObject({ status: 'cleared', description: 'Invoice 1042', currency: 'USD' })
+      expect(created[0].clearedAt).toBeTruthy()
+      expect(created[1]).toMatchObject({ status: 'planned', description: null })
+
+      const again = await call(testUserId, 'POST', `${base}/budget/import`, { items: rows, idempotencyKey: 'csv-1' })
+      expect(again.statusCode).toBe(201)
+      expect(again.json().data.map((r: { id: string }) => r.id)).toEqual(created.map((r: { id: string }) => r.id))
+      expect((await call(testUserId, 'GET', `${base}/budget`)).json().total).toBe(2)
+
+      const reused = await call(testUserId, 'POST', `${base}/budget/import`, { items: rows.slice(0, 1), idempotencyKey: 'csv-1' })
+      expect(reused.statusCode).toBe(409)
+    })
+
+    it('refuses the whole file when any row is invalid', async () => {
+      const ws = await createWorkspace(app, testUserId, { name: 'Strict Co' })
+      const base = `/workspaces/${ws.id}`
+      const blank = await call(testUserId, 'POST', `${base}/budget/import`, { items: [rows[0], { ...rows[1], title: '   ' }] })
+      expect(blank.statusCode).toBe(400)
+      expect(blank.json().code).toBe('INVALID_TITLE')
+      const badCategory = await call(testUserId, 'POST', `${base}/budget/import`, { items: [rows[0], { ...rows[1], category: 'nope' }] })
+      expect(badCategory.statusCode).toBe(400)
+      const badDate = await call(testUserId, 'POST', `${base}/budget/import`, { items: [{ ...rows[0], scheduledDate: '11/01/2026' }] })
+      expect(badDate.statusCode).toBe(400)
+      const empty = await call(testUserId, 'POST', `${base}/budget/import`, { items: [] })
+      expect(empty.statusCode).toBe(400)
+      expect((await call(testUserId, 'GET', `${base}/budget`)).json().total).toBe(0)
+    })
+
+    it('is not visible to non-members', async () => {
+      const ws = await createWorkspace(app, testUserId, { name: 'Private Co' })
+      const res = await call(testOtherUserId, 'POST', `/workspaces/${ws.id}/budget/import`, { items: rows })
+      expect(res.statusCode).toBe(404)
+    })
   })
 })

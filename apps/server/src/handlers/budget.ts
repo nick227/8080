@@ -1,3 +1,4 @@
+import { workspaceCtx as ctx } from '../lib/session'
 import { budgetService } from '../services/BudgetService'
 
 export async function listBudgetItems(request: any, reply: any) {
@@ -13,6 +14,10 @@ export async function getBudgetSummary(request: any, reply: any) {
 export async function createBudgetItem(request: any, reply: any) {
   const { workspaceId } = request.params
   return reply.status(201).send({ data: await budgetService.create(request.user.id, workspaceId, request.body) })
+}
+
+export async function importBudgetItems(request: any, reply: any) {
+  return reply.status(201).send(await budgetService.import(ctx(request), request.params.workspaceId, request.body))
 }
 
 export async function getBudgetItem(request: any, reply: any) {
