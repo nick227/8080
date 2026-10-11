@@ -6,6 +6,8 @@ import { ImportSourceStep, type SyncMode } from './ImportSourceStep'
 import { importAdapter, importError, importReason, PROPOSAL_LABEL, type ImportBatch, type ImportRow } from './importAdapter'
 import type { SourceId } from './importSources'
 import { RecordFormDialog } from './RecordChrome'
+import { ItemPage } from '../collections/ItemPage'
+import type { ReactNode } from 'react'
 import type { RecordKind } from './navigation'
 
 type Step = 'source' | 'upload' | 'map' | 'review' | 'results'
@@ -22,10 +24,13 @@ export function RecordImportFlow({
   kind,
   workspaceId,
   onClose,
+  page,
 }: {
   kind: RecordKind
   workspaceId: string
   onClose: () => void
+  /** Full page (Phase 4) instead of a dialog; `backLabel` names the list. */
+  page?: { backLabel: string }
 }) {
   const adapter = importAdapter(kind)
   const queryClient = useQueryClient()
@@ -175,7 +180,7 @@ export function RecordImportFlow({
       : STEPS.filter((entry) => entry.id === 'source')
 
   return (
-    <RecordFormDialog title={adapter.title} onClose={close}>
+    <Frame page={page} title={adapter.title} onClose={close}>
       <div className="record-form record-import">
         <nav className="record-import-steps" aria-label="Import steps">
           {visibleSteps.map((entry) => (
@@ -526,6 +531,13 @@ export function RecordImportFlow({
           )}
         </footer>
       </div>
-    </RecordFormDialog>
+    </Frame>
   )
+}
+
+// Defined at module level (a component made inside render would remount the flow).
+function Frame({ page, title, onClose, children }: { page?: { backLabel: string }; title: string; onClose: () => void; children: ReactNode }) {
+  return page
+    ? <ItemPage back={{ label: page.backLabel, onClick: onClose }} title={title}>{children}</ItemPage>
+    : <RecordFormDialog title={title} onClose={onClose}>{children}</RecordFormDialog>
 }

@@ -193,16 +193,17 @@ function RecordWorkspace({
     nav.recordId ?? undefined,
   )
   const fullName = currentContact.data?.displayName ?? currentItem.data?.name ?? titleCase(kind)
-  // Create and edit are pages with their own address (Phase 4): ?new=1, ?record=…&edit=1.
+  // Create, edit and import are pages with their own address (Phase 4): ?new=1, ?record=…&edit=1, ?import=1.
   const adding = nav.params.get('new') === '1'
-  const flag = (key: 'new' | 'edit', on: boolean) => {
+  const flag = (key: 'new' | 'edit' | 'import', on: boolean) => {
     const next = new URLSearchParams(location.search)
     if (on) next.set(key, '1')
     else next.delete(key)
     navigate({ search: next.toString() }, { replace: !on, state: location.state })
   }
   const setAdding = (on: boolean) => flag('new', on)
-  const [importing, setImporting] = useState(false)
+  const importing = nav.params.get('import') === '1'
+  const setImporting = (on: boolean) => flag('import', on)
   const [messageId, setMessageId] = useState<string | null>(null)
   const [navigationError, setNavigationError] = useState('')
   const scroller = useRef<HTMLDivElement>(null)
@@ -477,7 +478,9 @@ function RecordWorkspace({
           }
         }}
       >
-        {adding ? (
+        {importing ? (
+          <RecordImportFlow page={{ backLabel: kind === 'contacts' ? 'Contacts' : 'Inventory' }} kind={kind} workspaceId={workspaceId} onClose={() => setImporting(false)} />
+        ) : adding ? (
           <RecordForm
             page={{ backLabel: kind === 'contacts' ? 'Contacts' : 'Inventory' }}
             kind={kind}
@@ -704,9 +707,6 @@ function RecordWorkspace({
             }}
           />
         </RecordPreviewPanel>
-      )}
-      {importing && (
-        <RecordImportFlow kind={kind} workspaceId={workspaceId} onClose={() => setImporting(false)} />
       )}
       {messageId && (
         <RecordFormDialog title="Message contact" onClose={() => setMessageId(null)}>
