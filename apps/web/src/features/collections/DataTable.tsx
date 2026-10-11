@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import type { TableState } from './table'
 import '../documents/DocumentsList.css'
 import './collections.css'
@@ -8,7 +8,7 @@ import './collections.css'
  * whole row opens its item (click, Enter), arrow keys / j k move between rows. Domain
  * cells come from the columns; interactive controls inside a cell stop the row click.
  */
-export function DataTable<T>({ label, rows, getId, state, onOpen, selection, empty, rowProps }: {
+export function DataTable<T>({ label, rows, getId, state, onOpen, selection, empty, rowProps, useRow, footer, tableClass }: {
   label: string
   rows: T[]
   getId: (row: T) => string
@@ -18,6 +18,12 @@ export function DataTable<T>({ label, rows, getId, state, onOpen, selection, emp
   selection?: { selected: Set<string>; onChange: (next: Set<string>) => void; limit?: number }
   empty?: ReactNode
   rowProps?: (row: T) => Record<string, string | undefined>
+  /** A hook run once per row (e.g. an inline editor); its result reaches every cell as `ctx`. */
+  useRow?: (row: T) => unknown
+  /** Under the table: "Load more", totals. */
+  footer?: ReactNode
+  /** A domain class on the table for its column widths and cell styling. */
+  tableClass?: string
 }) {
   const body = useRef<HTMLTableSectionElement>(null)
   // The roving tab stop follows the row (by id), so a re-sort keeps focus on the same item.
@@ -52,7 +58,7 @@ export function DataTable<T>({ label, rows, getId, state, onOpen, selection, emp
 
   return (
     <div className="docs-table-wrap collection-table-wrap" role="region" aria-label={label} tabIndex={-1}>
-      <table className="docs-table collection-table" aria-label={label}>
+      <table className={`docs-table collection-table${tableClass ? ` ${tableClass}` : ''}`} aria-label={label}>
         <colgroup>
           {selection && <col style={{ width: '2.5rem' }} />}
           {columns.map((c) => <col key={c.id} style={c.width ? { width: c.width } : undefined} />)}
@@ -71,11 +77,11 @@ export function DataTable<T>({ label, rows, getId, state, onOpen, selection, emp
               </th>
             )}
             {columns.map((c) => {
-              const active = state.sort.id === c.id
+              const active = state.sort.id === (c.sortKey ?? c.id)
               return (
-                <th key={c.id} scope="col" data-align={c.align} aria-sort={active ? (state.sort.dir === 1 ? 'ascending' : 'descending') : c.sortValue ? 'none' : undefined}>
+                <th key={c.id} scope="col" className={c.className} title={c.headerTitle} data-align={c.align} aria-sort={active ? (state.sort.dir === 1 ? 'ascending' : 'descending') : c.sortValue ? 'none' : undefined}>
                   {c.sortValue ? (
-                    <button type="button" className="docs-sort" data-active={active || undefined} onClick={() => state.sortBy(c.id)}>
+                    <button type="button" className="docs-sort" data-active={active || undefined} onClick={() => state.sortBy(c.sortKey ?? c.id)}>
                       {c.header}
                       <span className="docs-sort-dir" aria-hidden>{active ? (state.sort.dir === 1 ? '↑' : '↓') : '↕'}</span>
                     </button>
@@ -92,43 +98,81 @@ export function DataTable<T>({ label, rows, getId, state, onOpen, selection, emp
             <tr className="docs-none"><td colSpan={span}>{empty ?? 'Nothing here yet.'}</td></tr>
           ) : rows.map((row, index) => {
             const id = getId(row)
-            const selected = selection?.selected.has(id)
             return (
-              <tr
+              <DataRow
                 key={id}
-                tabIndex={index === focusIndex ? 0 : -1}
-                data-selected={selected ? '' : undefined}
-                data-open={onOpen ? '' : undefined}
-                {...rowProps?.(row)}
+                row={row}
+                id={id}
+                columns={columns}
+                tabbable={index === focusIndex}
+                selected={!!selection?.selected.has(id)}
+                selectable={!!selection}
+                selectBlocked={!!selection?.limit && !selection.selected.has(id) && selection.selected.size >= selection.limit}
+                extra={rowProps?.(row)}
+                useRow={useRow}
                 onFocus={() => setFocusId(id)}
-                onClick={(e) => {
-                  // A control inside the row (link, button, input) handles its own click.
-                  if ((e.target as HTMLElement).closest('a, button, input, select, textarea, label')) return
-                  onOpen?.(row)
-                }}
-                onKeyDown={(e) => {
-                  if (e.target !== e.currentTarget) return
+                onOpen={onOpen ? () => onOpen(row) : undefined}
+                onToggle={() => toggle(id)}
+                onMove={(e) => {
                   if (e.key === 'ArrowDown' || (e.key === 'j' && !e.metaKey && !e.ctrlKey)) { e.preventDefault(); focusRow(index + 1) }
                   else if (e.key === 'ArrowUp' || (e.key === 'k' && !e.metaKey && !e.ctrlKey)) { e.preventDefault(); focusRow(index - 1) }
                   else if (e.key === 'Home') { e.preventDefault(); focusRow(0) }
                   else if (e.key === 'End') { e.preventDefault(); focusRow(rows.length - 1) }
-                  else if (e.key === 'Enter' && onOpen) { e.preventDefault(); onOpen(row) }
-                  else if (e.key === ' ' && selection) { e.preventDefault(); toggle(id) }
                 }}
-              >
-                {selection && (
-                  <td className="collection-select-cell">
-                    <input type="checkbox" aria-label="Select row" checked={!!selected} onChange={() => toggle(id)} />
-                  </td>
-                )}
-                {columns.map((c) => (
-                  <td key={c.id} data-align={c.align} title={c.title?.(row)}>{c.cell(row)}</td>
-                ))}
-              </tr>
+              />
             )
           })}
         </tbody>
       </table>
+      {footer}
     </div>
+  )
+}
+
+function DataRow<T>({ row, id, columns, tabbable, selected, selectable, selectBlocked, extra, useRow, onFocus, onOpen, onToggle, onMove }: {
+  row: T
+  id: string
+  columns: TableState<T>['visible']
+  tabbable: boolean
+  selected: boolean
+  selectable: boolean
+  selectBlocked: boolean
+  extra?: Record<string, string | undefined>
+  useRow?: (row: T) => unknown
+  onFocus: () => void
+  onOpen?: () => void
+  onToggle: () => void
+  onMove: (e: ReactKeyboardEvent<HTMLTableRowElement>) => void
+}) {
+  // One hook per row; a table passes useRow always or never, so the order is stable.
+  const ctx = useRow ? useRow(row) : undefined
+  return (
+    <tr
+      tabIndex={tabbable ? 0 : -1}
+      data-selected={selected ? '' : undefined}
+      data-open={onOpen ? '' : undefined}
+      {...extra}
+      onFocus={onFocus}
+      onClick={(e) => {
+        // A control inside the row (link, button, input) handles its own click.
+        if ((e.target as HTMLElement).closest('a, button, input, select, textarea, label, [data-editable]')) return
+        onOpen?.()
+      }}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return
+        if (e.key === 'Enter' && onOpen) { e.preventDefault(); onOpen(); return }
+        if (e.key === ' ' && selectable) { e.preventDefault(); onToggle(); return }
+        onMove(e)
+      }}
+    >
+      {selectable && (
+        <td className="collection-select-cell">
+          <input type="checkbox" aria-label="Select row" checked={selected} disabled={selectBlocked} title={selectBlocked ? 'Up to 50 at a time' : undefined} onChange={onToggle} />
+        </td>
+      )}
+      {columns.map((c) => (
+        <td key={c.id} className={c.className} data-align={c.align} data-editable={c.editable ? '' : undefined} title={c.title?.(row)}>{c.cell(row, ctx)}</td>
+      ))}
+    </tr>
   )
 }

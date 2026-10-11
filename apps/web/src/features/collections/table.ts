@@ -5,7 +5,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 export type Column<T> = {
   id: string
   header: string
-  cell: (row: T) => ReactNode
+  /** `ctx` is the table's per-row hook result (DataTable `useRow`), e.g. a row editor. */
+  cell: (row: T, ctx: unknown) => ReactNode
   /** Sortable when given. Nulls sort last. */
   sortValue?: (row: T) => string | number | null | undefined
   /** First click sorts this way (dates usually newest first). */
@@ -18,6 +19,14 @@ export type Column<T> = {
   defaultHidden?: boolean
   /** Text for the cell's tooltip when it truncates. */
   title?: (row: T) => string | undefined
+  /** The API's sort key when it differs from the column id (server-sorted lists). */
+  sortKey?: string
+  /** Header tooltip explaining the column. */
+  headerTitle?: string
+  /** Class for this column's header and cells (domain styling hooks). */
+  className?: string
+  /** Clicks anywhere in this cell edit it instead of opening the row. */
+  editable?: boolean
 }
 
 export type Sort = { id: string; dir: 1 | -1 }
@@ -61,11 +70,11 @@ export function useTableState<T>(collection: string, columns: Column<T>[], initi
   const params = new URLSearchParams(location.search)
   const urlSort = params.get('sort')
   const urlDir = params.get('dir')
-  const fromUrl = columns.find((c) => c.id === urlSort && c.sortValue)
-  const sort: Sort = fromUrl ? { id: fromUrl.id, dir: urlDir === 'desc' ? -1 : 1 } : initial
+  const fromUrl = columns.find((c) => (c.sortKey ?? c.id) === urlSort && c.sortValue)
+  const sort: Sort = fromUrl ? { id: fromUrl.sortKey ?? fromUrl.id, dir: urlDir === 'desc' ? -1 : 1 } : initial
 
   const sortBy = useCallback((id: string) => {
-    const column = columns.find((c) => c.id === id)
+    const column = columns.find((c) => (c.sortKey ?? c.id) === id)
     if (!column?.sortValue) return
     const dir = sort.id === id ? (sort.dir === 1 ? -1 : 1) : (column.firstDir ?? 1)
     const next = new URLSearchParams(location.search)
@@ -88,7 +97,7 @@ export function useTableState<T>(collection: string, columns: Column<T>[], initi
   }, [hidden])
   const visible = useMemo(() => columns.filter((c, i) => i === 0 || c.hideable === false || !hidden.has(c.id)), [columns, hidden])
   const sortRows = useCallback((rows: T[], tiebreak?: (a: T, b: T) => number) => {
-    const column = columns.find((c) => c.id === sort.id)
+    const column = columns.find((c) => (c.sortKey ?? c.id) === sort.id)
     if (!column?.sortValue) return rows
     const value = column.sortValue
     return [...rows].sort((a, b) => sort.dir * compareValues(value(a), value(b)) || (tiebreak?.(a, b) ?? 0))

@@ -84,6 +84,7 @@ export function InventoryTable({ table, ...props }: Props & { table: TableState<
         onChange: (next) => props.onSelect([...next]),
       }}
       empty="No inventory items found."
+      tableClass="inventory-table"
     />
   )
 }

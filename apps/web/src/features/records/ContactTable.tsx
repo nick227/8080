@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { DataTable } from '../collections/DataTable'
+import { useTableState, type Column } from '../collections/table'
 import { CONTACT_FIELD_DEFAULTS, CONTACT_MILESTONES, CONTACT_MILESTONE_HELP, type ContactFieldDefinition } from '@project/shared'
 import { useContactFields, useNotes, useWorkspaceMembers, useWorkspaceVocabulary, type Contact, type UpdateContactInput, type WorkspaceMember } from '@project/sdk'
 import { STAGES, dateLabel, followUpLate, localDay, titleCase } from './labels'
@@ -32,43 +34,72 @@ type Props = {
 export function ContactUndoBar({ undo, workspaceId, onDismiss }: { undo: ContactUndo | null; workspaceId: string; onDismiss: () => void }) {
   return null
 }
+/** Contacts on the shared collection table (redesign D9). The API sorts (URL `sort`/`dir`);
+ *  which columns show is the saved view's choice (the Columns picker in the bar). Cells
+ *  edit in place through one row editor per contact; phones get the card list. */
 export function ContactTable(props: Props) {
   const fields = useContactFields(props.workspaceId)
   const members = useWorkspaceMembers(props.workspaceId)
+  const vocabulary = useWorkspaceVocabulary(props.workspaceId)
   const definitions = fields.data ?? CONTACT_FIELD_DEFAULTS
-  const columns = columnsFor(definitions).filter(c => props.columns.includes(c.key))
+  const visible = columnsFor(definitions).filter(c => props.columns.includes(c.key))
   const mobile = useMobile()
-  const scope = props.records.slice(0, 50).map(c => c.id)
-  const allSelected = scope.length > 0 && scope.every(id => props.selected.includes(id))
-  const selectAll = useRef<HTMLInputElement>(null)
-  useEffect(() => { if (selectAll.current) selectAll.current.indeterminate = props.selected.length > 0 && !allSelected }, [props.selected.length, allSelected])
-  const selection = <input ref={selectAll} type="checkbox" aria-label={`Select first ${scope.length} loaded contacts`} checked={allSelected} onChange={() => props.onSelect(allSelected ? [] : scope)} />
-  const header = (label: string, key?: string, help?: string) => key ? (
-    <button type="button" className="docs-sort" data-active={props.sort === key || undefined} title={help} onClick={() => props.onSort(key)}>
-      {label}
-      <span className="docs-sort-dir" aria-hidden>{props.sort === key ? (props.dir === 'desc' ? '↓' : '↑') : '↕'}</span>
-    </button>
-  ) : (
-    <span className="docs-sort" title={help}>{label}</span>
+  const stages = (vocabulary.data?.stages ?? []).filter((s) => !s.archived)
+  const shared: RowShared = {
+    ...props,
+    definitions,
+    members: members.data ?? [],
+    stageOptions: stages.length ? stages : STAGES.map((key) => ({ key, label: titleCase(key) })),
+    visible: visible.map(c => c.key),
+  }
+  const columns: Column<Contact>[] = [
+    {
+      id: 'name', header: 'Contact', sortKey: 'name', sortValue: () => 0, hideable: false, className: 'contact-name', width: '16rem',
+      cell: (_c, ctx) => (ctx as ContactRow).nameCell,
+    },
+    ...visible.map((c): Column<Contact> => ({
+      id: c.key,
+      header: c.key === 'potentialValue' ? `${c.label} (${props.currency})` : c.label,
+      sortKey: c.sort,
+      sortValue: c.sort ? () => 0 : undefined,
+      hideable: false,
+      editable: true,
+      className: isMilestone(c.key) ? 'contact-milestone' : `contact-column-${c.key}`,
+      headerTitle: isMilestone(c.key) ? CONTACT_MILESTONE_HELP[c.key] : c.key === 'stage' ? 'Current position in the pipeline; completed milestones are recorded separately.' : undefined,
+      cell: (_c, ctx) => (ctx as ContactRow).fieldCell(c.key),
+    })),
+    {
+      id: 'preview', header: '', width: '7rem', hideable: false,
+      cell: (c) => <button type="button" className="collection-row-action" aria-label={`Preview ${c.displayName}`} onClick={() => props.onPreview(c.id, c.displayName)}>Preview</button>,
+    },
+  ]
+  const table = useTableState('contacts', columns, { id: 'name', dir: 1 }, {
+    sort: { id: props.sort, dir: props.dir === 'desc' ? -1 : 1 },
+    onSort: props.onSort,
+  })
+
+  if (mobile) {
+    const scope = props.records.slice(0, 50).map(c => c.id)
+    const allSelected = scope.length > 0 && scope.every(id => props.selected.includes(id))
+    return <div className="contact-mobile-workbench">
+      <label className="contact-mobile-selection"><input type="checkbox" aria-label={`Select first ${scope.length} loaded contacts`} checked={allSelected} onChange={() => props.onSelect(allSelected ? [] : scope)} />Select {scope.length > 1 ? `first ${scope.length}` : 'contact'}<span>Up to 50 at a time</span></label>
+      <div className="contact-mobile-list">{props.records.map(contact => <ContactCard key={contact.id} contact={contact} shared={shared} />)}</div>
+    </div>
+  }
+  return (
+    <DataTable
+      label="Contacts"
+      rows={props.records}
+      getId={(c) => c.id}
+      state={table}
+      onOpen={(c) => props.onOpen(c.id)}
+      useRow={(c) => useContactRow(c, shared)}
+      rowProps={(c) => ({ 'data-preview': props.previewId === c.id ? '' : undefined })}
+      selection={{ selected: new Set(props.selected), limit: 50, onChange: (next) => props.onSelect([...next]) }}
+      empty="No contacts found."
+      tableClass="contact-table"
+    />
   )
-  const rows = props.records.map(contact => <ContactTableRow key={contact.id} {...props} contact={contact} definitions={definitions} visible={columns.map(c => c.key)} members={members.data ?? []} mobile={mobile} />)
-  if (mobile) return <div className="contact-mobile-workbench">
-    <label className="contact-mobile-selection">{selection}Select {scope.length > 1 ? `first ${scope.length}` : 'contact'}<span>Up to 50 at a time</span></label>
-    <div className="contact-mobile-list">{rows}</div>
-  </div>
-  return <div className="docs-table-wrap contact-table-scroll" tabIndex={0} role="region" aria-label="Contact workbench">
-    <table className="docs-table contact-table">
-      <caption className="record-sr-only">Contacts. Edit fields directly. Select up to 50 loaded contacts at a time.</caption>
-      <thead><tr>
-        <th className="table-col-check">{selection}</th>
-        <th className="contact-name" scope="col" aria-sort={props.sort === 'name' ? props.dir === 'desc' ? 'descending' : 'ascending' : 'none'}>{header('Contact', 'name')}</th>
-        {columns.map((c, index) => <th key={c.key} scope="col" className={isMilestone(c.key) ? 'contact-milestone' : `contact-column-${c.key}`} aria-sort={c.sort && props.sort === c.sort ? props.dir === 'desc' ? 'descending' : 'ascending' : undefined}>
-          {header(c.key === 'potentialValue' ? `${c.label} (${props.currency})` : c.label, c.sort, isMilestone(c.key) ? CONTACT_MILESTONE_HELP[c.key] : c.key === 'stage' ? 'Current position in the pipeline; completed milestones are recorded separately.' : undefined)}
-        </th>)}
-        <th scope="col" className="docs-col-action"><span className="docs-sort">Preview</span></th>
-      </tr></thead><tbody>{rows}</tbody>
-    </table>
-  </div>
 }
 
 function NotesCountCell({ workspaceId, contactId, contactName, onPreview }: { workspaceId: string; contactId: string; contactName: string; onPreview: (id: string, name: string) => void }) {
@@ -90,12 +121,13 @@ function NotesCountCell({ workspaceId, contactId, contactName, onPreview }: { wo
   )
 }
 
-type RowProps = Props & { contact: Contact; definitions: ContactFieldDefinition[]; visible: string[]; members: WorkspaceMember[]; mobile: boolean }
-function ContactTableRow({ contact, definitions, visible, members, mobile, ...props }: RowProps) {
+type RowShared = Props & { definitions: ContactFieldDefinition[]; members: WorkspaceMember[]; stageOptions: { key: string; label: string }[]; visible: string[] }
+type ContactRow = ReturnType<typeof useContactRow>
+
+// One contact's in-place editor and its cell renderers (shared by the table and the card).
+function useContactRow(contact: Contact, shared: RowShared) {
+  const { definitions, members, stageOptions, ...props } = shared
   const editor = useContactRowEditor(contact, props.workspaceId, props.onCommitted)
-  const vocabulary = useWorkspaceVocabulary(props.workspaceId)
-  const stages = (vocabulary.data?.stages ?? []).filter((s) => !s.archived)
-  const stageOptions = stages.length ? stages : STAGES.map((key) => ({ key, label: titleCase(key) }))
   const { current } = editor
   const [notesOpen, setNotesOpen] = useState(false)
   const [logOpen, setLogOpen] = useState(false)
@@ -155,41 +187,37 @@ function ContactTableRow({ contact, definitions, visible, members, mobile, ...pr
     {notesOpen && <RecordFormDialog title={`Notes · ${current.displayName}`} onClose={() => setNotesOpen(false)}><RecordNotes workspaceId={props.workspaceId} subject={{ contactId: current.id }} recordName={current.displayName} /></RecordFormDialog>}
     {logOpen && <ContactLogForm contact={current} editor={editor} feedback={feedback} onClose={() => setLogOpen(false)} />}
   </>
-  if (mobile) {
-    const primary = ['nextAction', 'followUp']
-    const milestones = definitions.filter(f => isMilestone(f.key) && !f.archived)
-    const extra = [...new Set(['owner', 'lastContactedAt', 'stage', 'interestedIn', 'details', ...visible.filter(key => !primary.includes(key) && !isMilestone(key))])]
-    return <article className="contact-mobile-card" aria-label={current.displayName} data-selected={props.selected.includes(current.id) || undefined}>
-      <header>{selection}<div className="contact-identity">
-        <a href={props.href(current.id)} data-record-link={current.id} onClick={e => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && e.button === 0) { e.preventDefault(); props.onOpen(current.id) } }}>{current.displayName}</a>
-        {(company?.name || current.title) && <small className="contact-company">{company?.name ?? current.title}</small>}
-      </div></header>
-      {!logOpen && feedback}
-      <div className="contact-mobile-primary">{primary.map(key => <label key={key}><span>{key === 'followUp' ? 'Follow-up' : definition(key)?.label ?? 'Next action'}</span>{fieldCell(key)}</label>)}</div>
-      <fieldset className="contact-mobile-milestones"><legend>Completed milestones</legend>{milestones.map(f => <label key={f.key}>{fieldCell(f.key)}<span>{f.label}</span></label>)}</fieldset>
-      <details className="contact-mobile-more"><summary>More details</summary><div>{extra.map(key => <label key={key}><span>{columnsFor(definitions).find(c => c.key === key)?.label ?? key}</span>{fieldCell(key)}</label>)}</div></details>
-      {dialogs}
-    </article>
-  }
-  return <tr data-selected={props.selected.includes(current.id) || props.previewId === current.id || undefined} onClick={() => props.onOpen(current.id)}>
-    <td className="table-col-check" onClick={e => e.stopPropagation()}>{selection}</td>
-    <td scope="row" className="contact-name">
-      <div className="contact-name-cell">
-        <RecordMedia person name={current.displayName} src={current.imageUrl} />
-        <div className="contact-name-info">
-          <a href={props.href(current.id)} data-record-link={current.id} onClick={e => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && e.button === 0) { e.preventDefault(); props.onOpen(current.id) } }}>{current.displayName}</a>
-          {(company?.name || current.title) && <small className="docs-name-sub">{company?.name ?? current.title}</small>}
-        </div>
+  const link = <a href={props.href(current.id)} data-record-link={current.id} onClick={e => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && e.button === 0) { e.preventDefault(); props.onOpen(current.id) } }}>{current.displayName}</a>
+  const nameCell = <>
+    <div className="contact-name-cell">
+      <RecordMedia person name={current.displayName} src={current.imageUrl} />
+      <div className="contact-name-info">
+        {link}
+        {(company?.name || current.title) && <small className="docs-name-sub">{company?.name ?? current.title}</small>}
       </div>
-      {!logOpen && feedback}{dialogs}
-    </td>
-    {visible.map(key => <td key={key} className={isMilestone(key) ? 'contact-milestone' : `contact-column-${key}`} onClick={e => e.stopPropagation()}>{fieldCell(key)}</td>)}
-    <td className="docs-col-action" onClick={e => e.stopPropagation()}>
-      <button type="button" className="docs-preview-btn" aria-label={`Preview ${current.displayName}`} onClick={() => props.onPreview(current.id, current.displayName)}>
-        Preview ↗
-      </button>
-    </td>
-  </tr>
+    </div>
+    {!logOpen && feedback}{dialogs}
+  </>
+  return { editor, current, company, fieldCell, feedback, dialogs, selection, link, logOpen, definition, nameCell, setNotesOpen, setLogOpen }
+}
+
+function ContactCard({ contact, shared }: { contact: Contact; shared: RowShared }) {
+  const { current, company, fieldCell, feedback, dialogs, selection, link, logOpen, definition } = useContactRow(contact, shared)
+  const { definitions, visible, ...props } = shared
+  const primary = ['nextAction', 'followUp']
+  const milestones = definitions.filter(f => isMilestone(f.key) && !f.archived)
+  const extra = [...new Set(['owner', 'lastContactedAt', 'stage', 'interestedIn', 'details', ...visible.filter(key => !primary.includes(key) && !isMilestone(key))])]
+  return <article className="contact-mobile-card" aria-label={current.displayName} data-selected={props.selected.includes(current.id) || undefined}>
+    <header>{selection}<div className="contact-identity">
+      <a href={props.href(current.id)} data-record-link={current.id} onClick={e => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && e.button === 0) { e.preventDefault(); props.onOpen(current.id) } }}>{current.displayName}</a>
+      {(company?.name || current.title) && <small className="contact-company">{company?.name ?? current.title}</small>}
+    </div></header>
+    {!logOpen && feedback}
+    <div className="contact-mobile-primary">{primary.map(key => <label key={key}><span>{key === 'followUp' ? 'Follow-up' : definition(key)?.label ?? 'Next action'}</span>{fieldCell(key)}</label>)}</div>
+    <fieldset className="contact-mobile-milestones"><legend>Completed milestones</legend>{milestones.map(f => <label key={f.key}>{fieldCell(f.key)}<span>{f.label}</span></label>)}</fieldset>
+    <details className="contact-mobile-more"><summary>More details</summary><div>{extra.map(key => <label key={key}><span>{columnsFor(definitions).find(c => c.key === key)?.label ?? key}</span>{fieldCell(key)}</label>)}</div></details>
+    {dialogs}
+  </article>
 }
 
 function ContactEditFeedback({ editor, definitions }: { editor: ReturnType<typeof useContactRowEditor>; definitions: ContactFieldDefinition[] }) {
