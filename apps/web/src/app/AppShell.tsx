@@ -4,7 +4,6 @@ import { useSession } from '@project/sdk'
 import { ThemeSwitcher } from '../components/ThemeSwitcher'
 import { AccountSheet } from '../features/AccountSheet'
 import { CommandPalette, openCommandPalette } from '../features/command/CommandPalette'
-import { WorkspaceList } from '../features/home/WorkspaceList'
 import { useShell } from '../state/shell'
 import '../features/home/home.css'
 import '../features/blueprints/blueprints.css'
@@ -67,7 +66,7 @@ export function AppShell() {
         { to: '/workspaces', label: 'Workspaces', icon: '▣', active: location.pathname === '/' || location.pathname === '/workspaces' },
         { to: '/conversations', label: 'Community', icon: '☷', active: location.pathname === '/conversations' },
         { to: '/blueprints', label: 'Blueprints', icon: '▦', active: location.pathname === '/blueprints' || location.pathname.startsWith('/blueprints/') },
-      ].map(item => <Link key={item.to} to={item.to} aria-label={item.label} aria-current={item.active ? 'page' : undefined} title={item.label}><span aria-hidden>{item.icon}</span><span className="bp-nav-label">{item.label}<small className="app-nav-detail">{item.detail}</small></span></Link>)}</nav>
+      ].map(item => <Link key={item.to} to={item.to} aria-label={item.label} aria-current={item.active ? 'page' : undefined} title={item.label}><span aria-hidden>{item.icon}</span><span className="bp-nav-label">{item.label}</span></Link>)}</nav>
 
       <div className="bp-nav-bottom"><span className="bp-nav-label">8080<br /></span></div>
     </aside>
