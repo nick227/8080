@@ -120,7 +120,10 @@ describe('secrets', () => {
     expect(sealed).not.toContain('hunter2')
     expect(decryptSecret(sealed)).toEqual({ password: 'hunter2' })
     const parts = sealed.split('.')
-    parts[4] = Buffer.from('x' + Buffer.from(parts[4]!, 'base64url').toString('latin1').slice(1), 'latin1').toString('base64url')
+    // Flip a bit (replacing the byte with a constant was a no-op 1 time in 256).
+    const tampered = Buffer.from(parts[4]!, 'base64url')
+    tampered[0] = tampered[0]! ^ 1
+    parts[4] = tampered.toString('base64url')
     expect(() => decryptSecret(parts.join('.'))).toThrow()
 
     vi.stubEnv('SECRET_KEYS', `k2:${key(2)},k1:${key(1)}`)
