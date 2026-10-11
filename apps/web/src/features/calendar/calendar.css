@@ -2291,11 +2291,6 @@
 .cal-chart-table th { text-align: left; font-weight: normal; font-size: var(--text-label); color: var(--muted); padding: 4px var(--space-sm); border-bottom: var(--line-width) solid var(--line); }
 .cal-chart-table td { padding: 4px var(--space-sm); border-bottom: var(--line-width) solid var(--line); color: var(--ink); font-variant-numeric: tabular-nums; }
 
-/* The task list starts with the everyday fields; extra planning fields are optional. */
-.cal-table-view:not([data-details]) :is(th, td):nth-child(7),
-.cal-table-view:not([data-details]) :is(th, td):nth-child(8),
-.cal-table-view:not([data-details]) :is(th, td):nth-child(9),
-.cal-table-view:not([data-details]) :is(th, td):nth-child(11) { display: none; }
 .cal-table-tools { flex-wrap: wrap; }
 a.cal-title-link { text-decoration: none; }
 a.cal-title-link:hover { text-decoration: underline; }

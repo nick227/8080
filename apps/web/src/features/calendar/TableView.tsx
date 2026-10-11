@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { taskPath } from '../tasks/links'
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { isUrgent } from '@project/shared'
 import { Avatar, since, useParentKey } from './BoardView'
 import { FIELDS, openField, setField, targetsFor, taskShortcut } from './actions'
@@ -10,10 +10,13 @@ import type { Workflow } from '@project/shared'
 import { useTeam } from './sync'
 import type { CalTask } from './types'
 import { downloadCsv, tasksCsv } from './csv'
+import { ColumnsMenu } from '../collections/ColumnsMenu'
+import { DataTable } from '../collections/DataTable'
+import { useTableState, type Column } from '../collections/table'
 
-// A dense, editable list of the same tasks the board shows. Every field cell opens
-// the shared picker (actions.ts), so a cell, a card chip, a shortcut and the bulk
-// bar all make the same write.
+// A dense, editable list of the same tasks the board shows (on the shared collection
+// table). Every field cell opens the shared picker (actions.ts), so a cell, a card chip,
+// a shortcut and the bulk bar all make the same write.
 
 type SortKey = 'key' | 'title' | 'status' | 'assignee' | 'priority' | 'type' | 'area' | 'points' | 'due' | 'day' | 'updated'
 type GroupKey = 'none' | 'status' | 'assignee' | 'priority' | 'type' | 'area'
@@ -63,50 +66,55 @@ function groupOf(t: CalTask, key: GroupKey, wf: Workflow): { id: string; label: 
   }
 }
 
+/**
+ * Tasks on the shared collection table (redesign D9). Sort lives in the URL; columns are
+ * a per-viewer choice (Type, Area, Points and Calendar start hidden); Group by folds rows
+ * under headers. Every field cell opens the shared picker (actions.ts); F2 renames; the
+ * task shortcuts work on a focused row. Selection is the board's (the store's).
+ */
 export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { tasks: CalTask[]; onSelectTask: (task: CalTask) => void; filtersOn: boolean; onClearFilters: () => void }) {
-  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'status', dir: 1 })
-  const [details, setDetails] = useState(false)
   const [status, setStatus] = useState('all')
   const [group, setGroup] = useState<GroupKey>('none')
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const selection = useCalendar((s) => s.selection)
   const selectMany = useCalendar((s) => s.selectMany)
   const toggleSelect = useCalendar((s) => s.toggleSelect)
-  const bodyRef = useRef<HTMLTableSectionElement>(null)
   const workflow = useWorkflow()
+  const { team, meId } = useTeam()
 
-  const sorted = useMemo(() => {
-    const rows = tasks.filter((task) => status === 'all' || (status === '!open' ? !workflow.isDone(task.status) : task.status === status))
-    rows.sort((a, b) => {
-      const x = sortValue(a, sort.key, workflow)
-      const y = sortValue(b, sort.key, workflow)
-      return (x < y ? -1 : x > y ? 1 : 0) * sort.dir || a.rank - b.rank
+  const columns = useMemo<Column<CalTask>[]>(() => {
+    const field = (key: SortKey, f: PickerField, render: (t: CalTask) => ReactNode, label: (t: CalTask) => string, extra: Partial<Column<CalTask>> = {}): Column<CalTask> => ({
+      id: key,
+      header: COLUMNS.find((c) => c.key === key)!.label,
+      sortValue: (t) => sortValue(t, key, workflow),
+      cell: (t) => (
+        <button type="button" className="cal-cell" disabled={t.pending} aria-label={`${FIELDS[f].label}: ${label(t)}. Change`}
+          onClick={(e) => { e.stopPropagation(); openField(f, targetsFor(t.id), e.currentTarget) }}>
+          {render(t)}
+        </button>
+      ),
+      ...extra,
     })
-    return rows
-  }, [tasks, sort, workflow, status])
+    return [
+      { id: 'key', header: 'Key', width: '6rem', hideable: false, className: 'cal-col-key', sortValue: (t) => sortValue(t, 'key', workflow), cell: (t) => <span className="cal-ticket-key-tag">{t.taskKey}</span> },
+      { id: 'title', header: 'Title', width: '36%', hideable: false, className: 'cal-col-title', sortValue: (t) => sortValue(t, 'title', workflow), title: (t) => t.title, cell: (t, ctx) => <TitleCell task={t} row={ctx as RowCtx} /> },
+      field('status', 'status', (t) => workflow.label(t.status), (t) => workflow.label(t.status), { width: '9rem' }),
+      field('assignee', 'assignee', (t) => <><Avatar name={t.assigneeName ?? null} url={t.assigneeAvatar ?? null} /><span>{t.assigneeName ?? 'Unassigned'}</span></>, (t) => t.assigneeName ?? 'Unassigned', { width: '11rem' }),
+      field('priority', 'priority', (t) => <span data-priority={t.priority ?? 'medium'}>{PRIORITY_LABEL[t.priority ?? 'medium']}</span>, (t) => PRIORITY_LABEL[t.priority ?? 'medium']!, { width: '7rem' }),
+      field('type', 'type', (t) => TYPE_LABEL[t.category ?? 'task'], (t) => TYPE_LABEL[t.category ?? 'task']!, { defaultHidden: true }),
+      field('area', 'area', (t) => t.area ?? '—', (t) => t.area ?? 'none', { defaultHidden: true }),
+      field('points', 'points', (t) => t.storyPoints ?? '—', (t) => String(t.storyPoints ?? 'none'), { defaultHidden: true, align: 'end' }),
+      field('due', 'due', (t) => <DueLabel task={t} />, (t) => t.dueDate ?? 'none', { width: '6.5rem' }),
+      field('day', 'day', (t) => (t.day ? shortDate(t.day) : '—'), (t) => t.day ?? 'none', { defaultHidden: true }),
+      { id: 'updated', header: 'Updated', firstDir: -1, className: 'cal-col-updated', sortValue: (t) => sortValue(t, 'updated', workflow), cell: (t) => (t.updatedAt ? since(t.updatedAt) : '') },
+    ]
+  }, [workflow])
+  const table = useTableState('tasks', columns, { id: 'status', dir: 1 })
 
-  const groups = useMemo(() => {
-    if (group === 'none') return [{ id: 'all', label: '', rows: sorted }]
-    const map = new Map<string, { id: string; label: string; order: number | string; rows: CalTask[] }>()
-    for (const t of sorted) {
-      const g = groupOf(t, group, workflow)
-      if (!map.has(g.id)) map.set(g.id, { ...g, rows: [] })
-      map.get(g.id)!.rows.push(t)
-    }
-    return [...map.values()].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0))
-  }, [sorted, group, workflow])
-
-  const visibleIds = groups.flatMap((g) => (collapsed.has(g.id) ? [] : g.rows.map((r) => r.id)))
+  const shown = useMemo(() => tasks.filter((task) => status === 'all' || (status === '!open' ? !workflow.isDone(task.status) : task.status === status)), [tasks, status, workflow])
+  // Ties keep the board's order.
+  const sorted = table.sortRows(shown, (a, b) => a.rank - b.rank)
   const selectionSet = useMemo(() => new Set(selection), [selection])
-  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectionSet.has(id))
   const points = tasks.reduce((n, t) => n + (t.storyPoints ?? 0), 0)
-
-  const sortBy = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: 1 }))
-
-  const moveFocus = (from: HTMLElement, step: 1 | -1) => {
-    const rows = [...(bodyRef.current?.querySelectorAll<HTMLElement>('tr[data-task-id]') ?? [])]
-    rows[rows.indexOf(from) + step]?.focus()
-  }
 
   if (!tasks.length) {
     return (
@@ -119,155 +127,98 @@ export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { 
   }
 
   return (
-    <div className="cal-table-view" data-details={details || undefined} role="region" aria-label="Task table">
-      <div className="cal-table-tools">
-        <label>Status<select aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="all">All tasks</option><option value="!open">Open tasks</option>
-          {workflow.active.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
-        </select></label>
-        <button type="button" className="cal-btn" aria-pressed={details} onClick={() => setDetails(!details)}>{details ? 'Fewer columns' : 'More columns'}</button>
-        <label>
-          Group by
-          <select value={group} onChange={(e) => { setGroup(e.target.value as GroupKey); setCollapsed(new Set()) }}>
-            <option value="none">Nothing</option>
-            <option value="status">Status</option>
-            <option value="assignee">Assignee</option>
-            <option value="priority">Priority</option>
-            <option value="type">Type</option>
-            <option value="area">Area</option>
+    <div className="cal-table-view" role="region" aria-label="Task table">
+      <div className="collection-bar cal-table-bar" role="toolbar" aria-label="Task table controls">
+        <div className="collection-filters">
+          <select aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value="all">All statuses</option><option value="!open">Open tasks</option>
+            {workflow.active.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
           </select>
-        </label>
-        {points > 0 && <span className="cal-view-count">{points} pts shown</span>}
-        <button type="button" className="cal-btn" onClick={() => {
-          // Display order (groups, then sort); a selection exports just those rows.
-          const ordered = groups.flatMap((g) => g.rows)
-          const rows = selection.length ? ordered.filter((t) => selection.includes(t.id)) : ordered
-          downloadCsv(`tasks-${todayKey()}.csv`, tasksCsv(rows, workflow))
-        }}>
-          {selection.length ? `Export ${selection.length} selected` : 'Export CSV'}
-        </button>
+          <select aria-label="Group by" value={group} onChange={(e) => setGroup(e.target.value as GroupKey)}>
+            <option value="none">No grouping</option>
+            <option value="status">Group by status</option>
+            <option value="assignee">Group by assignee</option>
+            <option value="priority">Group by priority</option>
+            <option value="type">Group by type</option>
+            <option value="area">Group by area</option>
+          </select>
+          {points > 0 && <span className="cal-view-count">{points} pts shown</span>}
+        </div>
+        <div className="collection-view-controls">
+          <ColumnsMenu state={table} />
+          <button type="button" className="collection-control" onClick={() => {
+            // Display order (groups, then sort); a selection exports just those rows.
+            const ordered = group === 'none' ? sorted : [...sorted].sort((a, b) => {
+              const x = groupOf(a, group, workflow).order
+              const y = groupOf(b, group, workflow).order
+              return x < y ? -1 : x > y ? 1 : 0
+            })
+            const rows = selection.length ? ordered.filter((t) => selectionSet.has(t.id)) : ordered
+            downloadCsv(`tasks-${todayKey()}.csv`, tasksCsv(rows, workflow))
+          }}>
+            {selection.length ? `Export ${selection.length} selected` : 'Export CSV'}
+          </button>
+        </div>
       </div>
-      <div className="cal-table-scroll">
-        <table className="cal-table">
-          <thead>
-            <tr>
-              <th className="cal-col-check">
-                <input type="checkbox" aria-label={allSelected ? 'Unselect all shown' : 'Select all shown'} checked={allSelected} onChange={() => selectMany(visibleIds, !allSelected)} />
-              </th>
-              {COLUMNS.map((c) => (
-                <th key={c.key} className={c.className} aria-sort={sort.key === c.key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>
-                  <button type="button" onClick={() => sortBy(c.key)}>
-                    {c.label}{sort.key === c.key ? (sort.dir === 1 ? ' ↑' : ' ↓') : ''}
-                  </button>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody ref={bodyRef}>
-            {!sorted.length && <tr><td colSpan={COLUMNS.length + 1}>No tasks with this status.</td></tr>}
-            {groups.map((g) => (
-              <GroupRows key={g.id} group={g} grouped={group !== 'none'} collapsed={collapsed.has(g.id)}
-                onToggle={() => setCollapsed((c) => { const n = new Set(c); n.has(g.id) ? n.delete(g.id) : n.add(g.id); return n })}
-                selection={selection} toggleSelect={toggleSelect} onOpen={onSelectTask} moveFocus={moveFocus} />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        label="Tasks"
+        rows={sorted}
+        getId={(t) => t.id}
+        state={table}
+        onOpen={onSelectTask}
+        tableClass="cal-table"
+        groupBy={group === 'none' ? undefined : (t) => groupOf(t, group, workflow)}
+        useRow={useRowCtx}
+        rowProps={(t) => ({ 'data-pending': t.pending ? '' : undefined, 'data-done': workflow.isDone(t.status) ? '' : undefined, 'aria-label': `${t.taskKey} ${t.title}` })}
+        selection={{
+          selected: selectionSet,
+          disabled: (t) => !!t.pending,
+          onChange: (next) => {
+            const add = [...next].filter((id) => !selectionSet.has(id))
+            const remove = selection.filter((id) => !next.has(id))
+            if (add.length) selectMany(add, true)
+            if (remove.length) selectMany(remove, false)
+          },
+        }}
+        onRowKey={(e, t, ctx) => {
+          if (e.key === 'F2') { (ctx as RowCtx).setEditing(true); return true }
+          return !t.pending && !e.metaKey && !e.ctrlKey && !e.altKey && taskShortcut(e, t.id, e.currentTarget, team, meId, () => toggleSelect(t.id))
+        }}
+        empty="No tasks with this status."
+      />
     </div>
   )
 }
 
-function GroupRows({ group, grouped, collapsed, onToggle, selection, toggleSelect, onOpen, moveFocus }: {
-  group: { id: string; label: string; rows: CalTask[] }
-  grouped: boolean
-  collapsed: boolean
-  onToggle: () => void
-  selection: string[]
-  toggleSelect: (id: string) => void
-  onOpen: (t: CalTask) => void
-  moveFocus: (from: HTMLElement, step: 1 | -1) => void
-}) {
-  return (
-    <>
-      {grouped && (
-        <tr className="cal-table-group">
-          <th colSpan={COLUMNS.length + 1} scope="rowgroup">
-            <button type="button" aria-expanded={!collapsed} onClick={onToggle}>
-              {collapsed ? '▸' : '▾'} {group.label} <span>{group.rows.length}</span>
-            </button>
-          </th>
-        </tr>
-      )}
-      {!collapsed && group.rows.map((t) => <Row key={t.id} task={t} selected={selection.includes(t.id)} toggleSelect={toggleSelect} onOpen={onOpen} moveFocus={moveFocus} />)}
-    </>
-  )
+type RowCtx = { editing: boolean; setEditing: (on: boolean) => void }
+// Per row: whether its title is being renamed (F2 or ✎).
+function useRowCtx(): RowCtx {
+  const [editing, setEditing] = useState(false)
+  return { editing, setEditing }
 }
 
-function Row({ task, selected, toggleSelect, onOpen, moveFocus }: { task: CalTask; selected: boolean; toggleSelect: (id: string) => void; onOpen: (t: CalTask) => void; moveFocus: (from: HTMLElement, step: 1 | -1) => void }) {
+function TitleCell({ task, row }: { task: CalTask; row: RowCtx }) {
   const location = useLocation()
-  const { team, meId } = useTeam()
-  const [editing, setEditing] = useState(false)
   const parentKey = useParentKey(task.parentTaskId)
   const workflow = useWorkflow()
   const done = workflow.isDone(task.status)
-  const today = todayKey()
-  const ctx = { today, now: Date.now(), isDone: workflow.isDone }
-  const overdue = isUrgent(task, 'overdue', ctx)
-
-  const cell = (field: PickerField, content: React.ReactNode, label: string) => (
-    <button type="button" className="cal-cell" disabled={task.pending} aria-label={`${FIELDS[field].label}: ${label}. Change`}
-      onClick={(e) => { e.stopPropagation(); openField(field, targetsFor(task.id), e.currentTarget) }}>
-      {content}
-    </button>
-  )
-
+  if (row.editing) return <TitleEditor task={task} onDone={() => row.setEditing(false)} />
   return (
-    <tr
-      data-task-id={task.id}
-      data-selected={selected || undefined}
-      data-pending={task.pending || undefined}
-      data-done={done || undefined}
-      tabIndex={0}
-      aria-label={`${task.taskKey} ${task.title}`}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget) return
-        if (e.key === 'Enter') { e.preventDefault(); onOpen(task); return }
-        if (e.key === 'ArrowDown' || (e.key === 'j' && !e.metaKey && !e.ctrlKey)) { e.preventDefault(); moveFocus(e.currentTarget, 1); return }
-        if (e.key === 'ArrowUp' || (e.key === 'k' && !e.metaKey && !e.ctrlKey)) { e.preventDefault(); moveFocus(e.currentTarget, -1); return }
-        if (e.key === 'F2') { e.preventDefault(); setEditing(true); return }
-        if (!task.pending && !e.metaKey && !e.ctrlKey && !e.altKey && taskShortcut(e, task.id, e.currentTarget, team, meId, () => toggleSelect(task.id))) {
-          e.preventDefault()
-          e.stopPropagation()
-        }
-      }}
-    >
-      <td className="cal-col-check"><input type="checkbox" aria-label={`Select ${task.taskKey}`} checked={selected} disabled={task.pending} onChange={() => toggleSelect(task.id)} /></td>
-      <td className="cal-col-key"><span className="cal-ticket-key-tag">{task.taskKey}</span></td>
-      <td className="cal-col-title">
-        {editing ? (
-          <TitleEditor task={task} onDone={() => setEditing(false)} />
-        ) : (
-          <span className="cal-title-cell">
-            {parentKey && <span className="cal-parent-chip" title={`Subtask of ${parentKey}`}>↳ {parentKey}</span>}
-            {task.pending ? <span className="cal-title-link">{task.title}</span> : <Link className="cal-title-link" to={taskPath(location.pathname, task.taskKey)} state={{ taskListSearch: location.search }} title="View task">
-              {task.title}
-            </Link>}
-            <button type="button" className="cal-icon-btn cal-rename-btn" disabled={task.pending} aria-label={`Rename ${task.taskKey}`} title="Rename (F2)" onClick={() => setEditing(true)}>✎</button>
-            {task.blocked && !done && <span className="cal-table-blocked" title={task.blocked.reason}>Blocked</span>}
-          </span>
-        )}
-      </td>
-      <td>{cell('status', workflow.label(task.status), workflow.label(task.status))}</td>
-      <td>{cell('assignee', <><Avatar name={task.assigneeName ?? null} url={task.assigneeAvatar ?? null} /><span>{task.assigneeName ?? 'Unassigned'}</span></>, task.assigneeName ?? 'Unassigned')}</td>
-      <td>{cell('priority', <span data-priority={task.priority ?? 'medium'}>{PRIORITY_LABEL[task.priority ?? 'medium']}</span>, PRIORITY_LABEL[task.priority ?? 'medium']!)}</td>
-      <td>{cell('type', TYPE_LABEL[task.category ?? 'task'], TYPE_LABEL[task.category ?? 'task']!)}</td>
-      <td>{cell('area', task.area ?? '—', task.area ?? 'none')}</td>
-      <td className="cal-col-num">{cell('points', task.storyPoints ?? '—', String(task.storyPoints ?? 'none'))}</td>
-      <td>{cell('due', <span data-overdue={overdue || undefined}>{task.dueDate ? shortDate(task.dueDate) : '—'}</span>, task.dueDate ?? 'none')}</td>
-      <td>{cell('day', task.day ? shortDate(task.day) : '—', task.day ?? 'none')}</td>
-      <td className="cal-col-updated">{task.updatedAt ? since(task.updatedAt) : ''}</td>
-    </tr>
+    <span className="cal-title-cell">
+      {parentKey && <span className="cal-parent-chip" title={`Subtask of ${parentKey}`}>↳ {parentKey}</span>}
+      {task.pending ? <span className="cal-title-link">{task.title}</span> : <Link className="cal-title-link" to={taskPath(location.pathname, task.taskKey)} state={{ taskListSearch: location.search }} title="View task">
+        {task.title}
+      </Link>}
+      <button type="button" className="cal-icon-btn cal-rename-btn" disabled={task.pending} aria-label={`Rename ${task.taskKey}`} title="Rename (F2)" onClick={() => row.setEditing(true)}>✎</button>
+      {task.blocked && !done && <span className="cal-table-blocked" title={task.blocked.reason}>Blocked</span>}
+    </span>
   )
+}
+
+function DueLabel({ task }: { task: CalTask }) {
+  const workflow = useWorkflow()
+  const overdue = isUrgent(task, 'overdue', { today: todayKey(), now: Date.now(), isDone: workflow.isDone })
+  return <span data-overdue={overdue || undefined}>{task.dueDate ? shortDate(task.dueDate) : '—'}</span>
 }
 
 function TitleEditor({ task, onDone }: { task: CalTask; onDone: () => void }) {
