@@ -27,8 +27,13 @@ export type Sort = { id: string; dir: 1 | -1 }
 type Saved = { shown?: string[]; hidden?: string[] }
 const key = (collection: string) => `8080.table.${collection}`
 
+// Only lists of column ids are trusted; anything else (older formats, edits) is ignored.
+const ids = (value: unknown) => (Array.isArray(value) && value.every((v) => typeof v === 'string') ? value : undefined)
 function load(collection: string): Saved {
-  try { return JSON.parse(localStorage.getItem(key(collection)) || '{}') as Saved } catch { return {} }
+  try {
+    const raw = JSON.parse(localStorage.getItem(key(collection)) || '{}') as Record<string, unknown> | null
+    return { shown: ids(raw?.shown), hidden: ids(raw?.hidden) }
+  } catch { return {} }
 }
 
 const compareValues = (a: unknown, b: unknown) => {
