@@ -193,7 +193,15 @@ function RecordWorkspace({
     nav.recordId ?? undefined,
   )
   const fullName = currentContact.data?.displayName ?? currentItem.data?.name ?? titleCase(kind)
-  const [adding, setAdding] = useState(false)
+  // Create and edit are pages with their own address (Phase 4): ?new=1, ?record=…&edit=1.
+  const adding = nav.params.get('new') === '1'
+  const flag = (key: 'new' | 'edit', on: boolean) => {
+    const next = new URLSearchParams(location.search)
+    if (on) next.set(key, '1')
+    else next.delete(key)
+    navigate({ search: next.toString() }, { replace: !on, state: location.state })
+  }
+  const setAdding = (on: boolean) => flag('new', on)
   const [importing, setImporting] = useState(false)
   const [messageId, setMessageId] = useState<string | null>(null)
   const [navigationError, setNavigationError] = useState('')
@@ -469,18 +477,43 @@ function RecordWorkspace({
           }
         }}
       >
-        {nav.recordId ? (
+        {adding ? (
+          <RecordForm
+            page={{ backLabel: kind === 'contacts' ? 'Contacts' : 'Inventory' }}
+            kind={kind}
+            workspaceId={workspaceId}
+            currency={currency}
+            onClose={() => setAdding(false)}
+            onSaved={(id) => {
+              // One navigation: leave the create page and open the new record in its place.
+              const next = new URLSearchParams(location.search)
+              next.delete('new'); next.delete('preview'); next.delete('previewKind')
+              next.set('record', id)
+              navigate({ search: next.toString() }, { replace: true, state: location.state })
+            }}
+            onOpenRecord={(target, id) => {
+              setAdding(false)
+              if (target === kind) nav.open(id)
+              else nav.expand({ kind: target, id, name: titleCase(target) }, fullName)
+            }}
+          />
+        ) : nav.recordId ? (
           <>
-            <CollectionBar
-              collection={kind}
-              search={{ value: search.value, onChange: search.setValue, placeholder: kind === 'contacts' ? 'Search contacts, companies, interests…' : 'Search inventory…' }}
-            />
-            <div className="record-navigation">
-              <button onClick={nav.back}>
-                ← {nav.state.origin?.name ?? results?.label ?? `All ${kind}`}
-              </button>
-              {stepper(nav.recordId, false)}
-            </div>
+            {/* The edit page has its own way back; search and record stepping belong to viewing. */}
+            {nav.params.get('edit') !== '1' && (
+              <>
+                <CollectionBar
+                  collection={kind}
+                  search={{ value: search.value, onChange: search.setValue, placeholder: kind === 'contacts' ? 'Search contacts, companies, interests…' : 'Search inventory…' }}
+                />
+                <div className="record-navigation">
+                  <button onClick={nav.back}>
+                    ← {nav.state.origin?.name ?? results?.label ?? `All ${kind}`}
+                  </button>
+                  {stepper(nav.recordId, false)}
+                </div>
+              </>
+            )}
             <h2 className="record-sr-only" ref={heading} tabIndex={-1}>
               Record details
             </h2>
@@ -497,6 +530,8 @@ function RecordWorkspace({
               onMessage={setMessageId}
               onDeleted={nav.back}
               onOpenRecord={(target, id) => nav.open(id)}
+              editing={nav.params.get('edit') === '1'}
+              onEditing={(on) => flag('edit', on)}
             />
           </>
         ) : (
@@ -669,23 +704,6 @@ function RecordWorkspace({
             }}
           />
         </RecordPreviewPanel>
-      )}
-      {adding && (
-        <RecordForm
-          kind={kind}
-          workspaceId={workspaceId}
-          currency={currency}
-          onClose={() => setAdding(false)}
-          onSaved={(id) => {
-            setAdding(false)
-            nav.open(id)
-          }}
-          onOpenRecord={(target, id) => {
-            setAdding(false)
-            if (target === kind) nav.open(id)
-            else nav.expand({ kind: target, id, name: titleCase(target) }, fullName)
-          }}
-        />
       )}
       {importing && (
         <RecordImportFlow kind={kind} workspaceId={workspaceId} onClose={() => setImporting(false)} />

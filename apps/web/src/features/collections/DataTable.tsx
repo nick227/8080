@@ -129,7 +129,9 @@ export function DataTable<T>({ label, rows: allRows, getId, state, onOpen, selec
                     tabbable={index === focusIndex}
                     selected={!!selection?.selected.has(id)}
                     selectable={!!selection}
-                    selectBlocked={!!selection && (!!selection.disabled?.(row) || (!!selection.limit && !selection.selected.has(id) && selection.selected.size >= selection.limit))}
+                    selectBlocked={!selection ? null
+                      : selection.disabled?.(row) ? 'Saving…'
+                        : selection.limit && !selection.selected.has(id) && selection.selected.size >= selection.limit ? `Up to ${selection.limit} at a time` : null}
                     extra={rowProps?.(row)}
                     useRow={useRow}
                     onRowKey={onRowKey}
@@ -177,7 +179,8 @@ function DataRow<T>({ row, id, columns, tabbable, selected, selectable, selectBl
   tabbable: boolean
   selected: boolean
   selectable: boolean
-  selectBlocked: boolean
+  /** Why this row can't be selected right now (null = it can). */
+  selectBlocked: string | null
   extra?: Record<string, string | undefined>
   useRow?: (row: T) => unknown
   onRowKey?: (e: ReactKeyboardEvent<HTMLTableRowElement>, row: T, ctx: unknown) => boolean
@@ -205,13 +208,13 @@ function DataRow<T>({ row, id, columns, tabbable, selected, selectable, selectBl
         if (e.target !== e.currentTarget) return
         if (onRowKey?.(e, row, ctx)) { e.preventDefault(); e.stopPropagation(); return }
         if (e.key === 'Enter' && onOpen) { e.preventDefault(); onOpen(); return }
-        if (e.key === ' ' && selectable) { e.preventDefault(); onToggle(); return }
+        if (e.key === ' ' && selectable) { e.preventDefault(); if (!selectBlocked) onToggle(); return }
         onMove(e)
       }}
     >
       {selectable && (
         <td className="collection-select-cell">
-          <input type="checkbox" aria-label="Select row" checked={selected} disabled={selectBlocked} title={selectBlocked ? 'Up to 50 at a time' : undefined} onChange={onToggle} />
+          <input type="checkbox" aria-label="Select row" checked={selected} disabled={!!selectBlocked} title={selectBlocked ?? undefined} onChange={onToggle} />
         </td>
       )}
       {columns.map((c) => (

@@ -47,6 +47,8 @@ export function RecordDetail({
   onMessage,
   onDeleted,
   onOpenRecord,
+  editing,
+  onEditing,
 }: {
   kind: RecordKind
   id: string
@@ -55,6 +57,9 @@ export function RecordDetail({
   onMessage: (id: string) => void
   onDeleted: () => void
   onOpenRecord?: (kind: RecordKind, id: string) => void
+  /** Edit as its own page (owned by the URL); without it, edit opens a slide-out. */
+  editing?: boolean
+  onEditing?: (on: boolean) => void
 }) {
   const contact = useContact(kind === 'contacts' ? workspaceId : undefined, id)
   const item = useInventoryItem(kind === 'inventory' ? workspaceId : undefined, id)
@@ -81,6 +86,8 @@ export function RecordDetail({
       currency={currency}
       onMessage={onMessage}
       onOpenRecord={onOpenRecord}
+      editingPage={editing}
+      onEditing={onEditing}
     />
   ) : (
     <InventoryDetail
@@ -90,6 +97,8 @@ export function RecordDetail({
       currency={currency}
       onDeleted={onDeleted}
       onOpenRecord={onOpenRecord}
+      editingPage={editing}
+      onEditing={onEditing}
     />
   )
 }
@@ -100,21 +109,34 @@ function ContactDetail({
   currency,
   onMessage,
   onOpenRecord,
+  editingPage,
+  onEditing,
 }: {
   contact: Contact
   workspaceId: string
   currency: string
   onMessage: (id: string) => void
   onOpenRecord?: (kind: RecordKind, id: string) => void
+  editingPage?: boolean
+  onEditing?: (on: boolean) => void
 }) {
   const update = useUpdateContact(workspaceId)
   const feedback = useSaveFeedback(update.isPending, update.error)
   const vocabulary = useWorkspaceVocabulary(workspaceId)
   const stages = (vocabulary.data?.stages ?? []).filter((s) => !s.archived)
   const stageOptions = stages.length ? stages : STAGES.map((key) => ({ key, label: titleCase(key) }))
-  const [editing, setEditing] = useState(false)
+  const [localEditing, setLocalEditing] = useState(false)
+  const editing = onEditing ? !!editingPage : localEditing
+  const setEditing = onEditing ?? setLocalEditing
   const change = (data: Parameters<typeof update.mutate>[0]) =>
     update.mutate({ expectedVersion: c.version, ...data })
+  // Editing is its own page (Phase 4): the record's back link returns to it.
+  if (editing && onEditing) {
+    return (
+      <RecordForm page={{ backLabel: c.displayName }} kind="contacts" workspaceId={workspaceId} currency={currency} contact={c}
+        onClose={() => setEditing(false)} onSaved={() => setEditing(false)} onOpenRecord={onOpenRecord} />
+    )
+  }
   return (
     <article className="record-detail">
       <header className="record-masthead">
@@ -208,7 +230,7 @@ function ContactDetail({
           <button onClick={() => setEditing(true)}>Edit properties</button>
         </aside>
       </div>
-      {editing && (
+      {editing && !onEditing && (
         <RecordForm
           kind="contacts"
           workspaceId={workspaceId}
@@ -229,19 +251,31 @@ function InventoryDetail({
   currency,
   onDeleted,
   onOpenRecord,
+  editingPage,
+  onEditing,
 }: {
   item: InventoryItem
   workspaceId: string
   currency: string
   onDeleted: () => void
   onOpenRecord?: (kind: RecordKind, id: string) => void
+  editingPage?: boolean
+  onEditing?: (on: boolean) => void
 }) {
   const update = useUpdateInventoryItem(workspaceId)
   const remove = useDeleteInventoryItem(workspaceId)
   const feedback = useSaveFeedback(update.isPending, update.error ?? remove.error)
-  const [editing, setEditing] = useState(false)
+  const [localEditing, setLocalEditing] = useState(false)
+  const editing = onEditing ? !!editingPage : localEditing
+  const setEditing = onEditing ?? setLocalEditing
   const [adjusting, setAdjusting] = useState(false)
   const tracked = item.quantity != null
+  if (editing && onEditing) {
+    return (
+      <RecordForm page={{ backLabel: item.name }} kind="inventory" workspaceId={workspaceId} currency={currency} item={item}
+        onClose={() => setEditing(false)} onSaved={() => setEditing(false)} onOpenRecord={onOpenRecord} />
+    )
+  }
   return (
     <article className="record-detail">
       <header className="record-masthead">
@@ -353,7 +387,7 @@ function InventoryDetail({
           <button onClick={() => setEditing(true)}>Edit properties</button>
         </aside>
       </div>
-      {editing && (
+      {editing && !onEditing && (
         <RecordForm
           kind="inventory"
           workspaceId={workspaceId}

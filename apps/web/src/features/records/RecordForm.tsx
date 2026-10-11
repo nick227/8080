@@ -16,6 +16,8 @@ import {
   type InventoryItem,
 } from '@project/sdk'
 import { FormSlideout } from '../work/FormSlideout'
+import { ItemPage } from '../collections/ItemPage'
+import type { ReactNode } from 'react'
 import { ContactFields, InventoryFields, type FormDraft } from './formFields'
 import type { RecordKind } from './navigation'
 
@@ -28,7 +30,10 @@ export function RecordForm({
   onClose,
   onSaved,
   onOpenRecord,
+  page,
 }: {
+  /** Full page (create/edit as its own page) instead of a slide-out; `backLabel` names the list. */
+  page?: { backLabel: string }
   kind: RecordKind
   workspaceId: string
   currency?: string
@@ -225,10 +230,15 @@ export function RecordForm({
     }
     finish((await createItem.mutateAsync(data)).id)
   }
-  const title = `${contact || item ? 'Edit' : 'Add'} ${kind === 'contacts' ? 'contact' : 'inventory item'}`
+  const title = `${contact || item ? 'Edit' : 'New'} ${kind === 'contacts' ? 'contact' : 'inventory item'}`
+  // A plain function, not a component: a component defined here would remount the form on every render.
+  const frame = (frameTitle: string, onClose: () => void, children: ReactNode) =>
+    page
+      ? <ItemPage back={{ label: page.backLabel, onClick: onClose }} title={frameTitle}>{children}</ItemPage>
+      : <FormSlideout title={frameTitle} onClose={onClose}>{children}</FormSlideout>
   if (duplicates && createdId)
     return (
-      <FormSlideout title="Possible duplicates" onClose={() => finish(createdId)}>
+      frame('Possible duplicates', () => finish(createdId), <>
         <div className="record-form-fields">
           <p>Created. These contacts may already cover the same person:</p>
           <ul className="record-related">
@@ -254,10 +264,9 @@ export function RecordForm({
             </button>
           </footer>
         </div>
-      </FormSlideout>
+      </>)
     )
-  return (
-    <FormSlideout title={title} onClose={close}>
+  return frame(title, close, (
       <form className="record-form" onSubmit={save}>
         <div className="record-form-fields">
           {restoredDraft && (
@@ -308,8 +317,7 @@ export function RecordForm({
           </button>
         </footer>
       </form>
-    </FormSlideout>
-  )
+  ))
 }
 
 function readDraft(key: string, initial: FormDraft) {

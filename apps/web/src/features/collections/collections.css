@@ -81,3 +81,17 @@
   .collection-table tbody td[data-align="end"] { text-align: left; }
   .collection-table .collection-group, .collection-table .collection-group th { display: block; }
 }
+
+/* A full page for creating or editing one item (Phase 4). */
+.item-page { flex: 1; min-height: 0; overflow-y: auto; width: min(760px, 100%); margin: 0 auto; padding: var(--space-md) var(--table-cell-padding-x) var(--space-2xl); box-sizing: border-box; display: flex; flex-direction: column; }
+.item-page-back button { padding: var(--space-xs) 0; color: var(--muted); font-size: var(--text-sm); }
+.item-page-back button:hover, .item-page-back button:focus-visible { color: var(--ink); }
+.item-page h1 { margin: var(--space-xs) 0 var(--space-md); font-size: var(--text-xl); outline: none; }
+.item-page-body { display: flex; flex-direction: column; min-height: 0; }
+.item-page .record-form-fields { padding: 0; overflow: visible; }
+.item-page .record-form footer { position: sticky; bottom: 0; margin-top: var(--space-lg); padding: var(--space-md) 0; background: var(--bg); }
+.item-page .record-form button { min-height: var(--control-size); padding: var(--space-xs) var(--space-sm); border-radius: var(--radius); font-size: var(--text-sm); }
+.item-page .record-form button:hover { background: var(--surface-active); }
+.item-page .record-form button:disabled { opacity: var(--opacity-disabled); cursor: default; }
+.item-page .record-primary { color: var(--bg); background: var(--ink); padding-inline: var(--space-md); font-weight: var(--weight-medium); }
+.item-page .record-primary:hover { background: var(--ink); opacity: 0.9; }
