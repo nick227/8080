@@ -34,7 +34,8 @@ export function AccountSheet() {
   )
 }
 
-export function GuestAuth({ user }: { user: User }) {
+export function GuestAuth({ user, onExternalSignIn }: { user: User; onExternalSignIn?: () => void }) {
+  const queryClient = useQueryClient()
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [name, setName] = useState(user.displayName)
   const [email, setEmail] = useState('')
@@ -49,6 +50,7 @@ export function GuestAuth({ user }: { user: User }) {
     try {
       if (mode === 'login') await login.mutateAsync({ email, password })
       else await register.mutateAsync({ email, password, displayName: name || undefined })
+      await queryClient.invalidateQueries({ queryKey: ['workspaces'] })
       useShell.setState({ accountOpen: false })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to continue')
@@ -96,6 +98,7 @@ export function GuestAuth({ user }: { user: User }) {
           try {
             const res = await getApiClient().GET('/auth/google/url', {})
             if (res.data?.data?.url) {
+              onExternalSignIn?.()
               window.location.href = res.data.data.url
             } else {
               setError('Google login is not available')

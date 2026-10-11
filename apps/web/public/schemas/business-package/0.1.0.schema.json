@@ -1,0 +1,730 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:8080:business-package:0.1.0",
+  "title": "8080 business package \u2014 draft 0.1.0",
+  "description": "Portable data for business profiles and optional workspace setup. Draft contract: schema validity does not imply that every module has an operational importer.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "0.1.0"
+    },
+    "slug": {
+      "$ref": "#/$defs/key"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "author": {
+      "$ref": "#/$defs/author"
+    },
+    "rights": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "identifier": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "attribution": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "identifier"
+      ]
+    },
+    "profile": {
+      "$ref": "#/$defs/profile"
+    },
+    "plan": {
+      "$ref": "#/$defs/plan"
+    },
+    "people": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/person"
+      },
+      "maxItems": 100,
+      "minItems": 0
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/task"
+      },
+      "maxItems": 100,
+      "minItems": 0
+    },
+    "milestones": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/milestone"
+      },
+      "maxItems": 50,
+      "minItems": 0
+    },
+    "schedules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/schedule"
+      },
+      "maxItems": 150,
+      "minItems": 0
+    },
+    "documents": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/document"
+      },
+      "maxItems": 5,
+      "minItems": 0
+    },
+    "budgets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/budget"
+      },
+      "maxItems": 20,
+      "minItems": 0
+    },
+    "demo": {
+      "$ref": "#/$defs/demo"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "slug",
+    "version",
+    "author",
+    "rights",
+    "profile",
+    "people",
+    "tasks",
+    "milestones",
+    "schedules"
+  ],
+  "$defs": {
+    "key": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "day": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "relative"
+            },
+            "dayOffset": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3650
+            }
+          },
+          "required": [
+            "type",
+            "dayOffset"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "absolute"
+            },
+            "date": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          "required": [
+            "type",
+            "date"
+          ]
+        }
+      ],
+      "description": "Relative days are calendar days after the user-selected plan start date. Never infer a start date when none was selected."
+    },
+    "author": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "example",
+            "business"
+          ]
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 280
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "location": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "offerings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "maxItems": 30,
+          "minItems": 0
+        },
+        "audience": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "website": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "category",
+        "summary",
+        "description",
+        "offerings",
+        "audience"
+      ]
+    },
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "customerAcquisition": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "delivery": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "operations": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "maxItems": 50,
+          "minItems": 0
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "maxItems": 50,
+          "minItems": 0
+        },
+        "reviewCriteria": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "maxItems": 30,
+          "minItems": 0
+        }
+      },
+      "required": [
+        "summary",
+        "customerAcquisition",
+        "delivery",
+        "operations",
+        "assumptions",
+        "requirements",
+        "reviewCriteria"
+      ]
+    },
+    "person": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "role",
+            "person"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "responsibilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "maxItems": 30,
+          "minItems": 0
+        },
+        "sample": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "key",
+        "kind",
+        "name",
+        "role",
+        "responsibilities",
+        "sample"
+      ],
+      "description": "Planning role or named person, not an account, invitation or permission grant. Mapping to a real member occurs in the import review."
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "completionCriterion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "highest"
+          ]
+        },
+        "personKey": {
+          "$ref": "#/$defs/key"
+        },
+        "milestoneKeys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/key"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "scheduleKey": {
+          "$ref": "#/$defs/key"
+        },
+        "dependsOnTaskKeys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/key"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "checklist": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "maxItems": 50,
+          "minItems": 0
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "description",
+        "completionCriterion",
+        "area",
+        "priority"
+      ]
+    },
+    "milestone": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "completionCriterion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "personKey": {
+          "$ref": "#/$defs/key"
+        },
+        "target": {
+          "$ref": "#/$defs/day"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "description",
+        "completionCriterion"
+      ]
+    },
+    "schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "task",
+            "milestone",
+            "event"
+          ]
+        },
+        "start": {
+          "$ref": "#/$defs/day"
+        },
+        "end": {
+          "$ref": "#/$defs/day"
+        },
+        "localTime": {
+          "type": "string",
+          "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+        },
+        "durationMinutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10080
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "kind",
+        "start"
+      ],
+      "description": "Date/time planning only. Does not send invitations or activate a recurring job. Times resolve using the confirmed workspace IANA timezone."
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "format": {
+          "const": "markdown"
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40000
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "format",
+        "body"
+      ],
+      "description": "Portable content rendered without raw HTML; importer converts supported Markdown into native document blocks and reports unsupported features."
+    },
+    "budgetLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "expense",
+            "income"
+          ]
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "plannedAmount": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,11})(\\.[0-9]{1,4})?$"
+        },
+        "basis": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "taskKeys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/key"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "milestoneKeys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/key"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "personKeys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/key"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "kind",
+        "category",
+        "plannedAmount",
+        "basis"
+      ],
+      "description": "Total planned amount for the budget period, not a unit rate or actual transaction. Multiple links do not allocate or multiply the amount."
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "capability": {
+          "const": "planned"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "period": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "start": {
+              "$ref": "#/$defs/day"
+            },
+            "end": {
+              "$ref": "#/$defs/day"
+            }
+          },
+          "required": [
+            "start",
+            "end"
+          ]
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "maxItems": 50,
+          "minItems": 0
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/budgetLine"
+          },
+          "maxItems": 200,
+          "minItems": 1
+        }
+      },
+      "required": [
+        "key",
+        "name",
+        "capability",
+        "currency",
+        "period",
+        "assumptions",
+        "lines"
+      ],
+      "description": "Work-in-progress budget model. Preview/preserve as estimates; no accounting entries, actual spend, exchange-rate conversion or payment behavior."
+    },
+    "demo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "referenceDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "taskStates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "taskKey": {
+                "$ref": "#/$defs/key"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "todo",
+                  "doing",
+                  "done"
+                ]
+              },
+              "personKey": {
+                "$ref": "#/$defs/key"
+              }
+            },
+            "required": [
+              "taskKey",
+              "status"
+            ]
+          },
+          "maxItems": 100,
+          "minItems": 0
+        }
+      },
+      "required": [
+        "referenceDate",
+        "taskStates"
+      ],
+      "description": "Preview-only state. Operational task imports always start to-do; this section is excluded from a new workspace."
+    }
+  }
+}

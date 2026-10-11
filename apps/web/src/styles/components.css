@@ -1,0 +1,375 @@
+/* Shared components use the active palette, density, type and control tokens.
+   Optional --status-success / --status-info / --status-warning inputs allow
+   themes to distinguish statuses; defaults use the existing theme palette. */
+
+/* ─── 1. Workspace Hero Header ─────────────────────────────────────────── */
+.ui-workspace-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  padding: var(--space-section) var(--space-lg);
+  margin: var(--space-md) var(--table-cell-padding-x) var(--space-lg);
+  background: var(--panel);
+  border: var(--line-width) solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--shadow-color) 25%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.ui-workspace-hero-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.ui-workspace-hero-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-card);
+  background: var(--panel);
+  border: var(--line-width) solid var(--line-soft);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  font-size: var(--text-title);
+  font-weight: var(--weight-bold);
+  flex-shrink: 0;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 var(--line-soft);
+}
+
+.ui-workspace-hero-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ui-workspace-hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.ui-workspace-hero-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.ui-workspace-hero-title {
+  margin: 0;
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-bold);
+  color: var(--ink);
+  letter-spacing: -0.015em;
+}
+
+.ui-workspace-hero-tagline {
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--muted);
+}
+
+.ui-workspace-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* ─── 2. Card Panel Container ────────────────────────────────────────────── */
+.ui-card {
+  background: var(--panel);
+  border: var(--line-width) solid var(--line);
+  border-radius: var(--radius-card);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--shadow-color) 20%, transparent);
+  transition: border-color var(--motion-fast) var(--ease-out);
+}
+
+.ui-card + .ui-card {
+  margin-top: var(--space-lg);
+}
+
+.ui-card:hover {
+  border-color: var(--line-strong);
+}
+
+.ui-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-section);
+  border-bottom: var(--line-width) solid var(--line);
+  background: var(--surface-subtle);
+}
+
+.ui-card-header-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ui-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-notice);
+  background: var(--surface-placeholder);
+  border: var(--line-width) solid var(--line);
+  color: var(--signal);
+  flex-shrink: 0;
+}
+
+.ui-card-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  min-width: 0;
+}
+
+.ui-card-title {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.ui-card-description {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.ui-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
+.ui-card-content {
+  padding: var(--space-section);
+  flex: 1;
+}
+
+.ui-card-footer {
+  padding: var(--space-between) var(--space-section);
+  border-top: var(--line-width) solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+/* ─── 3. Stat Tile Grid Component ─────────────────────────────────────────── */
+.ui-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--space-between);
+}
+
+.ui-stat-tile {
+  background: var(--surface-subtle);
+  border: var(--line-width) solid var(--line);
+  border-radius: var(--radius-card);
+  padding: var(--space-between) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+  transition: background var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out);
+}
+
+.ui-stat-tile:hover {
+  background: var(--surface-active);
+  border-color: var(--line-soft);
+}
+
+.ui-stat-label {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.01em;
+}
+
+.ui-stat-value {
+  font-size: var(--text-title);
+  font-weight: var(--weight-bold);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  margin: var(--space-2xs) 0;
+  letter-spacing: -0.02em;
+}
+
+.ui-stat-trend {
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--space-1) / 2);
+  margin-top: var(--space-2xs);
+}
+
+.ui-stat-trend-up {
+  color: var(--status-success, var(--ink));
+}
+
+.ui-stat-trend-down {
+  color: var(--danger);
+}
+
+/* ─── 4. Badge / Status Pill ─────────────────────────────────────────────── */
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: calc(var(--space-1) / 2) var(--space-control);
+  border-radius: var(--radius-pill);
+  font-family: var(--mono);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.ui-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.ui-badge-active,
+.ui-badge-connected {
+  background: color-mix(in srgb, var(--status-success, var(--ink)) 14%, transparent);
+  color: var(--status-success, var(--ink));
+  border: var(--line-width) solid color-mix(in srgb, var(--status-success, var(--ink)) 25%, transparent);
+}
+
+.ui-badge-default {
+  background: color-mix(in srgb, var(--status-info, var(--ink)) 14%, transparent);
+  color: var(--status-info, var(--ink));
+  border: var(--line-width) solid color-mix(in srgb, var(--status-info, var(--ink)) 25%, transparent);
+}
+
+.ui-badge-disconnected {
+  background: var(--surface-placeholder);
+  color: var(--muted);
+  border: var(--line-width) solid var(--line);
+}
+
+.ui-badge-warning {
+  background: color-mix(in srgb, var(--status-warning, var(--signal)) 14%, transparent);
+  color: var(--status-warning, var(--signal));
+  border: var(--line-width) solid color-mix(in srgb, var(--status-warning, var(--signal)) 25%, transparent);
+}
+
+/* ─── 5. Activity Item / Feed List ───────────────────────────────────────── */
+.ui-activity-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.ui-activity-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-control) 0;
+  border-bottom: var(--line-width) solid var(--line);
+  font-size: var(--text-base);
+}
+
+.ui-activity-item:last-child {
+  border-bottom: none;
+}
+
+.ui-activity-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface-placeholder);
+  border: var(--line-width) solid var(--line-soft);
+  color: var(--ink-secondary);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.ui-activity-body {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-activity-title {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+
+.ui-activity-summary {
+  color: var(--muted);
+}
+
+.ui-activity-time {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  font-family: var(--mono);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ─── 6. Action Button Styles ───────────────────────────────────────────── */
+.ui-btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--button-height-sm);
+  padding: 0 var(--button-padding-x);
+  border-radius: var(--radius-notice);
+  border: var(--line-width) solid var(--line-soft);
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-color);
+  font-family: var(--sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: background var(--button-motion) var(--button-easing), border-color var(--button-motion) var(--button-easing), color var(--button-motion) var(--button-easing);
+  white-space: nowrap;
+}
+
+.ui-btn-action:hover {
+  border-color: var(--button-hover-border);
+  background: var(--line);
+  color: var(--ink);
+}
+
+.ui-btn-accent {
+  background: var(--ink);
+  color: var(--bg);
+  border: var(--line-width) solid var(--ink);
+  font-weight: var(--weight-bold);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--shadow-color) 30%, transparent);
+}
+
+.ui-btn-accent:hover {
+  background: var(--ink-secondary);
+  border-color: var(--ink);
+  color: var(--bg);
+}

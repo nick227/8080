@@ -70,17 +70,17 @@ export function NewProjectSurface({
       ui.setIdle()
       navigate(`/room/${room.id}`) // a new conversation opens on itself (its company page is one click away)
     } catch (e) {
-      ui.setError(`Could not create project: ${e instanceof Error ? e.message : 'unknown error'}`)
+      ui.setError(`Could not create conversation: ${e instanceof Error ? e.message : 'unknown error'}`)
     } finally {
       setCreating(false)
     }
   }
 
   return (
-    <div className="new-project-overlay" role="dialog" aria-label="New Project">
+    <div className="new-project-overlay" role="dialog" aria-label="New conversation">
       <div className="new-project-card">
         <header className="new-project-header">
-          <h2>New Project</h2>
+          <h2>New conversation</h2>
           <p className="new-project-kicker">Identity</p>
         </header>
 
@@ -89,7 +89,7 @@ export function NewProjectSurface({
             <button
               type="button"
               className="new-project-thumb-btn"
-              aria-label="Project image"
+              aria-label="Conversation image"
               onClick={() => fileRef.current?.click()}
             >
               {previewUrl ? <img src={previewUrl} alt="" /> : <span>+</span>}
@@ -106,16 +106,16 @@ export function NewProjectSurface({
               }}
             />
             <div className="new-project-thumb-info">
-              <label>Project image</label>
-              <span className="new-project-hint">Choose an image for your project</span>
+              <label>Conversation image</label>
+              <span className="new-project-hint">Choose an image for your conversation</span>
             </div>
           </div>
 
           <label className="new-project-field">
-            <span>Project name</span>
+            <span>Conversation name</span>
             <input
               type="text"
-              placeholder="e.g. Q4 Growth Campaign"
+              placeholder="e.g. Website review"
               value={title}
               autoFocus
               onChange={(e) => setTitle(e.target.value)}
@@ -126,10 +126,10 @@ export function NewProjectSurface({
           </label>
 
           <label className="new-project-field">
-            <span>What is this project about? (optional)</span>
+            <span>What is this conversation about? (optional)</span>
             <textarea
               rows={3}
-              placeholder="Describe goals, scope, or key details..."
+              placeholder="Describe the conversation…"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
@@ -150,7 +150,7 @@ export function NewProjectSurface({
             Cancel
           </button>
           <button type="button" className="new-project-btn-submit" onClick={() => void handleCreate()} disabled={creating}>
-            {creating ? 'Creating…' : createPost ? 'Next: First Post' : 'Create Project'}
+            {creating ? 'Creating…' : createPost ? 'Next: First Post' : 'Create conversation'}
           </button>
         </footer>
       </div>

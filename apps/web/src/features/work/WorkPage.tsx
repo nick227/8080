@@ -5,6 +5,7 @@ import { CompanyDesk } from '../company/CompanyDesk'
 import { DocumentsExperience } from '../documents/DocumentsExperience'
 import { ContactsDesk } from '../inbox/ContactsDesk'
 import { InventoryDesk } from '../inventory/InventoryDesk'
+import { BudgetDesk } from '../budget/BudgetDesk'
 import { InboxExperience } from '../inbox/InboxExperience'
 import { DESKS, deskEmpty, type Desk } from './sections'
 
@@ -25,6 +26,8 @@ export function WorkPage({ place, roomId, onPlace, onOpenComposer }: { place: Ex
         <ContactsDesk />
       ) : place === 'inventory' ? (
         <InventoryDesk />
+      ) : place === 'budget' ? (
+        <BudgetDesk />
       ) : place === 'tasks' ? (
         <CalendarExperience section="tasks" />
       ) : place === 'board' ? (

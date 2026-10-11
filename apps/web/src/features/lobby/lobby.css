@@ -16,3 +16,8 @@
 .conv-card-link:hover .conv-card-thumb img { transform: scale(1.02); }
 .conv-card-link:focus-visible { outline: none; }
 .conv-card-link:focus-visible .conv-card-title { text-decoration: underline; text-underline-offset: 3px; }
+
+.conversation-directory { padding-top: calc(var(--mast) + var(--space-lg)); width: 100%; }
+.conversation-directory > h1 { max-width: var(--content-width-standard); margin: 0 auto var(--space-lg); padding-inline: var(--page-gutter-current); font-size: var(--text-display); }
+
+.shell.conversations-page { width: 100%; }

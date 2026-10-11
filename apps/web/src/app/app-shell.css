@@ -1,0 +1,32 @@
+/* Shared account-level content uses the catalog's frame. */
+.app-page { padding:32px 32px 48px; min-height:100%; }
+.app-page .product-page-heading { padding:0 0 28px; }
+.app-page .product-page-heading h1 { font-size:clamp(36px,4.7vw,68px); margin:8px 0; }
+.app-page .product-page-heading p { color:var(--muted); }
+.app-page .product-create { margin:16px auto 48px; }
+.app-page .product-create h1 { margin-bottom:24px; }
+.app-page .product-create form>p { margin-bottom:24px; }
+.app-nav-detail { display:block; color:var(--muted); font-weight:400; font-size:11px; }
+.bp-header-actions .bp-account:has(.app-avatar) { padding:3px; border-radius:50%; }
+.app-avatar { width:34px; height:34px; display:grid; place-items:center; object-fit:cover; border-radius:50%; background:var(--surface-active); }
+.bp-nav-create[aria-current=page] { background:var(--surface-active); }
+.app-rooms { position:relative; }
+.app-rooms .conversation-directory { padding:0; }
+.app-rooms .lobby-body { width:100%; max-width:none; padding:0; margin:0; }
+.app-page .account-page { padding:0; margin:0; max-width:720px; }
+.bp-catalog-scenarios { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:24px; padding-block:16px; border-block:1px solid var(--line); }
+.bp-catalog-scenarios p { color:var(--muted); font-size:12px; }
+.bp-card-numbers { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; border-block:1px solid var(--line); padding-block:16px; margin:20px 0 10px; }
+.bp-card-numbers dt { color:var(--muted); font-size:12px; }
+.bp-card-numbers dd { margin:2px 0 0; font:500 25px/1.25 var(--mono); font-variant-numeric:tabular-nums; }
+.bp-card-copy .bp-card-budget-note { font-size:11px; line-height:1.5; color:var(--muted); }
+@media(max-width:767px) { .app-page { padding:24px 16px 40px; } .bp-catalog-scenarios { align-items:flex-start; flex-direction:column; } }
+@media(min-width:768px) and (max-width:1199px) { .app-page { padding:24px; } }
+
+/* Put the comparable figures ahead of the longer editorial description. */
+.bp-card-photo { aspect-ratio:16/9; }
+.bp-card-numbers { grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-top:0; }
+.bp-card-numbers dd { font-size:20px; }
+.bp-card-numbers dt { font-size:10px; }
+.bp-card-copy .bp-card-budget-note { margin-bottom:20px; }
+@media(min-width:901px) and (max-width:1100px) { .bp-card-numbers { grid-template-columns:repeat(2,minmax(0,1fr)); } }

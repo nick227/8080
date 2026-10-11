@@ -7,7 +7,7 @@ interface SEOProps {
   name?: string;
 }
 
-export function SEO({ title, description, type = 'website', name = 'Voice Chat' }: SEOProps) {
+export function SEO({ title, description, type = 'website', name = '8080' }: SEOProps) {
   return (
     <Helmet>
       { /* Standard metadata tags */ }

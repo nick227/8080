@@ -1,0 +1,224 @@
+{
+  "schemaVersion": "0.1.0",
+  "slug": "fieldwork-studio",
+  "version": "0.1.0",
+  "author": {
+    "name": "8080 example author"
+  },
+  "rights": {
+    "identifier": "UNLICENSED",
+    "attribution": "Draft fixture for schema review. Not approved for public redistribution."
+  },
+  "profile": {
+    "name": "Fieldwork Studio",
+    "kind": "example",
+    "category": "Design & media",
+    "summary": "Brand identity and website design for small businesses.",
+    "description": "A fictional design studio used to demonstrate a business profile and an optional workspace setup.",
+    "offerings": [
+      "Brand identity",
+      "Website design"
+    ],
+    "audience": "Small businesses preparing a new website or brand identity."
+  },
+  "plan": {
+    "summary": "Offer a defined set of design services with written scopes and review stages.",
+    "customerAcquisition": "Choose a customer type, prepare clearly labeled sample work, and add potential customers you have selected yourself.",
+    "delivery": "Use a customer brief, agree the scope, prepare drafts, collect feedback, and hand over final files.",
+    "operations": "Review enquiries, capacity, and current work each week.",
+    "assumptions": [
+      "The owner supplies their own skills, equipment, customers, and company details."
+    ],
+    "requirements": [
+      "Define available time and service scope before accepting work."
+    ],
+    "reviewCriteria": [
+      "Review whether enquiries fit the offer and whether the delivery plan matches available time."
+    ]
+  },
+  "people": [
+    {
+      "key": "owner",
+      "kind": "role",
+      "name": "Business owner",
+      "role": "Owner",
+      "responsibilities": [
+        "Define the offer",
+        "Review customer enquiries"
+      ],
+      "sample": false
+    },
+    {
+      "key": "designer",
+      "kind": "role",
+      "name": "Designer",
+      "role": "Designer",
+      "responsibilities": [
+        "Prepare and deliver design work"
+      ],
+      "sample": false
+    }
+  ],
+  "tasks": [
+    {
+      "key": "define-offer",
+      "title": "List the services you will offer",
+      "description": "Record deliverables and exclusions for each service.",
+      "completionCriterion": "A service list states what is included and excluded.",
+      "area": "Setup",
+      "priority": "high",
+      "personKey": "owner",
+      "milestoneKeys": [
+        "offer-ready"
+      ],
+      "scheduleKey": "offer-session",
+      "checklist": [
+        "List deliverables",
+        "Write exclusions"
+      ]
+    },
+    {
+      "key": "write-brief",
+      "title": "Adapt the customer brief",
+      "description": "Ask for goals, audience, deliverables, deadline and decision-maker.",
+      "completionCriterion": "The brief includes each required question.",
+      "area": "Prepare the offer",
+      "priority": "high",
+      "personKey": "designer",
+      "milestoneKeys": [
+        "offer-ready"
+      ],
+      "dependsOnTaskKeys": [
+        "define-offer"
+      ],
+      "scheduleKey": "brief-session"
+    },
+    {
+      "key": "add-customers",
+      "title": "Add your own potential customers",
+      "description": "Select businesses you would like to work with and add their contact details yourself.",
+      "completionCriterion": "The workspace contains potential customers selected by you.",
+      "area": "Find customers",
+      "priority": "medium",
+      "personKey": "owner",
+      "dependsOnTaskKeys": [
+        "write-brief"
+      ]
+    }
+  ],
+  "milestones": [
+    {
+      "key": "offer-ready",
+      "title": "Service offer prepared",
+      "description": "The service list and customer brief are ready to use.",
+      "completionCriterion": "The owner has reviewed both documents.",
+      "personKey": "owner",
+      "target": {
+        "type": "relative",
+        "dayOffset": 5
+      }
+    }
+  ],
+  "schedules": [
+    {
+      "key": "offer-session",
+      "title": "Prepare the service list",
+      "kind": "task",
+      "start": {
+        "type": "relative",
+        "dayOffset": 0
+      }
+    },
+    {
+      "key": "brief-session",
+      "title": "Prepare the customer brief",
+      "kind": "task",
+      "start": {
+        "type": "relative",
+        "dayOffset": 2
+      }
+    }
+  ],
+  "documents": [
+    {
+      "key": "customer-brief",
+      "title": "Customer brief",
+      "format": "markdown",
+      "body": "# Customer brief\n\n## Goals\n\nAdd the customer’s goals.\n\n## Audience\n\n## Deliverables\n\n## Deadline\n\n## Decision-maker\n"
+    }
+  ],
+  "budgets": [
+    {
+      "key": "setup-budget",
+      "name": "Illustrative setup budget",
+      "capability": "planned",
+      "currency": "USD",
+      "period": {
+        "start": {
+          "type": "relative",
+          "dayOffset": 0
+        },
+        "end": {
+          "type": "relative",
+          "dayOffset": 29
+        }
+      },
+      "assumptions": [
+        "This is a synthetic validation fixture, not a researched cost estimate or suggested budget. Replace all values before use."
+      ],
+      "lines": [
+        {
+          "key": "sample-materials",
+          "title": "Sample presentation materials",
+          "kind": "expense",
+          "category": "materials_cogs",
+          "plannedAmount": "100.00",
+          "basis": "Arbitrary number demonstrating the decimal format for a single period.",
+          "taskKeys": [
+            "define-offer"
+          ]
+        },
+        {
+          "key": "client-retainer-initial",
+          "title": "Initial client service retainer",
+          "kind": "income",
+          "category": "client_retainer",
+          "plannedAmount": "4500.00",
+          "basis": "Illustrative projected retainer for the first client engagement cycle.",
+          "taskKeys": [
+            "define-offer"
+          ],
+          "personKeys": [
+            "owner"
+          ]
+        },
+        {
+          "key": "software-subscriptions",
+          "title": "Design & project tools",
+          "kind": "expense",
+          "category": "software_tools",
+          "plannedAmount": "80.00",
+          "basis": "Cloud workspace and design collaboration tool subscriptions for the setup period.",
+          "taskKeys": [
+            "define-offer"
+          ]
+        }
+      ]
+    }
+  ],
+  "demo": {
+    "referenceDate": "2026-10-01",
+    "taskStates": [
+      {
+        "taskKey": "define-offer",
+        "status": "done",
+        "personKey": "owner"
+      },
+      {
+        "taskKey": "write-brief",
+        "status": "doing",
+        "personKey": "designer"
+      }
+    ]
+  }
+}

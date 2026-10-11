@@ -10,10 +10,9 @@ import { useUI } from '../state/ui'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { CommandPalette, openCommandPalette } from '../features/command/CommandPalette'
 
-export function StageChrome() {
+export function StageChrome({ showLobbyOverlay = true }: { showLobbyOverlay?: boolean }) {
   const surface = useShell((s) => s.surface)
   const accountOpen = useShell((s) => s.accountOpen)
-  const toggleLobby = useShell((s) => s.toggleLobby)
   const toggleAccount = useShell((s) => s.toggleAccount)
   const session = useSession()
   const user = session.data?.data
@@ -38,7 +37,7 @@ export function StageChrome() {
   return (
     <>
       <header className="masthead">
-        <Link to="/" className="mast-icon" aria-label="Lobby" onClick={() => useShell.getState().showLobby()}>
+        <Link to="/" className="mast-icon" aria-label="Home">
           <LobbyIcon />
         </Link>
         <p className="mast">
@@ -69,7 +68,7 @@ export function StageChrome() {
       <AccountSheet />
       <CommandPalette />
       <AnimatePresence>
-        {lobbyOpen && (
+        {showLobbyOverlay && lobbyOpen && (
           <motion.div
             key="lobby"
             className="lobby-sheet"

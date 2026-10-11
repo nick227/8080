@@ -11,10 +11,12 @@ import './collections.css'
  * Domains fill the slots; the placement never changes between collections.
  */
 type HeadProps = {
-  collection: Desk
+  collection?: Desk
+  title?: string
   count?: number
   onNew?: () => void
-  /** Header actions beside "+ New" (Import, Log work…). */
+  onImport?: () => void
+  /** Header actions beside "+ New" / "Import" (view switches, icon buttons, etc.). */
   actions?: ReactNode
 }
 type BarProps = {
@@ -24,17 +26,39 @@ type BarProps = {
   view?: ReactNode
 }
 
-/** The list switcher, count and "+ New …" (one header for every collection). */
-export function CollectionHeader({ collection, count, onNew, actions }: HeadProps) {
-  const meta = COLLECTIONS.find((c) => c.id === collection)
+/** The list switcher, count, "+ New …" and "Import" (one header for every collection). */
+export function CollectionHeader({ collection, title, count, onNew, onImport, actions }: HeadProps) {
+  const meta = collection ? COLLECTIONS.find((c) => c.id === collection) : undefined
+  const displayTitle = title ?? meta?.label ?? 'Collection'
+  const titleId = `collection-${collection ?? (title ?? 'header').toLowerCase().replace(/\s+/g, '-')}-title`
   return (
     <header className="collection-head">
-      <CollectionSwitcher current={collection} id={`collection-${collection}-title`} />
-      {count != null && <span className="collection-count" aria-label={`${count} ${count === 1 ? meta?.singular : meta?.label.toLowerCase()}`}>{count}</span>}
-      <div className="collection-actions">
-        {actions}
-        {onNew && <button type="button" className="collection-new" onClick={onNew}>+ {meta?.newLabel ?? `New ${meta?.singular}`}</button>}
-      </div>
+      {collection ? (
+        <CollectionSwitcher current={collection} id={titleId} />
+      ) : (
+        <h1 className="collection-title" id={titleId}>{displayTitle}</h1>
+      )}
+      {count != null && <span className="collection-count" aria-label={`${count} ${count === 1 ? (meta?.singular ?? 'task') : (meta?.label ?? 'tasks').toLowerCase()}`}>{count}</span>}
+      {onNew && (
+        <button
+          type="button"
+          className="section-add-btn"
+          aria-label={meta?.newLabel ?? `New ${meta?.singular ?? 'task'}`}
+          onClick={onNew}
+        >
+          + {meta?.newLabel ?? `New ${meta?.singular ?? 'task'}`}
+        </button>
+      )}
+      {onImport && (
+        <button
+          type="button"
+          className="section-add-btn"
+          onClick={onImport}
+        >
+          Import
+        </button>
+      )}
+      {actions && <div className="collection-actions">{actions}</div>}
     </header>
   )
 }
@@ -63,7 +87,7 @@ export function CollectionBar({ collection, search, filters, view }: BarProps) {
   )
 }
 
-export function CollectionView({ collection, count, onNew, actions, subtitle, search, filters, view, notice, children }: HeadProps & BarProps & {
+export function CollectionView({ collection, count, onNew, onImport, actions, subtitle, search, filters, view, notice, children }: HeadProps & BarProps & {
   /** One line under the title saying what the list is for. */
   subtitle?: ReactNode
   /** Between the toolbar and the table: selection bars, banners. */
@@ -72,7 +96,7 @@ export function CollectionView({ collection, count, onNew, actions, subtitle, se
 }) {
   return (
     <section className="collection" aria-labelledby={`collection-${collection}-title`}>
-      <CollectionHeader collection={collection} count={count} onNew={onNew} actions={actions} />
+      <CollectionHeader collection={collection} count={count} onNew={onNew} onImport={onImport} actions={actions} />
       {subtitle && <p className="collection-subtitle">{subtitle}</p>}
       <CollectionBar collection={collection} search={search} filters={filters} view={view} />
       {notice}

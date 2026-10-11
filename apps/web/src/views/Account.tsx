@@ -1,9 +1,7 @@
 import { useLayoutEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLogout, useSession } from '@project/sdk'
-import { Panel } from '../components/Panel'
 import { SEO } from '../components/SEO'
-import { StageChrome } from '../components/StageChrome'
 import { AccountIdentity, CompanyList, GuestAuth, useSaveName } from '../features/AccountSheet'
 import { useShell } from '../state/shell'
 import '../features/room/room.css'
@@ -23,9 +21,8 @@ export function Account() {
   }, [])
 
   return (
-    <Panel as="main" variant="shell" className="room-shell">
+    <div className="app-page">
       <SEO title="Account - 8080" description="Your account" />
-      <StageChrome />
       <div className="account-page">
         <h1>Account</h1>
         {!user ? null : user.isGuest ? (
@@ -62,6 +59,6 @@ export function Account() {
           </>
         )}
       </div>
-    </Panel>
+    </div>
   )
 }

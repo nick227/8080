@@ -20,7 +20,7 @@ function lastList(): Desk {
  * contacts, inventory, team, documents, automations — switched in its header; returns
  * to the last list), Board, Calendar, Stream. Without a company (guests, D8) only Stream.
  */
-export function WorkNav({ desk, onSelect, layoutControl, streamLabel = 'Stream', compact = false, showCompany = true, showWork = true }: {
+export function WorkNav({ desk, onSelect, layoutControl, streamLabel = 'Team', compact = false, showCompany = true, showWork = true }: {
   desk: Desk
   /** The company mark: in a room, only when the room is listed in that company. */
   showCompany?: boolean

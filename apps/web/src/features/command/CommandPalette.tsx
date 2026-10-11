@@ -155,7 +155,7 @@ export function CommandPalette() {
         list.push({ id: `company:${c.id}`, label: `Switch to ${c.name}`, hint: 'Company', words: `switch company ${c.name}`, run: () => { chooseWorkspace(c.id); navigate(`/c/${c.id}`) } })
       }
     }
-    list.push({ id: 'lobby', label: 'Lobby', hint: 'Conversations', words: 'lobby home conversations rooms stream', run: () => { navigate('/'); useShell.getState().showLobby() } })
+    list.push({ id: 'lobby', label: 'Community', hint: 'Conversations', words: 'community lobby home conversations rooms stream', run: () => { navigate('/conversations'); useShell.getState().showLobby() } })
     list.push({ id: 'account', label: 'Account', hint: 'You', words: 'account profile name avatar sign out settings', run: () => navigate('/account') })
     return list
   }, [workspace, companies, navigate])

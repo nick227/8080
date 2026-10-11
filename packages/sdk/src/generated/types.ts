@@ -4233,6 +4233,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/budget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** List workspace budget items (incomes and expenditures) */
+        get: operations["listBudgetItems"];
+        put?: never;
+        /** Create a budget item (income or expenditure) */
+        post: operations["createBudgetItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/budget/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Aggregate budget and cashflow metrics for the workspace */
+        get: operations["getBudgetSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/budget/{budgetItemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                budgetItemId: components["parameters"]["BudgetItemId"];
+            };
+            cookie?: never;
+        };
+        /** Retrieve a single budget item */
+        get: operations["getBudgetItem"];
+        put?: never;
+        post?: never;
+        /** Soft-delete a budget item */
+        delete: operations["deleteBudgetItem"];
+        options?: never;
+        head?: never;
+        /** Update a budget item */
+        patch: operations["updateBudgetItem"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7201,6 +7262,126 @@ export interface components {
                 editing: boolean;
             }[];
         };
+        /** @enum {string} */
+        BudgetDirection: "income" | "expense";
+        /** @enum {string} */
+        BudgetStatus: "planned" | "pending" | "cleared" | "cancelled";
+        /** @enum {string} */
+        BudgetRecurrence: "none" | "weekly" | "monthly" | "quarterly" | "annual";
+        /** @enum {string} */
+        BudgetCategory: "client_retainer" | "project_fee" | "product_sales" | "consulting" | "grant_investment" | "other_income" | "software_tools" | "materials_cogs" | "contractor_support" | "payroll_wages" | "facilities_rent" | "marketing_ads" | "travel_hospitality" | "legal_admin" | "taxes_fees" | "other_expense";
+        BudgetItem: {
+            id: string;
+            workspaceId: string;
+            title: string;
+            description?: string | null;
+            direction: components["schemas"]["BudgetDirection"];
+            category: components["schemas"]["BudgetCategory"];
+            amountMinor: number;
+            currency: string;
+            status: components["schemas"]["BudgetStatus"];
+            scheduledDate: string;
+            scheduledTime?: string | null;
+            /** Format: date-time */
+            clearedAt?: string | null;
+            recurring?: components["schemas"]["BudgetRecurrence"];
+            contactId?: string | null;
+            taskId?: string | null;
+            inventoryId?: string | null;
+            authorMemberId?: string | null;
+            blueprintSlug?: string | null;
+            blueprintHorizon?: string | null;
+            isBlueprintBase?: boolean;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            contact?: {
+                id?: string;
+                displayName?: string;
+            } | null;
+            task?: {
+                id?: string;
+                taskKey?: string;
+                title?: string;
+            } | null;
+            inventory?: {
+                id?: string;
+                name?: string;
+                sku?: string | null;
+            } | null;
+        };
+        CreateBudgetItemInput: {
+            title: string;
+            description?: string;
+            direction: components["schemas"]["BudgetDirection"];
+            category: components["schemas"]["BudgetCategory"];
+            amountMinor: number;
+            currency?: string;
+            status?: components["schemas"]["BudgetStatus"];
+            scheduledDate: string;
+            scheduledTime?: string;
+            /** Format: date-time */
+            clearedAt?: string;
+            recurring?: components["schemas"]["BudgetRecurrence"];
+            contactId?: string;
+            taskId?: string;
+            inventoryId?: string;
+            blueprintSlug?: string;
+            blueprintHorizon?: string;
+            isBlueprintBase?: boolean;
+        };
+        UpdateBudgetItemInput: {
+            title?: string;
+            description?: string | null;
+            direction?: components["schemas"]["BudgetDirection"];
+            category?: components["schemas"]["BudgetCategory"];
+            amountMinor?: number;
+            currency?: string;
+            status?: components["schemas"]["BudgetStatus"];
+            scheduledDate?: string;
+            scheduledTime?: string | null;
+            /** Format: date-time */
+            clearedAt?: string | null;
+            recurring?: components["schemas"]["BudgetRecurrence"];
+            contactId?: string | null;
+            taskId?: string | null;
+            inventoryId?: string | null;
+            expectedVersion?: number;
+        };
+        BudgetItemResponse: {
+            data: components["schemas"]["BudgetItem"];
+        };
+        PaginatedBudgetResponse: {
+            data: components["schemas"]["BudgetItem"][];
+            total: number;
+            limit: number;
+            offset: number;
+        };
+        BudgetSummary: {
+            currency: string;
+            totalIncomeMinor: number;
+            totalExpenseMinor: number;
+            netBalanceMinor: number;
+            clearedNetMinor: number;
+            plannedIncomeMinor: number;
+            plannedExpenseMinor: number;
+            clearedIncomeMinor: number;
+            clearedExpenseMinor: number;
+            pendingIncomeMinor: number;
+            pendingExpenseMinor: number;
+            incomeByCategory?: {
+                [key: string]: number;
+            };
+            expenseByCategory?: {
+                [key: string]: number;
+            };
+            itemCount: number;
+        };
+        BudgetSummaryResponse: {
+            data: components["schemas"]["BudgetSummary"];
+        };
     };
     responses: {
         /** @description Invalid input */
@@ -7282,6 +7463,7 @@ export interface components {
         ReactionTypeParam: components["schemas"]["ReactionType"];
         DocumentId: string;
         WorkspaceId: string;
+        BudgetItemId: string;
         ProposalId: string;
         /** @description A WorkspaceMember id (not a user id) */
         MemberId: string;
@@ -15040,6 +15222,182 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listBudgetItems: {
+        parameters: {
+            query?: {
+                direction?: components["schemas"]["BudgetDirection"];
+                category?: components["schemas"]["BudgetCategory"];
+                status?: components["schemas"]["BudgetStatus"];
+                scheduledDate?: string;
+                from?: string;
+                to?: string;
+                search?: string;
+                sort?: "date" | "amount" | "title" | "created";
+                dir?: "asc" | "desc";
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedBudgetResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createBudgetItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBudgetItemInput"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetItemResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getBudgetSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetSummaryResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getBudgetItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                budgetItemId: components["parameters"]["BudgetItemId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetItemResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteBudgetItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                budgetItemId: components["parameters"]["BudgetItemId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateBudgetItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                budgetItemId: components["parameters"]["BudgetItemId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBudgetItemInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetItemResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };

@@ -61,6 +61,10 @@ export type WorkspaceVerb =
   | 'conversation.read'
   | 'conversation.link'
   | 'conversation.unlink'
+  // Budget items (income & expenditures): all members read/write; deleting for admins + author
+  | 'budget.read'
+  | 'budget.write'
+  | 'budget.delete'
 
 const OWNERS: readonly WorkspaceRole[] = ['owner']
 const ADMINS: readonly WorkspaceRole[] = ['owner', 'admin']
@@ -111,6 +115,9 @@ const ROLES: Record<WorkspaceVerb, readonly WorkspaceRole[]> = {
   'conversation.read': EVERYONE,
   'conversation.link': EVERYONE,
   'conversation.unlink': ADMINS, // + the room's owner (CompanyRoomService)
+  'budget.read': EVERYONE,
+  'budget.write': EVERYONE,
+  'budget.delete': ADMINS, // + the budget author (below)
 }
 
 // What a verb is applied to, when the answer depends on it.
@@ -120,6 +127,7 @@ export type PolicyTarget =
   | { kind: 'team'; leadMemberIds: readonly string[] }
   | { kind: 'record'; ownerMemberId: string | null }
   | { kind: 'note'; authorMemberId: string }
+  | { kind: 'budget'; authorMemberId: string | null }
   | { kind: 'worklog'; memberIds: readonly (string | null)[] }
   // `workspaceAccess`: what every active member gets (null = private to owner + grants).
   | { kind: 'document'; ownerMemberId: string; grants: { memberId: string; role: 'viewer' | 'editor' }[]; workspaceAccess: 'viewer' | 'editor' | null }
@@ -139,6 +147,7 @@ export function can(member: Pick<WorkspaceMember, 'id' | 'role' | 'status'>, ver
   if (verb === 'team.members.manage' && target?.kind === 'team' && target.leadMemberIds.includes(member.id)) return true
   if (verb === 'record.delete' && target?.kind === 'record' && target.ownerMemberId === member.id) return true
   if (verb === 'note.delete' && target?.kind === 'note' && target.authorMemberId === member.id) return true
+  if (verb === 'budget.delete' && target?.kind === 'budget' && target.authorMemberId === member.id) return true
   if (verb === 'worklog.delete' && target?.kind === 'worklog' && target.memberIds.includes(member.id)) return true
   if (!ROLES[verb].includes(member.role)) return false
   // Only owners touch owners, or make someone an owner.

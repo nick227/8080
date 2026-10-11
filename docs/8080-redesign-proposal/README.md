@@ -49,4 +49,7 @@ A user can recognize their company and their account, discover every core featur
 
 ## Final addenda — binding build decisions
 
-`00-decisions.md` supersedes these where they conflict. Read [`09-final-decisions.md`](09-final-decisions.md), [`10-theme-regression.md`](10-theme-regression.md) and [`11-developer-execution.md`](11-developer-execution.md) **before coding**. They override alternative navigation experiments in prior documents. The mockup with a persistent full sidebar was exploratory and must not be copied literally.
+`00-decisions.md` supersedes these where they conflict. Read [`09-final-decisions.md`](09-final-decisions.md), [`10-theme-regression.md`](10-theme-regression.md) and [`11-developer-execution.md`](11-developer-execution.md) **before coding**. They override alternative navigation experiments in prior documents. The later user decision D10 adopts a persistent site-wide left navigation. Read [`15-site-shell.md`](15-site-shell.md) for the binding shell geometry and collapse/expand behavior; it supersedes earlier sidebar restrictions. The related [Business templates epic](../business-templates-epic.md) describes browsable plans and task packages copied into private workspaces.
+
+
+The current homepage milestone is [Blueprint Catalog and Reader](../blueprint-catalog-plan.md), which supersedes the earlier business-template epic’s release order. Catalog and Reader share the new shell; other routes still require migration.

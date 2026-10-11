@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useRef, useState } from 'react'
+import { SearchIcon } from '../../components/icons'
 import { Avatar } from './BoardView'
 import { filtersActive, useCalendar, useWorkflow, type Filters } from './store'
 import { useTeam } from './sync'
@@ -36,16 +37,18 @@ export const CalendarFilters = forwardRef<HTMLInputElement, { count: number; tot
 
   return (
     <div className="cal-filters" role="search" aria-label="Filter tasks">
-      <input
-        ref={searchRef}
-        type="search"
-        className="cal-search"
-        aria-label="Search tasks"
-        placeholder="Search tasks  /"
-        value={filters.search}
-        onChange={(e) => setFilters({ search: e.target.value })}
-        onKeyDown={(e) => { if (e.key === 'Escape') { setFilters({ search: '' }); e.currentTarget.blur() } }}
-      />
+      <label className="collection-search">
+        <SearchIcon />
+        <input
+          ref={searchRef}
+          type="search"
+          aria-label="Search tasks"
+          placeholder="Search tasks…  /"
+          value={filters.search}
+          onChange={(e) => setFilters({ search: e.target.value })}
+          onKeyDown={(e) => { if (e.key === 'Escape') { setFilters({ search: '' }); e.currentTarget.blur() } }}
+        />
+      </label>
 
       <div className="cal-member-filter" role="group" aria-label="Filter by assignee">
         {team.map((m) => (

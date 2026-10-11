@@ -92,6 +92,7 @@ function Floor({ view, seats, item, next, onEnded, self, bar, stack, paused }: {
     <section className="room-live" data-layout={fullScreen ? 'screen' : view} data-density={tileDensity(seats.length)} data-thumbnails={fullScreen && thumbnails.length > 0 ? '' : undefined} data-playing={item ? '' : undefined} aria-label={VIEW_LABEL[view]}>
       {fullScreen && thumbnails.length > 0 && (
         <div className="room-thumbnails" role="group" aria-label="Team view switcher">
+          <button type="button" className="room-thumbnail" aria-label="Close team view" onClick={() => setSelected(null)}><GridViewIcon /></button>
           {thumbnails.map((seat) => (
             <button
               key={seat.id}

@@ -9,6 +9,9 @@ import {
   type RecordImage,
 } from '@project/sdk'
 import type { RecordGalleryKind } from '@project/sdk'
+import { Card, CardContent, CardHeader } from '../../components/ui/Card'
+import { GalleryIcon, PencilIcon } from '../../components/icons'
+
 
 export function RecordGallery({
   workspaceId,
@@ -91,116 +94,118 @@ export function RecordGallery({
   const busy = upload.isPending || reorder.isPending || setPrimary.isPending || remove.isPending
 
   return (
-    <section className="record-gallery" aria-label="Gallery">
-      <header className="record-gallery-head">
-        <h2>Gallery</h2>
-        <span>
-          {rows.length}/{12}
-        </span>
-      </header>
-      {selected ? (
-        <button type="button" className="record-gallery-hero" onClick={() => setLightbox(true)} disabled={busy}>
-          <img src={selected.url} alt="" />
-          {selected.isPrimary && <em>Primary</em>}
-        </button>
-      ) : (
-        <button type="button" className="record-gallery-empty" onClick={() => fileRef.current?.click()} disabled={busy}>
-          <span aria-hidden="true">
-            {name
-              .split(/\s+/)
-              .filter(Boolean)
-              .slice(0, 2)
-              .map((word) => word[0])
-              .join('')
-              .toUpperCase() || '·'}
+    <Card style={{ marginLeft: 'var(--space-lg)' }}>
+      <CardHeader
+        icon={<GalleryIcon />}
+        title="Images"
+        description="Logos, storefront, and team photos."
+        actions={
+          <span style={{ fontSize: '0.75rem', color: '#8e8d8a', fontFamily: 'var(--mono)' }}>
+            {rows.length}/{12}
           </span>
-          <strong>Add a photo</strong>
-          <small>
-            {kind === 'company'
-              ? 'Logo, storefront, or team photos.'
-              : 'Products and people both look better with one.'}
-          </small>
-        </button>
-      )}
-      <div className="record-gallery-strip" role="list">
-        {rows.map((row) => (
-          <Thumb
-            key={row.id}
-            row={row}
-            active={row.id === selected?.id}
-            dragging={dragId === row.id}
-            disabled={busy}
-            onSelect={() => setSelectedId(row.id)}
-            onDragStart={() => setDragId(row.id)}
-            onDragEnd={() => setDragId(null)}
-            onDrop={() => void onDropReorder(row.id)}
-          />
-        ))}
-        <button
-          type="button"
-          className="record-gallery-add"
-          aria-label="Add image"
-          disabled={busy || rows.length >= 12}
-          onClick={() => fileRef.current?.click()}
-        >
-          +
-        </button>
-      </div>
-      {selected && (
-        <div className="record-gallery-actions">
-          {!selected.isPrimary && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                setError('')
-                setPrimary.mutate(selected.id, { onError: fail })
-              }}
-            >
-              Make primary
+        }
+      />
+      <CardContent>
+        <div className="record-gallery-body">
+          {selected ? (
+            <button type="button" className="record-gallery-hero" onClick={() => setLightbox(true)} disabled={busy}>
+              <img src={selected.url} alt="" />
+              {selected.isPrimary && <em>Primary</em>}
+            </button>
+          ) : (
+            <button type="button" className="record-gallery-empty" onClick={() => fileRef.current?.click()} disabled={busy}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <GalleryIcon />
+                <strong>Add a photo</strong>
+                <small>Logos, storefront, or team photos.</small>
+                <span className="ui-btn-action" style={{ marginTop: '4px' }}>Upload image</span>
+              </div>
             </button>
           )}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              if (!window.confirm('Remove this image?')) return
-              setError('')
-              remove.mutate(selected.id, {
-                onSuccess: () => setSelectedId(null),
-                onError: fail,
-              })
+          <div className="record-gallery-strip" role="list">
+            {rows.map((row) => (
+              <Thumb
+                key={row.id}
+                row={row}
+                active={row.id === selected?.id}
+                dragging={dragId === row.id}
+                disabled={busy}
+                onSelect={() => setSelectedId(row.id)}
+                onDragStart={() => setDragId(row.id)}
+                onDragEnd={() => setDragId(null)}
+                onDrop={() => void onDropReorder(row.id)}
+              />
+            ))}
+            <button
+              type="button"
+              className="record-gallery-add"
+              aria-label="Add image"
+              disabled={busy || rows.length >= 12}
+              onClick={() => fileRef.current?.click()}
+            >
+              +
+            </button>
+          </div>
+          {selected && (
+            <div className="record-gallery-actions">
+              {!selected.isPrimary && (
+                <button
+                  type="button"
+                  className="ui-btn-action"
+                  disabled={busy}
+                  onClick={() => {
+                    setError('')
+                    setPrimary.mutate(selected.id, { onError: fail })
+                  }}
+                >
+                  Make primary
+                </button>
+              )}
+              <button
+                type="button"
+                className="ui-btn-action"
+                style={{ color: '#ef4444' }}
+                disabled={busy}
+                onClick={() => {
+                  if (!window.confirm('Remove this image?')) return
+                  setError('')
+                  remove.mutate(selected.id, {
+                    onSuccess: () => setSelectedId(null),
+                    onError: fail,
+                  })
+                }}
+              >
+                Remove
+              </button>
+            </div>
+          )}
+          {error && (
+            <p className="record-error" role="alert">
+              {error}
+            </p>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ''
+              void onFile(file)
             }}
-          >
-            Remove
-          </button>
+          />
+          {lightbox && selected && (
+            <div className="record-gallery-lightbox" role="dialog" aria-modal="true" aria-label="Image">
+              <button type="button" className="record-gallery-lightbox-close" onClick={() => setLightbox(false)}>
+                Close
+              </button>
+              <img src={selected.url} alt="" />
+            </div>
+          )}
         </div>
-      )}
-      {error && (
-        <p className="record-error" role="alert">
-          {error}
-        </p>
-      )}
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/jpeg,image/png,image/gif,image/webp"
-        hidden
-        onChange={(event) => {
-          const file = event.target.files?.[0]
-          event.target.value = ''
-          void onFile(file)
-        }}
-      />
-      {lightbox && selected && (
-        <div className="record-gallery-lightbox" role="dialog" aria-modal="true" aria-label="Image">
-          <button type="button" className="record-gallery-lightbox-close" onClick={() => setLightbox(false)}>
-            Close
-          </button>
-          <img src={selected.url} alt="" />
-        </div>
-      )}
-    </section>
+      </CardContent>
+    </Card>
   )
 }
 

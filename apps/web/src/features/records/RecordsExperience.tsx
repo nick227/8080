@@ -543,7 +543,7 @@ function RecordWorkspace({
               collection={kind}
               count={typeof total === 'number' ? total : undefined}
               onNew={() => setAdding(true)}
-              actions={<button type="button" className="section-add-btn" onClick={() => setImporting(true)}>Import</button>}
+              onImport={() => setImporting(true)}
             />
             <CollectionBar
               collection={kind}

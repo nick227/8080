@@ -566,6 +566,7 @@ model Workspace {
   workLogs         WorkLog[]
   taskBoard        TaskBoardSettings?
   taskStatuses     TaskStatusDef[]
+  budgetItems      BudgetItem[]
 
   @@index([createdById])
 }
@@ -624,6 +625,7 @@ model WorkspaceMember {
   workLogs          WorkLog[] @relation("WorkLogAuthor")
   workLogsDone      WorkLog[] @relation("WorkLogMember")
   taskViews         TaskView[]
+  authoredBudgets   BudgetItem[] @relation("BudgetItemAuthor")
 
   @@unique([workspaceId, userId])
   @@index([userId, status])
@@ -917,6 +919,7 @@ model Contact {
   composes    Compose[]
   interests   Interest[]
   businessEvents AgentBusinessEvent[]
+  budgetItems    BudgetItem[]
 
   @@unique([workspaceId, externalProvider, externalId])
   @@index([workspaceId, displayName, id])
@@ -1010,6 +1013,7 @@ model Inventory {
   stockMovements InventoryStockMovement[]
   links          RecordLink[]
   subjects       ActivitySubject[]
+  budgetItems    BudgetItem[]
 
   @@unique([workspaceId, sku])
   @@index([workspaceId, name])
@@ -2264,6 +2268,7 @@ model WorkTask {
   activities Activity[]
   checklist WorkChecklistItem[]
   workLogs  WorkLog[]
+  budgetItems BudgetItem[]
 
   @@unique([workspaceId, taskKey])
   @@index([workspaceId, status, rank])
@@ -2403,3 +2408,84 @@ model TaskLink {
   @@index([roomId])
   @@index([linkedById])
 }
+
+enum BudgetDirection {
+  income
+  expense
+}
+
+enum BudgetStatus {
+  planned
+  pending
+  cleared
+  cancelled
+}
+
+enum BudgetRecurrence {
+  none
+  weekly
+  monthly
+  quarterly
+  annual
+}
+
+enum BudgetCategory {
+  client_retainer
+  project_fee
+  product_sales
+  consulting
+  grant_investment
+  other_income
+  software_tools
+  materials_cogs
+  contractor_support
+  payroll_wages
+  facilities_rent
+  marketing_ads
+  travel_hospitality
+  legal_admin
+  taxes_fees
+  other_expense
+}
+
+// A budget line item: expenditures and incomes affecting cashflow, calendars, and aggregates.
+model BudgetItem {
+  id               String            @id @default(cuid())
+  workspaceId      String
+  title            String            @db.VarChar(255)
+  description      String?           @db.Text
+  direction        BudgetDirection
+  category         BudgetCategory
+  amountMinor      Int
+  currency         String            @default("USD") @db.Char(3)
+  status           BudgetStatus      @default(planned)
+  scheduledDate    String            @db.VarChar(10) // "YYYY-MM-DD" for calendar placement
+  scheduledTime    String?           @db.VarChar(5)
+  clearedAt        DateTime?
+  recurring        BudgetRecurrence? @default(none)
+  contactId        String?
+  taskId           String?
+  inventoryId      String?
+  authorMemberId   String?
+  blueprintSlug    String?           @db.VarChar(64)
+  blueprintHorizon String?           @db.VarChar(16)
+  isBlueprintBase  Boolean           @default(false)
+  version          Int               @default(1)
+  deletedAt        DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  task      WorkTask?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  inventory Inventory?       @relation(fields: [inventoryId], references: [id], onDelete: SetNull)
+  author    WorkspaceMember? @relation("BudgetItemAuthor", fields: [authorMemberId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, direction, status])
+  @@index([workspaceId, scheduledDate])
+  @@index([workspaceId, category])
+  @@index([workspaceId, contactId])
+  @@index([workspaceId, taskId])
+  @@index([workspaceId, blueprintSlug])
+}
+

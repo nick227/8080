@@ -10,9 +10,12 @@ import {
   type CreateEmailConnectionInput,
   type EmailConnection,
 } from '@project/sdk'
-import { SectionHeader } from '../work/SectionHeader'
+import { Card, CardContent, CardHeader } from '../../components/ui/Card'
+import { Badge } from '../../components/ui/Badge'
+import { IntegrationBrandIcon, PlugIcon } from '../../components/icons'
 import { FormSlideout } from '../work/FormSlideout'
 import { TestEmailSlideout } from './TestEmailSlideout'
+
 
 type IntegrationRow = {
   id: string
@@ -351,105 +354,116 @@ export function IntegrationsSection({ workspaceId, canEdit }: { workspaceId: str
 
   return (
     <section className="company-group" aria-labelledby="company-integrations-title">
-      <SectionHeader
-        title="Integrations"
-        titleId="company-integrations-title"
-        newLabel="Add SMTP Mail"
-        onNew={canEdit && !showSmtpForm ? () => setShowSmtpForm(true) : undefined}
-      />
-
-      <div className="integrations-table-container">
-        <table className="integrations-table">
-          <thead>
-            <tr>
-              <th onClick={() => handleSort('service')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                Service {sortField === 'service' ? (sortAsc ? '▲' : '▼') : ''}
-              </th>
-              <th onClick={() => handleSort('category')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                Category {sortField === 'category' ? (sortAsc ? '▲' : '▼') : ''}
-              </th>
-              <th onClick={() => handleSort('account')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                Account / Endpoint {sortField === 'account' ? (sortAsc ? '▲' : '▼') : ''}
-              </th>
-              <th onClick={() => handleSort('authMethod')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                Auth Method {sortField === 'authMethod' ? (sortAsc ? '▲' : '▼') : ''}
-              </th>
-              <th onClick={() => handleSort('status')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                Status {sortField === 'status' ? (sortAsc ? '▲' : '▼') : ''}
-              </th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {unifiedRows.map((row) => (
-              <tr key={row.id}>
-                <td>
-                  <strong>{row.service}</strong>
-                </td>
-                <td>{row.category}</td>
-                <td style={{ fontFamily: 'var(--mono)', fontSize: '0.825rem' }}>{row.account}</td>
-                <td>{row.authMethod}</td>
-                <td>
-                  <span
-                    className="status-pill"
-                    data-status={row.isSystem || row.isDefault ? 'default' : row.isConnected ? 'connected' : 'disconnected'}
-                  >
-                    {row.status}
-                  </span>
-                </td>
-                <td>
-                  <div className="actions-cell">
-                    {canEdit && !row.isSystem && row.rawItem && (
-                      <button
-                        type="button"
-                        className={row.isConnected ? 'company-go' : 'section-add-btn'}
-                        style={row.isConnected ? { color: 'var(--muted)' } : undefined}
-                        onClick={() => handleToggleConnect(row.rawItem!)}
+      <Card style={{ marginTop: 'var(--space-lg)' }}>
+        <CardHeader
+          icon={<PlugIcon />}
+          title="Integrations"
+          description="Connect your tools and keep your company in sync."
+          actions={
+            canEdit && !showSmtpForm ? (
+              <button type="button" className="ui-btn-action" onClick={() => setShowSmtpForm(true)}>
+                <span>+ Add integration</span>
+              </button>
+            ) : null
+          }
+        />
+        <CardContent style={{ padding: 0 }}>
+          <div className="integrations-table-container" style={{ padding: 0 }}>
+            <table className="integrations-table">
+              <thead>
+                <tr>
+                  <th onClick={() => handleSort('service')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    Service {sortField === 'service' ? (sortAsc ? '▲' : '▼') : ''}
+                  </th>
+                  <th onClick={() => handleSort('category')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    Category {sortField === 'category' ? (sortAsc ? '▲' : '▼') : ''}
+                  </th>
+                  <th onClick={() => handleSort('account')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    Account / Endpoint {sortField === 'account' ? (sortAsc ? '▲' : '▼') : ''}
+                  </th>
+                  <th onClick={() => handleSort('authMethod')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    Auth Method {sortField === 'authMethod' ? (sortAsc ? '▲' : '▼') : ''}
+                  </th>
+                  <th onClick={() => handleSort('status')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    Status {sortField === 'status' ? (sortAsc ? '▲' : '▼') : ''}
+                  </th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {unifiedRows.map((row) => (
+                  <tr key={row.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <IntegrationBrandIcon service={row.service} />
+                        <strong>{row.service}</strong>
+                      </div>
+                    </td>
+                    <td>{row.category}</td>
+                    <td style={{ fontFamily: 'var(--mono)', fontSize: '0.825rem' }}>{row.account}</td>
+                    <td>{row.authMethod}</td>
+                    <td>
+                      <Badge
+                        variant={row.isSystem || row.isDefault ? 'default' : row.isConnected ? 'connected' : 'disconnected'}
                       >
-                        {row.isConnected ? 'Disconnect' : 'Connect'}
-                      </button>
-                    )}
-                    {canEdit && row.isSdk && row.rawSdk && !row.rawSdk.isDefault && (
-                      <button
-                        type="button"
-                        className="company-go"
-                        onClick={() => handleMakeDefault(row.rawSdk!)}
-                      >
-                        Make default
-                      </button>
-                    )}
-                    {canEdit && row.isSdk && row.rawSdk && row.rawSdk.mode === 'own' && !row.rawSdk.isDefault && (
-                      <button
-                        type="button"
-                        className="company-go"
-                        style={{ color: 'var(--danger, #dc2626)' }}
-                        onClick={() => handleDeleteSmtp(row.id)}
-                      >
-                        Remove
-                      </button>
-                    )}
-                    {row.isConnected && (
-                      <button
-                        type="button"
-                        className="section-add-btn"
-                        onClick={() =>
-                          setTestSlideout({
-                            senderLabel: row.service,
-                            senderFromAddress: row.fromAddress || row.account,
-                            connectionId: row.connectionId,
-                          })
-                        }
-                      >
-                        Test
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                        {row.status}
+                      </Badge>
+                    </td>
+                    <td>
+                      <div className="actions-cell">
+                        {canEdit && !row.isSystem && row.rawItem && (
+                          <button
+                            type="button"
+                            className="ui-btn-action"
+                            style={row.isConnected ? { color: 'var(--muted)' } : undefined}
+                            onClick={() => handleToggleConnect(row.rawItem!)}
+                          >
+                            {row.isConnected ? 'Disconnect' : 'Connect'}
+                          </button>
+                        )}
+                        {canEdit && row.isSdk && row.rawSdk && !row.rawSdk.isDefault && (
+                          <button
+                            type="button"
+                            className="ui-btn-action"
+                            onClick={() => handleMakeDefault(row.rawSdk!)}
+                          >
+                            Make default
+                          </button>
+                        )}
+                        {canEdit && row.isSdk && row.rawSdk && row.rawSdk.mode === 'own' && !row.rawSdk.isDefault && (
+                          <button
+                            type="button"
+                            className="ui-btn-action"
+                            style={{ color: 'var(--danger, #dc2626)' }}
+                            onClick={() => handleDeleteSmtp(row.id)}
+                          >
+                            Remove
+                          </button>
+                        )}
+                        {row.isConnected && (
+                          <button
+                            type="button"
+                            className="ui-btn-action"
+                            onClick={() =>
+                              setTestSlideout({
+                                senderLabel: row.service,
+                                senderFromAddress: row.fromAddress || row.account,
+                                connectionId: row.connectionId,
+                              })
+                            }
+                          >
+                            Test
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       {errorMsg && (
         <p className="company-status" role="alert" style={{ color: 'var(--danger, #dc2626)', paddingInline: 'var(--table-cell-padding-x)' }}>

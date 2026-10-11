@@ -2,6 +2,8 @@
 @import './themes.css';
 @import './controls.css';
 @import './layout.css';
+@import './components.css';
+
 
 /* Resolve density-dependent values at each boundary. Theme authors may override
    any individual spacing or component token here without changing the scale. */

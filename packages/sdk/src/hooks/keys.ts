@@ -49,4 +49,8 @@ export const keys = {
   workLogs: (workspaceId: string) => ['workspaces', workspaceId, 'work-logs'] as const,
   taskBoard: (workspaceId: string) => ['workspaces', workspaceId, 'task-board'] as const,
   taskStatuses: (workspaceId: string) => ['workspaces', workspaceId, 'task-statuses'] as const,
+  budget: (workspaceId: string, params?: object) => ['workspaces', workspaceId, 'budget', 'list', params ?? {}] as const,
+  budgetSummary: (workspaceId: string) => ['workspaces', workspaceId, 'budget', 'summary'] as const,
+  budgetItem: (workspaceId: string, budgetItemId: string) => ['workspaces', workspaceId, 'budget', budgetItemId] as const,
 }
+

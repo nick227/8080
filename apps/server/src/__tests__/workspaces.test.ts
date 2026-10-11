@@ -143,6 +143,8 @@ function sampleBody(op: any) {
     CreateTaskLinkInput: { contactId: 'x' },
     LinkCompanyConversationInput: { roomId: 'x' },
     StarInboxItemInput: { starred: true },
+    CreateBudgetItemInput: { title: 'x', direction: 'income', category: 'client_retainer', amountMinor: 100, scheduledDate: '2026-10-15' },
+    UpdateBudgetItemInput: { title: 'x' },
     ArchiveInboxItemInput: { archived: true },
     SendComposeInput: { contactId: 'x', channel: 'email', destination: 'a@b.co', subject: 'x', body: 'x', contextType: 'contact', contextId: 'x' },
     DocumentPresenceInput: { editing: true },

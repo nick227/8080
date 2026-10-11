@@ -1574,7 +1574,15 @@
 .cal { min-width: 0; width: 100%; }
 .cal > .section-header { flex-shrink: 0; flex-wrap: wrap; }
 .cal-filters { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-md); padding: var(--toolbar-padding-y) var(--table-cell-padding-x); min-height: var(--toolbar-height); border-bottom: var(--line-width) solid var(--line); flex-shrink: 0; }
+.cal[data-surface="tasks"] .cal-filters,
+.cal[data-surface="board"] .cal-filters,
+.cal[data-surface="table"] .cal-filters {
+  padding: 0 var(--table-cell-padding-x) var(--space-sm);
+  min-height: 0;
+  gap: var(--space-sm);
+}
 .cal-filters label { display: flex; align-items: center; gap: var(--space-sm); color: var(--muted); font-size: var(--text-label); }
+.cal-filters label.collection-search { gap: var(--space-xs); font-size: var(--text-sm); }
 .cal-filters select { height: var(--button-height-sm); max-width: 12rem; padding-inline: var(--space-sm); border: var(--line-width) solid var(--line); background: var(--surface-deep); color: var(--ink); font: inherit; }
 .cal-view-count { margin-left: auto; font-size: var(--text-label); color: var(--muted); }
 .cal-list-view, .cal-backlog-view { padding: 0; min-width: 0; }
@@ -2070,9 +2078,11 @@
 .ticket-comment-composer { align-items: flex-start; flex-wrap: wrap; }
 
 /* For you: the viewer's notifications */
-.cal-foryou { position: relative; display: inline-flex; }
+.cal-foryou { position: relative; display: inline-flex; align-items: center; }
+.cal-foryou-btn { position: relative; }
 .cal-foryou-count { display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.25rem; margin-left: 6px; padding: 0 4px; border-radius: 999px; background: var(--danger); color: var(--surface-deep); font-family: var(--mono); font-size: 10px; font-weight: var(--weight-bold); }
-.cal-foryou-menu { left: 0; right: auto; width: min(24rem, calc(100vw - 32px)); max-height: 60vh; overflow-y: auto; }
+.cal-foryou-btn .cal-foryou-count { position: absolute; top: -4px; right: -5px; margin-left: 0; min-width: 14px; height: 14px; padding: 0 3px; box-sizing: border-box; font-size: 9px; line-height: 14px; pointer-events: none; }
+.cal-foryou-menu { right: 0; left: auto; width: min(24rem, calc(100vw - 32px)); max-height: 60vh; overflow-y: auto; }
 .cal-foryou-head { display: flex; align-items: center; justify-content: space-between; padding-right: var(--space-sm); }
 .cal-foryou-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .cal-menu .cal-foryou-item { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 0 var(--space-sm); width: 100%; min-height: auto; padding: var(--space-sm); align-items: start; }
@@ -2086,13 +2096,6 @@
 .cal-foryou-email select { height: var(--button-height-sm); padding: 0 var(--space-sm); border: var(--line-width) solid var(--line); border-radius: var(--input-radius); background: var(--surface-deep); color: var(--ink); font: inherit; }
 .cal-kanban-title-group { flex-wrap: wrap; row-gap: 0; }
 .cal-kanban-title { white-space: nowrap; }
-
-/* Live sync state */
-.cal-live { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: var(--text-label); color: var(--muted); }
-.cal-live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
-.cal-live[data-state="live"]::before { background: var(--ink); }
-.cal-live[data-state="reconnecting"] { color: var(--danger); }
-.cal-live[data-state="reconnecting"]::before { background: var(--danger); }
 
 /* Needs attention: shared urgency filters */
 .cal-urgency { display: flex; align-items: center; gap: 4px; }
@@ -2325,3 +2328,29 @@ a.cal-title-link:hover { text-decoration: underline; }
 .ticket-link-picker li button { width: 100%; text-align: left; padding: var(--space-xs) var(--space-sm); border: 0; background: none; color: var(--ink); font: inherit; cursor: pointer; }
 .ticket-link-picker li button:hover, .ticket-link-picker li button:focus-visible { background: var(--surface-deep); }
 .ticket-link-picker > .cal-link-btn { align-self: flex-start; }
+
+/* Calendar scheduled budget cashflow */
+.cal-day-cashflow {
+  margin: 2px 0 4px;
+  display: flex;
+  align-items: center;
+}
+.cal-cashflow-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cal-cashflow-badge.pos {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.cal-cashflow-badge.neg {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}

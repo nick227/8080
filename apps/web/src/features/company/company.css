@@ -31,6 +31,44 @@
   background: var(--surface-active, rgba(255, 255, 255, 0.05));
 }
 
+/* Company Overview Inner Sub-Tabs Bar */
+.company-subtabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 0 var(--table-cell-padding-x, var(--space-lg));
+  margin-bottom: var(--space-lg);
+  border-bottom: var(--line-width, 1px) solid var(--line);
+}
+
+.company-subtab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  font-family: var(--sans);
+  font-size: var(--text-sm, 0.875rem);
+  font-weight: var(--weight-medium, 500);
+  color: var(--muted);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-bottom: -1px;
+}
+
+.company-subtab-btn:hover {
+  color: var(--ink);
+}
+
+.company-subtab-btn[aria-current="page"] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+  font-weight: var(--weight-bold, 600);
+}
+
+
 /* Project Visibility Toggle Pill */
 .project-visibility-pill {
   display: inline-flex;
@@ -179,9 +217,6 @@
   overscroll-behavior: contain;
   padding-bottom: var(--space-2xl);
 }
-.company-col-profile {
-  border-right: var(--line-width) solid var(--line);
-}
 .company-group {
   display: flex;
   flex-direction: column;
@@ -281,7 +316,7 @@
   padding: 0 var(--table-cell-padding-x);
 }
 .company-form {
-  padding: 0 var(--table-cell-padding-x) var(--space-lg);
+  padding: 0;
   max-width: none;
 }
 .company-section-block {
@@ -298,13 +333,13 @@
 }
 .company-field-hint {
   font-size: var(--text-label, 0.75rem);
-  color: var(--muted);
-  margin-top: 2px;
+  color: #8e8d8a;
+  margin-top: 4px;
 }
 .company-form .record-form-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--space-lg);
+  gap: var(--space-md) var(--space-lg);
   padding: 0;
   overflow: visible;
 }
@@ -318,21 +353,40 @@
 .company-form label {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
-  font-size: var(--text-sm);
+  gap: 6px;
+  font-size: 0.825rem;
 }
-.company-form label > span { color: var(--muted); }
+.company-form label > span {
+  color: #8e8d8a;
+  font-weight: 500;
+  font-size: 0.8rem;
+}
 .company-form input,
 .company-form textarea,
 .company-form select {
-  min-height: var(--control-size);
-  border: var(--line-width) solid var(--input-border-color);
-  border-radius: var(--input-radius);
-  background: var(--input-bg);
-  color: var(--input-color);
-  padding: var(--space-xs) var(--space-sm);
+  min-height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(16, 16, 14, 0.75);
+  color: #ffffff;
+  padding: 8px 12px;
   font: inherit;
+  font-size: 0.875rem;
   min-width: 0;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.company-form input:hover,
+.company-form textarea:hover,
+.company-form select:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(20, 20, 18, 0.85);
+}
+.company-form input:focus-visible,
+.company-form textarea:focus-visible,
+.company-form select:focus-visible {
+  border-color: rgba(255, 255, 255, 0.4);
+  outline: none;
+  background: rgba(22, 22, 19, 0.95);
 }
 .company-form footer {
   display: flex;
@@ -340,18 +394,24 @@
   justify-content: space-between;
   gap: var(--space-md);
   margin-top: var(--space-lg);
-  padding: 0;
-  border: 0;
+  padding-top: var(--space-md);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 .company-form .record-primary {
-  min-height: var(--control-size);
-  padding: var(--space-xs) var(--space-md);
-  color: var(--bg);
-  background: var(--ink);
-  font-weight: var(--weight-medium);
-  border: 0;
-  border-radius: var(--radius);
+  min-height: 32px;
+  padding: 6px 18px;
+  color: #0c0d0a;
+  background: #facc15;
+  font-weight: 700;
+  border: 1px solid #eab308;
+  border-radius: 6px;
   cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.15s ease;
+}
+.company-form .record-primary:hover {
+  background: #fef08a;
+  color: #000000;
 }
 .company-form .record-primary:disabled { opacity: var(--opacity-disabled); cursor: default; }
 .company-gallery {

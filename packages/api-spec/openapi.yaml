@@ -6268,6 +6268,145 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/budget:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listBudgetItems
+      summary: List workspace budget items (incomes and expenditures)
+      tags: [workspaces]
+      parameters:
+        - in: query
+          name: direction
+          schema: { $ref: '#/components/schemas/BudgetDirection' }
+        - in: query
+          name: category
+          schema: { $ref: '#/components/schemas/BudgetCategory' }
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/BudgetStatus' }
+        - in: query
+          name: scheduledDate
+          schema: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        - in: query
+          name: from
+          schema: { type: string }
+        - in: query
+          name: to
+          schema: { type: string }
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: sort
+          schema: { type: string, enum: [date, amount, title, created], default: date }
+        - in: query
+          name: dir
+          schema: { type: string, enum: [asc, desc], default: asc }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedBudgetResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createBudgetItem
+      summary: Create a budget item (income or expenditure)
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateBudgetItemInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BudgetItemResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/budget/summary:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: getBudgetSummary
+      summary: Aggregate budget and cashflow metrics for the workspace
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BudgetSummaryResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspaceId}/budget/{budgetItemId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/BudgetItemId'
+    get:
+      operationId: getBudgetItem
+      summary: Retrieve a single budget item
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BudgetItemResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateBudgetItem
+      summary: Update a budget item
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateBudgetItemInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BudgetItemResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteBudgetItem
+      summary: Soft-delete a budget item
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -6334,6 +6473,11 @@ components:
     WorkspaceId:
       in: path
       name: workspaceId
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    BudgetItemId:
+      in: path
+      name: budgetItemId
       required: true
       schema: { type: string, minLength: 1, maxLength: 64 }
     ProposalId:
@@ -11149,3 +11293,176 @@ components:
                   memberId: { type: string }
                   name: { type: string }
                   editing: { type: boolean }
+
+    BudgetDirection:
+      type: string
+      enum: [income, expense]
+
+    BudgetStatus:
+      type: string
+      enum: [planned, pending, cleared, cancelled]
+
+    BudgetRecurrence:
+      type: string
+      enum: [none, weekly, monthly, quarterly, annual]
+
+    BudgetCategory:
+      type: string
+      enum:
+        - client_retainer
+        - project_fee
+        - product_sales
+        - consulting
+        - grant_investment
+        - other_income
+        - software_tools
+        - materials_cogs
+        - contractor_support
+        - payroll_wages
+        - facilities_rent
+        - marketing_ads
+        - travel_hospitality
+        - legal_admin
+        - taxes_fees
+        - other_expense
+
+    BudgetItem:
+      type: object
+      required:
+        - id
+        - workspaceId
+        - title
+        - direction
+        - category
+        - amountMinor
+        - currency
+        - status
+        - scheduledDate
+        - version
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        title: { type: string }
+        description: { type: [string, 'null'] }
+        direction: { $ref: '#/components/schemas/BudgetDirection' }
+        category: { $ref: '#/components/schemas/BudgetCategory' }
+        amountMinor: { type: integer, minimum: 0 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        status: { $ref: '#/components/schemas/BudgetStatus' }
+        scheduledDate: { type: string }
+        scheduledTime: { type: [string, 'null'] }
+        clearedAt: { type: [string, 'null'], format: date-time }
+        recurring: { $ref: '#/components/schemas/BudgetRecurrence' }
+        contactId: { type: [string, 'null'] }
+        taskId: { type: [string, 'null'] }
+        inventoryId: { type: [string, 'null'] }
+        authorMemberId: { type: [string, 'null'] }
+        blueprintSlug: { type: [string, 'null'] }
+        blueprintHorizon: { type: [string, 'null'] }
+        isBlueprintBase: { type: boolean }
+        version: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        contact: { type: [object, 'null'], properties: { id: { type: string }, displayName: { type: string } } }
+        task: { type: [object, 'null'], properties: { id: { type: string }, taskKey: { type: string }, title: { type: string } } }
+        inventory: { type: [object, 'null'], properties: { id: { type: string }, name: { type: string }, sku: { type: [string, 'null'] } } }
+
+    CreateBudgetItemInput:
+      type: object
+      additionalProperties: false
+      required: [title, direction, category, amountMinor, scheduledDate]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: string, maxLength: 2000 }
+        direction: { $ref: '#/components/schemas/BudgetDirection' }
+        category: { $ref: '#/components/schemas/BudgetCategory' }
+        amountMinor: { type: integer, minimum: 0 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        status: { $ref: '#/components/schemas/BudgetStatus' }
+        scheduledDate: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        scheduledTime: { type: string, pattern: '^\d{2}:\d{2}$' }
+        clearedAt: { type: string, format: date-time }
+        recurring: { $ref: '#/components/schemas/BudgetRecurrence' }
+        contactId: { type: string }
+        taskId: { type: string }
+        inventoryId: { type: string }
+        blueprintSlug: { type: string }
+        blueprintHorizon: { type: string }
+        isBlueprintBase: { type: boolean }
+
+    UpdateBudgetItemInput:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: [string, 'null'], maxLength: 2000 }
+        direction: { $ref: '#/components/schemas/BudgetDirection' }
+        category: { $ref: '#/components/schemas/BudgetCategory' }
+        amountMinor: { type: integer, minimum: 0 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        status: { $ref: '#/components/schemas/BudgetStatus' }
+        scheduledDate: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        scheduledTime: { type: [string, 'null'], pattern: '^\d{2}:\d{2}$' }
+        clearedAt: { type: [string, 'null'], format: date-time }
+        recurring: { $ref: '#/components/schemas/BudgetRecurrence' }
+        contactId: { type: [string, 'null'] }
+        taskId: { type: [string, 'null'] }
+        inventoryId: { type: [string, 'null'] }
+        expectedVersion: { type: integer }
+
+    BudgetItemResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/BudgetItem' }
+
+    PaginatedBudgetResponse:
+      type: object
+      required: [data, total, limit, offset]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/BudgetItem' }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+
+    BudgetSummary:
+      type: object
+      required:
+        - currency
+        - totalIncomeMinor
+        - totalExpenseMinor
+        - netBalanceMinor
+        - clearedNetMinor
+        - plannedIncomeMinor
+        - plannedExpenseMinor
+        - clearedIncomeMinor
+        - clearedExpenseMinor
+        - pendingIncomeMinor
+        - pendingExpenseMinor
+        - itemCount
+      properties:
+        currency: { type: string }
+        totalIncomeMinor: { type: integer }
+        totalExpenseMinor: { type: integer }
+        netBalanceMinor: { type: integer }
+        clearedNetMinor: { type: integer }
+        plannedIncomeMinor: { type: integer }
+        plannedExpenseMinor: { type: integer }
+        clearedIncomeMinor: { type: integer }
+        clearedExpenseMinor: { type: integer }
+        pendingIncomeMinor: { type: integer }
+        pendingExpenseMinor: { type: integer }
+        incomeByCategory: { type: object, additionalProperties: { type: integer } }
+        expenseByCategory: { type: object, additionalProperties: { type: integer } }
+        itemCount: { type: integer }
+
+    BudgetSummaryResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/BudgetSummary' }
+

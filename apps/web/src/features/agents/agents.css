@@ -42,6 +42,7 @@
 
 .agents-label {
   margin: var(--space-lg) 0 var(--space-sm);
+  margin-left: 10px;
   font-family: var(--mono);
   font-size: var(--text-label);
   letter-spacing: var(--tracking-spaced);

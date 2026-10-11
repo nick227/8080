@@ -2,6 +2,8 @@ import { monthCells, monthName, dayTitle, parseDay } from './dates'
 import { orderTasks } from './store'
 import type { CalTask, CalAccomplishment } from './types'
 import { wf } from './store'
+import type { BudgetItem } from '@project/sdk'
+import { formatMinorMoney } from '@project/shared'
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const SHOWN = 3
@@ -11,6 +13,7 @@ export function MonthView({
   today,
   tasks,
   accomplishments = [],
+  budgetItems = [],
   onOpen,
   onAddForDay,
   onSelectTask,
@@ -19,6 +22,7 @@ export function MonthView({
   today: string
   tasks: CalTask[]
   accomplishments?: CalAccomplishment[]
+  budgetItems?: BudgetItem[]
   onOpen: (day: string) => void
   onAddForDay: (day: string) => void
   onSelectTask?: (task: CalTask) => void
@@ -36,6 +40,14 @@ export function MonthView({
     const list = byDayAccs.get(acc.day)
     if (list) list.push(acc)
     else byDayAccs.set(acc.day, [acc])
+  }
+
+  const byDayBudget = new Map<string, BudgetItem[]>()
+  for (const item of budgetItems) {
+    if (!item.scheduledDate) continue
+    const list = byDayBudget.get(item.scheduledDate)
+    if (list) list.push(item)
+    else byDayBudget.set(item.scheduledDate, [item])
   }
 
   return (
@@ -98,6 +110,24 @@ export function MonthView({
                   ))}
                 </div>
               )}
+
+              {/* Cashflow badge */}
+              {(() => {
+                const dayBudget = byDayBudget.get(cell.key) ?? []
+                if (dayBudget.length === 0) return null
+                let net = 0
+                for (const b of dayBudget) {
+                  if (b.status === 'cancelled') continue
+                  net += b.direction === 'income' ? b.amountMinor : -b.amountMinor
+                }
+                return (
+                  <div className="cal-day-cashflow" title={`Scheduled cashflow: ${formatMinorMoney(net)} (${dayBudget.length} budget entries)`}>
+                    <span className={`cal-cashflow-badge ${net >= 0 ? 'pos' : 'neg'}`}>
+                      {net >= 0 ? '+' : ''}{formatMinorMoney(net)}
+                    </span>
+                  </div>
+                )
+              })()}
 
               <span className="cal-entries">
                 {shownTasks.map((task) => (

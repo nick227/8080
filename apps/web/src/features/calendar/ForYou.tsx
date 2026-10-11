@@ -1,11 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useInboxItems, useInboxStream, useReadInboxItem, useTaskNotificationSettings, useUpdateTaskNotificationSettings, type InboxItem, type TaskNotificationSettings } from '@project/sdk'
+import { BellIcon } from '../../components/icons'
 import { since } from './BoardView'
 import { useCalendar } from './store'
 
 /** The viewer's task notifications (their inbox rows), opened from the calendar. */
-export function ForYou({ workspaceId, onOpenTask }: { workspaceId: string; onOpenTask: (taskKey: string) => void }) {
+export function ForYou({
+  workspaceId,
+  onOpenTask,
+  iconOnly = true,
+}: {
+  workspaceId: string
+  onOpenTask: (taskKey: string) => void
+  iconOnly?: boolean
+}) {
   const list = useInboxItems(workspaceId, { sourceType: 'task' })
   useInboxStream(workspaceId)
   const read = useReadInboxItem(workspaceId)
@@ -48,9 +57,34 @@ export function ForYou({ workspaceId, onOpenTask }: { workspaceId: string; onOpe
 
   return (
     <div className="cal-foryou" ref={ref}>
-      <button type="button" className="section-add-btn" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((v) => !v)}>
-        For you{unread.length ? <span className="cal-foryou-count" aria-label={`${unread.length} unread`}>{unread.length}</span> : null}
-      </button>
+      {iconOnly ? (
+        <button
+          type="button"
+          className="cal-icon-btn cal-foryou-btn"
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-label={`For you${unread.length ? ` (${unread.length} unread)` : ''}`}
+          title="For you"
+          onClick={() => setOpen((v) => !v)}
+        >
+          <BellIcon />
+          {unread.length > 0 && (
+            <span className="cal-foryou-count" aria-label={`${unread.length} unread`}>
+              {unread.length}
+            </span>
+          )}
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="section-add-btn"
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          onClick={() => setOpen((v) => !v)}
+        >
+          For you{unread.length ? <span className="cal-foryou-count" aria-label={`${unread.length} unread`}>{unread.length}</span> : null}
+        </button>
+      )}
       {open && (
         <div className="cal-menu cal-foryou-menu" role="dialog" aria-label="Notifications">
           <div className="cal-foryou-head">

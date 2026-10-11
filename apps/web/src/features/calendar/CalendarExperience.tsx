@@ -5,6 +5,7 @@ import { useCreateCompany, useCurrentWorkspace } from '../documents/workspace'
 import { onCompanyPath, taskPath, tasksPath } from '../tasks/links'
 import { SectionHeader } from '../work/SectionHeader'
 import { CollectionHeader } from '../collections/CollectionView'
+import { WorkflowIcon } from '../../components/icons'
 import { DayView } from './DayView'
 import { addDays, dayKey, dayTitle, monthName, parseDay, todayKey } from './dates'
 import { ImportModal } from './ImportModal'
@@ -26,6 +27,7 @@ import { CalendarFilters } from './CalendarFilters'
 import { applyFilters, filtersActive, NO_FILTERS, useCalendar, useWorkflow, type Filters, type View } from './store'
 import { useLocalTasks, useTaskSync } from './sync'
 import type { CalTask, TaskStatus } from './types'
+import { useBudgetItems } from '@project/sdk'
 import './calendar.css'
 
 const VIEWS: { id: View; label: string }[] = [
@@ -109,6 +111,7 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
   const ticketParam = pageTaskKey ?? new URLSearchParams(location.search).get('ticket')
   const sync = useTaskSync()
   const local = useLocalTasks()
+  const budgetQuery = useBudgetItems(workspaceId)
 
   const tasks = useCalendar((state) => state.tasks)
   const loaded = useCalendar((state) => state.loaded)
@@ -241,25 +244,59 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
           setSelectedDayForNewTask(section === 'tasks' ? '' : cursor)
           setComposing(true)
         }
+
+        // Tasks (Lists) and Board share the same single-row consolidated control bar.
+        if (section === 'tasks' || section === 'board') {
+          return (
+            <CollectionHeader
+              collection={section === 'tasks' ? 'tasks' : undefined}
+              title={section === 'board' ? 'Board' : undefined}
+              count={tasks.length}
+              onNew={newTask}
+              onImport={() => setImporting(true)}
+              actions={
+                <>
+                  <div className="cal-view-toggle" role="group" aria-label={section === 'tasks' ? 'Tasks view' : 'Board view'}>
+                    {views.length > 1 && views.map((v) => (
+                      <button
+                        key={v.id}
+                        type="button"
+                        className={`cal-btn ${view === v.id ? 'cal-view-active' : ''}`}
+                        aria-pressed={view === v.id}
+                        onClick={() => setView(v.id)}
+                      >
+                        {section === 'tasks' && v.id === 'table' ? 'List' : v.label}
+                      </button>
+                    ))}
+                  </div>
+                  {canManage && (view === 'board' || view === 'table') && (
+                    <button
+                      type="button"
+                      className="cal-icon-btn"
+                      aria-label="Workflow configuration"
+                      title="Workflow"
+                      onClick={() => setEditingWorkflow(true)}
+                    >
+                      <WorkflowIcon />
+                    </button>
+                  )}
+                  <ForYou workspaceId={workspaceId} onOpenTask={openTicketKey} iconOnly />
+                  <SavedViews workspaceId={workspaceId} />
+                </>
+              }
+            />
+          )
+        }
+
         const extras = (
           <>
             {datedView && <button type="button" className="section-add-btn" onClick={() => setLoggingAcc(true)}>Log work</button>}
-            <ForYou workspaceId={workspaceId} onOpenTask={openTicketKey} />
-            {canManage && (view === 'board' || view === 'table') && (
-              <button type="button" className="section-add-btn" onClick={() => setEditingWorkflow(true)}>Workflow</button>
-            )}
+            <ForYou workspaceId={workspaceId} onOpenTask={openTicketKey} iconOnly />
           </>
         )
-        // Tasks is a shared collection (redesign D9); Board and Calendar are their own canvases.
-        return section === 'tasks' ? (
-          <CollectionHeader
-            collection="tasks"
-            count={tasks.length}
-            onNew={newTask}
-            actions={<>{extras}<button type="button" className="section-add-btn" onClick={() => setImporting(true)}>Import</button></>}
-          />
-        ) : (
-          <SectionHeader title={sectionTitle} level={section === 'table' ? 2 : 1} newLabel="task" onNew={newTask} onImport={() => setImporting(true)}>
+
+        return (
+          <SectionHeader title={sectionTitle} level={1} newLabel="task" onNew={newTask} onImport={() => setImporting(true)}>
             {extras}
           </SectionHeader>
         )
@@ -282,26 +319,27 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
       )}
 
       <div className="cal-main-container">
-        <header className="cal-bar">
-          {datedView ? <div className="cal-nav" aria-label="Calendar dates">
-            <button type="button" className="cal-btn" aria-label={view === 'day' ? 'Previous day' : 'Previous month'} onClick={() => view === 'day' ? showDay(dayKey(addDays(parseDay(cursor), -1))) : shiftMonth(-1)}>←</button>
-            <button type="button" className="cal-btn" aria-label={view === 'day' ? 'Next day' : 'Next month'} onClick={() => view === 'day' ? showDay(dayKey(addDays(parseDay(cursor), 1))) : shiftMonth(1)}>→</button>
-            <h2 className="cal-period">{title}</h2>
-            <button type="button" className="cal-btn" aria-pressed={onToday} onClick={goToday}>Today</button>
-          </div> : section === 'tasks' ? null : <h2 className="cal-period">{view === 'backlog' ? 'Open tasks · all dates' : view === 'table' ? 'All tasks' : view === 'reports' ? 'Reports' : 'Board · all tasks'}</h2>}
-          <span className="cal-live" data-state={sync.live} role="status" title={sync.live === 'live' ? 'Changes from teammates appear as they happen' : 'Reconnecting; changes appear when the connection is back'}>
-            {sync.live === 'live' ? 'Live' : sync.live === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}
-          </span>
-          <div className="cal-tools">
-            <div className="cal-view-toggle" role="group" aria-label={`${sectionTitle} view`}>
-              {views.length > 1 && views.map((v) => (
-                <button key={v.id} type="button" className={`cal-btn ${view === v.id ? 'cal-view-active' : ''}`} aria-pressed={view === v.id} onClick={() => setView(v.id)}>{section === 'tasks' && v.id === 'table' ? 'List' : v.label}</button>
-              ))}
+        {section !== 'tasks' && section !== 'board' && (
+          <header className="cal-bar">
+            {datedView ? (
+              <div className="cal-nav" aria-label="Calendar dates">
+                <button type="button" className="cal-btn" aria-label={view === 'day' ? 'Previous day' : 'Previous month'} onClick={() => view === 'day' ? showDay(dayKey(addDays(parseDay(cursor), -1))) : shiftMonth(-1)}>←</button>
+                <button type="button" className="cal-btn" aria-label={view === 'day' ? 'Next day' : 'Next month'} onClick={() => view === 'day' ? showDay(dayKey(addDays(parseDay(cursor), 1))) : shiftMonth(1)}>→</button>
+                <h2 className="cal-period">{title}</h2>
+                <button type="button" className="cal-btn" aria-pressed={onToday} onClick={goToday}>Today</button>
+              </div>
+            ) : null}
+            <div className="cal-tools">
+              <div className="cal-view-toggle" role="group" aria-label={`${sectionTitle} view`}>
+                {views.length > 1 && views.map((v) => (
+                  <button key={v.id} type="button" className={`cal-btn ${view === v.id ? 'cal-view-active' : ''}`} aria-pressed={view === v.id} onClick={() => setView(v.id)}>{v.label}</button>
+                ))}
+              </div>
             </div>
-          </div>
-        </header>
+          </header>
+        )}
         {/* Reports have their own date range; the board filters narrow them too. */}
-        <SavedViews workspaceId={workspaceId} />
+        {section !== 'tasks' && section !== 'board' && <SavedViews workspaceId={workspaceId} />}
         <CalendarFilters ref={searchRef} count={filteredTasks.length} total={scopedTasks.length} scoped={scopedTasks} reports={view === 'reports'} />
 
         {sync.error && !loaded ? (
@@ -353,6 +391,7 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
             today={today}
             tasks={filteredTasks}
             accomplishments={filteredAccomplishments}
+            budgetItems={budgetQuery.data?.data}
             onOpen={showDay}
             onAddForDay={handleOpenDayForAdd}
             onSelectTask={openTicket}

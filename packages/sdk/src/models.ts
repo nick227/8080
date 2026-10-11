@@ -180,3 +180,15 @@ export type AgentEventDetail = S['AgentEventDetailResponse']['data']
 export type AgentPreview = S['AgentPreviewResponse']['data']
 export type AgentTestResult = S['AgentTestResponse']['data']
 export type UpdateAgentInput = S['UpdateAgentInput']
+
+// Budget
+export type BudgetDirection = S['BudgetDirection']
+export type BudgetStatus = S['BudgetStatus']
+export type BudgetRecurrence = S['BudgetRecurrence']
+export type BudgetCategory = S['BudgetCategory']
+export type BudgetItem = S['BudgetItem']
+export type CreateBudgetItemInput = S['CreateBudgetItemInput']
+export type UpdateBudgetItemInput = S['UpdateBudgetItemInput']
+export type BudgetSummary = S['BudgetSummary']
+export type PaginatedBudgetResponse = S['PaginatedBudgetResponse']
+

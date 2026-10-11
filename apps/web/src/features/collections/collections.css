@@ -1,22 +1,25 @@
 /* The shared collection view (redesign D9): one frame for every tabular list. */
 .collection { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .collection-head { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-md) var(--table-cell-padding-x) var(--space-sm); min-width: 0; }
-.collection .collection-head .collection-switcher-title { margin: 0; font-size: var(--text-lg); font-weight: 600; }
-.collection-head .collection-switcher-title button,
-.records-experience .collection-head .collection-switcher-title button { min-height: 0; padding: 2px var(--space-xs); border: 0; background: transparent; color: var(--ink); font: inherit; }
+.collection-head .collection-switcher-title,
+.collection-head .collection-title { margin: 0; font-size: var(--text-lg); font-weight: 600; color: var(--ink); line-height: 1.2; }
+.collection-head .collection-switcher-title button { min-height: 0; padding: 2px var(--space-xs); border: 0; background: transparent; color: var(--ink); font: inherit; }
 .collection-head .collection-switcher-title button:hover,
 .collection-head .collection-switcher-title button:focus-visible,
 .collection-head .collection-switcher-title button[aria-expanded="true"] { background: var(--surface-active); }
 .collection-count { font-family: var(--mono); font-size: var(--text-label); color: var(--muted); }
+.collection-head .section-add-btn { flex: none; padding: var(--space-1) var(--space-control); font-family: var(--mono); font-size: var(--text-label); color: var(--muted); border: 0; background: transparent; cursor: pointer; }
+.collection-head .section-add-btn:hover, .collection-head .section-add-btn:focus-visible { color: var(--signal); }
 .collection-actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; justify-content: flex-end; }
-.collection-head .collection-new { height: 32px; min-height: 32px; padding: 0 var(--space-md); border: 0; border-radius: var(--radius); background: var(--ink); color: var(--bg); font-family: var(--sans); font-size: var(--text-sm); font-weight: 600; white-space: nowrap; }
-.collection-head .collection-new:hover, .collection-head .collection-new:focus-visible { background: var(--ink); opacity: .88; }
 .collection-actions .section-add-btn { padding: 0 var(--space-xs); }
+.collection-actions .cal-views { display: inline-flex; align-items: center; gap: var(--space-xs); padding: 0; font-size: var(--text-label); }
+.collection-actions .cal-views .cal-link-btn { font-family: var(--mono); font-size: var(--text-label); color: var(--muted); text-decoration: none; white-space: nowrap; padding: 0 var(--space-xs); cursor: pointer; }
+.collection-actions .cal-views .cal-link-btn:hover, .collection-actions .cal-views .cal-link-btn:focus-visible { color: var(--signal); }
 
 .collection-bar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm); padding: 0 var(--table-cell-padding-x) var(--space-sm); min-width: 0; }
 .collection-search { display: inline-flex; align-items: center; gap: var(--space-xs); flex: 0 1 280px; min-width: 160px; height: 32px; box-sizing: border-box; padding: 0 var(--space-sm); border: var(--input-border-width) var(--input-border-style) var(--input-border-color); border-radius: var(--input-radius); background: var(--input-bg); color: var(--muted); }
 .collection-search:focus-within { border-color: var(--ink); }
-.collection-bar .collection-search input { flex: 1; min-width: 0; min-height: 0; height: 100%; padding: 0; border: 0; outline: none; background: transparent; color: var(--input-color); font: inherit; font-size: var(--text-sm); }
+.collection-search input, .collection-bar .collection-search input { flex: 1; min-width: 0; min-height: 0; height: 100%; padding: 0; border: 0; outline: none; background: transparent; color: var(--input-color); font: inherit; font-size: var(--text-sm); }
 .collection-filters { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; min-width: 0; }
 .collection-view-controls { margin-left: auto; display: flex; align-items: center; gap: var(--space-sm); }
 /* Every control in the bar has one look (the app's 32px control), whichever list it belongs to. */

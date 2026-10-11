@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type FormEvent } from 'react'
 import { ApiError, getApiClient, unwrap } from '@project/sdk'
-import { SectionHeader } from '../work/SectionHeader'
+import { Card, CardContent, CardHeader } from '../../components/ui/Card'
+import { BuildingIcon, PencilIcon, UserCardIcon } from '../../components/icons'
 
 type Profile = {
   revision: number
@@ -128,92 +129,118 @@ export function CompanyProfileSection({
         </p>
       ) : (
         <form className="company-form" onSubmit={(e) => void save(e)}>
-          <div className="company-section-block">
-            <SectionHeader title="Profile" titleId="company-profile-title">
-              {onOpenChannel && (
-                <button type="button" className="section-add-btn" onClick={onOpenChannel}>
-                  Setup with chatbot
-                </button>
-              )}
-            </SectionHeader>
-            <div className="record-form-fields">
-              <label>
-                <span>Name shown in 8080</span>
-                <input value={form.name} disabled={!canEdit} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-              </label>
-              <label className="company-full-width">
-                <span>Goals & objectives</span>
-                <textarea rows={3} value={form.purpose} disabled={!canEdit} onChange={(e) => setForm({ ...form, purpose: e.target.value })} placeholder="Key goals, scope, and objectives" />
-              </label>
-            </div>
-          </div>
+          <Card>
+            <CardHeader
+              icon={<UserCardIcon />}
+              title="Profile"
+              description="Basic information about your company."
+              actions={
+                canEdit ? (
+                  <button type="submit" className="ui-btn-action" disabled={saving}>
+                    <PencilIcon />
+                    <span>Edit</span>
+                  </button>
+                ) : onOpenChannel ? (
+                  <button type="button" className="ui-btn-action" onClick={onOpenChannel}>
+                    Setup with chatbot
+                  </button>
+                ) : null
+              }
+            />
+            <CardContent>
+              <div className="record-form-fields">
+                <label>
+                  <span>Company name</span>
+                  <input value={form.name} disabled={!canEdit} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                </label>
+                <label className="company-full-width">
+                  <span>Goals & objectives</span>
+                  <textarea rows={3} value={form.purpose} disabled={!canEdit} onChange={(e) => setForm({ ...form, purpose: e.target.value })} placeholder="Key goals, scope, and objectives" />
+                </label>
+              </div>
+            </CardContent>
+          </Card>
 
-          <div className="company-section-block">
-            <SectionHeader title="Business details" titleId="company-details-title" />
-            <div className="record-form-fields">
-              <label>
-                <span>Legal or trading name</span>
-                <input
-                  value={form.companyName}
-                  disabled={!canEdit}
-                  onChange={(e) => setForm({ ...form, companyName: e.target.value })}
-                  placeholder="e.g. Acme Corporation"
-                />
-              </label>
-              <label>
-                <span>Company slug</span>
-                <input
-                  value={form.companySlug}
-                  disabled={!canEdit}
-                  onChange={(e) => setForm({ ...form, companySlug: sanitizeSlug(e.target.value) })}
-                  placeholder="e.g. acme-corp"
-                />
-                <span className="company-field-hint">Used in domains and emails (lowercase, no spaces)</span>
-              </label>
-              <label>
-                <span>Company deliverables & services</span>
-                <input value={form.offerings} disabled={!canEdit} onChange={(e) => setForm({ ...form, offerings: e.target.value })} placeholder="Separate with commas" />
-              </label>
-              <label>
-                <span>Company target audience & stakeholders</span>
-                <input value={form.customers} disabled={!canEdit} onChange={(e) => setForm({ ...form, customers: e.target.value })} placeholder="Separate with commas" />
-              </label>
-              <label>
-                <span>Company strategic advantages</span>
-                <input value={form.differentiators} disabled={!canEdit} onChange={(e) => setForm({ ...form, differentiators: e.target.value })} placeholder="Separate with commas" />
-              </label>
-              <label>
-                <span>Company location</span>
-                <input value={form.location} disabled={!canEdit} onChange={(e) => setForm({ ...form, location: e.target.value })} />
-              </label>
-              <label>
-                <span>Company scale & scope</span>
-                <select value={form.serviceArea} disabled={!canEdit} onChange={(e) => setForm({ ...form, serviceArea: e.target.value })}>
-                  <option value="">Not set</option>
-                  <option value="local">Local</option>
-                  <option value="regional">Regional</option>
-                  <option value="national">National</option>
-                  <option value="global">Global</option>
-                </select>
-              </label>
-              <label>
-                <span>Company tone & communication voice</span>
-                <select value={form.brandVoice} disabled={!canEdit} onChange={(e) => setForm({ ...form, brandVoice: e.target.value })}>
-                  <option value="">Not set</option>
-                  <option value="professional">Professional</option>
-                  <option value="friendly">Friendly</option>
-                  <option value="bold">Bold</option>
-                  <option value="technical">Technical</option>
-                </select>
-              </label>
-            </div>
-          </div>
+          <Card style={{ marginTop: 'var(--space-lg)' }}>
+            <CardHeader
+              icon={<BuildingIcon />}
+              title="Business details"
+              description="What you do, who you serve, and how you operate."
+              actions={
+                canEdit ? (
+                  <button type="submit" className="ui-btn-action" disabled={saving}>
+                    <PencilIcon />
+                    <span>Edit</span>
+                  </button>
+                ) : null
+              }
+            />
+            <CardContent>
+              <div className="record-form-fields">
+                <label>
+                  <span>Legal or trading name</span>
+                  <input
+                    value={form.companyName}
+                    disabled={!canEdit}
+                    onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                    placeholder="e.g. Acme Corporation"
+                  />
+                </label>
+                <label>
+                  <span>Company slug</span>
+                  <input
+                    value={form.companySlug}
+                    disabled={!canEdit}
+                    onChange={(e) => setForm({ ...form, companySlug: sanitizeSlug(e.target.value) })}
+                    placeholder="e.g. acme-corp"
+                  />
+                  <span className="company-field-hint">Used in domains and emails (lowercase, no spaces)</span>
+                </label>
+                <label>
+                  <span>Company deliverables & services</span>
+                  <input value={form.offerings} disabled={!canEdit} onChange={(e) => setForm({ ...form, offerings: e.target.value })} placeholder="Separate with commas" />
+                </label>
+                <label>
+                  <span>Target audience & stakeholders</span>
+                  <input value={form.customers} disabled={!canEdit} onChange={(e) => setForm({ ...form, customers: e.target.value })} placeholder="Separate with commas" />
+                </label>
+                <label>
+                  <span>Strategic advantages</span>
+                  <input value={form.differentiators} disabled={!canEdit} onChange={(e) => setForm({ ...form, differentiators: e.target.value })} placeholder="Separate with commas" />
+                </label>
+                <label>
+                  <span>Company location</span>
+                  <input value={form.location} disabled={!canEdit} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+                </label>
+                <label>
+                  <span>Company scale & scope</span>
+                  <select value={form.serviceArea} disabled={!canEdit} onChange={(e) => setForm({ ...form, serviceArea: e.target.value })}>
+                    <option value="">Not set</option>
+                    <option value="local">Local</option>
+                    <option value="regional">Regional</option>
+                    <option value="national">National</option>
+                    <option value="global">Global</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Tone & communication voice</span>
+                  <select value={form.brandVoice} disabled={!canEdit} onChange={(e) => setForm({ ...form, brandVoice: e.target.value })}>
+                    <option value="">Not set</option>
+                    <option value="professional">Professional</option>
+                    <option value="friendly">Friendly</option>
+                    <option value="bold">Bold</option>
+                    <option value="technical">Technical</option>
+                  </select>
+                </label>
+              </div>
+            </CardContent>
+          </Card>
 
           {canEdit && (
             <footer>
               <span role="status">{status}</span>
               <button type="submit" className="record-primary" disabled={saving}>
-                Save
+                Save changes
               </button>
             </footer>
           )}
@@ -222,3 +249,4 @@ export function CompanyProfileSection({
     </section>
   )
 }
+

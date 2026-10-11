@@ -74,7 +74,7 @@ function NewConversation({ workspaceId, name, onCancel }: { workspaceId: string;
         <span>Who can see it</span>
         <select value={visibility} onChange={(e) => setVisibility(e.target.value as 'private' | 'public')}>
           <option value="private">Private: people you invite</option>
-          <option value="public">Public: anyone, and listed in the Lobby</option>
+          <option value="public">Public: anyone, and listed in Browse conversations</option>
         </select>
       </label>
       <p className="company-new-hint">

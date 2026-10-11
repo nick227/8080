@@ -38,7 +38,7 @@ export function Company() {
         <div className="company-missing" role="alert">
           <h1>{unknownDesk && workspace ? 'This page doesn’t exist' : 'This company isn’t available'}</h1>
           <p>{unknownDesk && workspace ? 'Check the link, or go back to the company.' : 'It may not exist, or you may not be a member.'}</p>
-          <Link to={unknownDesk && workspace ? `/c/${workspace.id}` : '/'}>{unknownDesk && workspace ? 'Go to company overview' : 'Go to the Lobby'}</Link>
+          <Link to={unknownDesk && workspace ? `/c/${workspace.id}` : '/workspaces'}>{unknownDesk && workspace ? 'Go to company overview' : 'Go to your workspaces'}</Link>
         </div>
       ) : (
         <CompanyChannelShell workspaceId={workspace.id}>

@@ -1,13 +1,14 @@
-export type Desk = 'tasks' | 'company' | 'stream' | 'team' | 'inbox' | 'contacts' | 'inventory' | 'documents' | 'calendar' | 'board' | 'agents'
+export type Desk = 'tasks' | 'company' | 'stream' | 'team' | 'inbox' | 'contacts' | 'inventory' | 'documents' | 'calendar' | 'board' | 'agents' | 'budget'
 
 /** Desks shown in the workspace nav. Inbox is deferred until real inbound mail exists. */
 export const DESKS: { id: Desk; label: string }[] = [
   { id: 'company', label: 'Company' },
   { id: 'tasks', label: 'Tasks' },
-  { id: 'stream', label: 'Stream' },
-  { id: 'team', label: 'Team' },
+  { id: 'stream', label: 'Team' },
+  { id: 'team', label: 'Work' },
   { id: 'contacts', label: 'Contacts' },
   { id: 'inventory', label: 'Inventory' },
+  { id: 'budget', label: 'Budget' },
   { id: 'documents', label: 'Documents' },
   { id: 'calendar', label: 'Calendar' },
   { id: 'board', label: 'Board' },
@@ -19,6 +20,7 @@ export const COLLECTIONS: { id: Desk; label: string; singular: string; newLabel?
   { id: 'tasks', label: 'Tasks', singular: 'task' },
   { id: 'contacts', label: 'Contacts', singular: 'contact' },
   { id: 'inventory', label: 'Inventory', singular: 'item' },
+  { id: 'budget', label: 'Budget', singular: 'entry', newLabel: 'New item' },
   { id: 'team', label: 'Team', singular: 'member', newLabel: 'Invite member' },
   { id: 'documents', label: 'Documents', singular: 'document' },
   { id: 'agents', label: 'Automations', singular: 'automation' },
