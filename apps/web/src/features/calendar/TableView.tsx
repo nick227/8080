@@ -105,7 +105,7 @@ export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { 
       field('points', 'points', (t) => t.storyPoints ?? '—', (t) => String(t.storyPoints ?? 'none'), { defaultHidden: true, align: 'end' }),
       field('due', 'due', (t) => <DueLabel task={t} />, (t) => t.dueDate ?? 'none', { width: '6.5rem' }),
       field('day', 'day', (t) => (t.day ? shortDate(t.day) : '—'), (t) => t.day ?? 'none', { defaultHidden: true }),
-      { id: 'updated', header: 'Updated', firstDir: -1, className: 'cal-col-updated', sortValue: (t) => sortValue(t, 'updated', workflow), cell: (t) => (t.updatedAt ? since(t.updatedAt) : '') },
+      { id: 'updated', header: 'Updated', width: '7rem', firstDir: -1, className: 'cal-col-updated', sortValue: (t) => sortValue(t, 'updated', workflow), cell: (t) => (t.updatedAt ? since(t.updatedAt) : '') },
     ]
   }, [workflow])
   const table = useTableState('tasks', columns, { id: 'status', dir: 1 })
