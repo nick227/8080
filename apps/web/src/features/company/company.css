@@ -613,3 +613,7 @@
   height: 70vh;
   border-top: var(--line-width) solid var(--line);
 }
+
+/* A muted line under a value or a section (Integrations). */
+.company-note { color: var(--muted); font-size: var(--text-xs); }
+.ui-card-content > .company-status { padding: var(--space-sm) var(--space-md); margin: 0; }

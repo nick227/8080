@@ -88,10 +88,9 @@ export async function exchangeAndVerifyGoogleLoginCode(code: string, redirectUri
   }
 }
 
-/** Generates OAuth URL for Gmail Connect (offline access with prompt=consent) */
-export function getGoogleGmailAuthUrl(workspaceId: string, userId: string): string {
+/** OAuth URL for Gmail Connect (offline access, prompt=consent). `state` is opaque here: the caller seals it (handlers/agents.ts). */
+export function getGoogleGmailAuthUrl(state: string): string {
   const { clientId, redirectUri } = getGoogleGmailConfig()
-  const statePayload = Buffer.from(JSON.stringify({ workspaceId, userId, nonce: Date.now() })).toString('base64url')
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -100,7 +99,7 @@ export function getGoogleGmailAuthUrl(workspaceId: string, userId: string): stri
     scope: 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email',
     access_type: 'offline',
     prompt: 'consent',
-    state: statePayload,
+    state,
   })
 
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`

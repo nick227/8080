@@ -1,8 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
-import { useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   getApiClient,
-  unwrap,
   useCreateEmailConnection,
   useDeleteEmailConnection,
   useEmailConnections,
@@ -16,192 +15,212 @@ import { IntegrationBrandIcon, PlugIcon } from '../../components/icons'
 import { FormSlideout } from '../work/FormSlideout'
 import { TestEmailSlideout } from './TestEmailSlideout'
 
+// Only what the server knows (redesign rule: no fabricated data). Email senders are the
+// one integration that exists: "Send with 8080" or the company's own email (docs/agents
+// S5); how an own sender connects (Gmail, SMTP) is a detail of adding one.
 
-type IntegrationRow = {
-  id: string
-  service: string
-  category: 'Email' | 'CRM' | 'E-Commerce' | 'Social'
-  authMethod: 'Domain' | 'OAuth' | 'API Key' | 'SMTP'
-  defaultConnected?: boolean
-  accountPattern?: string
-  isSystem?: boolean
+const STATUS: Record<EmailConnection['status'], { label: string; variant: 'connected' | 'warning' | 'disconnected' }> = {
+  active: { label: 'Active', variant: 'connected' },
+  needs_attention: { label: 'Needs attention', variant: 'warning' },
+  disabled: { label: 'Disabled', variant: 'disconnected' },
 }
 
-const INTEGRATIONS: IntegrationRow[] = [
-  // Email Integrations - System email dynamically bound to company slug
-  {
-    id: 'system-email',
-    service: 'System Email',
-    category: 'Email',
-    authMethod: 'Domain',
-    defaultConnected: true,
-    accountPattern: 'YOUR_SLUG.mail@hatsyshirtsy.com',
-    isSystem: true,
-  },
-  {
-    id: 'google-workspace',
-    service: 'Google Workspace',
-    category: 'Email',
-    authMethod: 'OAuth',
-    accountPattern: 'admin@YOUR_SLUG.com',
-  },
-  {
-    id: 'microsoft-365',
-    service: 'Microsoft 365',
-    category: 'Email',
-    authMethod: 'OAuth',
-    accountPattern: 'business@YOUR_SLUG.com',
-  },
+const VIA: Record<EmailConnection['strategy'], string> = {
+  platform: '8080',
+  smtp: 'SMTP server',
+  google: 'Gmail',
+  microsoft: 'Microsoft 365',
+  resend_domain: 'Your domain',
+}
 
-  // CRM & E-Commerce Data Sources
-  {
-    id: 'hubspot',
-    service: 'HubSpot',
-    category: 'CRM',
-    authMethod: 'OAuth',
-    defaultConnected: true,
-    accountPattern: 'Portal #849201',
-  },
-  {
-    id: 'woocommerce',
-    service: 'WooCommerce',
-    category: 'E-Commerce',
-    authMethod: 'API Key',
-    defaultConnected: true,
-    accountPattern: 'https://store.YOUR_SLUG.com',
-  },
-  {
-    id: 'shopify',
-    service: 'Shopify',
-    category: 'E-Commerce',
-    authMethod: 'OAuth',
-    accountPattern: 'https://YOUR_SLUG.myshopify.com',
-  },
-  {
-    id: 'salesforce',
-    service: 'Salesforce',
-    category: 'CRM',
-    authMethod: 'OAuth',
-    accountPattern: 'org-YOUR_SLUG.salesforce.com',
-  },
-
-  // Social Media Autoposting
-  {
-    id: 'linkedin',
-    service: 'LinkedIn',
-    category: 'Social',
-    authMethod: 'OAuth',
-    defaultConnected: true,
-    accountPattern: '@YOUR_SLUG',
-  },
-  {
-    id: 'x-twitter',
-    service: 'X (Twitter)',
-    category: 'Social',
-    authMethod: 'OAuth',
-    accountPattern: '@YOUR_SLUG',
-  },
-  {
-    id: 'meta-facebook-ig',
-    service: 'Meta (FB & IG)',
-    category: 'Social',
-    authMethod: 'OAuth',
-    accountPattern: 'FB & IG @YOUR_SLUG',
-  },
-  {
-    id: 'tiktok',
-    service: 'TikTok',
-    category: 'Social',
-    authMethod: 'OAuth',
-    accountPattern: '@YOUR_SLUG',
-  },
-  {
-    id: 'youtube',
-    service: 'YouTube',
-    category: 'Social',
-    authMethod: 'OAuth',
-    accountPattern: 'Channel @YOUR_SLUG',
-  },
-]
-
-type SortField = 'service' | 'category' | 'account' | 'authMethod' | 'status'
-
-type UnifiedRow = {
-  id: string
-  service: string
-  category: string
-  account: string
-  authMethod: string
-  status: string
-  isConnected: boolean
-  isSystem?: boolean
-  isDefault?: boolean
-  isSdk?: boolean
-  connectionId?: string
-  fromAddress?: string
-  rawItem?: IntegrationRow
-  rawSdk?: EmailConnection
+// What the Gmail callback reports back on the address bar (never shown verbatim: a link
+// could carry any text).
+const GMAIL_ERRORS: Record<string, string> = {
+  canceled: 'Gmail wasn’t connected: the Google sign-in was canceled.',
+  access_denied: 'Gmail wasn’t connected: access was not granted.',
+  invalid_state: 'Gmail wasn’t connected: the request expired. Try again.',
+  unauthorized: 'Gmail wasn’t connected: only the admin who started it can finish it, in the same browser.',
 }
 
 export function IntegrationsSection({ workspaceId, canEdit }: { workspaceId: string; canEdit: boolean }) {
   const list = useEmailConnections(workspaceId)
-  const createConnection = useCreateEmailConnection(workspaceId)
-  const updateConnection = useUpdateEmailConnection(workspaceId, '')
   const deleteConnection = useDeleteEmailConnection(workspaceId)
+  const [params, setParams] = useSearchParams()
+  const [adding, setAdding] = useState(false)
+  const [testing, setTesting] = useState<EmailConnection | null>(null)
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
 
-  // Column sorting state
-  const [sortField, setSortField] = useState<SortField>('service')
-  const [sortAsc, setSortAsc] = useState(true)
+  // Report the Gmail callback's outcome once, then drop it from the address.
+  useEffect(() => {
+    const ok = params.get('gmailSuccess')
+    const error = params.get('gmailError')
+    if (!ok && !error) return
+    setNotice(ok ? { ok: true, text: 'Gmail connected. Make it the default to send automations from it.' } : { ok: false, text: GMAIL_ERRORS[error!] ?? 'Gmail wasn’t connected. Try again, or use an SMTP server.' })
+    const next = new URLSearchParams(params)
+    next.delete('gmailSuccess')
+    next.delete('gmailError')
+    setParams(next, { replace: true })
+  }, [params, setParams])
 
-  // Test Slideout modal state
-  const [testSlideout, setTestSlideout] = useState<{
-    senderLabel: string
-    senderFromAddress?: string
-    connectionId?: string
-  } | null>(null)
+  const remove = async (conn: EmailConnection) => {
+    if (!window.confirm(`Remove ${conn.label}? Automations using it switch to the default sender.`)) return
+    setNotice(null)
+    try {
+      await deleteConnection.mutateAsync(conn.id)
+    } catch (err) {
+      setNotice({ ok: false, text: err instanceof Error ? err.message : 'Couldn’t remove the sender.' })
+    }
+  }
 
-  // Fetch company slug to render dynamic domain email address & account handles
-  const profileQuery = useQuery({
-    queryKey: ['company-profile', workspaceId],
-    queryFn: async () =>
-      unwrap(await getApiClient().GET('/workspaces/{workspaceId}/company-profile', { params: { path: { workspaceId } } })).data as {
-        facts?: { kind: string; value: string }[]
-      },
-  })
+  const senders = list.data ?? []
+  return (
+    <section className="company-group" aria-labelledby="company-integrations-title">
+      <Card style={{ marginTop: 'var(--space-lg)' }}>
+        <CardHeader
+          icon={<PlugIcon />}
+          title={<span id="company-integrations-title">Email senders</span>}
+          description="Who automations send email as. Every company can send with 8080; add your own email to send from your address."
+          actions={canEdit ? (
+            <button type="button" className="ui-btn-action" onClick={() => setAdding(true)}>
+              <span>+ Use my own email</span>
+            </button>
+          ) : null}
+        />
+        <CardContent style={{ padding: 0 }}>
+          {notice && <p className="company-status" role={notice.ok ? 'status' : 'alert'} data-ok={notice.ok || undefined}>{notice.text}</p>}
+          {list.isLoading ? <p className="company-status" role="status">Loading senders…</p>
+            : list.isError ? <p className="company-status" role="alert">Couldn’t load senders.</p>
+              : (
+                <div className="integrations-table-container" style={{ padding: 0 }}>
+                  <table className="integrations-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Sender</th>
+                        <th scope="col">Sends from</th>
+                        <th scope="col">Replies to</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" aria-label="Actions" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {senders.map((conn) => (
+                        <SenderRow key={conn.id} workspaceId={workspaceId} conn={conn} canEdit={canEdit}
+                          onTest={() => setTesting(conn)} onRemove={() => void remove(conn)} onError={(text) => setNotice({ ok: false, text })} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+          <p className="company-status company-note">Other integrations (CRM, online store, social accounts) aren’t available yet.</p>
+        </CardContent>
+      </Card>
 
-  const companySlug =
-    profileQuery.data?.facts?.find((f) => f.kind === 'company_slug')?.value ||
-    profileQuery.data?.facts?.find((f) => f.kind === 'company_name')?.value?.toLowerCase().replace(/\s+/g, '-') ||
-    'business'
+      {testing && (
+        <TestEmailSlideout
+          workspaceId={workspaceId}
+          senderLabel={testing.label}
+          senderFromAddress={testing.fromAddress ?? undefined}
+          connectionId={testing.id}
+          onClose={() => setTesting(null)}
+        />
+      )}
 
-  // Connected state for mock integrations
-  const [connectedState, setConnectedState] = useState<Record<string, boolean>>({
-    hubspot: true,
-    woocommerce: true,
-    linkedin: true,
-  })
+      {adding && canEdit && <AddSender workspaceId={workspaceId} onClose={() => setAdding(false)} />}
+    </section>
+  )
+}
 
-  const [activeOAuthModal, setActiveOAuthModal] = useState<IntegrationRow | null>(null)
-  const [oauthStep, setOauthStep] = useState<'prompt' | 'authorizing' | 'success'>('prompt')
+function SenderRow({ workspaceId, conn, canEdit, onTest, onRemove, onError }: {
+  workspaceId: string
+  conn: EmailConnection
+  canEdit: boolean
+  onTest: () => void
+  onRemove: () => void
+  onError: (text: string) => void
+}) {
+  const update = useUpdateEmailConnection(workspaceId, conn.id)
+  const status = STATUS[conn.status]
+  const makeDefault = async () => {
+    try {
+      await update.mutateAsync({ makeDefault: true })
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Couldn’t make it the default.')
+    }
+  }
+  return (
+    <tr>
+      <td>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <IntegrationBrandIcon service={conn.strategy === 'platform' ? 'System Email' : VIA[conn.strategy]} />
+          <div>
+            <strong>{conn.label}</strong>
+            {conn.mode === 'own' && <div className="company-note">via {VIA[conn.strategy]}</div>}
+          </div>
+        </div>
+      </td>
+      <td style={{ fontFamily: 'var(--mono)', fontSize: '0.825rem' }}>
+        {conn.fromAddress ?? <span className="company-note">Not set up on this server</span>}
+      </td>
+      <td style={{ fontFamily: 'var(--mono)', fontSize: '0.825rem' }}>{conn.replyTo ?? '—'}</td>
+      <td>
+        <span style={{ display: 'inline-flex', gap: '6px', flexWrap: 'wrap' }}>
+          {conn.isDefault && <Badge variant="default">Default</Badge>}
+          <Badge variant={status.variant} title={conn.lastError ?? undefined}>{status.label}</Badge>
+        </span>
+      </td>
+      <td>
+        {canEdit && (
+          <div className="actions-cell">
+            {!conn.isDefault && conn.status === 'active' && (
+              <button type="button" className="ui-btn-action" disabled={update.isPending} onClick={() => void makeDefault()}>
+                {update.isPending ? 'Saving…' : 'Make default'}
+              </button>
+            )}
+            {conn.fromAddress && (
+              <button type="button" className="ui-btn-action" onClick={onTest}>Send a test</button>
+            )}
+            {conn.mode === 'own' && !conn.isDefault && (
+              <button type="button" className="ui-btn-action" style={{ color: 'var(--danger, #dc2626)' }} onClick={onRemove}>Remove</button>
+            )}
+          </div>
+        )}
+      </td>
+    </tr>
+  )
+}
 
-  // Custom Key / Store URL inputs for API key integrations
-  const [apiKeyInput, setApiKeyInput] = useState('')
-  const [storeUrlInput, setStoreUrlInput] = useState('')
-
-  // Custom SMTP Form state
-  const [showSmtpForm, setShowSmtpForm] = useState(false)
+/** "Use my own email": connect Gmail (Google's own sign-in) or an SMTP server. */
+function AddSender({ workspaceId, onClose }: { workspaceId: string; onClose: () => void }) {
+  const createConnection = useCreateEmailConnection(workspaceId)
+  const [way, setWay] = useState<'choose' | 'smtp'>('choose')
+  const [connecting, setConnecting] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState('')
   const [fromAddress, setFromAddress] = useState('')
   const [replyTo, setReplyTo] = useState('')
-  const [host, setHost] = useState('smtp.gmail.com')
+  const [host, setHost] = useState('')
   const [port, setPort] = useState('587')
   const [security, setSecurity] = useState<'starttls' | 'implicit'>('starttls')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [makeDefault, setMakeDefault] = useState(false)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  const handleCreateSmtp = async (e: React.FormEvent) => {
+  const connectGmail = async () => {
+    setErrorMsg(null)
+    setConnecting(true)
+    try {
+      // Outside the API spec: a browser redirect flow (server handlers/agents.ts).
+      const res = await getApiClient().GET('/workspaces/{workspaceId}/integrations/google/url' as never, { params: { path: { workspaceId } } } as never)
+      const url = (res.data as { data?: { url?: string } } | undefined)?.data?.url
+      if (!url) throw new Error((res.error as { error?: string } | undefined)?.error ?? 'Gmail can’t be connected on this server yet.')
+      window.location.assign(url)
+    } catch (err) {
+      setConnecting(false)
+      setErrorMsg(err instanceof Error ? err.message : 'Couldn’t start the Gmail connection.')
+    }
+  }
+
+  const saveSmtp = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMsg(null)
     const payload: CreateEmailConnectionInput = {
@@ -220,467 +239,79 @@ export function IntegrationsSection({ workspaceId, canEdit }: { workspaceId: str
     }
     try {
       await createConnection.mutateAsync(payload)
-      setShowSmtpForm(false)
-      setDisplayName('')
-      setFromAddress('')
-      setReplyTo('')
-      setUsername('')
-      setPassword('')
+      onClose()
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Could not add SMTP sender')
+      setErrorMsg(err instanceof Error ? err.message : 'Couldn’t add the sender.')
     }
   }
-
-  const handleMakeDefault = async (conn: EmailConnection) => {
-    setErrorMsg(null)
-    try {
-      await updateConnection.mutateAsync({ makeDefault: true })
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Could not set default sender')
-    }
-  }
-
-  const handleDeleteSmtp = async (id: string) => {
-    setErrorMsg(null)
-    try {
-      await deleteConnection.mutateAsync(id)
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Could not delete sender')
-    }
-  }
-
-  const openOAuthModal = async (item: IntegrationRow) => {
-    if (item.id === 'google-workspace') {
-      try {
-        const res = await getApiClient().GET('/workspaces/{workspaceId}/email-connections/google/url' as any, {
-          params: { path: { workspaceId } },
-        })
-        const url = (res.data as any)?.data?.url
-        if (url) {
-          window.location.href = url
-          return
-        }
-      } catch (err) {
-        setErrorMsg(err instanceof Error ? err.message : 'Could not start Google connection')
-      }
-    }
-    setActiveOAuthModal(item)
-    setOauthStep('prompt')
-    setApiKeyInput('')
-    setStoreUrlInput(item.id === 'woocommerce' ? `https://store.${companySlug}.com` : '')
-  }
-
-  const handleAuthorizeOAuth = () => {
-    if (!activeOAuthModal) return
-    setOauthStep('authorizing')
-    setTimeout(() => {
-      setConnectedState((prev) => ({ ...prev, [activeOAuthModal.id]: true }))
-      setOauthStep('success')
-    }, 800)
-  }
-
-  const handleToggleConnect = (item: IntegrationRow) => {
-    const isConnected = item.isSystem || !!connectedState[item.id]
-    if (isConnected && !item.isSystem) {
-      if (window.confirm(`Disconnect ${item.service}?`)) {
-        setConnectedState((prev) => ({ ...prev, [item.id]: false }))
-      }
-    } else if (!isConnected) {
-      openOAuthModal(item)
-    }
-  }
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortAsc(!sortAsc)
-    } else {
-      setSortField(field)
-      setSortAsc(true)
-    }
-  }
-
-  // Combine integrations and SDK custom SMTP senders (filtering out SDK platform mode to eliminate redundant "Send with 8080")
-  const unifiedRows = useMemo<UnifiedRow[]>(() => {
-    const platformConnection = (list.data ?? []).find((c) => c.mode === 'platform' || c.strategy === 'platform')
-
-    const staticRows: UnifiedRow[] = INTEGRATIONS.map((row) => {
-      const isConnected = row.isSystem || !!connectedState[row.id]
-      const account = isConnected && row.accountPattern ? row.accountPattern.replace('YOUR_SLUG', companySlug) : '—'
-      const status = row.isSystem ? 'Default' : isConnected ? 'Connected' : 'Not connected'
-      const fromAddr = row.isSystem ? `${companySlug}.mail@hatsyshirtsy.com` : undefined
-      return {
-        id: row.id,
-        service: row.service,
-        category: row.category,
-        account,
-        authMethod: row.authMethod,
-        status,
-        isConnected,
-        isSystem: row.isSystem,
-        connectionId: row.isSystem ? platformConnection?.id : undefined,
-        fromAddress: fromAddr,
-        rawItem: row,
-      }
-    })
-
-    // Exclude SDK connections where mode === 'platform' to avoid duplicating System Email ("Send with 8080")
-    const sdkCustomRows: UnifiedRow[] = (list.data ?? [])
-      .filter((row) => row.mode !== 'platform')
-      .map((row) => ({
-        id: row.id,
-        service: row.label || 'Custom SMTP',
-        category: 'Email',
-        account: row.fromAddress || row.smtp?.host || 'SMTP Server',
-        authMethod: 'SMTP',
-        status: row.isDefault ? 'Default' : row.status || 'Connected',
-        isConnected: true,
-        isDefault: row.isDefault,
-        isSdk: true,
-        connectionId: row.id,
-        fromAddress: row.fromAddress ?? undefined,
-        rawSdk: row,
-      }))
-
-    const combined = [...staticRows, ...sdkCustomRows]
-
-    return combined.sort((a, b) => {
-      const valA = (a[sortField] || '').toLowerCase()
-      const valB = (b[sortField] || '').toLowerCase()
-      if (valA < valB) return sortAsc ? -1 : 1
-      if (valA > valB) return sortAsc ? 1 : -1
-      return 0
-    })
-  }, [connectedState, companySlug, list.data, sortField, sortAsc])
 
   return (
-    <section className="company-group" aria-labelledby="company-integrations-title">
-      <Card style={{ marginTop: 'var(--space-lg)' }}>
-        <CardHeader
-          icon={<PlugIcon />}
-          title="Integrations"
-          description="Connect your tools and keep your company in sync."
-          actions={
-            canEdit && !showSmtpForm ? (
-              <button type="button" className="ui-btn-action" onClick={() => setShowSmtpForm(true)}>
-                <span>+ Add integration</span>
-              </button>
-            ) : null
-          }
-        />
-        <CardContent style={{ padding: 0 }}>
-          <div className="integrations-table-container" style={{ padding: 0 }}>
-            <table className="integrations-table">
-              <thead>
-                <tr>
-                  <th onClick={() => handleSort('service')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                    Service {sortField === 'service' ? (sortAsc ? '▲' : '▼') : ''}
-                  </th>
-                  <th onClick={() => handleSort('category')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                    Category {sortField === 'category' ? (sortAsc ? '▲' : '▼') : ''}
-                  </th>
-                  <th onClick={() => handleSort('account')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                    Account / Endpoint {sortField === 'account' ? (sortAsc ? '▲' : '▼') : ''}
-                  </th>
-                  <th onClick={() => handleSort('authMethod')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                    Auth Method {sortField === 'authMethod' ? (sortAsc ? '▲' : '▼') : ''}
-                  </th>
-                  <th onClick={() => handleSort('status')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                    Status {sortField === 'status' ? (sortAsc ? '▲' : '▼') : ''}
-                  </th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {unifiedRows.map((row) => (
-                  <tr key={row.id}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <IntegrationBrandIcon service={row.service} />
-                        <strong>{row.service}</strong>
-                      </div>
-                    </td>
-                    <td>{row.category}</td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: '0.825rem' }}>{row.account}</td>
-                    <td>{row.authMethod}</td>
-                    <td>
-                      <Badge
-                        variant={row.isSystem || row.isDefault ? 'default' : row.isConnected ? 'connected' : 'disconnected'}
-                      >
-                        {row.status}
-                      </Badge>
-                    </td>
-                    <td>
-                      <div className="actions-cell">
-                        {canEdit && !row.isSystem && row.rawItem && (
-                          <button
-                            type="button"
-                            className="ui-btn-action"
-                            style={row.isConnected ? { color: 'var(--muted)' } : undefined}
-                            onClick={() => handleToggleConnect(row.rawItem!)}
-                          >
-                            {row.isConnected ? 'Disconnect' : 'Connect'}
-                          </button>
-                        )}
-                        {canEdit && row.isSdk && row.rawSdk && !row.rawSdk.isDefault && (
-                          <button
-                            type="button"
-                            className="ui-btn-action"
-                            onClick={() => handleMakeDefault(row.rawSdk!)}
-                          >
-                            Make default
-                          </button>
-                        )}
-                        {canEdit && row.isSdk && row.rawSdk && row.rawSdk.mode === 'own' && !row.rawSdk.isDefault && (
-                          <button
-                            type="button"
-                            className="ui-btn-action"
-                            style={{ color: 'var(--danger, #dc2626)' }}
-                            onClick={() => handleDeleteSmtp(row.id)}
-                          >
-                            Remove
-                          </button>
-                        )}
-                        {row.isConnected && (
-                          <button
-                            type="button"
-                            className="ui-btn-action"
-                            onClick={() =>
-                              setTestSlideout({
-                                senderLabel: row.service,
-                                senderFromAddress: row.fromAddress || row.account,
-                                connectionId: row.connectionId,
-                              })
-                            }
-                          >
-                            Test
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+    <FormSlideout title="Use my own email" onClose={onClose}>
+      {way === 'choose' ? (
+        <div className="company-form" style={{ padding: 'var(--space-lg)' }}>
+          <p className="company-note" style={{ marginTop: 0 }}>Automations will be able to send from your address. Choose how to connect it.</p>
+          <div style={{ display: 'grid', gap: 'var(--space-sm)' }}>
+            <button type="button" className="ui-btn-action" disabled={connecting} onClick={() => void connectGmail()}>
+              <IntegrationBrandIcon service="Google Workspace" /> {connecting ? 'Opening Google…' : 'Connect Gmail or Google Workspace'}
+            </button>
+            <button type="button" className="ui-btn-action" onClick={() => setWay('smtp')}>Use an SMTP server</button>
           </div>
-        </CardContent>
-      </Card>
-
-      {errorMsg && (
-        <p className="company-status" role="alert" style={{ color: 'var(--danger, #dc2626)', paddingInline: 'var(--table-cell-padding-x)' }}>
-          {errorMsg}
-        </p>
-      )}
-
-      {/* Test Email Slideout */}
-      {testSlideout && (
-        <TestEmailSlideout
-          workspaceId={workspaceId}
-          senderLabel={testSlideout.senderLabel}
-          senderFromAddress={testSlideout.senderFromAddress}
-          connectionId={testSlideout.connectionId}
-          onClose={() => setTestSlideout(null)}
-        />
-      )}
-
-      {/* 1-Touch OAuth / Credential Setup Slideout */}
-      {activeOAuthModal && (
-        <FormSlideout title={`Connect ${activeOAuthModal.service}`} onClose={() => setActiveOAuthModal(null)}>
-          <div className="oauth-modal-card">
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{activeOAuthModal.service} Integration</h3>
-              <span className="status-pill" data-status="connected" style={{ marginTop: '0.25rem' }}>
-                {activeOAuthModal.authMethod}
-              </span>
-            </div>
-
-            {oauthStep === 'prompt' && (
-              <>
-                <div className="oauth-modal-status">
-                  <strong>Authorize Connection</strong>
-                  <p style={{ margin: '0.25rem 0 0', color: 'var(--muted)' }}>
-                    Authorizing for workspace <code>{companySlug}</code>.
-                  </p>
-                </div>
-
-                {activeOAuthModal.id === 'woocommerce' && (
-                  <div className="record-form-fields" style={{ padding: 0 }}>
-                    <label>
-                      <span>Store URL</span>
-                      <input
-                        type="url"
-                        value={storeUrlInput}
-                        onChange={(e) => setStoreUrlInput(e.target.value)}
-                        placeholder="https://store.acme.com"
-                      />
-                    </label>
-                    <label>
-                      <span>Consumer Key (API Key)</span>
-                      <input
-                        type="text"
-                        value={apiKeyInput}
-                        onChange={(e) => setApiKeyInput(e.target.value)}
-                        placeholder="ck_..."
-                      />
-                    </label>
-                  </div>
-                )}
-
-                <footer>
-                  <button type="button" className="company-go" onClick={() => setActiveOAuthModal(null)}>
-                    Cancel
-                  </button>
-                  <button type="button" className="record-primary" onClick={handleAuthorizeOAuth}>
-                    Authorize Connection
-                  </button>
-                </footer>
-              </>
-            )}
-
-            {oauthStep === 'authorizing' && (
-              <div className="oauth-modal-status" style={{ textAlign: 'center', padding: '2rem' }}>
-                <p style={{ margin: 0, fontWeight: 500 }}>Connecting…</p>
-              </div>
-            )}
-
-            {oauthStep === 'success' && (
-              <div className="oauth-modal-status" style={{ background: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-                <strong style={{ color: '#10b981' }}>Successfully Connected!</strong>
-                <p style={{ margin: '0.25rem 0 0', color: 'var(--muted)' }}>
-                  {activeOAuthModal.service} is now connected for workspace <strong>{companySlug}</strong>.
-                </p>
-                <footer style={{ marginTop: '1rem' }}>
-                  <button type="button" className="record-primary" onClick={() => setActiveOAuthModal(null)}>
-                    Done
-                  </button>
-                </footer>
-              </div>
-            )}
-          </div>
-        </FormSlideout>
-      )}
-
-      {/* Custom SMTP Slideout / Form */}
-      {showSmtpForm && canEdit && (
-        <FormSlideout title="New Custom SMTP Mail Connection" onClose={() => setShowSmtpForm(false)}>
-          <form className="company-form" onSubmit={handleCreateSmtp} style={{ padding: 'var(--space-lg)' }}>
-            <div className="record-form-fields" style={{ gridTemplateColumns: '1fr 1fr' }}>
-              <label>
-                <span>Display Name</span>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Acme Support Mail"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                />
-              </label>
-
-              <label>
-                <span>From Email Address</span>
-                <input
-                  type="email"
-                  required
-                  placeholder={`support@${companySlug}.com`}
-                  value={fromAddress}
-                  onChange={(e) => setFromAddress(e.target.value)}
-                />
-              </label>
-
-              <label>
-                <span>Reply-To Email Address (Optional)</span>
-                <input
-                  type="email"
-                  placeholder={`help@${companySlug}.com`}
-                  value={replyTo}
-                  onChange={(e) => setReplyTo(e.target.value)}
-                />
-              </label>
-
-              <label>
-                <span>SMTP Host</span>
-                <input
-                  type="text"
-                  required
-                  placeholder="smtp.gmail.com"
-                  value={host}
-                  onChange={(e) => setHost(e.target.value)}
-                />
-              </label>
-
-              <label>
-                <span>SMTP Port</span>
-                <input
-                  type="number"
-                  required
-                  placeholder="587"
-                  value={port}
-                  onChange={(e) => setPort(e.target.value)}
-                />
-              </label>
-
-              <label>
-                <span>Security</span>
-                <select
-                  value={security}
-                  onChange={(e) => setSecurity(e.target.value as 'starttls' | 'implicit')}
-                >
-                  <option value="starttls">STARTTLS (587 / 25)</option>
-                  <option value="implicit">Implicit TLS (465)</option>
-                </select>
-              </label>
-
-              <label>
-                <span>Mailbox Username</span>
-                <input
-                  type="text"
-                  required
-                  placeholder={`support@${companySlug}.com`}
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                />
-              </label>
-
-              <label>
-                <span>App Password</span>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </label>
-            </div>
-
-            <label style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem' }}>
-              <input
-                type="checkbox"
-                checked={makeDefault}
-                onChange={(e) => setMakeDefault(e.target.checked)}
-              />
-              <span>Make this sender the default for new automations</span>
+          {errorMsg && <p className="company-status" role="alert">{errorMsg}</p>}
+        </div>
+      ) : (
+        <form className="company-form" onSubmit={saveSmtp} style={{ padding: 'var(--space-lg)' }}>
+          <div className="record-form-fields" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <label>
+              <span>Name recipients see</span>
+              <input type="text" required value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
             </label>
-
-            <footer>
-              <button
-                type="button"
-                className="company-go"
-                onClick={() => setShowSmtpForm(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="record-primary"
-                disabled={createConnection.isPending}
-              >
-                {createConnection.isPending ? 'Saving…' : 'Save SMTP Mail'}
-              </button>
-            </footer>
-          </form>
-        </FormSlideout>
+            <label>
+              <span>Send from</span>
+              <input type="email" required value={fromAddress} onChange={(e) => setFromAddress(e.target.value)} />
+            </label>
+            <label>
+              <span>Replies to (optional)</span>
+              <input type="email" value={replyTo} onChange={(e) => setReplyTo(e.target.value)} />
+            </label>
+            <label>
+              <span>SMTP host</span>
+              <input type="text" required placeholder="smtp.example.com" value={host} onChange={(e) => setHost(e.target.value)} />
+            </label>
+            <label>
+              <span>Port</span>
+              <select value={port} onChange={(e) => setPort(e.target.value)}>
+                {['587', '465', '2525', '25'].map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </label>
+            <label>
+              <span>Security</span>
+              <select value={security} onChange={(e) => setSecurity(e.target.value as 'starttls' | 'implicit')}>
+                <option value="starttls">STARTTLS (587, 25)</option>
+                <option value="implicit">TLS (465)</option>
+              </select>
+            </label>
+            <label>
+              <span>Username</span>
+              <input type="text" required autoComplete="off" value={username} onChange={(e) => setUsername(e.target.value)} />
+            </label>
+            <label>
+              <span>Password or app password</span>
+              <input type="password" required autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </label>
+          </div>
+          <label style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem' }}>
+            <input type="checkbox" checked={makeDefault} onChange={(e) => setMakeDefault(e.target.checked)} />
+            <span>Make this the default sender</span>
+          </label>
+          {errorMsg && <p className="company-status" role="alert">{errorMsg}</p>}
+          <footer>
+            <button type="button" className="company-go" onClick={() => setWay('choose')}>Back</button>
+            <button type="submit" className="record-primary" disabled={createConnection.isPending}>
+              {createConnection.isPending ? 'Checking…' : 'Add sender'}
+            </button>
+          </footer>
+        </form>
       )}
-    </section>
+    </FormSlideout>
   )
 }
-

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '@project/db'
 import { buildTestApp, asAuth, testUserId } from './helpers'
-import { createWorkspace } from './helpers/workspace'
+import { createWorkspace, join, seedPeople, carolId, daveId } from './helpers/workspace'
 import { AuthService } from '../services/AuthService'
 import { EmailConnectionService } from '../services/agents/connections'
 import { GoogleGmailProvider } from '../services/agents/email/googleGmail'
@@ -83,9 +83,13 @@ describe('Google Login OAuth', () => {
   })
 
   it('handles callback error parameter gracefully by redirecting to frontend with authError', async () => {
+    const started = await app.inject({ method: 'GET', url: '/auth/google/url' })
+    const state = new URL(started.json().data.url).searchParams.get('state')!
+    const nonce = started.cookies.find((c) => c.name === 'google_oauth')!.value
     const res = await app.inject({
       method: 'GET',
-      url: '/auth/google/callback?error=access_denied',
+      url: `/auth/google/callback?error=access_denied&state=${encodeURIComponent(state)}`,
+      cookies: { google_oauth: nonce },
     })
 
     expect(res.statusCode).toBe(302)
@@ -217,5 +221,115 @@ describe('Gmail OAuth Connect & Email Provider', () => {
     } finally {
       global.fetch = originalFetch
     }
+  })
+})
+
+// The OAuth `state` is the only thing tying a Google callback to who started it.
+describe('Google OAuth state binding', () => {
+  const stateOf = (url: string) => new URL(url).searchParams.get('state')!
+  // These routes sit outside the spec, so they read real sessions (no test bearer shortcut).
+  const session = async (userId: string) => {
+    const token = `oauth-test-${userId}-${Math.random().toString(36).slice(2)}`
+    await db.session.create({ data: { userId, token, expiresAt: new Date(Date.now() + 3_600_000) } })
+    return { Authorization: `Bearer ${token}` }
+  }
+
+  it('sign-in: the callback needs the sealed state and the nonce cookie from the same browser', async () => {
+    const exchange = vi.spyOn(globalThis, 'fetch')
+    const started = await app.inject({ method: 'GET', url: '/auth/google/url' })
+    const state = stateOf(started.json().data.url)
+    const nonce = started.cookies.find((c) => c.name === 'google_oauth')
+    expect(nonce?.httpOnly).toBe(true)
+
+    // A link carrying someone else's code: no state, a forged state, or a state minted in another browser.
+    const other = await app.inject({ method: 'GET', url: '/auth/google/url' })
+    const attempts: { url: string; cookies: Record<string, string> }[] = [
+      { url: '/auth/google/callback?code=attacker-code', cookies: { google_oauth: nonce!.value } },
+      { url: `/auth/google/callback?code=attacker-code&state=${Buffer.from('{"purpose":"google-login","nonce":"x"}').toString('base64url')}`, cookies: { google_oauth: 'x' } },
+      { url: `/auth/google/callback?code=attacker-code&state=${encodeURIComponent(stateOf(other.json().data.url))}`, cookies: { google_oauth: nonce!.value } },
+      { url: `/auth/google/callback?code=attacker-code&state=${encodeURIComponent(state)}`, cookies: {} },
+    ]
+    for (const attempt of attempts) {
+      const res = await app.inject({ method: 'GET', url: attempt.url, cookies: attempt.cookies, headers: await session(testUserId) })
+      expect(res.statusCode).toBe(302)
+      expect(res.headers.location).toContain('authError=invalid_state')
+    }
+    expect(exchange).not.toHaveBeenCalled()
+    exchange.mockRestore()
+  })
+
+  it('Gmail connect: the URL needs a signed-in admin of the workspace', async () => {
+    await seedPeople()
+    const ws = await createWorkspace(app, testUserId, { name: `Gmail ${Date.now()}` })
+    await join(app, ws.id, carolId, 'carol@test.local', 'member')
+    const url = `/workspaces/${ws.id}/integrations/google/url`
+    expect((await app.inject({ method: 'GET', url })).statusCode).toBe(401)
+    expect((await app.inject({ method: 'GET', url, headers: await session(carolId) })).statusCode).toBe(403)
+    expect((await app.inject({ method: 'GET', url, headers: await session(daveId) })).statusCode).toBe(404)
+    const ok = await app.inject({ method: 'GET', url, headers: await session(testUserId) })
+    expect(ok.statusCode).toBe(200)
+    expect(stateOf(ok.json().data.url)).not.toContain(ws.id) // sealed, not readable JSON
+  })
+
+  it('Gmail connect: a forged or edited state, or another session, attaches nothing', async () => {
+    await seedPeople()
+    const ws = await createWorkspace(app, testUserId, { name: `Gmail ${Date.now()}` })
+    await join(app, ws.id, daveId, 'dave@test.local', 'admin')
+    const exchange = vi.spyOn(globalThis, 'fetch')
+    const forged = Buffer.from(JSON.stringify({ workspaceId: ws.id, userId: testUserId, nonce: 1 })).toString('base64url')
+    const minted = stateOf((await app.inject({ method: 'GET', url: `/workspaces/${ws.id}/integrations/google/url`, headers: await session(testUserId) })).json().data.url)
+    const parts = minted.split('.')
+    const body = Buffer.from(parts[4]!, 'base64url'); body[0] = body[0]! ^ 1; parts[4] = body.toString('base64url')
+
+    const cases: [string, Record<string, string>, string][] = [
+      [forged, await session(testUserId), 'gmailError=invalid_state'],
+      [parts.join('.'), await session(testUserId), 'gmailError=invalid_state'],
+      [minted, {}, 'gmailError=unauthorized'], // signed out
+      [minted, await session(daveId), 'gmailError=unauthorized'], // another admin's browser
+    ]
+    for (const [state, headers, outcome] of cases) {
+      const res = await app.inject({ method: 'GET', url: `/integrations/google/callback?code=attacker-code&state=${encodeURIComponent(state)}`, headers })
+      expect(res.statusCode).toBe(302)
+      expect(res.headers.location).toContain(outcome)
+    }
+    expect(exchange).not.toHaveBeenCalled()
+    exchange.mockRestore()
+    expect(await db.emailConnection.count({ where: { workspaceId: ws.id, strategy: 'google' } })).toBe(0)
+  })
+
+  it('Gmail connect: an expired state is refused; a demoted admin attaches nothing', async () => {
+    await seedPeople()
+    const ws = await createWorkspace(app, testUserId, { name: `Gmail ${Date.now()}` })
+    const daveMember = await join(app, ws.id, daveId, 'dave@test.local', 'admin')
+    const exchange = vi.spyOn(globalThis, 'fetch')
+    const expired = encryptSecret({ purpose: 'gmail-connect', workspaceId: ws.id, userId: testUserId, exp: Date.now() - 1 })
+    const res = await app.inject({ method: 'GET', url: `/integrations/google/callback?code=c&state=${encodeURIComponent(expired)}`, headers: await session(testUserId) })
+    expect(res.headers.location).toContain('gmailError=invalid_state')
+
+    const daveState = stateOf((await app.inject({ method: 'GET', url: `/workspaces/${ws.id}/integrations/google/url`, headers: await session(daveId) })).json().data.url)
+    await db.workspaceMember.update({ where: { id: daveMember }, data: { role: 'member' } })
+    const demoted = await app.inject({ method: 'GET', url: `/integrations/google/callback?code=c&state=${encodeURIComponent(daveState)}`, headers: await session(daveId) })
+    expect(demoted.headers.location).toContain('gmailError=')
+    expect(demoted.headers.location).toContain(`/c/${ws.id}`)
+    expect(exchange).not.toHaveBeenCalled()
+    exchange.mockRestore()
+    expect(await db.emailConnection.count({ where: { workspaceId: ws.id, strategy: 'google' } })).toBe(0)
+  })
+
+  it('Gmail connect: the admin who started it gets the sender, and lands back on the company', async () => {
+    const ws = await createWorkspace(app, testUserId, { name: `Gmail ${Date.now()}` })
+    const state = stateOf((await app.inject({ method: 'GET', url: `/workspaces/${ws.id}/integrations/google/url`, headers: await session(testUserId) })).json().data.url)
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes('oauth2.googleapis.com/token')) return new Response(JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 }))
+      if (url.includes('gmail/v1/users/me/profile')) return new Response(JSON.stringify({ emailAddress: 'owner@gmail.com' }))
+      return new Response('{}', { status: 404 })
+    })
+    const res = await app.inject({ method: 'GET', url: `/integrations/google/callback?code=good&state=${encodeURIComponent(state)}`, headers: await session(testUserId) })
+    fetchMock.mockRestore()
+    expect(res.statusCode).toBe(302)
+    expect(res.headers.location).toContain(`/c/${ws.id}?tab=integrations&gmailSuccess=1`)
+    const rows = await db.emailConnection.findMany({ where: { workspaceId: ws.id, strategy: 'google' } })
+    expect(rows.map((r) => r.fromAddress)).toEqual(['owner@gmail.com'])
   })
 })

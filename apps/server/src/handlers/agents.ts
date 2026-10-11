@@ -112,41 +112,54 @@ export async function agentUnsubscribe(request: any, reply: any) {
 }
 
 import { getGoogleGmailAuthUrl, exchangeGoogleGmailCode } from '../services/googleAuth'
-import { db } from '@project/db'
+import { resolveSessionUser } from '../lib/session'
+import { decryptSecret, encryptSecret } from '../lib/secrets'
+import { authorize } from '../services/workspacePolicy'
+
+// Gmail connect (outside the spec: a browser redirect flow). The OAuth `state` is sealed
+// with the server's secret keys, so it can't be forged or edited, and expires; the
+// callback must arrive in the same signed-in session, from someone who may still manage
+// the workspace's senders.
+const GMAIL_STATE_TTL_MS = 10 * 60_000
+type GmailState = { purpose: 'gmail-connect'; workspaceId: string; userId: string; exp: number }
 
 export async function getGoogleGmailUrl(request: any, reply: any) {
+  const user = await resolveSessionUser(request)
+  if (!user) return reply.code(401).send({ error: 'Unauthorized', code: 'UNAUTHORIZED' })
   const { workspaceId } = request.params
-  const url = getGoogleGmailAuthUrl(workspaceId, request.user.id)
-  return reply.send({ data: { url } })
+  await authorize(user.id, workspaceId, 'email.manage')
+  const state: GmailState = { purpose: 'gmail-connect', workspaceId, userId: user.id, exp: Date.now() + GMAIL_STATE_TTL_MS }
+  return reply.send({ data: { url: getGoogleGmailAuthUrl(encryptSecret(state)) } })
+}
+
+function openGmailState(raw: string): GmailState | null {
+  try {
+    const state = decryptSecret<GmailState>(raw)
+    if (state?.purpose !== 'gmail-connect' || typeof state.workspaceId !== 'string' || typeof state.userId !== 'string') return null
+    return typeof state.exp === 'number' && state.exp > Date.now() ? state : null
+  } catch {
+    return null
+  }
 }
 
 export async function handleGoogleGmailCallback(request: any, reply: any) {
   const frontendUrl = (process.env.CORS_ORIGIN ?? 'http://localhost:5173').split(',')[0] || 'http://localhost:5173'
-  const { code, state, error } = request.query ?? {}
+  const { code, state: rawState, error } = request.query ?? {}
+  const back = (workspaceId: string | null, outcome: string) =>
+    reply.redirect(`${frontendUrl}${workspaceId ? `/c/${encodeURIComponent(workspaceId)}?tab=integrations&` : '/?'}${outcome}`)
 
-  if (error || !code || !state) {
-    return reply.redirect(`${frontendUrl}?desk=company&gmailError=${encodeURIComponent(error || 'canceled')}`)
-  }
+  const state = typeof rawState === 'string' ? openGmailState(rawState) : null
+  if (!state) return back(null, 'gmailError=invalid_state')
+  if (error || !code) return back(state.workspaceId, `gmailError=${encodeURIComponent(error || 'canceled')}`)
 
   try {
-    const stateData = JSON.parse(Buffer.from(state, 'base64url').toString('utf8')) as { workspaceId: string; userId: string }
-    const { workspaceId, userId } = stateData
-
-    if (!workspaceId) {
-      return reply.redirect(`${frontendUrl}?desk=company&gmailError=invalid_state`)
-    }
-
-    const member = await db.workspaceMember.findFirst({
-      where: { workspaceId, userId: request.user?.id || userId, status: 'active' },
-    })
-
-    if (!member) {
-      return reply.redirect(`${frontendUrl}?desk=company&gmailError=unauthorized`)
-    }
+    const user = await resolveSessionUser(request)
+    if (!user || user.id !== state.userId) return back(state.workspaceId, 'gmailError=unauthorized')
+    const { member } = await authorize(user.id, state.workspaceId, 'email.manage')
 
     const exchanged = await exchangeGoogleGmailCode(code)
     await connections.createOrUpdateGoogleConnection({
-      workspaceId,
+      workspaceId: state.workspaceId,
       memberId: member.id,
       emailAddress: exchanged.emailAddress,
       accessToken: exchanged.accessToken,
@@ -155,10 +168,10 @@ export async function handleGoogleGmailCallback(request: any, reply: any) {
       scope: exchanged.scope,
     })
 
-    return reply.redirect(`${frontendUrl}?desk=company&gmailSuccess=1`)
+    return back(state.workspaceId, 'gmailSuccess=1')
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Gmail connect failed'
-    return reply.redirect(`${frontendUrl}?desk=company&gmailError=${encodeURIComponent(msg)}`)
+    return back(state.workspaceId, `gmailError=${encodeURIComponent(msg)}`)
   }
 }
 
