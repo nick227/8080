@@ -39,6 +39,7 @@
 .command-group-label { padding: var(--space-xs) var(--space-md) 2px; color: var(--muted); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.06em; }
 .command-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .command-detail { color: var(--muted); font-size: var(--text-xs); }
+.command-status { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 .command-empty { padding: var(--space-sm) var(--space-md); color: var(--muted); font-size: var(--text-sm); }
 @media (prefers-reduced-motion: no-preference) {
   .command-palette { animation: command-in 120ms var(--ease-out); }

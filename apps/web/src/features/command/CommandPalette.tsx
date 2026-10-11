@@ -67,7 +67,8 @@ function useRecordResults(workspaceId: string | undefined, query: string, open: 
   })
   const searching = !!workspaceId && text.length >= 2
   const current = searching && q === text
-  const fetching = contacts.isFetching || inventory.isFetching || documents.isFetching || tasks.isLoading
+  // First load only: a background refetch keeps the current results on screen.
+  const fetching = contacts.isLoading || inventory.isLoading || documents.isLoading || tasks.isLoading
   const records = useMemo(() => {
     if (!current || !id) return []
     const list: Command[] = []
@@ -207,6 +208,8 @@ export function CommandPalette() {
             else if (e.key === 'Enter') { e.preventDefault(); run(shown[active]) }
           }}
         />
+        {/* Announced from outside the listbox (screen readers ignore live regions inside one). */}
+        <p className="command-status" role="status">{pending ? 'Searching…' : query.trim() && shown.length === 0 ? 'No matches.' : ''}</p>
         <ul id="command-list" role="listbox" className="command-list">
           {groups.map((g) => (
             <li key={g.name} role="presentation" className="command-group">
@@ -229,7 +232,7 @@ export function CommandPalette() {
               </ul>
             </li>
           ))}
-          {pending && <li role="presentation" className="command-empty" aria-live="polite">Searching…</li>}
+          {pending && <li role="presentation" className="command-empty" aria-hidden>Searching…</li>}
           {shown.length === 0 && !pending && <li role="presentation" className="command-empty">No matches.</li>}
         </ul>
       </div>
