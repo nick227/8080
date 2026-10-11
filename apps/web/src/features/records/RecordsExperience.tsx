@@ -201,9 +201,10 @@ function RecordWorkspace({
   const heading = useRef<HTMLHeadingElement>(null)
   const label = `${archived ? 'Archived' : stage && kind === 'contacts' ? titleCase(stage) : 'All'} ${kind}`
   // Search lives in the shared collection bar (redesign D9); a new search closes an open record.
+  // Typing a search returns to the results, also from an open record.
   const clearRecord = useCallback((next: URLSearchParams) => {
-    if (kind === 'contacts') { next.delete('record'); next.delete('preview'); next.delete('previewKind') }
-  }, [kind])
+    next.delete('record'); next.delete('preview'); next.delete('previewKind')
+  }, [])
   const search = useUrlSearch(clearRecord)
   const inventoryTable = useInventoryTable({
     workspaceId, currency, href: nav.href, sort, dir,
@@ -470,6 +471,10 @@ function RecordWorkspace({
       >
         {nav.recordId ? (
           <>
+            <CollectionBar
+              collection={kind}
+              search={{ value: search.value, onChange: search.setValue, placeholder: kind === 'contacts' ? 'Search contacts, companies, interests…' : 'Search inventory…' }}
+            />
             <div className="record-navigation">
               <button onClick={nav.back}>
                 ← {nav.state.origin?.name ?? results?.label ?? `All ${kind}`}

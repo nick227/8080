@@ -215,7 +215,7 @@ function DataRow<T>({ row, id, columns, tabbable, selected, selectable, selectBl
         </td>
       )}
       {columns.map((c) => (
-        <td key={c.id} className={c.className} data-align={c.align} data-editable={c.editable ? '' : undefined} title={c.title?.(row)}>{c.cell(row, ctx)}</td>
+        <td key={c.id} className={c.className} data-align={c.align} data-editable={c.editable ? '' : undefined} data-label={c.header || undefined} title={c.title?.(row)}>{c.cell(row, ctx)}</td>
       ))}
     </tr>
   )
