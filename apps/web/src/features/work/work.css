@@ -20,6 +20,7 @@
   box-sizing: border-box;
   overflow-x: auto;
   background: var(--surface-deep);
+  padding-top: var(--space-xs);
 }
 .work-nav-item {
   flex: none;
@@ -120,8 +121,7 @@
   display: flex;
   flex-direction: column;
   background: var(--surface-deep);
-  margin-top: var(--work-nav-height);
-  padding: 0 var(--space-sm);
+  padding: var(--space-sm);
 }
 .work-page:has(.work-empty) { display: grid; place-items: center; }
 .work-empty {

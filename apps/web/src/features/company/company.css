@@ -37,7 +37,6 @@
   align-items: center;
   gap: var(--space-xs);
   padding: 0 var(--table-cell-padding-x, var(--space-lg));
-  margin-bottom: var(--space-lg);
   border-bottom: var(--line-width) solid var(--line);
 }
 
