@@ -90,7 +90,7 @@ export function CommandPalette() {
         const label = d.id === 'company' ? `${workspace.name} overview` : d.label
         list.push({ id: `desk:${d.id}`, label, hint: groupOf(d.id), words: `${label} ${SYNONYMS[d.id] ?? ''}`, run: () => goDesk(d.id) })
       }
-      list.push({ id: 'conversations', label: `${workspace.name} conversations`, hint: 'Stream', words: 'conversations rooms stream channel chat', run: () => navigate(`/c/${workspace.id}/conversations`) })
+      list.push({ id: 'conversations', label: `${workspace.name} channel`, hint: 'Stream', words: 'channel company channel stream chat conversation', run: () => navigate(`/c/${workspace.id}/conversations`) })
       list.push({ id: 'new-automation', label: 'New automation', hint: 'Automations', words: 'new automation create agent schedule email scheduled email newsletter team brief customer report', run: () => goDesk('agents', { add: '1' }) })
       for (const c of companies) {
         if (c.id === workspace.id) continue
