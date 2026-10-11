@@ -13,7 +13,6 @@ export function WorkspaceHero({
   name,
   avatar,
   status = 'Active',
-  tagline = 'A home for our brand, team, operations, and growth.',
   actions,
 }: WorkspaceHeroProps) {
   const initial = name ? name.charAt(0).toUpperCase() : 'W'
@@ -33,7 +32,6 @@ export function WorkspaceHero({
               </Badge>
             )}
           </div>
-          {tagline && <p className="ui-workspace-hero-tagline">{tagline}</p>}
         </div>
       </div>
       {actions && <div className="ui-workspace-hero-actions">{actions}</div>}

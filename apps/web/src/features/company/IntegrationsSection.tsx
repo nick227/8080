@@ -78,8 +78,7 @@ export function IntegrationsSection({ workspaceId, canEdit }: { workspaceId: str
       <Card style={{ marginTop: 'var(--space-lg)' }}>
         <CardHeader
           icon={<PlugIcon />}
-          title={<span id="company-integrations-title">Email senders</span>}
-          description="Who automations send email as. Every company can send with 8080; add your own email to send from your address."
+          title={<span id="company-integrations-title">Email</span>}
           actions={canEdit ? (
             <button type="button" className="ui-btn-action" onClick={() => setAdding(true)}>
               <span>+ Use my own email</span>
@@ -111,7 +110,6 @@ export function IntegrationsSection({ workspaceId, canEdit }: { workspaceId: str
                   </table>
                 </div>
               )}
-          <p className="company-status company-note">Other integrations (CRM, online store, social accounts) aren’t available yet.</p>
         </CardContent>
       </Card>
 

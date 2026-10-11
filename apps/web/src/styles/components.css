@@ -62,7 +62,7 @@
 
 .ui-workspace-hero-title {
   margin: 0;
-  font-size: var(--text-3xl);
+  font-size: var(--text-8xl);
   font-weight: var(--weight-bold);
   color: var(--ink);
   letter-spacing: -0.015em;

@@ -10,6 +10,9 @@
   --line: #2b2e36;
   --signal: #d94236;
   --danger: #ff5242;
+  --status-success: #10b981;
+  --status-warning: #f59e0b;
+  --status-info: #3b82f6;
   --radius: 0px;
   --line-width: 1px;
   --motion-fast: 140ms;
@@ -44,6 +47,13 @@
   --text-xl: 18px;
   --text-2xl: 20px;
   --text-3xl: 22px;
+  --text-4xl: 24px;
+  --text-5xl: 26px;
+  --text-6xl: 32px;
+  --text-7xl: 36px;
+  --text-8xl: 44px;
+  --text-9xl: 52px;
+  --text-10xl: 64px;
   --text-title: 28px;
   --text-display: 34px;
   --weight-light: 300;

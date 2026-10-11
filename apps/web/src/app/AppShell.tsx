@@ -57,7 +57,6 @@ export function AppShell() {
     <a className="bp-skip" href="#blueprint-main">Skip to content</a>
     <header className="bp-header">
       <div className="bp-brand-group"><button className="bp-nav-toggle" ref={toggle} onClick={changeNav} aria-label={narrow ? overlay ? 'Close navigation' : 'Open navigation' : compact ? 'Expand navigation' : 'Collapse navigation'} aria-expanded={narrow ? overlay : !compact} aria-controls="blueprint-navigation"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden><path d="M4 6h16M4 12h16M4 18h16" /></svg></button><Link to="/" className="bp-logo">8080</Link></div>
-      <span className="bp-platform">CRM & work management</span>
       <div className="bp-header-actions"><button className="bp-goto" onClick={openCommandPalette}>Go to… <kbd>⌘ / Ctrl K</kbd></button><ThemeSwitcher />{user && <button className="bp-account" onClick={() => useShell.getState().toggleAccount()} aria-expanded={accountOpen} aria-label={user.isGuest ? 'Sign in' : 'Your account'} title={user.isGuest ? 'Sign in' : user.displayName || 'Your account'}>{user.isGuest ? 'Sign in' : user.avatarUrl ? <img className="app-avatar" src={user.avatarUrl} alt="" /> : <span className="app-avatar">{(user.displayName || 'Account').slice(0,1).toUpperCase()}</span>}</button>}</div>
     </header>
     <AccountSheet /><CommandPalette />
@@ -65,14 +64,12 @@ export function AppShell() {
     <aside ref={rail} id="blueprint-navigation" className="bp-navigation" aria-label="Site navigation" inert={size === 'phone' && !overlay ? true : undefined}>
       {overlay && <button className="bp-drawer-close" onClick={() => { setOverlay(false); toggle.current?.focus() }}>Close navigation ×</button>}
       <nav>{[
-        { to: '/workspaces', label: 'Workspaces', detail: 'Your companies', icon: '▣', active: location.pathname === '/' || location.pathname === '/workspaces' },
-        { to: '/conversations', label: 'Community', detail: 'Conversations and chat', icon: '☷', active: location.pathname === '/conversations' },
-        { to: '/blueprints', label: 'Blueprints', detail: 'Explore plans', icon: '▦', active: location.pathname === '/blueprints' || location.pathname.startsWith('/blueprints/') },
+        { to: '/workspaces', label: 'Workspaces', icon: '▣', active: location.pathname === '/' || location.pathname === '/workspaces' },
+        { to: '/conversations', label: 'Community', icon: '☷', active: location.pathname === '/conversations' },
+        { to: '/blueprints', label: 'Blueprints', icon: '▦', active: location.pathname === '/blueprints' || location.pathname.startsWith('/blueprints/') },
       ].map(item => <Link key={item.to} to={item.to} aria-label={item.label} aria-current={item.active ? 'page' : undefined} title={item.label}><span aria-hidden>{item.icon}</span><span className="bp-nav-label">{item.label}<small className="app-nav-detail">{item.detail}</small></span></Link>)}</nav>
-      <div className="bp-nav-members"><WorkspaceList compact /></div>
-      <div className="bp-nav-divider" /><Link className="bp-nav-create" to="/workspaces/new" title="Create workspace" aria-current={location.pathname === '/workspaces/new' ? 'page' : undefined}><span aria-hidden>＋</span><span className="bp-nav-label">Create workspace</span></Link>
-      <div className="bp-nav-note"><p>Start with your own business.</p><span>Create a blank workspace for contacts, tasks, documents, and your team.</span></div>
-      <div className="bp-nav-bottom"><span className="bp-nav-label">8080<br /><small>CRM & work management</small></span></div>
+
+      <div className="bp-nav-bottom"><span className="bp-nav-label">8080<br /></span></div>
     </aside>
     <main ref={main} id="blueprint-main" className="bp-main" inert={overlay ? true : undefined}><Outlet /></main>
   </div>

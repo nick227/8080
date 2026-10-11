@@ -604,6 +604,7 @@
   background: var(--surface-subtle);
   overflow: hidden;
   cursor: pointer;
+  margin-bottom: 10px;
 }
 .record-gallery-hero img {
   width: 100%;
@@ -629,7 +630,6 @@
   padding: var(--space-md);
 }
 .record-gallery-empty span {
-  font-size: clamp(2rem, 6vw, 3rem);
   letter-spacing: 0.08em;
   color: var(--muted);
   line-height: 1;
@@ -646,6 +646,7 @@
   overflow-x: auto;
   padding-bottom: var(--space-2xs);
   max-width: min(100%, 22rem);
+  margin-bottom: 10px;
 }
 .record-gallery-thumb,
 .record-gallery-add {

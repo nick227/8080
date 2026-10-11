@@ -58,7 +58,7 @@ export function Lobby() {
     <div className="lobby-body">
       <div className="lobby-head">
         <button type="button" className="lobby-pill" onClick={() => void start()}>
-          New conversation
+          New Workspace
         </button>
       </div>
 

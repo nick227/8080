@@ -36,22 +36,6 @@ export function OverviewSection({ workspaceId }: { workspaceId: string }) {
         <CardHeader
           icon={<ChartMetricsIcon />}
           title="At a glance"
-          description="Key metrics and activity across your company."
-          actions={
-            <>
-              <button type="button" className="ui-btn-action">
-                <SettingsIcon />
-                <span>Settings</span>
-              </button>
-              <button type="button" className="ui-btn-action">
-                <BookIcon />
-                <span>Vocabulary</span>
-              </button>
-              <button type="button" className="ui-btn-action ui-btn-accent">
-                ✓ Save changes
-              </button>
-            </>
-          }
         />
         <CardContent>
           {insights.isError ? (
@@ -101,7 +85,6 @@ export function OverviewSection({ workspaceId }: { workspaceId: string }) {
         <CardHeader
           icon={<ClockIcon />}
           title="Recent activity"
-          description="Updates and conversations about your company."
           actions={
             <button type="button" className="ui-btn-action">
               <span>View all →</span>

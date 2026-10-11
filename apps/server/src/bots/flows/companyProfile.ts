@@ -117,7 +117,7 @@ function ask(step: Step, d: Draft, userId: string): FlowSay {
 /** The welcome the creator sees (doc/12 §3), opening the run's first step. */
 export function startOffer(name: string, userId: string): FlowSay {
   return {
-    text: `Welcome, ${name}. This channel is shared with everyone in the workspace. Set up the company profile to create documents from it.`,
+    text: `Welcome, ${name}.`,
     offer: { step: 'start', options: START, forUserId: userId },
   }
 }

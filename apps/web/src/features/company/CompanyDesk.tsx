@@ -1,7 +1,6 @@
-import { WorkspaceHero } from '../../components/ui/WorkspaceHero'
 import { useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { BookIcon, BuildingIcon, ChartMetricsIcon, PlugIcon, UserCardIcon } from '../../components/icons'
+import { BookIcon, ChartMetricsIcon, PlugIcon, UserCardIcon } from '../../components/icons'
 import { RecordGallery } from '../records/RecordGallery'
 import { FormSlideout } from '../work/FormSlideout'
 import { SectionHeader } from '../work/SectionHeader'
@@ -53,12 +52,6 @@ export function CompanyDesk({ onPlace }: { roomId?: string; onPlace?: (desk: Des
 
   return (
     <div className="company">
-
-      <WorkspaceHero
-        name={workspace?.name ?? "Workspace"}
-        status="Active"
-        tagline="A home for our brand, team, operations, and growth."
-      />
 
       {/* Sub-Tab Navigation Bar */}
       <nav className="company-subtabs" aria-label="Company section tabs">

@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type FormEvent } from 'react'
 import { ApiError, getApiClient, unwrap } from '@project/sdk'
 import { Card, CardContent, CardHeader } from '../../components/ui/Card'
-import { BuildingIcon, PencilIcon, UserCardIcon } from '../../components/icons'
+import { BuildingIcon, UserCardIcon } from '../../components/icons'
 
 type Profile = {
   revision: number
@@ -133,19 +133,7 @@ export function CompanyProfileSection({
             <CardHeader
               icon={<UserCardIcon />}
               title="Profile"
-              description="Basic information about your company."
-              actions={
-                canEdit ? (
-                  <button type="submit" className="ui-btn-action" disabled={saving}>
-                    <PencilIcon />
-                    <span>Edit</span>
-                  </button>
-                ) : onOpenChannel ? (
-                  <button type="button" className="ui-btn-action" onClick={onOpenChannel}>
-                    Setup with chatbot
-                  </button>
-                ) : null
-              }
+              description="Basic information"
             />
             <CardContent>
               <div className="record-form-fields">
@@ -165,15 +153,7 @@ export function CompanyProfileSection({
             <CardHeader
               icon={<BuildingIcon />}
               title="Business details"
-              description="What you do, who you serve, and how you operate."
-              actions={
-                canEdit ? (
-                  <button type="submit" className="ui-btn-action" disabled={saving}>
-                    <PencilIcon />
-                    <span>Edit</span>
-                  </button>
-                ) : null
-              }
+              description="What you do"
             />
             <CardContent>
               <div className="record-form-fields">

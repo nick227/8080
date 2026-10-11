@@ -34,6 +34,9 @@
   --line: #d3d4ce;
   --signal: #b52b24;
   --danger: #c62d21;
+  --status-success: #059669;
+  --status-warning: #d97706;
+  --status-info: #2563eb;
   --surface-deep: #e9e9e2;
   --surface-subtle: #f0f0e9;
   --surface-tile: #ffffff;

@@ -7,7 +7,7 @@ export function BlueprintCatalog() {
     <SEO title="Blueprint Catalog — 8080" description="Explore detailed operating plans for solo businesses, small teams, and project studios. 8080 is a CRM and work management platform." />
     <div className="product-page-heading"><h1>Blueprints</h1></div>
     <div className="bp-catalog-grid">{blueprints.map((bp,i) => {
-      const scenario = scenarioData(bp,'30')
+      const scenario = scenarioData(bp,'90')
       return <article className="bp-catalog-card" key={bp.slug}>
         <Link to={`/blueprints/${bp.slug}`} aria-label={`Read ${bp.type}`}>
           <div className="bp-card-photo"><img src={`/workspace-examples/${bp.image}.jpg`} alt="" loading={i === 0 ? 'eager' : 'lazy'} /></div>
@@ -18,15 +18,15 @@ export function BlueprintCatalog() {
               <div><dt>People</dt><dd>{scenario.people.length}</dd></div>
               <div><dt>Projects</dt><dd>{scenario.projects.length}</dd></div>
               <div><dt>Tasks</dt><dd>{scenario.tasks.length}</dd></div>
-              <div><dt>30-day net margin</dt><dd>+{money(scenario.netMargin)} USD</dd></div>
+              <div><dt>90-day net margin</dt><dd>+{money(scenario.netMargin)} USD</dd></div>
             </dl>
             <span className="bp-read">View Blueprint →</span>
           </div>
         </Link>
       </article>
     })}</div>
-    <p className="bp-catalog-note">Counts show the first 30 days. Open a Blueprint for 90-day and one-year scenarios. Fictional examples. Budgets model projected income streams against operational expense allowances; salaries, rent, and tax are excluded.</p>
+    <p className="bp-catalog-note">Fictional operational examples. All models are calibrated as 90-day starter plans demonstrating realistic staffing, structured task workflows, and dual-sided cashflow economics; salaries, premises rent, and taxes are excluded.</p>
 
-    <section className="bp-platform-note"><div><strong>8080 is a CRM and work management platform.</strong><p>Manage customers, tasks, schedules, documents, and people in your own workspace. Blueprints are optional reading; a new workspace starts blank.</p></div><Link to="/workspaces/new">Create a workspace <span aria-hidden>→</span></Link></section>
+    <section className="bp-platform-note"><div><strong>8080 is a work management platform</strong></div><Link to="/workspaces/new">Create a workspace <span aria-hidden>→</span></Link></section>
   </div>
 }

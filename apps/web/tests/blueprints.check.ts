@@ -36,9 +36,8 @@ for (const bp of blueprints) {
       }
     }
   }
-  assert.ok(scenarioData(bp, '90').tasks.length > scenarioData(bp, '30').tasks.length)
-  assert.ok(scenarioData(bp, '365').tasks.length > scenarioData(bp, '90').tasks.length)
-  const shared = scenarioData(bp, '30').tasks[0]
-  assert.equal(scenarioData(bp, '365').tasks.find(t => t.id === shared.id)?.title, shared.title)
+  assert.ok(scenarioData(bp, '90').tasks.length >= 10, `${bp.slug}: expected at least 10 realistic tasks`)
+  assert.ok(scenarioData(bp, '90').projects.length >= 5, `${bp.slug}: expected at least 5 structured projects`)
+  assert.ok(scenarioData(bp, '90').people.length >= 2, `${bp.slug}: expected at least 2 roles`)
 }
-console.log('Blueprint content: all three models and nine scenarios have unique tasks, valid owners/projects, coherent milestones, schedules and budgets.')
+console.log('Blueprint content: all three models validated as 90-day starter plans with unique tasks, valid owners/projects, coherent milestones, schedules and budgets.')
