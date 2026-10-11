@@ -15,6 +15,9 @@
 }
 .work-nav {
   width: 100%;
+  /* One height on every page, whether or not the company mark is shown. */
+  min-height: var(--work-nav-height);
+  box-sizing: border-box;
   overflow-x: auto;
   background: var(--surface-deep);
 }

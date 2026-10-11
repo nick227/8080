@@ -14,7 +14,6 @@ import { useData } from '../state/data'
 import type { Item, SendInput } from '../api/types'
 import { roomPeopleFrom, type PresenceActivity } from '../features/room/PeopleStrip'
 import { ChatShell } from '../features/room/ChatShell'
-import { TeamLayoutMenu } from '../features/room/TeamLayoutMenu'
 import { RoomFloor } from '../features/room/RoomFloor'
 import { WorkNav } from '../features/work/WorkNav'
 import { useDocuments } from '../features/documents/store'
@@ -25,7 +24,7 @@ import { TeamDesk } from '../features/team/TeamDesk'
 import type { Desk } from '../features/work/sections'
 import { deskPath, useWorkPlace } from '../features/records/navigation'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { loadRoomView, saveRoomView, seatsFrom, type RoomView } from '../features/room/roomViews'
+import { seatsFrom, type RoomView } from '../features/room/roomViews'
 import { ChatStream } from '../features/room/ChatStream'
 import { ChatBox } from '../features/room/ChatBox'
 import { RecordSurface } from '../features/room/RecordSurface'
@@ -38,7 +37,6 @@ import { LiveRoom } from '../features/room/live/LiveRoom'
 import { HostChannelProvider, useHostChannel } from '../features/room/hostChannel'
 import '../features/room/room.css'
 import { useCurrentWorkspace } from '../app/workspace'
-import { RoomCompany } from '../features/room/RoomCompany'
 
 export function Room({ roomId: roomRef }: { roomId: string }) {
   const ui = useUI()
@@ -57,7 +55,8 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   const room = useRoom(roomId)
   const updateRoom = useUpdateRoom(roomId ?? '')
   const { pending, post, meId, meName, meAvatar, meGuest } = useRoomPost(roomId)
-  const [view, setView] = useState<RoomView>(loadRoomView)
+  // One room layout (the streaming grid); the layout switch was removed.
+  const view: RoomView = 'grid'
   const [place, setPlace] = useWorkPlace()
   const [queue, setQueue] = useState<Item[]>([])
   const knownIds = useRef<Set<string> | null>(null)
@@ -67,10 +66,6 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
     newestSeen.current = 0
     setQueue([])
   }, [roomId])
-  const chooseView = (next: RoomView) => {
-    setView(next)
-    saveRoomView(next)
-  }
   const navigate = useNavigate()
   const location = useLocation()
   const { taskKey } = useParams()
@@ -235,7 +230,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
         view={view}
         stage={(
           <div className="work-column">
-            <WorkNav desk={shownPlace} compact showCompany={listedHere} showWork={!listedElsewhere} layoutControl={shownPlace === 'stream' ? <>{roomId && <RoomCompany roomId={roomId} />}<TeamLayoutMenu view={view} onChange={chooseView} /></> : undefined} onSelect={(next) => {
+            <WorkNav desk={shownPlace} compact showCompany={listedHere} showWork={!listedElsewhere} onSelect={(next) => {
               if (next === 'documents') useDocuments.getState().open(null)
               openPlace(next)
             }} />

@@ -7,7 +7,6 @@ import { useDocuments } from '../documents/store'
 import { ChatBox } from '../room/ChatBox'
 import { ChatShell } from '../room/ChatShell'
 import { ChatStream } from '../room/ChatStream'
-import { loadRoomView } from '../room/roomViews'
 import { useChatRows } from '../room/useChatRows'
 import { useRoomPost } from '../room/useRoomPost'
 
@@ -55,7 +54,7 @@ export function CompanyChannelShell({ workspaceId, children }: { workspaceId: st
 
   return (
     <ChatShell
-      view={loadRoomView()}
+      view="grid"
       stage={children}
       stream={(
         <>
