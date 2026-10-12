@@ -2041,8 +2041,10 @@ export interface paths {
         /**
          * The device reports a notification displayed or opened
          * @description Sent by the /native/ service worker, without a session: the token in the push
-         *     payload is signed for this one delivery. An unknown delivery and a wrong token
-         *     both give 404. A display or open moves the delivery on from any state.
+         *     payload is signed for this one delivery and only moves its state; it reads nothing.
+         *     Accepted for 7 days after the delivery was created. An unknown delivery, a wrong
+         *     token and an expired one all give 404. A display or open moves the delivery on
+         *     from any state.
          */
         post: operations["acknowledgePushDelivery"];
         delete?: never;
@@ -6260,10 +6262,15 @@ export interface components {
                 total: number;
                 /** @description Deliveries that got at least this far (each measured separately) */
                 stages: {
+                    /** @description Taken by the push service */
                     accepted: number;
+                    /** @description Reported by the device's app as shown (not proof a person saw it) */
                     displayed: number;
+                    /** @description Reported by the device's app as tapped */
                     opened: number;
                 };
+                /** @description Accepted with no report from the device yet: unconfirmed, not necessarily undelivered */
+                unconfirmed: number;
                 /** @description Deliveries by current state */
                 now: {
                     pending: number;

@@ -47,11 +47,11 @@ export function AdminPush() {
           <>
             <div className="admin-stats-grid">
               <Stat label="Deliveries" value={String(d.total)} sub={`${d.devices} device${d.devices === 1 ? '' : 's'} registered now`} />
-              <Stat label="Accepted by push service" value={pct(d.stages.accepted, d.total)} sub={`${d.stages.accepted} of ${d.total}`} />
-              <Stat label="Confirmed displayed" value={pct(d.stages.displayed, d.total)} sub={`${d.stages.displayed} of ${d.total} · reported by the device`} />
-              <Stat label="Opened" value={pct(d.stages.opened, d.total)} sub={`${d.stages.opened} of ${d.total}`} />
+              <Stat label="Accepted by push service" value={pct(d.stages.accepted, d.total)} sub={`${d.stages.accepted} of ${d.total} · ${d.unconfirmed} unconfirmed`} />
+              <Stat label="Displayed (device-reported)" value={pct(d.stages.displayed, d.total)} sub={`${d.stages.displayed} of ${d.total}`} />
+              <Stat label="Opened (device-reported)" value={pct(d.stages.opened, d.total)} sub={`${d.stages.opened} of ${d.total}`} />
             </div>
-            <p className="admin-muted">Each stage is measured on its own. "Accepted" means the push service took the message; only the device's own report counts as displayed. A device can show a notification without reporting it (offline, closed by the system), so displayed is a floor, not a ceiling.</p>
+            <p className="admin-muted">Each stage is measured on its own. Accepted means the push service took the message. Displayed and opened are what the device's app reported: the phone put the notification up, which is not proof a person saw it. An accepted delivery with no report is unconfirmed, not undelivered: a phone that is offline, or closes the app before it can report, shows nothing here.</p>
 
             <section className="admin-settings-section">
               <h2>Right now</h2>

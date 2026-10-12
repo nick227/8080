@@ -166,6 +166,12 @@ describe('push deliveries', () => {
     expect(now.status).toBe('opened')
     expect(now.openedAt!.getTime()).toBeGreaterThanOrEqual(now.displayedAt!.getTime())
 
+    // Acks are accepted for a week after the delivery; later ones look like unknown deliveries.
+    const created = (await deliveries(row.id))[0]!.createdAt
+    await db.pushDelivery.update({ where: { id: d!.id }, data: { createdAt: new Date(Date.now() - 8 * 86_400_000) } })
+    expect((await ack(d!.id, ackToken(d!.id), 'opened')).statusCode).toBe(404)
+    await db.pushDelivery.update({ where: { id: d!.id }, data: { createdAt: created } })
+
     // Gave up on the server side, but the phone showed it after all: the phone is right.
     await db.pushDelivery.update({ where: { id: d!.id }, data: { status: 'failed', displayedAt: null, openedAt: null, lastError: 'GAVE_UP after 6: NETWORK: timeout' } })
     await ack(d!.id, ackToken(d!.id), 'displayed')
@@ -186,7 +192,7 @@ describe('push deliveries', () => {
     expect(res.statusCode).toBe(200)
     await validateResponse('getPushDiagnostics', 200, res.json())
     const data = res.json().data
-    expect(data).toMatchObject({ total: 2, devices: 1, stages: { accepted: 1, displayed: 1, opened: 1 }, now: { opened: 1, failed: 1, pending: 0 } })
+    expect(data).toMatchObject({ total: 2, devices: 1, stages: { accepted: 1, displayed: 1, opened: 1 }, unconfirmed: 0, now: { opened: 1, failed: 1, pending: 0 } })
     expect(data.failures).toEqual([{ statusCode: 410, pushHost: 'web.push.apple.com', count: 1 }])
     expect(data.recent.map((r: { device: string; status: string }) => `${r.device}:${r.status}`).sort()).toEqual(['Android · Chrome:opened', 'iPhone · Safari:failed'])
     expect(JSON.stringify(data)).not.toContain(task.title)

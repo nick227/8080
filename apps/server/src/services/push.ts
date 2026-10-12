@@ -117,7 +117,11 @@ function ackSigningKey() {
   return ackKey
 }
 
-/** Proves an acknowledgment comes from the device that received this delivery. */
+/** Acknowledgments are accepted this long after a delivery was created. */
+export const ACK_WINDOW_MS = 7 * 86_400_000
+
+/** Proves an acknowledgment comes from the device that received this delivery. It names one
+ *  delivery and only moves that delivery's state: it reads nothing and opens no other API. */
 export const ackToken = (deliveryId: string) => createHmac('sha256', ackSigningKey()).update(deliveryId).digest('base64url').slice(0, 32)
 
 /** Lets the push service replace a waiting copy if a retry follows an ambiguous attempt. */
@@ -131,7 +135,8 @@ export async function acknowledge(deliveryId: string, token: string, event: AckE
   // Unknown id and a wrong token look the same.
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) throw notFound('Delivery not found')
   const row = await db.pushDelivery.findUnique({ where: { id: deliveryId } })
-  if (!row) throw notFound('Delivery not found')
+  // Expired tokens look like unknown ones too.
+  if (!row || now.getTime() - row.createdAt.getTime() > ACK_WINDOW_MS) throw notFound('Delivery not found')
   // What the device saw is the truth: it was accepted and shown, whatever the server recorded.
   const opened = event === 'opened'
   const status = opened || row.status !== 'opened' ? event : row.status
@@ -387,6 +392,8 @@ export async function deliveryDiagnostics(query: { days?: number; status?: strin
     devices,
     total,
     stages: { accepted: reached[0], displayed: reached[1], opened: reached[2] },
+    // Accepted by the push service, no word from the device yet: unconfirmed, not undelivered.
+    unconfirmed: count('accepted'),
     now: Object.fromEntries(STATUSES.map((s) => [s, count(s)])) as Record<(typeof STATUSES)[number], number>,
     failures: failures.map((f) => ({ statusCode: f.lastStatusCode, pushHost: f.pushHost, count: f._count._all })),
     recent: recent.map((d: PushDelivery & { user: { id: string; email: string | null; profile: { displayName: string } | null } }) => ({
