@@ -28,7 +28,7 @@ type Summary = {
 /** `direct`: addressed to the recipient personally (mentioned, assigned).
  *  `kind` is stored as the row's type (`task.<kind>`): what the notice is about, for
  *  filters and push policy, so nobody has to read it back out of the title. */
-export type TaskNoticeKind = 'assigned' | 'moved' | 'blocked' | 'unblocked' | 'mention' | 'comment' | 'deleted' | 'due'
+export type TaskNoticeKind = 'assigned' | 'moved' | 'blocked' | 'unblocked' | 'mention' | 'comment' | 'deleted' | 'due' | 'overdue'
 type Notice = { kind: TaskNoticeKind; memberIds: string[]; title: string; summary: string; direct?: boolean }
 
 /** What one task activity tells whom, given the task's people. */

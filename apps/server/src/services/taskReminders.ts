@@ -51,7 +51,8 @@ export async function remindDueTasks(now = new Date()) {
     if (await db.inboxItem.findUnique({ where: { memberId_dedupeKey: { memberId: member.id, dedupeKey } }, select: { id: true } })) continue
     await db.$transaction(async (tx) => {
       const rows = await fanOut(tx, t.workspaceId, {
-        type: 'task.due',
+        // Due tomorrow stays in the inbox; newly overdue is pushed (services/push.ts).
+        type: kind === 'soon' ? 'task.due' : 'task.overdue',
         title: (kind === 'soon' ? `${t.taskKey} is due tomorrow` : `${t.taskKey} is overdue (was due ${shortDay(due)})`).slice(0, 200),
         summary: t.title.slice(0, 500),
         sourceType: 'task',

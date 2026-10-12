@@ -38,7 +38,7 @@ export type Notice = {
 }
 
 // Rows carry a structured type (server: taskNotices.ts, inboxAnnounce.ts).
-const TASK_KINDS: Record<string, Kind> = { 'task.assigned': 'assigned', 'task.mention': 'mention', 'task.blocked': 'blocked', 'task.due': 'due' }
+const TASK_KINDS: Record<string, Kind> = { 'task.assigned': 'assigned', 'task.mention': 'mention', 'task.blocked': 'blocked', 'task.due': 'due', 'task.overdue': 'due' }
 
 function workspaceKind(item: InboxItem): Kind {
   if (TASK_KINDS[item.type]) return TASK_KINDS[item.type]!

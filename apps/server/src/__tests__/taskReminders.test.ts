@@ -1,14 +1,16 @@
 // Due-date reminders: the assignee hears once when a task is due tomorrow and once
 // when it turns overdue, from 8 AM workspace time; done tasks never remind.
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { db } from '@project/db'
 import { buildTestApp, testUserId } from './helpers'
 import { caller, carolId, createWorkspace, join, seedPeople } from './helpers/workspace'
 import { drainTaskEmails } from '../services/taskEmail'
 import { remindDueTasks } from '../services/taskReminders'
+import { setPushSender } from '../services/push'
 
 const app = buildTestApp()
 const call = caller(app)
+afterEach(() => setPushSender(null))
 
 describe('task reminders', () => {
   it('due tomorrow and newly overdue, once each, from 8 AM in the workspace time zone', async () => {
@@ -24,6 +26,9 @@ describe('task reminders', () => {
     await make({ title: 'Nobody', dueDate: '2026-03-11' })
     await make({ title: 'Long overdue', dueDate: '2026-03-01', assigneeMemberId: carol }) // told once, on its first overdue day
     const assigned = await db.inboxItem.count({ where: { memberId: carol } })
+    const pushed: string[] = []
+    setPushSender(async (_target, payload) => { pushed.push(JSON.parse(payload).title) })
+    await call(carolId, 'POST', '/push/subscriptions', { endpoint: 'https://fcm.googleapis.com/fcm/send/carol', keys: { p256dh: 'k', auth: 'a' } })
 
     // 7:30 AM in New York (11:30 UTC): too early.
     expect(await remindDueTasks(new Date('2026-03-10T11:30:00Z'))).toEqual([])
@@ -31,6 +36,10 @@ describe('task reminders', () => {
     const sent = await remindDueTasks(new Date('2026-03-10T13:00:00Z'))
     expect(sent.map((r) => r.title).sort()).toEqual([`${late.taskKey} is overdue (was due Mar 9)`, `${soon.taskKey} is due tomorrow`].sort())
     expect(sent.every((r) => r.memberId === carol && r.sourceType === 'task')).toBe(true)
+    expect(Object.fromEntries(sent.map((r) => [r.title, r.type]))).toEqual({ [`${late.taskKey} is overdue (was due Mar 9)`]: 'task.overdue', [`${soon.taskKey} is due tomorrow`]: 'task.due' })
+    // Only the newly overdue one reaches the phone; due tomorrow waits in the inbox.
+    await new Promise((r) => setTimeout(r, 150))
+    expect(pushed).toEqual([`${late.taskKey} is overdue (was due Mar 9)`])
     // Once only.
     expect(await remindDueTasks(new Date('2026-03-10T15:00:00Z'))).toEqual([])
     expect(await db.inboxItem.count({ where: { memberId: carol } })).toBe(assigned + 2)

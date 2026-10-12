@@ -109,13 +109,14 @@ export class PushService {
 }
 
 // Push policy: a notification means something needs you. Everything else stays in the
-// inbox only (room chatter, routine task changes, workspace activity, due reminders).
+// inbox only (room chatter, routine task changes, workspace activity, due tomorrow).
 const PUSHED = new Set([
   'mention', // @you in a conversation
   'reply', // a reply to your message
   'task.assigned',
   'task.mention',
   'task.blocked',
+  'task.overdue', // once, on its first overdue day, to the assignee (taskReminders.ts)
 ])
 export const pushes = (type: string) => PUSHED.has(type)
 
