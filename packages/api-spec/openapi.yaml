@@ -51,6 +51,7 @@ paths:
   /admin/settings:
     get:
       operationId: getAdminSettings
+      summary: Read platform settings (staff only)
       tags:
         - admin
       responses:
@@ -111,6 +112,7 @@ paths:
   /admin/users/{userId}/staff:
     post:
       operationId: updateAdminStaff
+      summary: Change a user's staff role (staff only)
       tags:
         - admin
       responses:
@@ -189,6 +191,7 @@ paths:
   /admin/users/{userId}/billing-customer:
     post:
       operationId: linkAdminCustomer
+      summary: Link a user to a billing customer (staff only)
       tags:
         - admin
       responses:
@@ -267,6 +270,7 @@ paths:
   /admin/subscriptions/{subscriptionId}/sync:
     post:
       operationId: syncAdminSubscription
+      summary: Re-sync a subscription from Stripe (staff only)
       tags:
         - admin
       responses:

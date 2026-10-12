@@ -11,6 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** Read platform settings (staff only) */
         get: operations["getAdminSettings"];
         put?: never;
         post?: never;
@@ -29,6 +30,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Change a user's staff role (staff only) */
         post: operations["updateAdminStaff"];
         delete?: never;
         options?: never;
@@ -45,6 +47,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Link a user to a billing customer (staff only) */
         post: operations["linkAdminCustomer"];
         delete?: never;
         options?: never;
@@ -61,6 +64,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Re-sync a subscription from Stripe (staff only) */
         post: operations["syncAdminSubscription"];
         delete?: never;
         options?: never;
