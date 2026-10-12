@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { getApiClient, unwrap } from '../client'
 
 // Web Push registration for the /native/ app. Plain calls: the page drives them from
@@ -25,4 +26,16 @@ export async function removePushSubscription(endpoint: string) {
 
 export async function sendTestPush() {
   return unwrap(await getApiClient().POST('/push/test')).data
+}
+
+export type PushDiagnosticsQuery = { days?: number; status?: 'pending' | 'accepted' | 'displayed' | 'opened' | 'failed' | 'cancelled'; userId?: string; limit?: number }
+
+/** Staff only: how far notifications get, and what failed. */
+export function usePushDiagnostics(query: PushDiagnosticsQuery, enabled = true) {
+  return useQuery({
+    queryKey: ['admin', 'push', 'deliveries', query],
+    enabled,
+    queryFn: async () => unwrap(await getApiClient().GET('/admin/push/deliveries', { params: { query } })).data,
+    refetchInterval: 30_000,
+  })
 }

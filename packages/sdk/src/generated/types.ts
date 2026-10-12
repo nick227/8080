@@ -2027,6 +2027,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/push/deliveries/{deliveryId}/ack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deliveryId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The device reports a notification displayed or opened
+         * @description Sent by the /native/ service worker, without a session: the token in the push
+         *     payload is signed for this one delivery. An unknown delivery and a wrong token
+         *     both give 404. A display or open moves the delivery on from any state.
+         */
+        post: operations["acknowledgePushDelivery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/push/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Push delivery diagnostics (staff only)
+         * @description How far notifications get (accepted, displayed, opened), failures by status and push service, and recent deliveries. No message content.
+         */
+        get: operations["getPushDiagnostics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/push/test": {
         parameters: {
             query?: never;
@@ -6170,6 +6214,72 @@ export interface components {
         PaginatedMyInboxItems: {
             data: components["schemas"]["MyInboxItem"][];
             meta: components["schemas"]["PaginatedMeta"];
+        };
+        PushAckInput: {
+            token: string;
+            /** @enum {string} */
+            event: "displayed" | "opened";
+        };
+        PushDelivery: {
+            id: string;
+            /** @description The notice's type (no content) */
+            kind: string;
+            /** @enum {string} */
+            status: "pending" | "accepted" | "displayed" | "opened" | "failed" | "cancelled";
+            attempts: number;
+            /** @description e.g. "Android · Chrome" */
+            device: string | null;
+            pushHost: string;
+            lastStatusCode: number | null;
+            lastError: string | null;
+            user: {
+                id: string;
+                displayName: string;
+                email: string | null;
+            };
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            acceptedAt: string | null;
+            /** Format: date-time */
+            displayedAt: string | null;
+            /** Format: date-time */
+            openedAt: string | null;
+            /** Format: date-time */
+            endedAt: string | null;
+            /** Format: date-time */
+            nextAttemptAt: string | null;
+        };
+        PushDiagnosticsResponse: {
+            data: {
+                /** Format: date-time */
+                since: string;
+                /** @description Devices registered right now */
+                devices: number;
+                /** @description Deliveries created since `since` */
+                total: number;
+                /** @description Deliveries that got at least this far (each measured separately) */
+                stages: {
+                    accepted: number;
+                    displayed: number;
+                    opened: number;
+                };
+                /** @description Deliveries by current state */
+                now: {
+                    pending: number;
+                    accepted: number;
+                    displayed: number;
+                    opened: number;
+                    failed: number;
+                    cancelled: number;
+                };
+                failures: {
+                    statusCode: number | null;
+                    pushHost: string;
+                    count: number;
+                }[];
+                recent: components["schemas"]["PushDelivery"][];
+            };
         };
         PushConfigResponse: {
             data: {
@@ -12335,6 +12445,59 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    acknowledgePushDelivery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deliveryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushAckInput"];
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getPushDiagnostics: {
+        parameters: {
+            query?: {
+                days?: number;
+                status?: "pending" | "accepted" | "displayed" | "opened" | "failed" | "cancelled";
+                userId?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushDiagnosticsResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     testPush: {

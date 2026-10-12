@@ -3339,6 +3339,63 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /push/deliveries/{deliveryId}/ack:
+    parameters:
+      - in: path
+        name: deliveryId
+        required: true
+        schema: { type: string, minLength: 1, maxLength: 64 }
+    post:
+      operationId: acknowledgePushDelivery
+      summary: The device reports a notification displayed or opened
+      description: |
+        Sent by the /native/ service worker, without a session: the token in the push
+        payload is signed for this one delivery. An unknown delivery and a wrong token
+        both give 404. A display or open moves the delivery on from any state.
+      tags: [users]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PushAckInput' }
+      responses:
+        '204': { description: Recorded }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+      x-fastify-config:
+        rateLimit:
+          max: 120
+          timeWindow: 1 minute
+
+  /admin/push/deliveries:
+    get:
+      operationId: getPushDiagnostics
+      summary: Push delivery diagnostics (staff only)
+      description: How far notifications get (accepted, displayed, opened), failures by status and push service, and recent deliveries. No message content.
+      tags: [admin]
+      parameters:
+        - in: query
+          name: days
+          schema: { type: integer, minimum: 1, maximum: 90, default: 7 }
+        - in: query
+          name: status
+          schema: { type: string, enum: [pending, accepted, displayed, opened, failed, cancelled] }
+        - in: query
+          name: userId
+          schema: { type: string, maxLength: 64 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PushDiagnosticsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
   /push/test:
     post:
       operationId: testPush
@@ -10035,6 +10092,83 @@ components:
           type: array
           items: { $ref: '#/components/schemas/MyInboxItem' }
         meta: { $ref: '#/components/schemas/PaginatedMeta' }
+
+    PushAckInput:
+      type: object
+      additionalProperties: false
+      required: [token, event]
+      properties:
+        token: { type: string, minLength: 1, maxLength: 64 }
+        event: { type: string, enum: [displayed, opened] }
+
+    PushDelivery:
+      type: object
+      required: [id, kind, status, attempts, device, pushHost, lastStatusCode, lastError, user, createdAt, acceptedAt, displayedAt, openedAt, endedAt, nextAttemptAt]
+      properties:
+        id: { type: string }
+        kind: { type: string, description: The notice's type (no content) }
+        status: { type: string, enum: [pending, accepted, displayed, opened, failed, cancelled] }
+        attempts: { type: integer }
+        device: { type: [string, 'null'], description: 'e.g. "Android · Chrome"' }
+        pushHost: { type: string }
+        lastStatusCode: { type: [integer, 'null'] }
+        lastError: { type: [string, 'null'] }
+        user:
+          type: object
+          required: [id, displayName, email]
+          properties:
+            id: { type: string }
+            displayName: { type: string }
+            email: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        acceptedAt: { type: [string, 'null'], format: date-time }
+        displayedAt: { type: [string, 'null'], format: date-time }
+        openedAt: { type: [string, 'null'], format: date-time }
+        endedAt: { type: [string, 'null'], format: date-time }
+        nextAttemptAt: { type: [string, 'null'], format: date-time }
+
+    PushDiagnosticsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [since, devices, total, stages, now, failures, recent]
+          properties:
+            since: { type: string, format: date-time }
+            devices: { type: integer, description: Devices registered right now }
+            total: { type: integer, description: Deliveries created since `since` }
+            stages:
+              type: object
+              description: Deliveries that got at least this far (each measured separately)
+              required: [accepted, displayed, opened]
+              properties:
+                accepted: { type: integer }
+                displayed: { type: integer }
+                opened: { type: integer }
+            now:
+              type: object
+              description: Deliveries by current state
+              required: [pending, accepted, displayed, opened, failed, cancelled]
+              properties:
+                pending: { type: integer }
+                accepted: { type: integer }
+                displayed: { type: integer }
+                opened: { type: integer }
+                failed: { type: integer }
+                cancelled: { type: integer }
+            failures:
+              type: array
+              items:
+                type: object
+                required: [statusCode, pushHost, count]
+                properties:
+                  statusCode: { type: [integer, 'null'] }
+                  pushHost: { type: string }
+                  count: { type: integer }
+            recent:
+              type: array
+              items: { $ref: '#/components/schemas/PushDelivery' }
 
     PushConfigResponse:
       type: object

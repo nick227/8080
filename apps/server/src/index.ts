@@ -6,6 +6,7 @@ import { startAgentRunner, stopAgentRunner } from './services/agents/runner'
 import { describeEmailSetup } from './services/agents/email'
 import { startTaskEmailSweep, stopTaskEmailSweep } from './services/taskEmail'
 import { startTaskReminders, stopTaskReminders } from './services/taskReminders'
+import { startPushSweep, stopPushSweep } from './services/push'
 
 async function main() {
   const server = await buildApp({ logger: true })
@@ -24,6 +25,8 @@ async function main() {
   server.log.info(`task email sweep: ${startTaskEmailSweep() ? 'on' : 'off'}`)
   // Due tomorrow / overdue reminders for assignees, from 8 AM workspace time.
   server.log.info(`task reminders: ${startTaskReminders() ? 'on' : 'off'}`)
+  // Push notification retries (needs VAPID keys).
+  server.log.info(`push delivery sweep: ${startPushSweep() ? 'on' : 'off'}`)
   const email = describeEmailSetup()
   if (email.ok) server.log.info(email.line)
   else server.log.error(email.line)
@@ -34,6 +37,7 @@ async function main() {
       stopAgentRunner()
       stopTaskEmailSweep()
       stopTaskReminders()
+      stopPushSweep()
       host.stop()
       await stopBots()
       await server.close()

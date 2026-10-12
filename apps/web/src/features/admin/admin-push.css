@@ -1,0 +1,15 @@
+/* Push delivery diagnostics (AdminPush). */
+.admin-push-range { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.admin-push-range select { padding: 4px 8px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; }
+.admin-push-scroll { overflow-x: auto; margin-top: 12px; }
+.admin-push-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.admin-push-table th { text-align: left; font: 11px var(--mono); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.admin-push-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
+.admin-push-table td small { color: var(--muted); }
+.admin-push-error { white-space: normal !important; max-width: 320px; color: var(--muted); font-family: var(--mono); }
+.admin-push-status { font: 10px var(--mono); font-weight: 700; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line); }
+.admin-push-status[data-status="opened"], .admin-push-status[data-status="displayed"] { color: var(--status-success); border-color: currentColor; }
+.admin-push-status[data-status="accepted"] { color: var(--status-info); border-color: currentColor; }
+.admin-push-status[data-status="pending"] { color: var(--status-warning); border-color: currentColor; }
+.admin-push-status[data-status="failed"] { color: var(--danger); border-color: currentColor; }
+.admin-settings-section.admin-push-wide { max-width: none; }

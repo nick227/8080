@@ -39,7 +39,8 @@ describe('task reminders', () => {
     expect(Object.fromEntries(sent.map((r) => [r.title, r.type]))).toEqual({ [`${late.taskKey} is overdue (was due Mar 9)`]: 'task.overdue', [`${soon.taskKey} is due tomorrow`]: 'task.due' })
     // Only the newly overdue one reaches the phone; due tomorrow waits in the inbox.
     await new Promise((r) => setTimeout(r, 150))
-    expect(pushed).toEqual([`${late.taskKey} is overdue (was due Mar 9)`])
+    // (The assignments above may also reach the phone; only reminders matter here.)
+    expect(pushed.filter((t) => / is (overdue|due tomorrow)/.test(t))).toEqual([`${late.taskKey} is overdue (was due Mar 9)`])
     // Once only.
     expect(await remindDueTasks(new Date('2026-03-10T15:00:00Z'))).toEqual([])
     expect(await db.inboxItem.count({ where: { memberId: carol } })).toBe(assigned + 2)

@@ -14,7 +14,10 @@ let sent: Sent[] = []
 
 beforeEach(() => {
   sent = []
-  setPushSender(async (target, payload) => { sent.push({ endpoint: target.endpoint, payload: JSON.parse(payload) }) })
+  setPushSender(async (target, payload) => {
+    const { delivery: _signed, ...rest } = JSON.parse(payload)
+    sent.push({ endpoint: target.endpoint, payload: rest })
+  })
 })
 afterEach(() => setPushSender(null))
 

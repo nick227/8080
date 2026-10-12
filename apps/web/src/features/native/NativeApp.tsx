@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { NavLink, Route, Routes, useNavigate, useSearchParams } from 'react-router-dom'
-import { ApiError, useLogout, useMyWorkspaces, useSession, type User } from '@project/sdk'
+import { ApiError, getApiBaseUrl, useLogout, useMyWorkspaces, useSession, type User } from '@project/sdk'
 import { GuestAuth } from '../AccountSheet'
 import { SEO } from '../../components/SEO'
 import { destinationOf } from './destination'
@@ -22,7 +22,8 @@ export function NativeApp() {
     if (isStandalone()) rememberInstalled()
     // Scope /native/; caches nothing (public/native/sw.js).
     if ('serviceWorker' in navigator && window.isSecureContext) {
-      navigator.serviceWorker.register('/native/sw.js', { scope: '/native/', updateViaCache: 'none' }).catch(() => { /* the app works without it */ })
+      // The worker reports deliveries (displayed, opened) to the API this page uses.
+      navigator.serviceWorker.register(`/native/sw.js?api=${encodeURIComponent(getApiBaseUrl())}`, { scope: '/native/', updateViaCache: 'none' }).catch(() => { /* the app works without it */ })
     }
   }, [])
   return (

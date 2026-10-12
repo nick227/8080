@@ -19,7 +19,8 @@ function capture(fail?: (target: PushTarget) => number | undefined) {
   setPushSender(async (target, payload) => {
     const status = fail?.(target)
     if (status) throw Object.assign(new Error('push failed'), { statusCode: status })
-    sent.push({ endpoint: target.endpoint, payload: JSON.parse(payload) })
+    const { delivery: _signed, ...rest } = JSON.parse(payload)
+    sent.push({ endpoint: target.endpoint, payload: rest })
   })
   return sent
 }

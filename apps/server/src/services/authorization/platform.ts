@@ -2,7 +2,7 @@ import { db, type Prisma } from '@project/db'
 import { forbidden } from '../../lib/errors'
 import { activeIdentity } from './identity'
 
-export type PlatformPermission = 'users.read' | 'users.manage' | 'billing.read' | 'billing.manage' | 'staff.manage' | 'limits.manage'
+export type PlatformPermission = 'users.read' | 'users.manage' | 'billing.read' | 'billing.manage' | 'staff.manage' | 'limits.manage' | 'diagnostics.read'
 const permissions: Record<PlatformPermission, readonly string[]> = {
   'users.read': ['platform_admin', 'platform_owner'],
   'users.manage': ['platform_admin', 'platform_owner'],
@@ -10,6 +10,8 @@ const permissions: Record<PlatformPermission, readonly string[]> = {
   'billing.read': ['platform_admin', 'platform_owner'],
   'staff.manage': ['platform_owner'],
   'limits.manage': ['platform_owner'],
+  // Delivery diagnostics (push): states, devices and errors, never message content.
+  'diagnostics.read': ['platform_admin', 'platform_owner'],
 }
 export async function authorizePlatform(userId: string, permission: PlatformPermission, client: Prisma.TransactionClient = db) {
   if (process.env.NODE_ENV === 'production' && process.env.ADMIN_ENABLED !== 'true') throw forbidden('Platform administration is not enabled')

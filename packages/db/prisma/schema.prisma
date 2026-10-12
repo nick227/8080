@@ -49,6 +49,7 @@ model User {
   workspaceMembers  WorkspaceMember[]
   pushSubscriptions PushSubscription[]
   inboxItems        InboxItem[]
+  pushDeliveries    PushDelivery[]
 
   @@index([kind])
 }
@@ -1546,6 +1547,7 @@ model InboxItem {
   workspace Workspace?       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   member    WorkspaceMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
   user      User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pushDeliveries PushDelivery[]
 
   @@unique([memberId, dedupeKey])
   @@index([workspaceId, memberId, archivedAt, createdAt])
@@ -2617,8 +2619,47 @@ model PushSubscription {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries PushDelivery[]
 
   @@unique([endpoint])
   @@index([userId])
+}
+
+// One notification to one device (services/push.ts). No message content is kept:
+// the row's kind, the device, and how far delivery got.
+//   pending → accepted (push service took it) → displayed → opened (both reported by
+//   the device's service worker); failed / cancelled are final.
+// Device evidence wins: a display ack moves a row on from any state.
+model PushDelivery {
+  id             String    @id @default(cuid())
+  inboxItemId    String
+  userId         String
+  // Null once the device is forgotten (expired at the push service, turned off).
+  subscriptionId String?
+  // Device identity that outlives the subscription: push service host + a short label.
+  pushHost       String    @db.VarChar(100)
+  device         String?   @db.VarChar(100)
+  kind           String    @db.VarChar(32)
+  status         String    @db.VarChar(16)
+  attempts       Int       @default(0)
+  // Due time of the next attempt (also the lease of an attempt in progress).
+  nextAttemptAt  DateTime?
+  lastStatusCode Int?
+  lastError      String?   @db.VarChar(200)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  acceptedAt     DateTime?
+  displayedAt    DateTime?
+  openedAt       DateTime?
+  endedAt        DateTime?
+
+  inboxItem    InboxItem         @relation(fields: [inboxItemId], references: [id], onDelete: Cascade)
+  subscription PushSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([inboxItemId, subscriptionId])
+  @@index([status, nextAttemptAt])
+  @@index([createdAt])
+  @@index([userId, createdAt])
 }
