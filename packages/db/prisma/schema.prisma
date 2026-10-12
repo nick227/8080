@@ -48,6 +48,7 @@ model User {
   workspacesCreated Workspace[]       @relation("WorkspaceCreator")
   workspaceMembers  WorkspaceMember[]
   pushSubscriptions PushSubscription[]
+  inboxItems        InboxItem[]
 
   @@index([kind])
 }
@@ -1513,10 +1514,13 @@ model DocumentContent {
 // Attention queue (doc/11). One row is one member's pointer to one source.
 // Not a mail thread. sourceType/sourceId are checked in the service, not by FK,
 // so a new domain can raise an item without a new column.
+// Workspace rows: workspaceId + memberId (tasks, contacts, …). Conversation rows are
+// the person's own: userId only, linked to the room by sourceId (rooms have no workspace).
 model InboxItem {
   id          String    @id @default(cuid())
-  workspaceId String
-  memberId    String
+  workspaceId String?
+  memberId    String?
+  userId      String?
   type        String    @db.VarChar(32)
   title       String    @db.VarChar(200)
   summary     String    @db.VarChar(500)
@@ -1539,11 +1543,13 @@ model InboxItem {
   // Web Push copy claimed (services/push.ts): set once, so a repeat release never pushes twice
   pushedAt      DateTime?
 
-  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  member    WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  workspace Workspace?       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    WorkspaceMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  user      User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([memberId, dedupeKey])
   @@index([workspaceId, memberId, archivedAt, createdAt])
+  @@index([userId, archivedAt, createdAt])
   @@index([emailStatus, emailNextAt])
 }
 

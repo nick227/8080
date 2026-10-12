@@ -25,8 +25,11 @@ type Summary = {
   assigneeMemberId?: string | null
 }
 
-/** `direct`: addressed to the recipient personally (mentioned, assigned). */
-type Notice = { memberIds: string[]; title: string; summary: string; direct?: boolean }
+/** `direct`: addressed to the recipient personally (mentioned, assigned).
+ *  `kind` is stored as the row's type (`task.<kind>`): what the notice is about, for
+ *  filters and push policy, so nobody has to read it back out of the title. */
+export type TaskNoticeKind = 'assigned' | 'moved' | 'blocked' | 'unblocked' | 'mention' | 'comment' | 'deleted' | 'due'
+type Notice = { kind: TaskNoticeKind; memberIds: string[]; title: string; summary: string; direct?: boolean }
 
 /** What one task activity tells whom, given the task's people. */
 export function noticesFor(
@@ -42,29 +45,29 @@ export function noticesFor(
   const concerned = [people.assigneeId, people.creatorId]
   switch (activity.type) {
     case 'task.created':
-      return s.assigneeMemberId ? [{ memberIds: [s.assigneeMemberId], title: `${who} assigned you ${key}`, summary: title, direct: true }] : []
+      return s.assigneeMemberId ? [{ kind: 'assigned', memberIds: [s.assigneeMemberId], title: `${who} assigned you ${key}`, summary: title, direct: true }] : []
     case 'task.assigned':
-      return s.to ? [{ memberIds: [s.to], title: `${who} assigned you ${key}`, summary: title, direct: true }] : []
+      return s.to ? [{ kind: 'assigned', memberIds: [s.to], title: `${who} assigned you ${key}`, summary: title, direct: true }] : []
     case 'task.moved':
       // Handoffs only (statuses flagged so in the workflow, e.g. In review, Done).
       return s.to && s.via !== 'workflow' && handoff(s.to)
-        ? [{ memberIds: concerned.filter(Boolean) as string[], title: `${who} moved ${key} to ${s.toLabel ?? s.to}`, summary: title }]
+        ? [{ kind: 'moved', memberIds: concerned.filter(Boolean) as string[], title: `${who} moved ${key} to ${s.toLabel ?? s.to}`, summary: title }]
         : []
     case 'task.blocked':
-      return [{ memberIds: concerned.filter(Boolean) as string[], title: `${who} marked ${key} blocked`, summary: s.reason ? `${title}: ${s.reason}` : title }]
+      return [{ kind: 'blocked', memberIds: concerned.filter(Boolean) as string[], title: `${who} marked ${key} blocked`, summary: s.reason ? `${title}: ${s.reason}` : title }]
     case 'task.unblocked':
-      return [{ memberIds: concerned.filter(Boolean) as string[], title: `${who} unblocked ${key}`, summary: title }]
+      return [{ kind: 'unblocked', memberIds: concerned.filter(Boolean) as string[], title: `${who} unblocked ${key}`, summary: title }]
     case 'task.commented': {
       const mentioned = s.mentions ?? []
       const others = [...concerned, ...people.commenterIds].filter((id): id is string => !!id && !mentioned.includes(id))
       const excerpt = s.excerpt ? `${title}: “${s.excerpt}”` : title
       return [
-        { memberIds: mentioned, title: `${who} mentioned you on ${key}`, summary: excerpt, direct: true },
-        { memberIds: others, title: `${who} commented on ${key}`, summary: excerpt },
+        { kind: 'mention', memberIds: mentioned, title: `${who} mentioned you on ${key}`, summary: excerpt, direct: true },
+        { kind: 'comment', memberIds: others, title: `${who} commented on ${key}`, summary: excerpt },
       ]
     }
     case 'task.deleted':
-      return people.assigneeId ? [{ memberIds: [people.assigneeId], title: `${who} deleted ${key}`, summary: title }] : []
+      return people.assigneeId ? [{ kind: 'deleted', memberIds: [people.assigneeId], title: `${who} deleted ${key}`, summary: title }] : []
     default:
       return []
   }
@@ -102,7 +105,7 @@ export async function notifyTaskActivity(tx: Tx, activities: Activity[]): Promis
       const memberIds = active.map((m) => m.id)
       memberIds.forEach((id) => told.add(id))
       const rows = await fanOut(tx, activity.workspaceId, {
-        type: 'task',
+        type: `task.${notice.kind}`,
         title: notice.title.slice(0, 200),
         summary: (notice.summary || notice.title).slice(0, 500),
         sourceType: 'task',

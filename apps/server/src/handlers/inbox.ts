@@ -21,6 +21,14 @@ export async function listInboxItems(request: Authed, reply: { send: (body: unkn
   return reply.send(await inbox.list(request.user.id, request.params.workspaceId, request.query))
 }
 
+export async function listMyInboxItems(request: Authed, reply: { send: (body: unknown) => unknown }) {
+  return reply.send(await inbox.listMine(request.user.id, request.query))
+}
+
+export async function readMyInboxItem(request: Authed, reply: { send: (body: unknown) => unknown }) {
+  return reply.send({ data: await inbox.readMine(request.user.id, request.params.inboxItemId, request.body.unread ?? false) })
+}
+
 export async function readInboxItem(request: Authed, reply: { send: (body: unknown) => unknown }) {
   const { workspaceId, inboxItemId } = request.params
   return reply.send({ data: await inbox.read(ctx(request), workspaceId, inboxItemId, request.body.unread ?? false) })

@@ -47,8 +47,7 @@
 .app-promo-tabs span:first-child { color: #f0ede1; }
 
 .app-promo-qr { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.app-promo-qr svg, .app-promo-qr-blank { display: block; width: 132px; height: 132px; border-radius: 6px; }
-.app-promo-qr-blank { background: var(--surface-subtle); }
+.app-promo-qr .app-qr { width: 132px; height: 132px; }
 .app-promo-qr figcaption { font-size: 12px; color: var(--muted); text-align: center; max-width: 132px; }
 
 @media (max-width: 900px) {

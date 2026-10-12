@@ -3,8 +3,13 @@ import { getApiClient, unwrap } from '../client'
 // Web Push registration for the /native/ app. Plain calls: the page drives them from
 // the browser's own permission and PushManager state, which has no query to cache.
 
+/** The server's push key and how many devices get the caller's notifications. */
+export async function getPushConfig() {
+  return unwrap(await getApiClient().GET('/push/config')).data
+}
+
 export async function getPushPublicKey() {
-  return unwrap(await getApiClient().GET('/push/config')).data.publicKey
+  return (await getPushConfig()).publicKey
 }
 
 export async function savePushSubscription(subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) {

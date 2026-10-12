@@ -3238,11 +3238,60 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  # ─── a person's own notices (conversations: rooms have no workspace) ──────────
+  /me/inbox:
+    get:
+      operationId: listMyInboxItems
+      summary: The caller's conversation notices, newest first
+      description: |
+        Mentions, replies to the caller's messages, and other messages in rooms they are in.
+        Only rooms the caller is a member of right now (and not deleted) are listed.
+      tags: [users]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: unread
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedMyInboxItems' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /me/inbox/{inboxItemId}/read:
+    parameters:
+      - in: path
+        name: inboxItemId
+        required: true
+        schema: { type: string }
+    patch:
+      operationId: readMyInboxItem
+      summary: Mark one of the caller's conversation notices read or unread
+      tags: [users]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReadInboxItemInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MyInboxItemResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   # ─── web push for the /native/ app ─────────────────────────────────────────
   /push/config:
     get:
       operationId: getPushConfig
-      summary: The server's VAPID public key (null when push is not configured)
+      summary: The server's VAPID public key (null when push is not configured) and the caller's device count
       tags: [users]
       responses:
         '200':
@@ -9942,7 +9991,9 @@ components:
         id: { type: string }
         workspaceId: { type: string }
         memberId: { type: string }
-        type: { type: string }
+        type:
+          type: string
+          description: 'What the notice is about. Task notices: task.assigned, task.mention, task.blocked, task.unblocked, task.moved, task.comment, task.deleted, task.due'
         title: { type: string }
         summary: { type: string }
         sourceType: { type: string }
@@ -9955,15 +10006,46 @@ components:
         deliverAt: { type: string, format: date-time }
         createdAt: { type: string, format: date-time }
 
+    MyInboxItem:
+      description: A notice that belongs to the person, not a workspace (conversation messages)
+      type: object
+      required: [id, type, title, summary, sourceType, sourceId, sourceTitle, unread, createdAt]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [mention, reply, message], description: 'mention and reply are addressed to the caller (pushed); message is inbox-only' }
+        title: { type: string, description: 'Who and what, e.g. "Sarah mentioned you"' }
+        summary: { type: string, description: A short preview of the message }
+        sourceType: { type: string, enum: [conversation] }
+        sourceId: { type: string, description: The room }
+        sourceTitle: { type: string, description: The room's name right now }
+        unread: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    MyInboxItemResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/MyInboxItem' }
+
+    PaginatedMyInboxItems:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/MyInboxItem' }
+        meta: { $ref: '#/components/schemas/PaginatedMeta' }
+
     PushConfigResponse:
       type: object
       required: [data]
       properties:
         data:
           type: object
-          required: [publicKey]
+          required: [publicKey, devices]
           properties:
             publicKey: { type: [string, 'null'], description: VAPID application server key (base64url) }
+            devices: { type: integer, description: Devices registered for the caller's notifications }
 
     PushSubscriptionInput:
       type: object

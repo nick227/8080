@@ -120,16 +120,21 @@ describe('inbox', () => {
     expect(waiting.deliverAt > new Date().toISOString()).toBe(true)
     expect((await call(testUserId, 'GET', `/workspaces/${ws.id}/inbox`)).json().data.some((row: { id: string }) => row.id === waiting.id)).toBe(false)
 
-    const room = (await call(testUserId, 'POST', '/rooms', { title: 'Standup', visibility: 'private' })).json().data
+    // A room note is the person's own (no workspace): only people in the room, never the author.
+    const room = (await call(testUserId, 'POST', '/rooms', { title: 'Standup', visibility: 'public' })).json().data
+    const before = await call(testUserId, 'POST', `/rooms/${room.id}/items`, { text: 'Before Carol joined' })
+    expect(before.statusCode).toBe(201)
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(await db.inboxItem.count({ where: { dedupeKey: before.json().data.id } })).toBe(0)
+    expect((await call(carolId, 'POST', `/rooms/${room.id}/join`)).statusCode).toBe(200)
     const placed = await call(testUserId, 'POST', `/rooms/${room.id}/items`, { text: 'Hello team' })
-    expect(placed.statusCode).toBe(201)
     const itemId = placed.json().data.id as string
-    const note = await waitFor(() => db.inboxItem.findFirst({ where: { memberId: alice, dedupeKey: itemId } }))
-    expect(note).toMatchObject({ type: 'conversation', sourceType: 'conversation', sourceId: room.id, summary: 'Hello team' })
-    expect(await db.inboxItem.findFirst({ where: { memberId: carol, dedupeKey: itemId } })).toBeNull()
+    const note = await waitFor(() => db.inboxItem.findFirst({ where: { userId: carolId, dedupeKey: itemId } }))
+    expect(note).toMatchObject({ type: 'message', title: 'Alice', sourceType: 'conversation', sourceId: room.id, summary: '“Hello team”', workspaceId: null, memberId: null })
+    expect(await db.inboxItem.count({ where: { dedupeKey: itemId } })).toBe(1)
     await notifyConversation({ roomId: room.id, itemId: 'bot-line', text: 'I can help', actorKind: 'bot', actorUserId: testUserId })
-    expect(await db.inboxItem.findFirst({ where: { memberId: alice, dedupeKey: 'bot-line' } })).toMatchObject({ type: 'agent', summary: 'I can help' })
-    expect(await db.inboxItem.findFirst({ where: { memberId: carol, dedupeKey: 'bot-line' } })).toBeNull()
+    expect(await db.inboxItem.findFirst({ where: { userId: carolId, dedupeKey: 'bot-line' } })).toMatchObject({ type: 'message', summary: '“I can help”' })
+    expect(await db.inboxItem.findFirst({ where: { userId: testUserId, dedupeKey: 'bot-line' } })).toBeNull()
   })
 })
 

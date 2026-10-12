@@ -278,7 +278,7 @@ describe('tasks', () => {
     const task = await create(base, { title: 'Draft contract', assigneeMemberId: carol })
     let carolInbox = await inbox(carolId)
     expect(carolInbox).toHaveLength(1)
-    expect(carolInbox[0]).toMatchObject({ type: 'task', sourceId: task.id, title: `Alice assigned you ${task.taskKey}`, summary: 'Draft contract', unread: true })
+    expect(carolInbox[0]).toMatchObject({ type: 'task.assigned', sourceId: task.id, title: `Alice assigned you ${task.taskKey}`, summary: 'Draft contract', unread: true })
     expect(await inbox(testUserId)).toEqual([])
 
     // Carol blocks it: Alice (creator) hears with the reason.

@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { NavLink, Route, Routes, useNavigate, useSearchParams } from 'react-router-dom'
-import { ApiError, useLogout, useMyWorkspaces, useSession, type InboxItem, type User, type Workspace } from '@project/sdk'
+import { ApiError, useLogout, useMyWorkspaces, useSession, type User } from '@project/sdk'
 import { GuestAuth } from '../AccountSheet'
 import { SEO } from '../../components/SEO'
 import { destinationOf } from './destination'
 import { IosSteps, isStandalone, platform, rememberInstalled, useInstallPrompt } from './install'
 import { disablePush, usePush } from './push'
-import { KINDS, kindOf, useMarkRead, useUnifiedInbox, type Kind, type WorkspaceInbox } from './inbox'
+import { KINDS, isFeedKey, useMarkRead, useUnifiedInbox, type Feed, type Kind, type Mark, type Notice } from './inbox'
 import './native.css'
 
 /** Where Google sign-in should land again (it always returns to the site root; Home resumes). */
@@ -71,7 +71,7 @@ function SignIn({ user }: { user: User }) {
 function Signed() {
   const workspacesQuery = useMyWorkspaces()
   const workspaces = useMemo(() => workspacesQuery.data ?? [], [workspacesQuery.data])
-  const inboxes = useUnifiedInbox(workspaces)
+  const feeds = useUnifiedInbox(workspaces)
   const queryClient = useQueryClient()
 
   // An expired session shows up as a 401 anywhere: re-resolve who this is.
@@ -83,7 +83,7 @@ function Signed() {
     const sw = navigator.serviceWorker
     if (!sw) return
     const onMessage = (e: MessageEvent) => {
-      if ((e.data as { type?: string } | null)?.type === 'push') void queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'workspaces' && q.queryKey[2] === 'inbox' })
+      if ((e.data as { type?: string } | null)?.type === 'push') void queryClient.invalidateQueries({ predicate: (q) => isFeedKey(q.queryKey) })
     }
     sw.addEventListener('message', onMessage)
     return () => sw.removeEventListener('message', onMessage)
@@ -93,24 +93,24 @@ function Signed() {
   if (workspacesQuery.isError) return <Empty title="Couldn't load your workspaces" body="Check your connection and try again." action={<button type="button" onClick={() => void workspacesQuery.refetch()}>Retry</button>} />
   return (
     <Routes>
-      <Route index element={<Inbox inboxes={inboxes} />} />
-      <Route path="workspaces" element={<Workspaces inboxes={inboxes} />} />
+      <Route index element={<Inbox feeds={feeds} />} />
+      <Route path="workspaces" element={<Workspaces feeds={feeds} />} />
       <Route path="settings" element={<Settings />} />
-      <Route path="*" element={<Inbox inboxes={inboxes} />} />
+      <Route path="*" element={<Inbox feeds={feeds} />} />
     </Routes>
   )
 }
 
 // ─── Inbox ───────────────────────────────────────────────────────────────────
 
-function Inbox({ inboxes }: { inboxes: WorkspaceInbox[] }) {
+function Inbox({ feeds }: { feeds: Feed[] }) {
   const [params, setParams] = useSearchParams()
-  const workspaceId = params.get('w')
+  const scope = params.get('w')
   const kind = params.get('type') as Kind | null
   const unreadOnly = params.get('unread') === '1'
   const markRead = useMarkRead()
   const navigate = useNavigate()
-  const [notice, setNotice] = useState('')
+  const [toast, setToast] = useState('')
   const [opening, setOpening] = useState<string | null>(null)
 
   const set = (key: string, value: string | null) => {
@@ -121,30 +121,29 @@ function Inbox({ inboxes }: { inboxes: WorkspaceInbox[] }) {
     setParams(next, { replace: true })
   }
 
-  const scoped = inboxes.filter((x) => !workspaceId || x.workspace.id === workspaceId)
-  const byId = new Map(inboxes.map((x) => [x.workspace.id, x.workspace]))
+  const scoped = feeds.filter((f) => !scope || f.key === scope)
   const rows = scoped
-    .flatMap((x) => x.items)
-    .filter((item) => (!kind || kindOf(item) === kind) && (!unreadOnly || item.unread))
+    .flatMap((f) => f.notices)
+    .filter((n) => (!kind || n.kind === kind) && (!unreadOnly || n.unread))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  const unreadIds = scoped.flatMap((x) => x.unread.ids.map((id) => ({ workspaceId: x.workspace.id, inboxItemId: id })))
-  const moreUnread = scoped.some((x) => x.unread.more)
-  const loading = scoped.some((x) => x.loading)
-  const gone = inboxes.filter((x) => x.gone)
-  const failed = scoped.filter((x) => x.error)
-  const selected = workspaceId ? byId.get(workspaceId) : null
+  const unreadMarks: Mark[] = scoped.flatMap((f) => f.unread.ids.map((id) => ({ workspaceId: f.workspace?.id ?? null, id })))
+  const moreUnread = scoped.some((f) => f.unread.more)
+  const loading = scoped.some((f) => f.loading)
+  const gone = feeds.filter((f) => f.gone && f.workspace)
+  const failed = scoped.filter((f) => f.error)
+  const selected = scope ? feeds.find((f) => f.key === scope) : null
 
   const say = (text: string) => {
-    setNotice(text)
-    window.setTimeout(() => setNotice((n) => (n === text ? '' : n)), 4000)
+    setToast(text)
+    window.setTimeout(() => setToast((n) => (n === text ? '' : n)), 4000)
   }
 
-  const open = async (item: InboxItem) => {
+  const open = async (notice: Notice) => {
     if (opening) return
-    setOpening(item.id)
-    if (item.unread) void markRead([{ workspaceId: item.workspaceId, inboxItemId: item.id }])
+    setOpening(notice.id)
+    if (notice.unread) void markRead([notice])
     try {
-      const to = await destinationOf(item)
+      const to = await destinationOf(notice)
       if ('gone' in to) say(to.gone)
       else navigate(to.path)
     } catch {
@@ -157,10 +156,10 @@ function Inbox({ inboxes }: { inboxes: WorkspaceInbox[] }) {
   // A tapped push lands here as ?open=<inbox item id>: open it once the feed has it.
   const openId = params.get('open')
   const handled = useRef<string | null>(null)
-  const settled = inboxes.every((x) => !x.loading)
+  const settled = feeds.every((f) => !f.loading)
   useEffect(() => {
     if (!openId || handled.current === openId) return
-    const target = inboxes.flatMap((x) => x.items).find((item) => item.id === openId)
+    const target = feeds.flatMap((f) => f.notices).find((n) => n.id === openId)
     if (!target && !settled) return
     handled.current = openId
     const next = new URLSearchParams(window.location.search)
@@ -169,38 +168,35 @@ function Inbox({ inboxes }: { inboxes: WorkspaceInbox[] }) {
     if (target) void open(target)
     else say('That notification is no longer available.')
   // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the feed or the param changes
-  }, [openId, inboxes, settled])
+  }, [openId, feeds, settled])
 
-  const toggle = (item: InboxItem) => {
-    void markRead([{ workspaceId: item.workspaceId, inboxItemId: item.id }], !item.unread).then((ok) => { if (!ok) say("Couldn't save that change.") })
+  const toggle = (notice: Notice) => {
+    void markRead([notice], !notice.unread).then((ok) => { if (!ok) say("Couldn't save that change.") })
   }
 
   const markAll = () => {
-    void markRead(unreadIds).then((ok) => { if (!ok) say('Some notifications could not be marked read.') })
-  }
-
-  if (!inboxes.length) {
-    return <Empty title="No workspaces yet" body="Notifications appear here once you join or create a workspace." action={<a href="/workspaces/new">Create a workspace</a>} />
+    void markRead(unreadMarks).then((ok) => { if (!ok) say('Some notifications could not be marked read.') })
   }
 
   return (
     <section className="native-inbox" aria-labelledby="native-inbox-title">
+      <EnablePush />
       <InstallBanner />
       <div className="native-title-row">
-        <h1 id="native-inbox-title">{selected ? selected.name : 'Inbox'}</h1>
-        <span className="native-count" aria-live="polite">{unreadIds.length}{moreUnread ? '+' : ''} unread</span>
+        <h1 id="native-inbox-title">{selected ? selected.label : 'Inbox'}</h1>
+        <span className="native-count" aria-live="polite">{unreadMarks.length}{moreUnread ? '+' : ''} unread</span>
       </div>
 
       <div className="native-filters">
         <label className="native-select">
-          <span className="sr-only">Workspace</span>
-          <select value={workspaceId ?? ''} onChange={(e) => set('w', e.target.value || null)}>
-            <option value="">All workspaces</option>
-            {inboxes.map((x) => <option key={x.workspace.id} value={x.workspace.id}>{x.workspace.name}</option>)}
+          <span className="sr-only">Show</span>
+          <select value={scope ?? ''} onChange={(e) => set('w', e.target.value || null)}>
+            <option value="">Everything</option>
+            {feeds.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
           </select>
         </label>
         <button type="button" className="native-chip" aria-pressed={unreadOnly} onClick={() => set('unread', unreadOnly ? null : '1')}>Unread</button>
-        {unreadIds.length > 0 && <button type="button" className="native-link" onClick={markAll}>Mark all read</button>}
+        {unreadMarks.length > 0 && <button type="button" className="native-link" onClick={markAll}>Mark all read</button>}
       </div>
       <div className="native-chips" role="group" aria-label="Notification type">
         <button type="button" className="native-chip" aria-pressed={!kind} onClick={() => set('type', null)}>All</button>
@@ -209,52 +205,46 @@ function Inbox({ inboxes }: { inboxes: WorkspaceInbox[] }) {
         ))}
       </div>
 
-      {gone.map((x) => <p key={x.workspace.id} className="native-banner">You no longer have access to {x.workspace.name}.</p>)}
-      {failed.length > 0 && <p className="native-banner">Couldn't refresh {failed.map((x) => x.workspace.name).join(', ')}. Retrying.</p>}
+      {gone.map((f) => <p key={f.key} className="native-banner">You no longer have access to {f.label}.</p>)}
+      {failed.length > 0 && <p className="native-banner">Couldn't refresh {failed.map((f) => f.label).join(', ')}. Retrying.</p>}
 
       {loading && rows.length === 0 ? (
         <p className="native-quiet" aria-busy>Loading…</p>
       ) : rows.length === 0 ? (
         <Empty
           title={unreadOnly || kind ? 'Nothing matches' : "You're all caught up"}
-          body={unreadOnly || kind ? 'Try a different filter.' : 'Mentions, assignments, blocked tasks and conversation activity show up here.'}
+          body={unreadOnly || kind ? 'Try a different filter.' : 'Mentions, replies, tasks assigned to you and blocked work show up here.'}
         />
       ) : (
         <ul className="native-list">
-          {rows.map((item) => (
-            <li key={item.id}>
-              <Notice
-                item={item}
-                workspace={byId.get(item.workspaceId)}
-                busy={opening === item.id}
-                onOpen={() => void open(item)}
-                onToggle={() => toggle(item)}
-              />
+          {rows.map((n) => (
+            <li key={n.id}>
+              <NoticeCard notice={n} busy={opening === n.id} onOpen={() => void open(n)} onToggle={() => toggle(n)} />
             </li>
           ))}
         </ul>
       )}
-      <div className="native-toast" role="status" aria-live="polite">{notice}</div>
+      <div className="native-toast" role="status" aria-live="polite">{toast}</div>
     </section>
   )
 }
 
-function Notice({ item, workspace, busy, onOpen, onToggle }: { item: InboxItem; workspace?: Workspace; busy: boolean; onOpen: () => void; onToggle: () => void }) {
-  const label = KINDS.find((k) => k.id === kindOf(item))?.label
+function NoticeCard({ notice, busy, onOpen, onToggle }: { notice: Notice; busy: boolean; onOpen: () => void; onToggle: () => void }) {
+  const label = KINDS.find((k) => k.id === notice.kind)?.label
   return (
-    <article className="native-card" data-unread={item.unread || undefined} aria-busy={busy || undefined}>
+    <article className="native-card" data-unread={notice.unread || undefined} aria-busy={busy || undefined}>
       <button type="button" className="native-card-open" onClick={onOpen}>
         <span className="native-card-meta">
-          <WorkspaceMark name={workspace?.name ?? '?'} />
-          <span className="native-card-ws">{workspace?.name ?? 'Workspace'}</span>
+          <PlaceMark name={notice.place} room={notice.workspaceId === null} />
+          <span className="native-card-ws">{notice.place || 'Conversation'}</span>
           <span aria-hidden>·</span>
           <span>{label}</span>
-          <time dateTime={item.createdAt} title={new Date(item.createdAt).toLocaleString()}>{ago(item.createdAt)}</time>
+          <time dateTime={notice.createdAt} title={new Date(notice.createdAt).toLocaleString()}>{ago(notice.createdAt)}</time>
         </span>
-        <span className="native-card-title">{item.unread && <span className="sr-only">Unread: </span>}{item.title}</span>
-        {item.summary && item.summary !== item.title && <span className="native-card-summary">{item.summary}</span>}
+        <span className="native-card-title">{notice.unread && <span className="sr-only">Unread: </span>}{notice.title}</span>
+        {notice.summary && notice.summary !== notice.title && <span className="native-card-summary">{notice.summary}</span>}
       </button>
-      <button type="button" className="native-card-dot" aria-label={item.unread ? 'Mark read' : 'Mark unread'} title={item.unread ? 'Mark read' : 'Mark unread'} onClick={onToggle}>
+      <button type="button" className="native-card-dot" aria-label={notice.unread ? 'Mark read' : 'Mark unread'} title={notice.unread ? 'Mark read' : 'Mark unread'} onClick={onToggle}>
         <span aria-hidden />
       </button>
     </article>
@@ -263,27 +253,25 @@ function Notice({ item, workspace, busy, onOpen, onToggle }: { item: InboxItem; 
 
 // ─── Workspaces ──────────────────────────────────────────────────────────────
 
-function Workspaces({ inboxes }: { inboxes: WorkspaceInbox[] }) {
-  if (!inboxes.length) {
-    return <Empty title="No workspaces yet" body="Create a workspace, or ask a teammate to invite you." action={<a href="/workspaces/new">Create a workspace</a>} />
-  }
+function Workspaces({ feeds }: { feeds: Feed[] }) {
   return (
     <section aria-labelledby="native-ws-title">
       <div className="native-title-row"><h1 id="native-ws-title">Workspaces</h1></div>
       <ul className="native-list">
-        {inboxes.map(({ workspace, unread, gone }) => (
-          <li key={workspace.id}>
-            <NavLink to={`/native/?w=${encodeURIComponent(workspace.id)}`} className="native-ws" data-gone={gone || undefined}>
-              <WorkspaceMark name={workspace.name} large />
+        {feeds.map(({ key, label, workspace, unread, gone }) => (
+          <li key={key}>
+            <NavLink to={`/native/?w=${encodeURIComponent(key)}`} className="native-ws" data-gone={gone || undefined}>
+              <PlaceMark name={label} room={!workspace} large />
               <span className="native-ws-name">
-                <strong>{workspace.name}</strong>
-                <span>{gone ? 'No longer available' : workspace.role === 'owner' ? 'Owner' : workspace.role === 'admin' ? 'Admin' : 'Member'}</span>
+                <strong>{label}</strong>
+                <span>{!workspace ? 'Mentions, replies and messages in your rooms' : gone ? 'No longer available' : workspace.role === 'owner' ? 'Owner' : workspace.role === 'admin' ? 'Admin' : 'Member'}</span>
               </span>
               {unread.ids.length > 0 && <span className="native-badge" aria-label={`${unread.ids.length}${unread.more ? '+' : ''} unread`}>{unread.ids.length}{unread.more ? '+' : ''}</span>}
             </NavLink>
           </li>
         ))}
       </ul>
+      {feeds.length === 1 && <Empty title="No workspaces yet" body="Create a workspace, or ask a teammate to invite you." action={<a href="/workspaces/new">Create a workspace</a>} />}
     </section>
   )
 }
@@ -351,10 +339,51 @@ function PushSection() {
           <span aria-hidden />
         </button>
       </div>
-      <p>Mentions, assignments, blocked tasks, due dates and conversation activity from all your workspaces.</p>
+      <p>Mentions, replies to you, tasks assigned to you and blocked work, from all your workspaces and conversations. Everything else waits in your inbox.</p>
       {on && <button type="button" className="native-button" disabled={push.busy} onClick={() => void push.test()}>Send a test notification</button>}
       <p role="status" aria-live="polite">{push.message}</p>
     </>
+  )
+}
+
+// ─── turning notifications on ────────────────────────────────────────────────
+
+const PROMPT_KEY = '8080.push-prompt-dismissed'
+
+/** The app's one ask: shown first thing in the installed app (and in browsers that can
+ *  push) until this device gets notifications or the person says not now. The browser's
+ *  permission prompt only ever follows a tap here. */
+function EnablePush() {
+  const push = usePush()
+  const { canPrompt } = useInstallPrompt()
+  const [dismissed, setDismissed] = useState(() => { try { return localStorage.getItem(PROMPT_KEY) === '1' } catch { return false } })
+  const [done, setDone] = useState(false)
+  const installed = isStandalone()
+  useEffect(() => {
+    if (!done) return
+    const t = window.setTimeout(() => setDone(false), 4000)
+    return () => window.clearTimeout(t)
+  }, [done])
+  if (done) return <p className="native-enable-done" role="status">You’re set. 8080 will tell you here when someone needs you.</p>
+  // iOS can't push from Safari (the install banner covers it); an installable browser installs first.
+  if (push.support !== 'ok' || push.subscribed !== false || push.permission === 'denied' || dismissed) return null
+  if (!installed && canPrompt) return null
+  const dismiss = () => {
+    try { localStorage.setItem(PROMPT_KEY, '1') } catch { /* this session only */ }
+    setDismissed(true)
+  }
+  return (
+    <aside className="native-enable" data-first={installed || undefined} aria-labelledby="native-enable-title">
+      <h2 id="native-enable-title">Get notified when someone needs you</h2>
+      <p>Mentions, replies to you, tasks assigned to you and blocked work. Everything else waits in your inbox.</p>
+      <div className="native-enable-actions">
+        <button type="button" className="native-button" data-primary disabled={push.busy} onClick={() => void push.enable().then((ok) => { if (ok) setDone(true) })}>
+          {push.busy ? 'Turning on…' : 'Turn on notifications'}
+        </button>
+        <button type="button" className="native-link" onClick={dismiss}>Not now</button>
+      </div>
+      {push.message && <p className="native-enable-note" role="status">{push.message}</p>}
+    </aside>
   )
 }
 
@@ -412,8 +441,9 @@ function InstallSection() {
 
 // ─── bits ────────────────────────────────────────────────────────────────────
 
-function WorkspaceMark({ name, large = false }: { name: string; large?: boolean }) {
-  return <span className="native-mark" data-large={large || undefined} aria-hidden>{name.trim().slice(0, 1).toUpperCase() || '?'}</span>
+function PlaceMark({ name, room = false, large = false }: { name: string; room?: boolean; large?: boolean }) {
+  // A room shows as #, a workspace by its initial.
+  return <span className="native-mark" data-large={large || undefined} data-room={room || undefined} aria-hidden>{room ? '#' : name.trim().slice(0, 1).toUpperCase() || '?'}</span>
 }
 
 function Empty({ title, body, action }: { title: string; body: string; action?: React.ReactNode }) {

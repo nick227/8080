@@ -1944,6 +1944,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's conversation notices, newest first
+         * @description Mentions, replies to the caller's messages, and other messages in rooms they are in.
+         *     Only rooms the caller is a member of right now (and not deleted) are listed.
+         */
+        get: operations["listMyInboxItems"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/inbox/{inboxItemId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                inboxItemId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Mark one of the caller's conversation notices read or unread */
+        patch: operations["readMyInboxItem"];
+        trace?: never;
+    };
     "/push/config": {
         parameters: {
             query?: never;
@@ -1951,7 +1991,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The server's VAPID public key (null when push is not configured) */
+        /** The server's VAPID public key (null when push is not configured) and the caller's device count */
         get: operations["getPushConfig"];
         put?: never;
         post?: never;
@@ -6085,6 +6125,7 @@ export interface components {
             id: string;
             workspaceId: string;
             memberId: string;
+            /** @description What the notice is about. Task notices: task.assigned, task.mention, task.blocked, task.unblocked, task.moved, task.comment, task.deleted, task.due */
             type: string;
             title: string;
             summary: string;
@@ -6101,10 +6142,41 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        /** @description A notice that belongs to the person, not a workspace (conversation messages) */
+        MyInboxItem: {
+            id: string;
+            /**
+             * @description mention and reply are addressed to the caller (pushed); message is inbox-only
+             * @enum {string}
+             */
+            type: "mention" | "reply" | "message";
+            /** @description Who and what, e.g. "Sarah mentioned you" */
+            title: string;
+            /** @description A short preview of the message */
+            summary: string;
+            /** @enum {string} */
+            sourceType: "conversation";
+            /** @description The room */
+            sourceId: string;
+            /** @description The room's name right now */
+            sourceTitle: string;
+            unread: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        MyInboxItemResponse: {
+            data: components["schemas"]["MyInboxItem"];
+        };
+        PaginatedMyInboxItems: {
+            data: components["schemas"]["MyInboxItem"][];
+            meta: components["schemas"]["PaginatedMeta"];
+        };
         PushConfigResponse: {
             data: {
                 /** @description VAPID application server key (base64url) */
                 publicKey: string | null;
+                /** @description Devices registered for the caller's notifications */
+                devices: number;
             };
         };
         PushSubscriptionInput: {
@@ -12136,6 +12208,62 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listMyInboxItems: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor returned by the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                unread?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedMyInboxItems"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    readMyInboxItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                inboxItemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadInboxItemInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyInboxItemResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
         };
     };

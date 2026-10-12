@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { db } from '@project/db'
 import { buildTestApp, testOtherUserId, testUserId, validateResponse } from './helpers'
-import { caller, carolId, createWorkspace, daveId, join, seedPeople } from './helpers/workspace'
+import { caller, carolId, createWorkspace, join, seedPeople } from './helpers/workspace'
 import { releaseInbox } from '../services/inboxHub'
 import { toInboxItem } from '../services/inboxFanOut'
 import { setPushSender, type PushTarget } from '../services/push'
@@ -145,22 +145,19 @@ describe('push delivery', () => {
     expect(sent).toHaveLength(1)
   })
 
-  it('pushes a conversation message once per person, not once per shared workspace', async () => {
-    await seedPeople()
+  it('pushes only what needs the person: a handoff or an unblock stays in the inbox', async () => {
+    const { carol, tasks } = await setup()
     const sent = capture()
-    const a = await createWorkspace(app, testUserId, { name: 'One' })
-    const b = await createWorkspace(app, testUserId, { name: 'Two' })
-    await join(app, a.id, daveId, 'dave@test.local')
-    await join(app, b.id, daveId, 'dave@test.local')
-    await call(daveId, 'POST', '/push/subscriptions', device(9))
-    const room = (await call(testUserId, 'POST', '/rooms', { title: 'Standup' })).json().data
-    await call(daveId, 'POST', `/rooms/${room.id}/join`)
-    const posted = await call(testUserId, 'POST', `/rooms/${room.id}/items`, { text: 'Morning all' })
-    expect(posted.statusCode).toBe(201)
-    await vi.waitFor(async () => expect(await db.inboxItem.count({ where: { sourceId: room.id, pushedAt: { not: null }, member: { userId: daveId } } })).toBe(2))
-    await new Promise((r) => setTimeout(r, 100))
+    await call(carolId, 'POST', '/push/subscriptions', device(1))
+    const task = (await call(carolId, 'POST', tasks, { title: 'Ship it', assigneeMemberId: carol })).json().data
+    await call(testUserId, 'POST', `${tasks}/${task.id}/block`, { reason: 'Waiting on legal' })
+    await vi.waitFor(() => expect(sent.map((s) => s.payload.title)).toEqual([`Alice marked ${task.taskKey} blocked`]))
+    await call(testUserId, 'POST', `${tasks}/${task.id}/unblock`)
+    await call(testUserId, 'POST', `${tasks}/${task.id}/move`, { status: 'done' })
+    await vi.waitFor(async () => expect(await db.inboxItem.count({ where: { memberId: carol, sourceId: task.id } })).toBe(3))
+    await new Promise((r) => setTimeout(r, 150))
     expect(sent).toHaveLength(1)
-    expect(sent[0]!.payload.tag).toBe(`room:${room.id}`)
+    expect((await db.inboxItem.findMany({ where: { memberId: carol, sourceId: task.id }, orderBy: { createdAt: 'asc' } })).map((r) => r.type)).toEqual(['task.blocked', 'task.unblocked', 'task.moved'])
   })
 
   it('test push reaches the caller’s devices, and says so when push is off', async () => {

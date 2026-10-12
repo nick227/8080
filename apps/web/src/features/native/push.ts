@@ -62,17 +62,17 @@ export function usePush() {
     return () => { live = false }
   }, [support])
 
-  const enable = useCallback(async () => {
+  const enable = useCallback(async (): Promise<boolean> => {
     setBusy(true)
     setMessage('')
     try {
       const key = await getPushPublicKey()
-      if (!key) { setMessage('Notifications aren’t available on this server yet.'); return }
+      if (!key) { setMessage('Notifications aren’t available on this server yet.'); return false }
       const result = await Notification.requestPermission()
       setPermission(result)
       if (result !== 'granted') {
         setMessage(result === 'denied' ? 'Notifications are blocked for this site. Allow them in your browser or system settings, then try again.' : 'Notifications weren’t turned on.')
-        return
+        return false
       }
       const reg = await registration()
       let sub = await reg.pushManager.getSubscription()
@@ -80,8 +80,10 @@ export function usePush() {
       await savePushSubscription(toTarget(sub))
       setSubscribed(true)
       setMessage('Notifications are on for this device.')
+      return true
     } catch (err) {
       setMessage(err instanceof Error && err.message ? `Couldn’t turn on notifications: ${err.message}` : 'Couldn’t turn on notifications.')
+      return false
     } finally {
       setBusy(false)
     }

@@ -179,3 +179,14 @@
 .native-switch[aria-checked="true"] span { transform: translateX(20px); background: #fff; }
 .native-switch:disabled { opacity: .5; cursor: default; }
 .native-group > p[role="status"]:empty { display: none; }
+
+.native-enable { margin: 0 0 14px; padding: 16px; border: var(--line-width) solid var(--signal); background: var(--surface-tile); border-radius: var(--radius); }
+.native-enable[data-first] { padding: 22px 18px; }
+.native-enable h2 { margin: 0 0 6px; font-size: 18px; line-height: 1.25; }
+.native-enable[data-first] h2 { font-size: 22px; }
+.native-enable p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.native-enable-actions { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
+.native-enable-actions .native-button { width: auto; padding: 0 18px; }
+.native-enable .native-enable-note { margin-top: 10px; color: var(--ink-secondary, var(--ink)); }
+.native-enable-done { margin: 0 0 14px; padding: 12px 14px; border-left: 3px solid var(--status-success); background: var(--surface-subtle); font-size: 14px; }
+.native-mark[data-room] { background: transparent; color: var(--ink-secondary, var(--muted)); border: var(--line-width) solid var(--line-strong, var(--muted)); }

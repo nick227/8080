@@ -1,6 +1,7 @@
 // "Get the 8080 app" on the homepage: links to the installable /native/ app.
 // Phones go to the app (which offers install); desktops get a preview and a QR code.
 import { useEffect, useState } from 'react'
+import { AppQr } from '../native/AppQr'
 import { IosSteps, isStandalone, knownInstalled, platform, type Platform } from '../native/install'
 import './app-promo.css'
 
@@ -16,7 +17,7 @@ export function AppPromo() {
       <div className="app-promo-copy">
         <p className="app-promo-eyebrow">Mobile app</p>
         <h2 id="heading-app">Get the 8080 app</h2>
-        <p>Mentions, assignments, blocked work and conversation activity from every workspace, on your phone. Tap a notification to jump straight to it.</p>
+        <p>Know the moment someone mentions you, replies to you, assigns you a task or your work is blocked, from every workspace and conversation. Tap a notification to jump straight to it.</p>
         <div className="app-promo-actions">
           {device?.installed ? (
             <>
@@ -51,7 +52,7 @@ export function AppPromo() {
         <div className="app-promo-visual">
           <PhonePreview />
           <figure className="app-promo-qr">
-            <QrCode text={`${window.location.origin}/native/`} />
+            <AppQr text={`${window.location.origin}/native/`} />
             <figcaption>Scan to open on your phone</figcaption>
           </figure>
         </div>
@@ -81,29 +82,5 @@ function PhonePreview() {
         <div className="app-promo-tabs"><span>Inbox</span><span>Workspaces</span><span>Settings</span></div>
       </div>
     </div>
-  )
-}
-
-function QrCode({ text }: { text: string }) {
-  const [path, setPath] = useState<{ d: string; size: number } | null>(null)
-  useEffect(() => {
-    let live = true
-    void import('qrcode-generator').then(({ default: qrcode }) => {
-      const qr = qrcode(0, 'M')
-      qr.addData(text)
-      qr.make()
-      const n = qr.getModuleCount()
-      let d = ''
-      for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (qr.isDark(y, x)) d += `M${x + 2} ${y + 2}h1v1h-1z`
-      if (live) setPath({ d, size: n + 4 })
-    })
-    return () => { live = false }
-  }, [text])
-  if (!path) return <span className="app-promo-qr-blank" />
-  return (
-    <svg viewBox={`0 0 ${path.size} ${path.size}`} role="img" aria-label={`QR code for ${text}`} shapeRendering="crispEdges">
-      <rect width={path.size} height={path.size} fill="#fff" />
-      <path d={path.d} fill="#000" />
-    </svg>
   )
 }

@@ -26,11 +26,45 @@ export type InboxItemView = {
   createdAt: string
 }
 
+/** A person's own row (conversation notices): no workspace, linked to its room. */
+export type UserInboxItemView = {
+  id: string
+  userId: string
+  type: string
+  title: string
+  summary: string
+  sourceType: string
+  sourceId: string
+  unread: boolean
+  archivedAt: string | null
+  dedupeKey: string
+  deliverAt: string
+  createdAt: string
+}
+
+export function toUserInboxItem(row: InboxItem): UserInboxItemView {
+  return {
+    id: row.id,
+    userId: row.userId!,
+    type: row.type,
+    title: row.title,
+    summary: row.summary,
+    sourceType: row.sourceType,
+    sourceId: row.sourceId,
+    unread: row.unread,
+    archivedAt: row.archivedAt?.toISOString() ?? null,
+    dedupeKey: row.dedupeKey,
+    deliverAt: row.deliverAt.toISOString(),
+    createdAt: row.createdAt.toISOString(),
+  }
+}
+
+/** Workspace rows only (every workspace query filters on workspaceId + memberId). */
 export function toInboxItem(row: InboxItem): InboxItemView {
   return {
     id: row.id,
-    workspaceId: row.workspaceId,
-    memberId: row.memberId,
+    workspaceId: row.workspaceId!,
+    memberId: row.memberId!,
     type: row.type,
     title: row.title,
     summary: row.summary,

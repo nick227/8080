@@ -65,10 +65,13 @@ async function sendOne(id: string, now: Date) {
     include: { member: { include: { user: { select: { email: true } } } }, workspace: true },
   })
   if (!row || row.emailStatus !== 'pending') return
+  // Task notices are workspace rows; a person's own (conversation) rows are never emailed.
+  const { member, workspace } = row
+  if (!member || !workspace) return void (await finish(id, { emailStatus: 'skipped', emailNextAt: null }))
   if (row.emailNextAt && row.emailNextAt > now) return
   if (now.getTime() - row.createdAt.getTime() > EXPIRE_MS) return void (await finish(id, { emailStatus: 'failed', emailError: 'EXPIRED', emailNextAt: null }))
   // Read or archived in the app already, left, or turned email off since it was queued.
-  if (!row.unread || row.archivedAt || row.member.status !== 'active' || row.member.taskEmail === 'off') {
+  if (!row.unread || row.archivedAt || member.status !== 'active' || member.taskEmail === 'off') {
     return void (await finish(id, { emailStatus: 'skipped', emailNextAt: null }))
   }
   const claimed = await db.inboxItem.updateMany({
@@ -77,7 +80,7 @@ async function sendOne(id: string, now: Date) {
   })
   if (!claimed.count) return
   const attempt = row.emailAttempts + 1
-  const address = row.member.user.email
+  const address = member.user.email
   if (!address || !isEmailAddress(address)) return void (await finish(id, { emailStatus: 'failed', emailError: 'MISSING_EMAIL', emailNextAt: null }))
 
   const taskKey = /\b[A-Z][A-Z0-9]*-\d+\b/.exec(row.title)?.[0]
@@ -85,8 +88,8 @@ async function sendOne(id: string, now: Date) {
   const blocks: EmailBlock[] = [{ type: 'text', text: row.summary && row.summary !== row.title ? row.summary : row.title }]
   // The work desks open on a room page: the workspace's channel, when the recipient is in it.
   if (base) {
-    const channel = await db.workspaceChannel.findUnique({ where: { workspaceId: row.workspaceId }, select: { roomId: true } })
-    const inRoom = channel && (await db.roomMember.findUnique({ where: { roomId_userId: { roomId: channel.roomId, userId: row.member.userId } }, select: { roomId: true } }))
+    const channel = await db.workspaceChannel.findUnique({ where: { workspaceId: workspace.id }, select: { roomId: true } })
+    const inRoom = channel && (await db.roomMember.findUnique({ where: { roomId_userId: { roomId: channel.roomId, userId: member.userId } }, select: { roomId: true } }))
     blocks.push(inRoom
       ? { type: 'button', label: taskKey ? `Open ${taskKey}` : 'Open the board', href: `${base}/room/${channel.roomId}?desk=calendar${taskKey ? `&ticket=${encodeURIComponent(taskKey)}` : ''}` }
       : { type: 'button', label: 'Open {{workspace.name}}', href: `${base}/` })
@@ -96,13 +99,13 @@ async function sendOne(id: string, now: Date) {
     content: { version: 1, blocks },
     template: 'transactional',
     theme: 'company',
-    values: await baseValues(row.workspace),
+    values: await baseValues(workspace),
     footer: [`A task notification from {{workspace.name}}. To change which ones you get by email, open Calendar › For you.`],
   })
 
   let result
   try {
-    const connection = await defaultConnection(row.workspaceId)
+    const connection = await defaultConnection(workspace.id)
     result = await providerFor(connection).send(connection, { to: address, subject: rendered.subject, html: rendered.html, text: rendered.text, idempotencyKey: `task-notice:${id}` })
   } catch (err) {
     result = { ok: false as const, kind: 'transient' as const, code: 'SEND_ERROR', message: (err as Error).message }

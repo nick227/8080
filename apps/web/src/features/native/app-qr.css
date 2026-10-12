@@ -1,0 +1,3 @@
+/* Sized by the parent. */
+.app-qr { display: block; width: 100%; height: 100%; border-radius: 6px; }
+.app-qr-blank { background: var(--surface-subtle); }

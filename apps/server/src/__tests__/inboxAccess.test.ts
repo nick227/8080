@@ -118,15 +118,16 @@ describe('inbox access', () => {
     const guest = await call(testOtherUserId, 'POST', `/rooms/${room.id}/items`, { text: 'from the guest' })
     expect(guest.statusCode).toBe(201)
     await new Promise((resolve) => setTimeout(resolve, 150))
-    expect(await db.inboxItem.findFirst({ where: { memberId: carol, dedupeKey: early.json().data.id } })).toBeNull()
-    expect(await db.inboxItem.findFirst({ where: { memberId: carol, dedupeKey: guest.json().data.id } })).toBeNull()
+    expect(await db.inboxItem.findFirst({ where: { userId: carolId, dedupeKey: early.json().data.id } })).toBeNull()
+    expect(await db.inboxItem.findFirst({ where: { userId: carolId, dedupeKey: guest.json().data.id } })).toBeNull()
     expect(await db.workspaceMember.count({ where: { userId: testOtherUserId } })).toBe(0)
 
     expect((await call(carolId, 'POST', `/rooms/${room.id}/join`)).statusCode).toBe(200)
     const later = await call(testUserId, 'POST', `/rooms/${room.id}/items`, { text: 'carol is here' })
-    const note = await waitFor(() => db.inboxItem.findFirst({ where: { memberId: carol, dedupeKey: later.json().data.id as string } }))
-    expect(note).toMatchObject({ type: 'conversation', sourceType: 'conversation', sourceId: room.id, unread: true, workspaceId: ws.id })
-    expect(await db.inboxItem.findFirst({ where: { memberId: carol, dedupeKey: early.json().data.id } })).toBeNull()
+    const note = await waitFor(() => db.inboxItem.findFirst({ where: { userId: carolId, dedupeKey: later.json().data.id as string } }))
+    // The person's own row, linked to the room; no workspace is attached to a conversation.
+    expect(note).toMatchObject({ type: 'message', sourceType: 'conversation', sourceId: room.id, unread: true, workspaceId: null })
+    expect(await db.inboxItem.findFirst({ where: { userId: carolId, dedupeKey: early.json().data.id } })).toBeNull()
   })
 
   it('streams a raised item to that member and does not replay the queue', async () => {

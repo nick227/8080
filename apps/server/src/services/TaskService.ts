@@ -2,6 +2,7 @@
 // the Boards (status columns ordered by `rank`). Every write is a runAction.
 // Deleting is soft so the board can offer Undo (restore).
 import { db, Prisma } from '@project/db'
+import { mentionedIn } from '../lib/mentions'
 import { badRequest, conflict, notFound } from '../lib/errors'
 import { activityInclude, toActivity, toAuthor } from '../lib/serialize'
 import { runAction, diff, type ActivityDraft } from './actions'
@@ -236,27 +237,7 @@ function activitiesFor(before: TaskRow, after: TaskRow, wf: Workflow): ActivityD
   return out
 }
 
-/** Members named with @ in a comment: "@Ana" or "@Ana Lopez" (longest name wins). */
-export function mentionedIn(text: string, members: { id: string; name: string }[]) {
-  const lower = ` ${text.toLowerCase()}`
-  const found = new Set<string>()
-  const byLength = [...members].filter((m) => m.name.trim()).sort((x, y) => y.name.length - x.name.length)
-  const firsts = new Map<string, number>()
-  for (const m of byLength) {
-    const first = m.name.trim().toLowerCase().split(/\s+/)[0]!
-    firsts.set(first, (firsts.get(first) ?? 0) + 1)
-  }
-  for (const m of byLength) {
-    const full = m.name.trim().toLowerCase()
-    const first = full.split(/\s+/)[0]!
-    // A first name alone only counts when nobody else shares it.
-    for (const token of firsts.get(first) === 1 ? [full, first] : [full]) {
-      const re = new RegExp(`(^|[^\\w@])@${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w])`)
-      if (re.test(lower)) { found.add(m.id); break }
-    }
-  }
-  return [...found]
-}
+export { mentionedIn }
 
 /** The row changes for an edit (one task; shared by update and bulk). A status change lands at the bottom of the new column. */
 async function patchData(tx: Tx, workspaceId: string, before: TaskRow, input: TaskInput, wf: Workflow) {

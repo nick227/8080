@@ -6,8 +6,8 @@ const push = new PushService()
 type Authed = { user: { id: string; isGuest: boolean } }
 type Reply = { send: (body?: unknown) => unknown; status: (code: number) => { send: (body?: unknown) => unknown } }
 
-export async function getPushConfig(_request: Authed, reply: Reply) {
-  return reply.send({ data: { publicKey: pushPublicKey() } })
+export async function getPushConfig(request: Authed, reply: Reply) {
+  return reply.send({ data: { publicKey: pushPublicKey(), devices: await push.devices(request.user.id) } })
 }
 
 export async function subscribePush(request: Authed & { body: PushTarget & { userAgent?: string } }, reply: Reply) {

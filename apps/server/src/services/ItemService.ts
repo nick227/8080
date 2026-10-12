@@ -322,6 +322,7 @@ export class ItemService {
       text: item.deletedAt ? null : item.message.text,
       actorKind: actor.kind,
       actorUserId: actor.id,
+      parentId: item.parentId,
     }).catch((err: unknown) => {
       console.error('inbox notify failed', err)
     })

@@ -4,7 +4,7 @@
 import webpush from 'web-push'
 import { db } from '@project/db'
 import { badRequest, forbidden } from '../lib/errors'
-import type { InboxItemView } from './inboxFanOut'
+import type { InboxItemView, UserInboxItemView } from './inboxFanOut'
 
 export type PushTarget = { endpoint: string; keys: { p256dh: string; auth: string } }
 type Send = (target: PushTarget, payload: string) => Promise<unknown>
@@ -89,6 +89,11 @@ export class PushService {
     return { endpoint: row.endpoint, createdAt: row.createdAt.toISOString() }
   }
 
+  /** How many devices get this person's notifications (the desktop app's "Get the app"). */
+  async devices(userId: string) {
+    return db.pushSubscription.count({ where: { userId } })
+  }
+
   async unsubscribe(userId: string, endpoint: string) {
     await db.pushSubscription.deleteMany({ where: { userId, endpoint } })
   }
@@ -103,39 +108,59 @@ export class PushService {
   }
 }
 
-// Conversation rows exist once per workspace a room member belongs to; one push per message.
-const recent = new Map<string, number>()
-function firstTime(key: string) {
-  const now = Date.now()
-  for (const [k, at] of recent) if (now - at > 10 * 60_000) recent.delete(k)
-  if (recent.has(key)) return false
-  recent.set(key, now)
-  return true
-}
+// Push policy: a notification means something needs you. Everything else stays in the
+// inbox only (room chatter, routine task changes, workspace activity, due reminders).
+const PUSHED = new Set([
+  'mention', // @you in a conversation
+  'reply', // a reply to your message
+  'task.assigned',
+  'task.mention',
+  'task.blocked',
+])
+export const pushes = (type: string) => PUSHED.has(type)
+
+/** What a room is called (a name is optional; the web shows its number instead). */
+const roomName = (room: { title: string; number: number }) => room.title.trim() || `Project ${String(room.number).padStart(3, '0')}`
 
 /** Called for every inbox row when it becomes visible (inboxHub.releaseInbox). */
-export async function pushInboxItem(item: InboxItemView) {
-  if (!item.unread || item.archivedAt) return
+export async function pushInboxItem(item: InboxItemView | UserInboxItemView) {
+  if (!item.unread || item.archivedAt || !pushes(item.type)) return
   const send = sender()
   if (!send) return
   // Claim once: a repeated release of the same row (idempotent raise, retries) never pushes again.
   const claimed = await db.inboxItem.updateMany({ where: { id: item.id, pushedAt: null, unread: true, archivedAt: null }, data: { pushedAt: new Date() } })
   if (!claimed.count) return
-  // Still a member right now (access may have been revoked since the row was written).
+  const target = 'userId' in item ? await personal(item) : await workspace(item)
+  if (!target) return
+  const subs = await db.pushSubscription.findMany({ where: { userId: target.userId } })
+  if (!subs.length) return
+  await deliver(subs, JSON.stringify({ ...target.notification, tag: `inbox:${item.id}` }), send)
+}
+
+/** A conversation notice: still in the room right now (access is the room's own). */
+async function personal(item: UserInboxItemView) {
+  const member = await db.roomMember.findFirst({
+    where: { roomId: item.sourceId, userId: item.userId, room: { deletedAt: null }, user: { isGuest: false } },
+    select: { room: { select: { title: true, number: true } } },
+  })
+  if (!member) return null
+  // "Sarah mentioned you · Website Redesign" / “Can you review the homepage…”
+  return { userId: item.userId, notification: { title: `${item.title} · ${roomName(member.room)}`, body: item.summary, url: `/native/?open=${encodeURIComponent(item.id)}` } }
+}
+
+/** A workspace notice: still an active member right now (access may have been revoked). */
+async function workspace(item: InboxItemView) {
   const member = await db.workspaceMember.findFirst({
     where: { id: item.memberId, workspaceId: item.workspaceId, status: 'active', workspace: { deletedAt: null }, user: { isGuest: false } },
     select: { userId: true, workspace: { select: { name: true } } },
   })
-  if (!member) return
-  if (item.sourceType === 'conversation' && !firstTime(`${member.userId}:${item.dedupeKey}`)) return
-  const subs = await db.pushSubscription.findMany({ where: { userId: member.userId } })
-  if (!subs.length) return
-  const payload = JSON.stringify({
-    title: item.title,
-    body: item.summary && item.summary !== item.title ? `${member.workspace.name} · ${item.summary}` : member.workspace.name,
-    // A busy room replaces its previous notification instead of stacking.
-    tag: item.sourceType === 'conversation' ? `room:${item.sourceId}` : `inbox:${item.id}`,
-    url: `/native/?open=${encodeURIComponent(item.id)}&w=${encodeURIComponent(item.workspaceId)}`,
-  })
-  await deliver(subs, payload, send)
+  if (!member) return null
+  return {
+    userId: member.userId,
+    notification: {
+      title: item.title,
+      body: item.summary && item.summary !== item.title ? `${member.workspace.name} · ${item.summary}` : member.workspace.name,
+      url: `/native/?open=${encodeURIComponent(item.id)}&w=${encodeURIComponent(item.workspaceId)}`,
+    },
+  }
 }

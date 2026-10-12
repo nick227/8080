@@ -9,6 +9,7 @@ import { useShell } from '../state/shell'
 import { useUI } from '../state/ui'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { CommandPalette, openCommandPalette } from '../features/command/CommandPalette'
+import { GetAppButton } from '../features/native/GetApp'
 
 export function StageChrome({ showLobbyOverlay = true }: { showLobbyOverlay?: boolean }) {
   const surface = useShell((s) => s.surface)
@@ -50,6 +51,7 @@ export function StageChrome({ showLobbyOverlay = true }: { showLobbyOverlay?: bo
             <span className="mast-goto-text">Go to…</span>
             <kbd aria-hidden>{navigator.platform.startsWith('Mac') ? '⌘K' : 'Ctrl K'}</kbd>
           </button>
+          <GetAppButton />
           <ThemeSwitcher />
           <button
             type="button"

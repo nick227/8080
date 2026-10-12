@@ -4,7 +4,7 @@ import { db, Prisma } from '@project/db'
 import { badRequest, notFound } from '../lib/errors'
 import { decodeCursor, encodeCursor, normalizeLimit, page } from '../lib/pagination'
 import { runAction } from './actions'
-import { toInboxItem, type InboxItemView } from './inboxFanOut'
+import { toInboxItem, toUserInboxItem, type InboxItemView } from './inboxFanOut'
 import { releaseInbox } from './inboxHub'
 import { assertSource, parseAction, type InboxAction } from './inboxSource'
 import { authorize } from './workspacePolicy'
@@ -116,6 +116,33 @@ export class InboxService {
       take: 50,
     })
     return { memberId: actor.member.id, items: rows.map(toInboxItem) }
+  }
+
+  /** The caller's own rows (conversation notices), only for rooms they are in right now. */
+  async listMine(userId: string, query: { cursor?: string; limit?: number; unread?: unknown }) {
+    const limit = normalizeLimit(query.limit)
+    const cursor = decodeCursor(query.cursor)
+    const unread = flag(query.unread)
+    const rooms = await db.roomMember.findMany({ where: { userId, room: { deletedAt: null } }, select: { room: { select: { id: true, title: true, number: true } } } })
+    const names = new Map(rooms.map(({ room }) => [room.id, room.title.trim() || `Project ${String(room.number).padStart(3, '0')}`]))
+    const where: Prisma.InboxItemWhereInput = { userId, archivedAt: null, deliverAt: { lte: new Date() }, sourceType: 'conversation', sourceId: { in: [...names.keys()] } }
+    if (unread !== undefined) where.unread = unread
+    if (cursor) {
+      const at = new Date(cursor.createdAt)
+      where.OR = [{ createdAt: { lt: at } }, { createdAt: at, id: { lt: cursor.id } }]
+    }
+    const rows = await db.inboxItem.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: limit + 1 })
+    const listed = page(rows, limit, (row) => encodeCursor({ createdAt: row.createdAt.toISOString(), id: row.id }))
+    return { data: listed.data.map((row) => ({ ...toUserInboxItem(row), sourceTitle: names.get(row.sourceId) ?? '' })), meta: listed.meta }
+  }
+
+  async readMine(userId: string, inboxItemId: string, unread: boolean) {
+    const row = await db.inboxItem.findFirst({ where: { id: inboxItemId, userId } })
+    if (!row) throw notFound('Inbox item not found')
+    const room = await db.room.findFirst({ where: { id: row.sourceId, deletedAt: null, members: { some: { userId } } }, select: { title: true, number: true } })
+    if (!room) throw notFound('Inbox item not found')
+    const updated = await db.inboxItem.update({ where: { id: row.id }, data: { unread } })
+    return { ...toUserInboxItem(updated), sourceTitle: room.title.trim() || `Project ${String(room.number).padStart(3, '0')}` }
   }
 
   async read(ctx: WorkspaceCtx, workspaceId: string, inboxItemId: string, unread: boolean) {
