@@ -1,6 +1,6 @@
 // /native/ — the mobile dashboard: notifications and workspace awareness across
 // every workspace the user belongs to. Work itself happens in the main app.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { NavLink, Route, Routes, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError, useLogout, useMyWorkspaces, useSession, type InboxItem, type User, type Workspace } from '@project/sdk'
@@ -8,6 +8,7 @@ import { GuestAuth } from '../AccountSheet'
 import { SEO } from '../../components/SEO'
 import { destinationOf } from './destination'
 import { IosSteps, isStandalone, platform, rememberInstalled, useInstallPrompt } from './install'
+import { disablePush, usePush } from './push'
 import { KINDS, kindOf, useMarkRead, useUnifiedInbox, type Kind, type WorkspaceInbox } from './inbox'
 import './native.css'
 
@@ -77,6 +78,17 @@ function Signed() {
   const expired = workspacesQuery.error instanceof ApiError && workspacesQuery.error.status === 401
   useEffect(() => { if (expired) void queryClient.invalidateQueries({ queryKey: ['me'] }) }, [expired, queryClient])
 
+  // A push arrived while the app is open: refresh now rather than on the next poll.
+  useEffect(() => {
+    const sw = navigator.serviceWorker
+    if (!sw) return
+    const onMessage = (e: MessageEvent) => {
+      if ((e.data as { type?: string } | null)?.type === 'push') void queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'workspaces' && q.queryKey[2] === 'inbox' })
+    }
+    sw.addEventListener('message', onMessage)
+    return () => sw.removeEventListener('message', onMessage)
+  }, [queryClient])
+
   if (workspacesQuery.isLoading) return <p className="native-quiet" aria-busy>Loading…</p>
   if (workspacesQuery.isError) return <Empty title="Couldn't load your workspaces" body="Check your connection and try again." action={<button type="button" onClick={() => void workspacesQuery.refetch()}>Retry</button>} />
   return (
@@ -141,6 +153,23 @@ function Inbox({ inboxes }: { inboxes: WorkspaceInbox[] }) {
       setOpening(null)
     }
   }
+
+  // A tapped push lands here as ?open=<inbox item id>: open it once the feed has it.
+  const openId = params.get('open')
+  const handled = useRef<string | null>(null)
+  const settled = inboxes.every((x) => !x.loading)
+  useEffect(() => {
+    if (!openId || handled.current === openId) return
+    const target = inboxes.flatMap((x) => x.items).find((item) => item.id === openId)
+    if (!target && !settled) return
+    handled.current = openId
+    const next = new URLSearchParams(window.location.search)
+    next.delete('open')
+    setParams(next, { replace: true })
+    if (target) void open(target)
+    else say('That notification is no longer available.')
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the feed or the param changes
+  }, [openId, inboxes, settled])
 
   const toggle = (item: InboxItem) => {
     void markRead([{ workspaceId: item.workspaceId, inboxItemId: item.id }], !item.unread).then((ok) => { if (!ok) say("Couldn't save that change.") })
@@ -277,6 +306,10 @@ function Settings() {
         </span>
       </div>
       <div className="native-group">
+        <h2>Notifications</h2>
+        <PushSection />
+      </div>
+      <div className="native-group">
         <h2>App</h2>
         <InstallSection />
       </div>
@@ -289,11 +322,39 @@ function Settings() {
         type="button"
         className="native-signout"
         disabled={logout.isPending}
-        onClick={() => logout.mutate(undefined, { onSettled: () => window.location.assign('/native/') })}
+        // This device stops receiving the account's notifications first.
+        onClick={() => void disablePush().finally(() => logout.mutate(undefined, { onSettled: () => window.location.assign('/native/') }))}
       >
         {logout.isPending ? 'Signing out…' : 'Sign out'}
       </button>
     </section>
+  )
+}
+
+// ─── push ────────────────────────────────────────────────────────────────────
+
+function PushSection() {
+  const push = usePush()
+  if (push.support === 'needs-install') return <p>On iPhone and iPad, notifications work once 8080 is on your Home Screen (iOS 16.4 or later). Add it below, then open it from the Home Screen.</p>
+  if (push.support === 'unsupported') return <p>This browser can’t receive push notifications. Your inbox still updates whenever the app is open.</p>
+  const on = push.subscribed === true
+  return (
+    <>
+      <div className="native-row">
+        <span>
+          <strong>This device</strong>
+          <span className="native-status" data-on={on || undefined}>
+            {push.subscribed === null ? 'Checking…' : on ? 'Receiving notifications' : push.permission === 'denied' ? 'Blocked in browser settings' : 'Off'}
+          </span>
+        </span>
+        <button type="button" className="native-switch" role="switch" aria-checked={on} aria-label="Push notifications on this device" disabled={push.busy || push.subscribed === null} onClick={() => void (on ? push.disable() : push.enable())}>
+          <span aria-hidden />
+        </button>
+      </div>
+      <p>Mentions, assignments, blocked tasks, due dates and conversation activity from all your workspaces.</p>
+      {on && <button type="button" className="native-button" disabled={push.busy} onClick={() => void push.test()}>Send a test notification</button>}
+      <p role="status" aria-live="polite">{push.message}</p>
+    </>
   )
 }
 

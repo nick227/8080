@@ -1,6 +1,7 @@
 // Live fan-out for one member's inbox (doc/11). One process only. The stream
 // also re-checks the table, so a missed push shows up within a couple of seconds.
 import type { InboxItemView } from './inboxFanOut'
+import { pushInboxItem } from './push'
 
 export type InboxEvent = { type: 'inbox.created'; item: InboxItemView }
 
@@ -24,13 +25,18 @@ export function subscribeInbox(memberId: string, send: Send) {
   }
 }
 
-/** Push now, or when deliverAt arrives. A far timer does not keep the process alive. */
+/** Push now, or when deliverAt arrives. A far timer does not keep the process alive.
+ *  The same moment goes to the member's devices as a Web Push (services/push.ts). */
 export function releaseInbox(item: InboxItemView) {
+  const release = () => {
+    publishInbox(item.memberId, { type: 'inbox.created', item })
+    void pushInboxItem(item).catch((err) => console.warn('[push] skipped', (err as Error).message))
+  }
   const wait = Date.parse(item.deliverAt) - Date.now()
   if (wait <= 0) {
-    publishInbox(item.memberId, { type: 'inbox.created', item })
+    release()
     return
   }
-  const timer = setTimeout(() => publishInbox(item.memberId, { type: 'inbox.created', item }), wait)
+  const timer = setTimeout(release, wait)
   timer.unref?.()
 }

@@ -132,7 +132,7 @@
   background: transparent; border: var(--line-width) solid var(--line); border-radius: var(--radius); cursor: pointer;
 }
 .native-button[data-primary] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.native-signout { color: var(--danger); }
+.native .native-signout { color: var(--danger); }
 .native-signout:disabled, .native-button:disabled { opacity: var(--opacity-disabled, .5); cursor: default; }
 
 .native-empty { padding: 48px 8px; text-align: center; }
@@ -166,3 +166,16 @@
 .native-install-close { width: 36px; min-height: var(--native-touch); background: none; border: 0; color: var(--muted); font-size: 22px; cursor: pointer; }
 .native .install-steps { margin: 8px 0 0; padding-left: 18px; color: var(--ink-secondary, var(--ink)); font-size: 13px; line-height: 1.6; }
 .native .install-share { vertical-align: -2px; margin: 0 2px; }
+
+.native-row > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.native-status { font-size: 12px; color: var(--muted); }
+.native-status[data-on] { color: var(--status-success); }
+.native-switch {
+  flex: none; position: relative; width: 50px; height: 30px; border-radius: 15px; cursor: pointer;
+  background: var(--surface-active); border: var(--line-width) solid var(--line);
+}
+.native-switch span { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--muted); transition: transform var(--motion-fast) var(--ease-out), background var(--motion-fast); }
+.native-switch[aria-checked="true"] { background: var(--status-success); border-color: var(--status-success); }
+.native-switch[aria-checked="true"] span { transform: translateX(20px); background: #fff; }
+.native-switch:disabled { opacity: .5; cursor: default; }
+.native-group > p[role="status"]:empty { display: none; }

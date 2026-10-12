@@ -3238,6 +3238,73 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  # ─── web push for the /native/ app ─────────────────────────────────────────
+  /push/config:
+    get:
+      operationId: getPushConfig
+      summary: The server's VAPID public key (null when push is not configured)
+      tags: [users]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PushConfigResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /push/subscriptions:
+    post:
+      operationId: subscribePush
+      summary: Register this device for push notifications
+      description: |
+        Idempotent per endpoint. An endpoint registered by another account (the same device,
+        signed in as someone else) moves to the caller. Guests get 403. Only the browsers'
+        push services are accepted (400 `INVALID_PUSH_ENDPOINT`).
+      tags: [users]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PushSubscriptionInput' }
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PushSubscriptionResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      operationId: unsubscribePush
+      summary: Stop push notifications to this device
+      description: Removes the caller's own registration for the endpoint; unknown endpoints are a no-op.
+      tags: [users]
+      parameters:
+        - in: query
+          name: endpoint
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 700 }
+      responses:
+        '204': { description: Removed }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /push/test:
+    post:
+      operationId: testPush
+      summary: Send a test notification to the caller's devices
+      description: Devices the push service reports as gone are removed. 400 `PUSH_DISABLED` without VAPID keys.
+      tags: [users]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PushTestResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   # ─── inbox attention queue and composer (doc/11) ───────────────────────────
   /workspaces/{workspaceId}/inbox:
     parameters:
@@ -9887,6 +9954,53 @@ components:
         dedupeKey: { type: string }
         deliverAt: { type: string, format: date-time }
         createdAt: { type: string, format: date-time }
+
+    PushConfigResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [publicKey]
+          properties:
+            publicKey: { type: [string, 'null'], description: VAPID application server key (base64url) }
+
+    PushSubscriptionInput:
+      type: object
+      additionalProperties: false
+      required: [endpoint, keys]
+      properties:
+        endpoint: { type: string, minLength: 1, maxLength: 700 }
+        keys:
+          type: object
+          additionalProperties: false
+          required: [p256dh, auth]
+          properties:
+            p256dh: { type: string, minLength: 1, maxLength: 200 }
+            auth: { type: string, minLength: 1, maxLength: 100 }
+        userAgent: { type: string, maxLength: 400 }
+
+    PushSubscriptionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [endpoint, createdAt]
+          properties:
+            endpoint: { type: string }
+            createdAt: { type: string, format: date-time }
+
+    PushTestResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [sent, removed]
+          properties:
+            sent: { type: integer, description: Devices the push service accepted }
+            removed: { type: integer, description: Expired devices that were forgotten }
 
     InboxStreamEvent:
       description: Payload of each inbox SSE message

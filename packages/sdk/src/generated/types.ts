@@ -1944,6 +1944,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/push/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The server's VAPID public key (null when push is not configured) */
+        get: operations["getPushConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/push/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register this device for push notifications
+         * @description Idempotent per endpoint. An endpoint registered by another account (the same device,
+         *     signed in as someone else) moves to the caller. Guests get 403. Only the browsers'
+         *     push services are accepted (400 `INVALID_PUSH_ENDPOINT`).
+         */
+        post: operations["subscribePush"];
+        /**
+         * Stop push notifications to this device
+         * @description Removes the caller's own registration for the endpoint; unknown endpoints are a no-op.
+         */
+        delete: operations["unsubscribePush"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/push/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a test notification to the caller's devices
+         * @description Devices the push service reports as gone are removed. 400 `PUSH_DISABLED` without VAPID keys.
+         */
+        post: operations["testPush"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/inbox": {
         parameters: {
             query?: never;
@@ -6037,6 +6100,35 @@ export interface components {
             deliverAt: string;
             /** Format: date-time */
             createdAt: string;
+        };
+        PushConfigResponse: {
+            data: {
+                /** @description VAPID application server key (base64url) */
+                publicKey: string | null;
+            };
+        };
+        PushSubscriptionInput: {
+            endpoint: string;
+            keys: {
+                p256dh: string;
+                auth: string;
+            };
+            userAgent?: string;
+        };
+        PushSubscriptionResponse: {
+            data: {
+                endpoint: string;
+                /** Format: date-time */
+                createdAt: string;
+            };
+        };
+        PushTestResponse: {
+            data: {
+                /** @description Devices the push service accepted */
+                sent: number;
+                /** @description Expired devices that were forgotten */
+                removed: number;
+            };
         };
         /** @description Payload of each inbox SSE message */
         InboxStreamEvent: {
@@ -12045,6 +12137,98 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    getPushConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushConfigResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    subscribePush: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushSubscriptionInput"];
+            };
+        };
+        responses: {
+            /** @description Registered */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushSubscriptionResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    unsubscribePush: {
+        parameters: {
+            query: {
+                endpoint: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    testPush: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushTestResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
         };
     };
     listInboxItems: {
