@@ -43,6 +43,10 @@ export function Home() {
       if (session.data?.data.isGuest === false && sessionStorage.getItem('8080.create-workspace') === '1') {
         sessionStorage.removeItem('8080.create-workspace')
         navigate('/workspaces/new', { replace: true })
+      } else if (session.data?.data.isGuest === false && sessionStorage.getItem('8080.return-to') === '/native/') {
+        // Signed in from the mobile app (NativeApp RETURN_KEY).
+        sessionStorage.removeItem('8080.return-to')
+        navigate('/native/', { replace: true })
       }
     } catch { /* The homepage still works if browser storage is unavailable. */ }
   }, [session.data, navigate])

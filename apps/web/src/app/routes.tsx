@@ -17,6 +17,7 @@ import { Account } from '../views/Account'
 const AdminUsers = lazy(() => import('../features/admin/AdminUsers').then(m => ({ default: m.AdminUsers })))
 const AdminBilling = lazy(() => import('../features/admin/AdminBilling').then(m => ({ default: m.AdminBilling })))
 const AdminSettings = lazy(() => import('../features/admin/AdminSettings').then(m => ({ default: m.AdminSettings })))
+const NativeApp = lazy(() => import('../features/native/NativeApp').then(m => ({ default: m.NativeApp })))
 const AdminBlueprints = lazy(() => import('../features/admin/AdminBlueprints').then(m => ({ default: m.AdminBlueprints })))
 
 // Route changes commit immediately; workspace surfaces own their entrance fades.
@@ -29,6 +30,8 @@ function AppRoutes() {
       <Route path="/admin/billing" element={<Suspense fallback={<WorkspaceLoading />}><AdminBilling /></Suspense>} />
       <Route path="/admin/settings" element={<Suspense fallback={<WorkspaceLoading />}><AdminSettings /></Suspense>} />
       <Route path="/admin/blueprints" element={<Suspense fallback={<WorkspaceLoading />}><AdminBlueprints /></Suspense>} />
+      {/* Mobile dashboard: its own layout, no desktop shell. */}
+      <Route path="/native/*" element={<Suspense fallback={null}><NativeApp /></Suspense>} />
       <Route element={<AppShell />} >
         <Route path="/" element={<Page publicPage><Home /></Page>} />
         <Route path="/workspaces" element={<Page publicPage><Home /></Page>} />
