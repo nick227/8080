@@ -5,7 +5,7 @@ import { useAgentTypes, useCreateAgent } from '@project/sdk'
 import { StarterPackPicker } from '../prefab/StarterPackPicker'
 import '../documents/DocumentsList.css'
 
-const FAMILY_LABEL: Record<string, string> = {
+export const FAMILY_LABEL: Record<string, string> = {
   scheduled: 'Scheduled',
   followup: 'Follow-ups',
   manual: 'Manual',
@@ -13,7 +13,7 @@ const FAMILY_LABEL: Record<string, string> = {
   social: 'Social',
 }
 
-const DEFAULT_SCHEDULE_HINT: Record<string, string> = {
+export const DEFAULT_SCHEDULE_HINT: Record<string, string> = {
   daily_team_brief: 'Daily at 08:00',
   daily_customer_report: 'Daily at 17:00',
   company_newsletter: 'Monthly at 09:00',

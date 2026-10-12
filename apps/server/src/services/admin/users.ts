@@ -1,3 +1,4 @@
+import { lockAdminMutation } from './lock'
 import { db, Prisma } from '@project/db'
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors'
 import { authorizePlatform } from '../authorization/platform'
@@ -116,7 +117,7 @@ export async function changeAdminUser(actorId: string, userId: string, input: Ad
   const reason = input.reason.trim()
   if (!input.confirmed || reason.length < 3 || reason.length > 500) throw badRequest('Confirm the change and provide a reason (3–500 characters)', 'CONFIRMATION_REQUIRED')
   await db.$transaction(async tx => {
-    await tx.adminMutationLock.upsert({ where: { id: 1 }, create: { id: 1 }, update: { version: { increment: 1 } } })
+    await lockAdminMutation(tx)
     const { now, expiresAt, affected, preview } = await prepareChange(actorId, userId, input, tx)
     const grantFact = (g: { id: string; startsAt: Date; expiresAt: Date; revokedAt: Date | null }) => ({ id: g.id, startsAt: g.startsAt.toISOString(), expiresAt: g.expiresAt.toISOString(), revokedAt: g.revokedAt?.toISOString() ?? null })
     const beforeGrants = affected.map(grantFact)

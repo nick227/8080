@@ -255,7 +255,7 @@ export function AdminBlueprints() {
     if (!confirm(`Are you sure you want to delete '${bp?.name || slug}' from the catalog?`)) return
     setBlueprintsList((prev) => prev.filter((b) => b.slug !== slug))
     if (selectedSlug === slug) setParams({})
-    setNotice(`Removed '${bp?.name || slug}' from the platform catalog.`)
+    setNotice(`Removed '${bp?.name || slug}' from this browser’s catalog.`)
   }
 
   const handleDuplicateBlueprint = (bp: PrefabBlueprint) => {
@@ -469,7 +469,7 @@ export function AdminBlueprints() {
       return [...filtered, newBp]
     })
 
-    setNotice(`Registered '${newBp.name}' directly into the active platform catalog!`)
+    setNotice(`Registered '${newBp.name}' in this browser’s catalog.`)
     setTab('catalog')
     setParams({ bp: newBp.slug })
   }
@@ -495,9 +495,9 @@ export function AdminBlueprints() {
         const filtered = prev.filter((b) => b.slug !== newBp.slug)
         return [...filtered, newBp]
       })
-      setNotice(`Approved & published '${sub.title}' directly to platform catalog!`)
+      setNotice(`Demo approval saved in this browser for '${sub.title}'. Nothing was published to the site.`)
     } catch {
-      setNotice(`Marked '${sub.title}' as approved.`)
+      setNotice(`Demo approval saved in this browser for '${sub.title}'.`)
     }
 
     setInspectingSubmission(null)
@@ -507,7 +507,7 @@ export function AdminBlueprints() {
     setSubmissions((prev) =>
       prev.map((s) => (s.id === id ? { ...s, status: 'rejected' } : s)),
     )
-    setNotice('Submission marked as rejected.')
+    setNotice('Demo rejection saved in this browser. No revision request was sent.')
     setInspectingSubmission(null)
   }
 
@@ -573,6 +573,8 @@ export function AdminBlueprints() {
           <span>Curated models · Community submissions · JSON bundles</span>
         </header>
 
+        <p className="admin-notice">Browser-local studio. Changes are saved only in this browser; they do not publish to the site, notify contributors, or create server audit records.</p>
+
         {/* Toast Alert */}
         {notice && (
           <div className="admin-toast-container" role="status">
@@ -628,7 +630,7 @@ export function AdminBlueprints() {
             className={`admin-tab-btn${tab === 'submissions' ? ' active' : ''}`}
             onClick={() => setTab('submissions')}
           >
-            <span>Community Submissions</span>
+            <span>Demo submissions</span>
             {pendingSubmissionsCount > 0 ? (
               <span className="admin-tab-badge highlight">{pendingSubmissionsCount}</span>
             ) : (
@@ -727,7 +729,7 @@ export function AdminBlueprints() {
                             <h3 className="admin-bp-card-title">{bp.name}</h3>
                             <span className="admin-bp-card-slug">{bp.slug}</span>
                           </div>
-                          <span className="admin-status-badge approved">Published</span>
+                          <span className="admin-status-badge approved">Browser catalog</span>
                         </div>
 
                         <p className="admin-bp-card-desc">{bp.description}</p>
@@ -798,7 +800,7 @@ export function AdminBlueprints() {
                         </button>
                       </div>
                     </div>
-                    <span className="admin-status-badge approved">Published</span>
+                    <span className="admin-status-badge approved">Browser catalog</span>
                   </div>
 
                   <p className="admin-muted" style={{ margin: '14px 0' }}>{selectedBp.description}</p>
@@ -954,7 +956,7 @@ export function AdminBlueprints() {
             </div>
 
             <p className="admin-muted" style={{ marginBottom: '1.25rem' }}>
-              Review blueprints submitted by community operators. Approved submissions can be published directly into the active platform catalog.
+              Demo submissions only. Approval adds a draft to this browser’s catalog; it does not publish content or send a message.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1002,7 +1004,7 @@ export function AdminBlueprints() {
                             className="prefab-import-btn"
                             onClick={() => handleApproveSubmission(sub)}
                           >
-                            Approve & Publish to Catalog
+                            Simulate approval
                           </button>
                           <button
                             type="button"
@@ -1324,11 +1326,11 @@ export function AdminBlueprints() {
                 </div>
 
                 <div style={{ background: 'var(--panel)', padding: '14px', border: '1px solid var(--line)', borderRadius: '6px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)', marginBottom: '6px' }}>Pre-Publication Checklist</div>
-                  <div style={{ fontSize: '12px', color: '#10b981', margin: '3px 0' }}>✔ No sensitive PII detected (all contacts hypothetical)</div>
-                  <div style={{ fontSize: '12px', color: '#10b981', margin: '3px 0' }}>✔ Staffing roles marked vacant with defined weekly capacity</div>
-                  <div style={{ fontSize: '12px', color: '#10b981', margin: '3px 0' }}>✔ Zero broken references across tasks and roles</div>
-                  <div style={{ fontSize: '12px', color: '#10b981', margin: '3px 0' }}>✔ Standard schema manifest compatibility verified</div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)', marginBottom: '6px' }}>Review checklist — not yet verified</div>
+                  <div style={{ fontSize: '12px', color: '#10b981', margin: '3px 0' }}>Check that contacts are hypothetical and contain no sensitive information.</div>
+                  <div style={{ fontSize: '12px', color: '#10b981', margin: '3px 0' }}>Check that staffing roles are vacant and weekly capacity is defined.</div>
+                  <div style={{ fontSize: '12px', color: '#10b981', margin: '3px 0' }}>Check references across tasks and roles.</div>
+                  <div style={{ fontSize: '12px', color: '#10b981', margin: '3px 0' }}>Run package validation to check manifest compatibility.</div>
                 </div>
               </div>
 
@@ -1342,7 +1344,7 @@ export function AdminBlueprints() {
                     className="prefab-import-btn"
                     onClick={() => handleApproveSubmission(inspectingSubmission)}
                   >
-                    Approve & Publish to Catalog
+                    Simulate approval
                   </button>
                 )}
               </div>

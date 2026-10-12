@@ -1,3 +1,5 @@
+import { staffMfaStatus, staffMfaOperation } from '../services/admin/mfa'
+import { liveCostStatus, stopLiveSpending } from '../services/live/costLedger'
 import { adminSettings, changeStaff } from '../services/admin/settings'
 import { linkCustomer, reconcileSubscription } from '../services/admin/stripeSync'
 import { listAdminSubscriptions } from '../services/admin/billing'
@@ -47,4 +49,24 @@ export async function linkAdminCustomer(request: any, reply: any) {
 export async function syncAdminSubscription(request: any, reply: any) {
   verifyAdminCsrf(request)
   return reply.header('Cache-Control', 'no-store').send({ data: await reconcileSubscription(request.user.id, request.params.subscriptionId, request.body, randomUUID()) })
+}
+
+export async function getAdminLiveCosts(request: any, reply: any) {
+  return reply.header('Cache-Control', 'no-store').send({ data: await liveCostStatus(request.user.id) })
+}
+export async function stopAdminLiveSpending(request: any, reply: any) {
+  verifyAdminCsrf(request)
+  return reply.header('Cache-Control', 'no-store').send({ data: await stopLiveSpending(request.user.id, request.body, randomUUID()) })
+}
+
+export async function getStaffMfa(request:any,reply:any) {
+  return reply.header('Cache-Control','no-store').send({data:{...await staffMfaStatus(request),csrfToken:adminCsrfToken(request)}})
+}
+export async function enrollStaffMfa(request:any,reply:any) {
+  verifyAdminCsrf(request)
+  return reply.header('Cache-Control','no-store').send({data:await staffMfaOperation(request,'enroll',request.body,randomUUID())})
+}
+export async function verifyStaffMfa(request:any,reply:any) {
+  verifyAdminCsrf(request)
+  return reply.header('Cache-Control','no-store').send({data:await staffMfaOperation(request,'verify',request.body,randomUUID())})
 }

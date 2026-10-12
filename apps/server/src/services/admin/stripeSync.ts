@@ -1,3 +1,4 @@
+import { lockAdminMutation } from './lock'
 import Stripe from 'stripe'
 import { db, type Prisma } from '@project/db'
 import { badRequest, conflict, httpError, notFound } from '../../lib/errors'
@@ -24,11 +25,11 @@ export async function stripeRead(path: string): Promise<any> {
 }
 export async function paidAccess(userId: string, client: Prisma.TransactionClient = db, now = new Date()) {
   const mode = stripeMode()
-  if (mode === null || !premiumPrices().length) return null
+  if (mode === null || (process.env.NODE_ENV === 'production' && !mode) || !premiumPrices().length) return null
   const binding = await client.stripeCustomerBinding.findUnique({ where: { userId } })
   if (!binding || binding.livemode !== mode) return null
   return client.stripeSubscription.findFirst({ where: {
-    customerId: binding.customerId, livemode: mode, status: 'active', invoiceStatus: 'paid',
+    customerId: binding.customerId, livemode: mode, syncedAt: { gte: binding.createdAt }, status: 'active', invoiceStatus: 'paid',
     priceId: { in: premiumPrices() }, accessUntil: { gt: now },
   }, orderBy: { accessUntil: 'desc' } })
 }
@@ -78,7 +79,7 @@ export async function reconcileSubscription(actorId: string, id: string, input: 
   if (!input.confirmed || input.reason.trim().length < 3 || input.reason.trim().length > 500) throw badRequest('Confirm with a reason (3–500 characters)')
   await authorizePlatform(actorId, 'billing.manage')
   await db.$transaction(async tx => {
-    await tx.adminMutationLock.upsert({ where: { id: 1 }, create: { id: 1 }, update: { version: { increment: 1 } } })
+    await lockAdminMutation(tx)
     await authorizePlatform(actorId, 'billing.manage', tx)
     await syncOne(tx, id, actorId, input.reason.trim(), requestId)
   }, { timeout: 15000, maxWait: 15000 })
@@ -88,7 +89,7 @@ export async function linkCustomer(actorId: string, userId: string, input: { cus
   await authorizePlatform(actorId, 'billing.manage')
   if (!input.confirmed || input.reason.trim().length < 3 || input.reason.trim().length > 500 || !/^cus_[A-Za-z0-9]+$/.test(input.customerId)) throw badRequest('Confirm an exact Stripe customer ID and provide a reason')
   await db.$transaction(async tx => {
-    await tx.adminMutationLock.upsert({ where: { id: 1 }, create: { id: 1 }, update: { version: { increment: 1 } } })
+    await lockAdminMutation(tx)
     await authorizePlatform(actorId, 'billing.manage', tx)
     const user = await tx.user.findFirst({ where: { id: userId, deletedAt: null, isGuest: false, kind: 'human' } })
     if (!user) throw notFound('Registered user not found')
@@ -118,7 +119,7 @@ export async function receiveStripeWebhook(raw: Buffer, signature: string | unde
   if (!subscriptionId && event.type.startsWith('invoice.')) return { received: true }
   if (typeof subscriptionId !== 'string' || !/^sub_[A-Za-z0-9]+$/.test(subscriptionId)) throw badRequest('Missing subscription ID')
   await db.$transaction(async tx => {
-    await tx.adminMutationLock.upsert({ where: { id: 1 }, create: { id: 1 }, update: { version: { increment: 1 } } })
+    await lockAdminMutation(tx)
     if (await tx.stripeWebhookReceipt.findUnique({ where: { id: event.id } })) return
     await syncOne(tx, subscriptionId, 'stripe', `Stripe ${event.type}`, `stripe:${event.id}`)
     await tx.stripeWebhookReceipt.create({ data: { id: event.id, type: event.type } })

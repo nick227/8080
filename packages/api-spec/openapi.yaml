@@ -48,6 +48,287 @@ tags:
     description: Communication agents and their email senders (docs/agents)
 
 paths:
+  /admin/mfa:
+    get:
+      operationId: getStaffMfa
+      summary: getStaffMfa
+      tags:
+        - admin
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/StaffMfaStatus'
+        '400':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/mfa/enroll:
+    post:
+      operationId: enrollStaffMfa
+      summary: enrollStaffMfa
+      tags:
+        - admin
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/StaffMfaResult'
+        '400':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffMfaEnroll'
+      x-fastify-config:
+        rateLimit:
+          max: 10
+          timeWindow: 1 minute
+  /admin/mfa/verify:
+    post:
+      operationId: verifyStaffMfa
+      summary: verifyStaffMfa
+      tags:
+        - admin
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/StaffMfaResult'
+        '400':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffMfaVerify'
+      x-fastify-config:
+        rateLimit:
+          max: 10
+          timeWindow: 1 minute
+  /admin/live-costs:
+    get:
+      operationId: getAdminLiveCosts
+      summary: Get Live spending control status
+      tags:
+        - admin
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminLiveCosts'
+        '400':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/live-costs/stop:
+    post:
+      operationId: stopAdminLiveSpending
+      summary: Stop new Live spending
+      tags:
+        - admin
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminLiveCosts'
+        '400':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminLiveStop'
+      x-fastify-config:
+        rateLimit:
+          max: 20
+          timeWindow: 1 minute
   /admin/settings:
     get:
       operationId: getAdminSettings
@@ -7557,6 +7838,120 @@ components:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   schemas:
+    StaffMfaStatus:
+      type: object
+      additionalProperties: false
+      required:
+        - enrolled
+        - verifiedUntil
+        - csrfToken
+      properties:
+        enrolled:
+          type: boolean
+        verifiedUntil:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        csrfToken:
+          type:
+            - string
+            - 'null'
+    StaffMfaResult:
+      type: object
+      additionalProperties: false
+      required:
+        - secret
+        - uri
+        - recoveryCodes
+        - verifiedUntil
+      properties:
+        secret:
+          type:
+            - string
+            - 'null'
+        uri:
+          type:
+            - string
+            - 'null'
+        recoveryCodes:
+          type: array
+          items:
+            type: string
+        verifiedUntil:
+          type:
+            - string
+            - 'null'
+          format: date-time
+    StaffMfaEnroll:
+      type: object
+      additionalProperties: false
+      required:
+        - password
+      properties:
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+    StaffMfaVerify:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          pattern: ^(?:[0-9]{6}|[a-f0-9]{32})$
+    AdminLiveCosts:
+      type: object
+      additionalProperties: false
+      required:
+        - stopped
+        - version
+        - reason
+        - userDailyMicros
+        - platformDailyMicros
+        - userConcurrency
+        - platformConcurrency
+        - unknownReservations
+      properties:
+        stopped:
+          type: boolean
+        version:
+          type: integer
+        reason:
+          type: string
+        userDailyMicros:
+          type: string
+          pattern: ^[0-9]+$
+        platformDailyMicros:
+          type: string
+          pattern: ^[0-9]+$
+        userConcurrency:
+          type: integer
+        platformConcurrency:
+          type: integer
+        unknownReservations:
+          type: integer
+    AdminLiveStop:
+      type: object
+      additionalProperties: false
+      required:
+        - expectedVersion
+        - reason
+        - confirmed
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 0
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+        confirmed:
+          type: boolean
+          enum:
+            - true
     AdminStaffChange:
       type: object
       additionalProperties: false
@@ -7704,6 +8099,7 @@ components:
               - role
               - version
               - suspended
+              - canChange
             properties:
               userId:
                 type: string
@@ -7722,6 +8118,8 @@ components:
                 type: integer
                 minimum: 0
               suspended:
+                type: boolean
+              canChange:
                 type: boolean
         billing:
           type: object
@@ -7821,6 +8219,7 @@ components:
         - dateLabel
         - date
         - dashboardUrl
+        - linkVerified
       properties:
         id:
           type: string
@@ -7864,6 +8263,8 @@ components:
         dashboardUrl:
           type: string
           format: uri
+        linkVerified:
+          type: boolean
     AdminChangePreview:
       type: object
       additionalProperties: false

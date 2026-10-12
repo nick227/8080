@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { ApiError, useAdminSession, useAdminUsers, useAdminUser, useAdminUserChange, useAdminChangePreview, type AdminUserDetail, type AdminUserChange } from '@project/sdk'
 import { SEO } from '../../components/SEO'
 import './admin.css'
+import { AdminUserBilling } from './AdminUserBilling'
 
 const dates = (value: string | null) => value ? new Date(value).toLocaleString() : '—'
 type ActionSelection = { action: AdminUserChange['action']; grantId?: string }
@@ -72,9 +73,9 @@ function UserDetail({ user, onAction }: { user: AdminUserDetail; onAction: (acti
       <div className="admin-actions">{can('suspend') && <button onClick={() => onAction({ action: 'suspend' })}>Suspend account</button>}{can('reactivate') && <button onClick={() => onAction({ action: 'reactivate' })}>Reactivate account</button>}</div>
     </section>
     <section aria-label="Premium access"><h3>Premium access</h3>
-      <dl className="admin-facts"><div><dt>Current tier</dt><dd>{user.premium.tier === 'premium' ? 'Premium · complimentary' : 'Free'}</dd></div>{user.premium.expiresAt && <div><dt>Effective expiry</dt><dd>{dates(user.premium.expiresAt)}</dd></div>}</dl>
+      <dl className="admin-facts"><div><dt>Current tier</dt><dd>{user.premium.tier === 'premium' ? user.premium.source === 'stripe' ? 'Premium · Stripe' : user.premium.source === 'grant_and_stripe' ? 'Premium · Stripe + complimentary' : 'Premium · complimentary' : 'Free'}</dd></div>{user.premium.expiresAt && <div><dt>Effective expiry</dt><dd>{dates(user.premium.expiresAt)}</dd></div>}</dl>
       {user.suspendedAt && <p className="admin-notice">Account suspension blocks access, even if a Premium grant is active.</p>}
-      <p className="admin-muted">Live is disabled for everyone until usage limits are set. Paid subscriptions are not yet synchronized into app access.</p>
+      <p className="admin-muted">Live is disabled for everyone until usage limits are set. Paid access and complimentary grants are evaluated separately.</p>
       <div className="admin-actions">{can('grant_premium') && <button onClick={() => onAction({ action: 'grant_premium' })}>Grant Premium</button>}{can('revoke_premium') && <button onClick={() => onAction({ action: 'revoke_premium' })}>Revoke all complimentary grants</button>}</div>
       <h4>Grant history</h4>
       {user.grants.length ? <ul className="admin-grants">{user.grants.map(grant => <li key={grant.id}>
@@ -84,7 +85,7 @@ function UserDetail({ user, onAction }: { user: AdminUserDetail; onAction: (acti
       </li>)}</ul> : <p className="admin-muted">No complimentary grants.</p>}
       {user.grantCount > user.grants.length && <p className="admin-muted">Showing the latest {user.grants.length} of {user.grantCount} grants. Previews include all grants.</p>}
     </section>
-    <section aria-label="Billing status"><h3>Billing</h3><p className="admin-muted">{user.billingConfigured ? 'Stripe read-only billing is configured. Check the Billing screen for subscription and invoice status.' : 'Stripe is not connected. Subscription and payment status are unknown.'} Complimentary grants do not create charges.</p><Link to="/admin/billing">Open Billing →</Link></section>
+    <AdminUserBilling user={user} />
     <section><h3>Workspaces <span>{user.memberships.length}</span></h3>{user.memberships.length ? <ul className="admin-memberships">{user.memberships.map(m => <li key={m.id}><strong>{m.workspace.name}</strong><small>{m.role} · {m.status}</small></li>)}</ul> : <p className="admin-muted">No workspace memberships.</p>}</section>
     <section><h3>Recent account changes</h3>{user.activity.length ? <ol className="admin-activity">{user.activity.map(event => <li key={event.id}><strong>{actionNames[event.action as AdminUserChange['action']] ?? event.action}</strong><p>{event.reason}</p><small>{dates(event.createdAt)}</small></li>)}</ol> : <p className="admin-muted">No admin changes recorded.</p>}</section>
   </>
@@ -116,7 +117,7 @@ function ConfirmChange({ user: initialUser, action: selection, csrfToken, close,
       {!input ? <p className="admin-muted">Choose an expiry to preview the result.</p> : preview.isFetching ? <p role="status">Calculating access…</p> : preview.error ? <p role="alert" className="admin-error">{preview.error.message}</p> : preview.data && <section className="admin-impact" aria-label="Change preview">
         <dl><dt>Before</dt><dd>{accessLabel(preview.data.before)}</dd><dt>After confirmation</dt><dd>{accessLabel(preview.data.after)}</dd></dl>
         {action === 'grant_premium' && preview.data.before.tier === 'premium' && preview.data.before.expiresAt === preview.data.after.expiresAt && <p>A later expiry already applies. This grant will not extend current access.</p>}
-        {action === 'revoke_premium' && <p>{preview.data.affectedGrantCount} grant(s) affected.{preview.data.after.tier === 'premium' && ' Another grant keeps Premium active.'}</p>}
+        {action === 'revoke_premium' && <p>{preview.data.affectedGrantCount} grant(s) affected.{preview.data.after.tier === 'premium' && ' Another grant or paid subscription keeps Premium active.'}</p>}
         <p>{preview.data.billingImpact}</p><p>{preview.data.liveImpact}</p><small>Effective immediately after confirmation. Scheduled grants may change access later.</small>
       </section>}
       <label>Reason<textarea autoFocus required minLength={3} maxLength={500} value={reason} onChange={event => setReason(event.target.value)} placeholder="Why is this change needed?" /></label>

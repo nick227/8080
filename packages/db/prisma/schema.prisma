@@ -66,6 +66,7 @@ model Profile {
 }
 
 model Session {
+  adminMfaUntil DateTime?
   id        String   @id @default(cuid())
   userId    String
   token     String   @unique
@@ -2662,4 +2663,50 @@ model PushDelivery {
   @@index([status, nextAttemptAt])
   @@index([createdAt])
   @@index([userId, createdAt])
+}
+
+// One durable provider cost gate. USD amounts are integer microdollars.
+// Defaults deny reservations; this is independent of the disabled Live launch gate.
+model LiveCostPolicy {
+  id Int @id
+  version Int @default(0)
+  stopped Boolean @default(true)
+  userDailyMicros BigInt @default(0)
+  platformDailyMicros BigInt @default(0)
+  userConcurrency Int @default(0)
+  platformConcurrency Int @default(0)
+  stopReason String @default("Live limits have not been configured") @db.VarChar(500)
+}
+
+// No cascades: deleting a user or room must not erase unresolved liability.
+model LiveCostReservation {
+  id String @id @default(cuid())
+  requestKey String @unique @db.VarChar(191)
+  userId String
+  roomId String
+  status String @db.VarChar(20)
+  reservedMicros BigInt
+  actualMicros BigInt?
+  periodStart DateTime
+  deadline DateTime
+  dispatchedAt DateTime?
+  settledAt DateTime?
+  evidenceId String? @unique @db.VarChar(191)
+  createdAt DateTime @default(now())
+  @@index([status, userId, periodStart])
+  @@index([status, deadline])
+}
+
+
+model StaffMfa {
+  userId String @id
+  secret String? @db.Text
+  pendingSecret String? @db.Text
+  pendingSessionId String?
+  pendingUntil DateTime?
+  confirmedAt DateTime?
+  lastCounter Int @default(-1)
+  recoveryHashes Json
+  failures Int @default(0)
+  lockedUntil DateTime?
 }

@@ -32,6 +32,9 @@ export default defineConfig({
       PUBLIC_UPLOAD_BASE_URL: 'http://localhost:3001/uploads',
       // Never call real AI from tests. Prisma loads the root .env at runtime (via
       // packages/db/.env), but it doesn't override variables already set here.
+      STRIPE_READONLY_KEY: '',
+      STRIPE_WEBHOOK_SECRET: '',
+      STRIPE_PREMIUM_PRICE_IDS: '',
       AI_ROUTER: 'off',
       OPENAI_API_KEY: '',
       OPENAI_ROUTER_MODEL: '',

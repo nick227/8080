@@ -184,3 +184,6 @@
 .admin-settings-section h2 { font-size:20px; }
 .admin-settings-section a { color:var(--ink); }
 .admin-confirm select { background:var(--panel); color:var(--ink); border:1px solid var(--line); padding:12px; }
+.admin-confirm .admin-check { display:flex; align-items:flex-start; gap:10px; }
+.admin-confirm .admin-check input { width:auto; margin-top:5px; }
+.admin-sync-button { display:block; margin-top:12px; }

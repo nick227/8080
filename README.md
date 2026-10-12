@@ -137,7 +137,7 @@ Focused frontend checks include `pnpm --filter web test:contacts`, `test:records
 
 ## Platform administration
 
-The first admin slice lives at `/admin`: user search, account suspension/reactivation, personal Premium grants, and audited confirmations. Platform staff roles are separate from workspace roles. See the [admin setup and rollout guide](docs/admin/implementation.md) for the additive migration and initial-owner bootstrap. Read-only Stripe Billing is available at `/admin/billing` when a restricted server key is configured. Settings and subscription synchronization remain future slices; Premium Live remains disabled pending limits.
+The first admin slice lives at `/admin`: user search, account suspension/reactivation, personal Premium grants, and audited confirmations. Platform staff roles are separate from workspace roles. See the [admin setup and rollout guide](docs/admin/implementation.md) for the additive migration and initial-owner bootstrap. Read-only Stripe Billing is available at `/admin/billing` when a restricted server key is configured. Owner staff controls are available at `/admin/settings`. Signed Stripe synchronization and explicit customer links support paid entitlements once server configuration and Premium price IDs are supplied. Checkout remains disabled while pricing is undecided, and Premium Live remains disabled pending limits.
 
 ## Further reading
 
@@ -148,3 +148,5 @@ The first admin slice lives at `/admin`: user search, account suspension/reactiv
 - [API contract](packages/api-spec/openapi.yaml)
 
 Historical proposals and reviews are in [`docs/archive`](docs/archive); they describe design history and may differ from the current implementation.
+
+Live remains closed while its provider controls are completed. The [Live cost ledger](docs/admin/live-money-boundaries.md) reserves spending across a user’s workspaces and a platform ceiling; it is not yet an operational provider-metering integration.

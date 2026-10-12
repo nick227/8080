@@ -294,7 +294,7 @@ function useBudgetColumns(update: ReturnType<typeof useUpdateBudgetItem>, remove
   }, [mutateAsync, savingId, remove])
 }
 
-function NewBudgetItemSlideout({
+export function NewBudgetItemSlideout({
   workspaceId,
   initialDirection,
   onClose,
@@ -351,19 +351,11 @@ function NewBudgetItemSlideout({
       : Object.entries(BUDGET_EXPENSE_CATEGORIES)
 
   return (
-    <div className="budget-slideout-backdrop" onClick={onClose}>
-      <div className="budget-slideout" role="dialog" aria-modal="true" aria-labelledby="budget-new-title" onClick={(e) => e.stopPropagation()}>
-        <div className="budget-slideout-head">
-          <h2 id="budget-new-title">New budget item</h2>
-          <button type="button" className="budget-slideout-close" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
-
-        <form className="budget-form" onSubmit={(e) => void handleSubmit(e)}>
-          <div className="budget-form-fields">
+    <FormSlideout title="New budget item" onClose={onClose}>
+      <form className="record-form" onSubmit={(e) => void handleSubmit(e)}>
+        <div className="record-form-fields">
           {/* Direction toggle */}
-          <div className="budget-direction-selector">
+          <div className="budget-direction-selector" style={{ marginBottom: '0.5rem' }}>
             <button
               type="button"
               className="budget-dir-toggle"
@@ -390,8 +382,8 @@ function NewBudgetItemSlideout({
             </button>
           </div>
 
-          <div className="budget-form-field">
-            <label htmlFor="budget-title">Title</label>
+          <label>
+            <span>Title</span>
             <input
               id="budget-title"
               type="text"
@@ -405,10 +397,10 @@ function NewBudgetItemSlideout({
               onChange={(e) => setTitle(e.target.value)}
               autoFocus
             />
-          </div>
+          </label>
 
-          <div className="budget-form-field">
-            <label htmlFor="budget-amount">Amount (USD)</label>
+          <label>
+            <span>Amount (USD)</span>
             <input
               id="budget-amount"
               type="number"
@@ -419,10 +411,10 @@ function NewBudgetItemSlideout({
               value={amountDollars}
               onChange={(e) => setAmountDollars(e.target.value)}
             />
-          </div>
+          </label>
 
-          <div className="budget-form-field">
-            <label htmlFor="budget-category">Category</label>
+          <label>
+            <span>Category</span>
             <select
               id="budget-category"
               value={category}
@@ -434,10 +426,10 @@ function NewBudgetItemSlideout({
                 </option>
               ))}
             </select>
-          </div>
+          </label>
 
-          <div className="budget-form-field">
-            <label htmlFor="budget-date">Scheduled Date (Calendar anchor)</label>
+          <label>
+            <span>Scheduled Date</span>
             <input
               id="budget-date"
               type="date"
@@ -445,10 +437,10 @@ function NewBudgetItemSlideout({
               value={scheduledDate}
               onChange={(e) => setScheduledDate(e.target.value)}
             />
-          </div>
+          </label>
 
-          <div className="budget-form-field">
-            <label htmlFor="budget-status">Status</label>
+          <label>
+            <span>Status</span>
             <select
               id="budget-status"
               value={status}
@@ -458,10 +450,10 @@ function NewBudgetItemSlideout({
               <option value="pending">Pending (Committed / Invoiced)</option>
               <option value="cleared">Cleared (Paid & settled)</option>
             </select>
-          </div>
+          </label>
 
-          <div className="budget-form-field">
-            <label htmlFor="budget-contact">Associated Contact (Client / Vendor)</label>
+          <label>
+            <span>Associated Contact</span>
             <select
               id="budget-contact"
               value={contactId}
@@ -476,10 +468,10 @@ function NewBudgetItemSlideout({
                   </option>
                 ))}
             </select>
-          </div>
+          </label>
 
-          <div className="budget-form-field">
-            <label htmlFor="budget-desc">Notes</label>
+          <label>
+            <span>Notes</span>
             <textarea
               id="budget-desc"
               rows={2}
@@ -487,25 +479,23 @@ function NewBudgetItemSlideout({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
-          </div>
+          </label>
+        </div>
 
-          </div>
-
-          <div className="budget-slideout-foot">
-            <button type="button" className="budget-cancel" onClick={onClose}>
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="budget-submit"
-              disabled={createMutation.isPending || !title.trim() || !amountDollars}
-            >
-              {createMutation.isPending ? 'Saving…' : '+ Add to Budget'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <footer>
+          <button type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="record-primary"
+            disabled={createMutation.isPending || !title.trim() || !amountDollars}
+          >
+            {createMutation.isPending ? 'Saving…' : '+ Add to Budget'}
+          </button>
+        </footer>
+      </form>
+    </FormSlideout>
   )
 }
 

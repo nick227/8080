@@ -1,3 +1,4 @@
+import { lockAdminMutation } from '../services/admin/lock'
 // Usage: pnpm --filter server admin:bootstrap <registered-user-id>
 // Deliberately creates only the first platform owner; never promotes by email/domain.
 import { db } from '@project/db'
@@ -7,7 +8,7 @@ async function main() {
   const userId = process.argv[2]
   if (!userId || process.argv.length !== 3) throw new Error('Usage: admin:bootstrap <registered-user-id>')
   await db.$transaction(async tx => {
-    await tx.adminMutationLock.upsert({ where: { id: 1 }, create: { id: 1 }, update: { version: { increment: 1 } } })
+    await lockAdminMutation(tx)
     if (await tx.platformStaff.count()) throw new Error('Platform staff already exists; bootstrap is disabled')
     const user = await tx.user.findUnique({ where: { id: userId } })
     if (!user || user.deletedAt || user.suspendedAt || user.isGuest || user.kind !== 'human') throw new Error('Choose an active registered human account')

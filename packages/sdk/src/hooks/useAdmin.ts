@@ -68,3 +68,24 @@ export function useAdminSubscriptionSync(csrfToken?: string | null) {
   return useMutation({ mutationFn: async ({subscriptionId, ...body}: components['schemas']['AdminSyncInput'] & {subscriptionId:string}) => unwrap(await getApiClient().POST('/admin/subscriptions/{subscriptionId}/sync', {params:{path:{subscriptionId}},body,headers:csrfToken?{'x-admin-csrf':csrfToken}:{}})).data,
     onSettled: async () => { await client.invalidateQueries({queryKey:['admin']}); await client.invalidateQueries({queryKey:['entitlements']}) } })
 }
+
+export function useAdminLiveCosts(enabled = true) {
+  return useQuery({ queryKey: ['admin', 'live-costs'], enabled, retry: false,
+    queryFn: async () => unwrap(await getApiClient().GET('/admin/live-costs')).data })
+}
+export function useAdminLiveStop(csrfToken?: string | null) {
+  const client = useQueryClient()
+  return useMutation({ mutationFn: async (body: components['schemas']['AdminLiveStop']) => unwrap(await getApiClient().POST('/admin/live-costs/stop', {body,headers:csrfToken?{'x-admin-csrf':csrfToken}:{}})).data,
+    onSettled: () => client.invalidateQueries({queryKey:['admin','live-costs']}) })
+}
+
+export function useStaffMfa() {
+  return useQuery({queryKey:['staff-mfa'],retry:false,staleTime:0,refetchInterval:30_000,
+    queryFn:async()=>unwrap(await getApiClient().GET('/admin/mfa')).data})
+}
+export function useStaffMfaEnroll(csrf?:string|null) {
+  return useMutation({mutationFn:async(password:string)=>unwrap(await getApiClient().POST('/admin/mfa/enroll',{body:{password},headers:csrf?{'x-admin-csrf':csrf}:{}})).data})
+}
+export function useStaffMfaVerify(csrf?:string|null) {
+  return useMutation({mutationFn:async(code:string)=>unwrap(await getApiClient().POST('/admin/mfa/verify',{body:{code},headers:csrf?{'x-admin-csrf':csrf}:{}})).data})
+}

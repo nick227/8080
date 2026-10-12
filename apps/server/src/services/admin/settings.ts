@@ -1,3 +1,4 @@
+import { lockAdminMutation } from './lock'
 import { db } from '@project/db'
 import { badRequest, conflict, notFound } from '../../lib/errors'
 import { authorizePlatform } from '../authorization/platform'
@@ -7,7 +8,7 @@ export async function adminSettings(actorId: string) {
   const actor = await authorizePlatform(actorId, 'users.read')
   const staff = await db.platformStaff.findMany({ include: { user: { select: { id: true, email: true, adminVersion: true, suspendedAt: true, profile: { select: { displayName: true } } } } }, orderBy: { createdAt: 'asc' } })
   const last = await db.stripeWebhookReceipt.findFirst({ orderBy: { processedAt: 'desc' } })
-  return { canManage: actor.role === 'platform_owner', staff: staff.map(s => ({ userId: s.userId, email: s.user.email, displayName: s.user.profile?.displayName ?? 'Unnamed user', role: s.role, version: s.user.adminVersion, suspended: !!s.user.suspendedAt })),
+  return { canManage: actor.role === 'platform_owner', staff: staff.map(s => ({ userId: s.userId, canChange: actor.role === 'platform_owner' && s.userId !== actorId, email: s.user.email, displayName: s.user.profile?.displayName ?? 'Unnamed user', role: s.role, version: s.user.adminVersion, suspended: !!s.user.suspendedAt })),
     billing: { configured: syncConfigured(), mode: stripeMode() === null ? null : stripeMode() ? 'live' : 'test', premiumPriceCount: premiumPrices().length, webhookConfigured: !!process.env.STRIPE_WEBHOOK_SECRET, lastEventAt: last?.processedAt.toISOString() ?? null },
     live: { enabled: false, reason: 'Premium Live remains disabled until usage and concurrency limits are decided.' },
     checkout: { enabled: false, reason: 'Recurring pricing and checkout are not enabled.' },
@@ -18,7 +19,7 @@ export async function changeStaff(actorId: string, userId: string, input: { role
   await authorizePlatform(actorId, 'staff.manage')
   if (actorId === userId) throw badRequest('You cannot change your own staff role')
   await db.$transaction(async tx => {
-    await tx.adminMutationLock.upsert({ where: { id: 1 }, create: { id: 1 }, update: { version: { increment: 1 } } })
+    await lockAdminMutation(tx)
     await authorizePlatform(actorId, 'staff.manage', tx)
     const user = await tx.user.findFirst({ where: { id: userId, deletedAt: null, isGuest: false, kind: 'human' }, include: { platformStaff: true } })
     if (!user) throw notFound('Registered user not found')

@@ -12,7 +12,7 @@ let app: FastifyInstance
 const owner = 'admin-owner', ordinary = 'admin-ordinary', admin = 'admin-staff'
 const until = () => new Date(Date.now() + 86400000).toISOString()
 const auth = (id: string) => ({ authorization: `Bearer session-${id}` })
-beforeAll(async () => { app = await buildApp({ docs: false, rateLimit: false }); await app.ready() })
+beforeAll(async () => { app = await buildApp({ adminMfa: false, docs: false, rateLimit: false }); await app.ready() })
 afterAll(async () => { await app.close() })
 beforeEach(async () => {
   for (const id of [owner, ordinary, admin]) {

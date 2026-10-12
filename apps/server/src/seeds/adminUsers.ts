@@ -1,3 +1,4 @@
+import { lockAdminMutation } from '../services/admin/lock'
 import { db, type MemberStatus, type WorkspaceRole } from '@project/db'
 
 const PREFIX = 'mock-admin-v1-'
@@ -36,7 +37,7 @@ export const adminUserFixtures: readonly Fixture[] = [
 export async function seedAdminUsers(now = new Date()) {
   assertAdminSeedTarget()
   return db.$transaction(async tx => {
-    await tx.adminMutationLock.upsert({ where: { id: 1 }, create: { id: 1 }, update: { version: { increment: 1 } } })
+    await lockAdminMutation(tx)
     let created = 0
     const newUsers = new Set<string>()
     for (const fixture of adminUserFixtures) {

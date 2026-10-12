@@ -44,10 +44,12 @@ export async function listAdminSubscriptions(actorId: string, query: { cursor?: 
     if (!sub || typeof sub.id !== 'string' || !/^sub_[A-Za-z0-9]+$/.test(sub.id) || typeof sub.status !== 'string' || sub.livemode !== (mode === 'live')) throw httpError(502, 'Stripe returned an unexpected billing response', 'BILLING_UNAVAILABLE')
     return sub
   })
-  const userIds = subscriptions.flatMap(sub => typeof sub.metadata?.['8080_user_id'] === 'string' ? [sub.metadata['8080_user_id']] : [])
+  const bindings = await db.stripeCustomerBinding.findMany({ where: { customerId: { in: subscriptions.map(s => typeof s.customer === 'string' ? s.customer : s.customer?.id).filter((id): id is string => typeof id === 'string') }, livemode: mode === 'live' } })
+  const userIds = [...bindings.map(b => b.userId), ...subscriptions.flatMap(sub => typeof sub.metadata?.['8080_user_id'] === 'string' ? [sub.metadata['8080_user_id']] : [])]
   const users = await db.user.findMany({ where: { id: { in: userIds }, deletedAt: null }, select: { id: true, email: true, profile: { select: { displayName: true } } } })
   const data = subscriptions.map(sub => {
-    const user = users.find(u => u.id === sub.metadata?.['8080_user_id'])
+    const binding = bindings.find(b => b.customerId === (typeof sub.customer === 'string' ? sub.customer : sub.customer?.id))
+    const user = users.find(u => u.id === (binding?.userId ?? sub.metadata?.['8080_user_id']))
     const invoice = object(sub.latest_invoice)
     const items: StripeObject[] = Array.isArray(sub.items?.data) ? sub.items.data.map(object).filter((item: StripeObject | null): item is StripeObject => !!item) : []
     const periodEnds = items.map(item => iso(item.current_period_end)).filter((v): v is string => !!v).sort()
@@ -58,7 +60,7 @@ export async function listAdminSubscriptions(actorId: string, query: { cursor?: 
     const intervals = [...new Set(periods.map(p => `${p.interval_count ?? 1} ${p.interval}`))]
     const customer = typeof sub.customer === 'string' ? sub.customer : object(sub.customer)?.id
     return {
-      id: sub.id as string, customerId: typeof customer === 'string' ? customer : null,
+      id: sub.id as string, linkVerified: !!binding && !!user, customerId: typeof customer === 'string' ? customer : null,
       user: user ? { id: user.id, displayName: user.profile?.displayName ?? 'Unnamed user', email: user.email } : null,
       status: sub.status as string, invoiceStatus: typeof invoice?.status === 'string' ? invoice.status : null,
       interval: intervals.length === 1 ? intervals[0]! : intervals.length ? 'Mixed intervals' : 'Unknown',

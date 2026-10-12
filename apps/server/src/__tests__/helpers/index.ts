@@ -51,7 +51,7 @@ export function buildTestApp(opts: { rateLimit?: boolean } = {}) {
   })
 
   beforeAll(async () => {
-    app = await buildApp({
+    app = await buildApp({ adminMfa: false,
       docs: false,
       rateLimit: opts.rateLimit ?? false,
       logger: process.env.TEST_LOG ? { level: 'error' } : false,

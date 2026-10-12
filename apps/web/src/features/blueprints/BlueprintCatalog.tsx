@@ -25,7 +25,7 @@ export function BlueprintCatalog() {
         </Link>
       </article>
     })}</div>
-    <p className="bp-catalog-note">Fictional operational examples. All models are calibrated as 90-day starter plans demonstrating realistic staffing, structured task workflows, and dual-sided cashflow economics; salaries, premises rent, and taxes are excluded.</p>
+    <p className="bp-catalog-note">Fictional examples. Each blueprint is a 90-day starter plan with realistic roles, weekly routines, and estimated cashflow. Owner pay, rent, and taxes are excluded.</p>
 
     <section className="bp-platform-note"><div><strong>8080 is a work management platform</strong></div><Link to="/workspaces/new">Create a workspace <span aria-hidden>→</span></Link></section>
   </div>

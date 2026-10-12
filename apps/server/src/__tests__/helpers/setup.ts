@@ -18,6 +18,9 @@ afterAll(async () => {
 
 // Clean between tests — children before parents for FK constraints.
 afterEach(async () => {
+  await db.staffMfa.deleteMany()
+  await db.liveCostReservation.deleteMany()
+  await db.liveCostPolicy.deleteMany()
   await db.stripeWebhookReceipt.deleteMany()
   await db.stripeSubscription.deleteMany()
   await db.stripeCustomerBinding.deleteMany()
