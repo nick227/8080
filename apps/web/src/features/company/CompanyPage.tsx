@@ -29,7 +29,7 @@ import {
   WorkflowIcon,
 } from '../../components/icons'
 import { FormSlideout } from '../work/FormSlideout'
-import { InviteMember } from '../team/InviteMember'
+import { PeopleDialog } from '../team/PeopleDialog'
 import { formatAgo } from '../../utils/time'
 import { InlineList, InlineSelect, InlineText } from './Inline'
 import { useCompanyProfile, type ListField, type ProfileChanges } from './useCompanyProfile'
@@ -419,11 +419,7 @@ export function CompanyPage({
         />
       )}
 
-      {inviting && (
-        <FormSlideout title="Invite someone" onClose={() => setInviting(false)}>
-          <InviteMember workspaceId={workspace.id} onClose={() => setInviting(false)} />
-        </FormSlideout>
-      )}
+      {inviting && <PeopleDialog workspace={workspace} onClose={() => setInviting(false)} />}
     </article>
   )
 }

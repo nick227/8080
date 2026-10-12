@@ -1093,8 +1093,10 @@ export interface paths {
         put?: never;
         /**
          * Invite someone by email (owner/admin)
-         * @description Returns the invite token once; deliver the link yourself (no email is sent yet).
-         *     A new invite for the same email replaces the pending one. Expires in 7 days.
+         * @description Returns the invite token once. With `sendEmail`, the link is also emailed to the
+         *     invitee through the workspace's default sender; `emailed`/`emailError` say how that
+         *     went (a failed send still creates the invite). Without it, deliver the link yourself.
+         *     A new invite for the same email replaces the pending one (Resend). Expires in 7 days.
          */
         post: operations["createWorkspaceInvite"];
         delete?: never;
@@ -6021,6 +6023,10 @@ export interface components {
             data: components["schemas"]["WorkspaceInvite"];
             /** @description Shown once; only its hash is stored. Accept with acceptWorkspaceInvite. */
             token: string;
+            /** @description The invite email was accepted by the sender (false when sendEmail was off). */
+            emailed: boolean;
+            /** @description Why the email wasn’t sent (e.g. NO_APP_URL, SEND_ERROR, a provider code). */
+            emailError: string | null;
         };
         CreateWorkspaceInviteInput: {
             /** Format: email */
@@ -6030,6 +6036,11 @@ export interface components {
              * @enum {string}
              */
             role: "admin" | "member";
+            /**
+             * @description Also email the invite link to the invitee.
+             * @default false
+             */
+            sendEmail: boolean;
         };
         WorkspaceInvitePreview: {
             workspaceName: string;

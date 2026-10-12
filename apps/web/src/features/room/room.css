@@ -1245,22 +1245,6 @@
   color: var(--bg); font: 700 var(--text-base) var(--mono); box-shadow: 0 10px 30px rgb(0 0 0 / .2); cursor: pointer; 
 }
 .team-streaming-add:hover, .team-streaming-add:focus-visible { background: var(--signal); border-color: var(--signal); }
-.team-invite-dialog { width: min(520px, calc(100vw - 32px)); padding: 0; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: 0 24px 70px rgb(0 0 0 / .28); }
-.team-invite-dialog::backdrop { background: rgb(0 0 0 / .48); }
-.team-invite-dialog header { display: flex; justify-content: space-between; gap: 24px; padding: 24px; border-bottom: 1px solid var(--line); }
-.team-invite-dialog h2, .team-invite-dialog p { margin: 0; }
-.team-invite-dialog p { margin-top: 6px; color: var(--muted); }
-.team-invite-close { align-self: start; padding: 4px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
-.team-invite-link { display: flex; gap: 8px; padding: 24px 24px 10px; }
-.team-invite-link input, .team-invite-email input { min-width: 0; flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--input-bg); color: var(--input-color); }
-.team-invite-link button, .team-invite-share, .team-invite-email button { flex: none; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--ink); color: var(--bg); cursor: pointer; }
-.team-invite-share { display: block; width: calc(100% - 48px); margin: 0 24px 14px; }
-.team-invite-email { margin: 0 24px 24px; padding-top: 20px; border-top: 1px solid var(--line); }
-.team-invite-email label { display: block; margin-bottom: 8px; font-weight: 600; }
-.team-invite-email > div { display: flex; gap: 8px; }
-.team-invite-email small { display: block; margin-top: 7px; color: var(--muted); }
-.team-invite-email input:disabled, .team-invite-email button:disabled { opacity: .55; cursor: not-allowed; }
 @media (max-width: 520px) {
-  .team-invite-link, .team-invite-email > div { flex-direction: column; }
   .team-streaming-add { min-width: 0; }
 }

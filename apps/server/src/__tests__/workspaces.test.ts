@@ -1,12 +1,13 @@
 // Slice 0 of doc/09: workspaces, membership, invites, teams, audit, timeline and
 // the policy module. Alice (registered) owns; Bob (guest) is the outsider; Carol
 // and Dave are registered accounts created here.
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { db } from '@project/db'
 import { load } from 'js-yaml'
 import { readFileSync } from 'fs'
 import { buildTestApp, asAuth, validateResponse, testUserId, testOtherUserId, multipart } from './helpers'
 import { specPath } from '../app'
+import { setEmailProvider, type EmailProvider } from '../services/agents/email'
 import { can, type WorkspaceVerb } from '../services/workspacePolicy'
 import { crossWorkspaceViolations } from '../services/workspaceIntegrity'
 import { caller, carolId, createWorkspace as createWs, daveId, join as joinWs, memberId, seedPeople } from './helpers/workspace'
@@ -233,6 +234,55 @@ describe('invites', () => {
     const third = (await call(testUserId, 'POST', `/workspaces/${ws.id}/invites`, { email: 'carol@test.local' })).json()
     await db.workspaceInvite.update({ where: { id: third.data.id }, data: { expiresAt: new Date(Date.now() - 1000) } })
     expect((await call(carolId, 'POST', '/workspace-invites/accept', { token: third.token })).json().code).toBe('INVITE_INVALID')
+  })
+
+  it('sendEmail emails the accept link through the workspace sender; a failed send still creates the invite', async () => {
+    vi.stubEnv('APP_URL', 'https://app.test.local')
+    try {
+      const ws = await createWorkspace()
+      await seedPeople()
+      await db.devOutboxEmail.deleteMany({ where: { to: 'carol@test.local' } })
+      const res = await call(testUserId, 'POST', `/workspaces/${ws.id}/invites`, { email: 'carol@test.local', role: 'admin', sendEmail: true })
+      expect(res.statusCode).toBe(201)
+      await validateResponse('createWorkspaceInvite', 201, res.json())
+      expect(res.json()).toMatchObject({ emailed: true, emailError: null })
+      const mail = await db.devOutboxEmail.findMany({ where: { to: 'carol@test.local' } })
+      expect(mail).toHaveLength(1)
+      expect(mail[0]!.subject).toBe('Alice invited you to Acme Co')
+      expect(mail[0]!.text).toContain(`https://app.test.local/invite/${encodeURIComponent(res.json().token)}`)
+      expect(mail[0]!.text).toContain('as an admin')
+
+      // Without sendEmail nothing is sent (the caller delivers the link).
+      const quiet = await call(testUserId, 'POST', `/workspaces/${ws.id}/invites`, { email: 'dave@test.local' })
+      expect(quiet.json()).toMatchObject({ emailed: false, emailError: null })
+      expect(await db.devOutboxEmail.count({ where: { to: 'dave@test.local' } })).toBe(0)
+
+      // Resend = a new invite: the old link stops working, a second email goes out.
+      const again = await call(testUserId, 'POST', `/workspaces/${ws.id}/invites`, { email: 'carol@test.local', role: 'admin', sendEmail: true })
+      expect(again.json().emailed).toBe(true)
+      expect(await db.devOutboxEmail.count({ where: { to: 'carol@test.local' } })).toBe(2)
+      expect((await call(carolId, 'POST', '/workspace-invites/accept', { token: res.json().token })).json().code).toBe('INVITE_INVALID')
+
+      const rejecting: EmailProvider = {
+        name: 'rejecting',
+        test: async () => ({ ok: true }) as never,
+        send: async () => ({ ok: false, kind: 'permanent', code: 'REJECTED', message: 'no' }),
+      }
+      setEmailProvider(rejecting)
+      const failed = await call(testUserId, 'POST', `/workspaces/${ws.id}/invites`, { email: 'erin@test.local', sendEmail: true })
+      expect(failed.statusCode).toBe(201)
+      expect(failed.json()).toMatchObject({ emailed: false, emailError: 'REJECTED' })
+      expect((await call(testUserId, 'GET', `/workspaces/${ws.id}/invites`)).json().data.map((i: any) => i.email)).toContain('erin@test.local')
+
+      setEmailProvider(null)
+      vi.stubEnv('APP_URL', '')
+      vi.stubEnv('CORS_ORIGIN', '')
+      const noBase = await call(testUserId, 'POST', `/workspaces/${ws.id}/invites`, { email: 'frank@test.local', sendEmail: true })
+      expect(noBase.json()).toMatchObject({ emailed: false, emailError: 'NO_APP_URL' })
+    } finally {
+      setEmailProvider(null)
+      vi.unstubAllEnvs()
+    }
   })
 
   it('only admins invite; existing members are not re-invited', async () => {

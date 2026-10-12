@@ -19,6 +19,7 @@ import { diff, runAction, type ActionActor } from './actions'
 import { redactRooms } from './records'
 import { authorize, permit, type Actor } from './workspacePolicy'
 import { createPlatformConnection } from './agents/connections'
+import { sendInviteEmail } from './inviteEmail'
 import { ensurePipelineStages } from './PipelineService'
 import { ensureContactCategories } from './TagService'
 import { ensureInventoryCategories } from './VocabularyService'
@@ -268,7 +269,8 @@ export class WorkspaceService {
   // ─── invites ───────────────────────────────────────────────────────────────
 
   // Returns the token once. A new invite for the same email replaces the pending one.
-  async createInvite(ctx: WorkspaceCtx, workspaceId: string, input: { email: string; role?: Exclude<WorkspaceRole, 'owner'> }) {
+  // With sendEmail, the link is also emailed (after the commit); a failed send still returns the token.
+  async createInvite(ctx: WorkspaceCtx, workspaceId: string, input: { email: string; role?: Exclude<WorkspaceRole, 'owner'>; sendEmail?: boolean }) {
     const actor = await authorize(ctx.user.id, workspaceId, 'member.invite')
     const email = normalizeEmail(input.email)
     const role = input.role ?? 'member'
@@ -287,7 +289,10 @@ export class WorkspaceService {
         return { value: invite, targetId: invite.id, activities: [{ type: 'member.invited', summary: { email, role } }] }
       },
     )
-    return { data: toWorkspaceInvite(invite), token }
+    if (!input.sendEmail) return { data: toWorkspaceInvite(invite), token, emailed: false, emailError: null }
+    const workspace = await db.workspace.findUniqueOrThrow({ where: { id: workspaceId } })
+    const sent = await sendInviteEmail(workspace, invite, token, ctx.user.profile?.displayName ?? null)
+    return { data: toWorkspaceInvite(invite), token, ...sent }
   }
 
   async listInvites(userId: string, workspaceId: string) {

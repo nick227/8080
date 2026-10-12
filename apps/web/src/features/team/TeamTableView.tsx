@@ -12,7 +12,7 @@ import { ColumnsMenu } from '../collections/ColumnsMenu'
 import { DataTable } from '../collections/DataTable'
 import { matches, useTableState, useUrlSearch, type Column } from '../collections/table'
 import { BulkMessage, SelectionBar, deleteColumn, useBulkDelete, useSelection } from '../collections/selection'
-import { InviteMember, PendingInvites } from './InviteMember'
+import { PeopleDialog } from './PeopleDialog'
 import { FormSlideout } from '../work/FormSlideout'
 import { StarterPackPicker } from '../prefab/StarterPackPicker'
 import { ImportModalTabs } from '../prefab/ImportModalChrome'
@@ -173,14 +173,12 @@ export function TeamTableView({
       notice={
         workspace && canInvite ? (
           <>
-            {inviting && <InviteMember workspaceId={workspace.id} onClose={() => setInviting(false)} />}
             {importing && (
               <ImportTeamSlideout
                 onClose={() => setImporting(false)}
                 onImportRoles={handleImportRoles}
               />
             )}
-            <PendingInvites workspaceId={workspace.id} />
             <BulkMessage result={removal.result} onDismiss={removal.dismiss} />
           </>
         ) : undefined
@@ -201,6 +199,7 @@ export function TeamTableView({
           : search.q ? 'No members match this search.'
               : 'No members yet.'}
       /></div>}
+      {inviting && <PeopleDialog workspace={workspace} onClose={() => setInviting(false)} />}
       <SelectionBar count={selection.selected.size} deleteLabel="Remove" onClear={selection.clear} busy={removal.busy} onDelete={() => void removal.run(selection.ids)} />
     </CollectionView>
   )

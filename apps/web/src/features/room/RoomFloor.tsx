@@ -7,7 +7,8 @@ import type { Item, SendInput } from '../../api/types'
 import { SelfTile } from './SelfTile'
 import { ChannelButton } from './hostChannel'
 import { RoomAir } from './RoomAir'
-import { TeamInviteDialog } from './TeamInviteDialog'
+import { PeopleDialog } from '../team/PeopleDialog'
+import { useCurrentWorkspace } from '../../app/workspace'
 import { SectionHeader } from '../work/SectionHeader'
 import type { PresenceActivity } from './PeopleStrip'
 import '../documents/DocumentsList.css'
@@ -64,6 +65,7 @@ function Floor({ view, seats, item, next, onEnded, self, bar, stack, paused }: {
 }) {
   const [selected, setSelected] = useState<string | null>(null)
   const [inviting, setInviting] = useState(false)
+  const { workspace } = useCurrentWorkspace()
   const count = Math.max(seats.length, 1)
   const columns = Math.min(3, count)
   const activeId = seats.some((seat) => `person:${seat.id}` === selected)
@@ -159,7 +161,7 @@ function Floor({ view, seats, item, next, onEnded, self, bar, stack, paused }: {
         })}
       </div>
       {view === 'grid' && !fullScreen && <button type="button" className="team-streaming-add" onClick={() => setInviting(true)}>+ Add user</button>}
-      {inviting && <TeamInviteDialog inviteUrl={`${window.location.origin}${window.location.pathname}`} onClose={() => setInviting(false)} />}
+      {inviting && <PeopleDialog workspace={workspace} roomUrl={`${window.location.origin}${window.location.pathname}`} onClose={() => setInviting(false)} />}
       {bar}
       {stack}
     </section>

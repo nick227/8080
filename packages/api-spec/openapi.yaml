@@ -2182,8 +2182,10 @@ paths:
         rateLimit: { max: 50, timeWindow: '1 hour' }
       summary: Invite someone by email (owner/admin)
       description: |
-        Returns the invite token once; deliver the link yourself (no email is sent yet).
-        A new invite for the same email replaces the pending one. Expires in 7 days.
+        Returns the invite token once. With `sendEmail`, the link is also emailed to the
+        invitee through the workspace's default sender; `emailed`/`emailError` say how that
+        went (a failed send still creates the invite). Without it, deliver the link yourself.
+        A new invite for the same email replaces the pending one (Resend). Expires in 7 days.
       tags: [workspaces]
       requestBody:
         required: true
@@ -9998,10 +10000,12 @@ components:
 
     CreatedWorkspaceInviteResponse:
       type: object
-      required: [data, token]
+      required: [data, token, emailed, emailError]
       properties:
         data: { $ref: '#/components/schemas/WorkspaceInvite' }
         token: { type: string, description: Shown once; only its hash is stored. Accept with acceptWorkspaceInvite. }
+        emailed: { type: boolean, description: The invite email was accepted by the sender (false when sendEmail was off). }
+        emailError: { type: [string, 'null'], description: 'Why the email wasn’t sent (e.g. NO_APP_URL, SEND_ERROR, a provider code).' }
 
     CreateWorkspaceInviteInput:
       type: object
@@ -10010,6 +10014,7 @@ components:
       properties:
         email: { type: string, format: email, maxLength: 254 }
         role: { type: string, enum: [admin, member], default: member }
+        sendEmail: { type: boolean, default: false, description: Also email the invite link to the invitee. }
 
     WorkspaceInvitePreview:
       type: object
