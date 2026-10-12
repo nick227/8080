@@ -1705,6 +1705,8 @@ enum CompanyFactKind {
   term
   avoid
   link
+  competitor
+  challenge
 }
 
 // The workspace's durable understanding of the business (doc/12 §5.2). Scalar facts
@@ -1726,6 +1728,18 @@ model CompanyProfile {
   sizeRange   String?             @db.VarChar(16) // 1 | 2-10 | 11-50 | 51-200 | 201-1000 | 1000+
   foundedYear Int?
   logoMediaId String?
+  // Company file (2026-10-11): corporate identity, strategy, market, contact.
+  entityType       String? @db.VarChar(24)
+  revenueRange     String? @db.VarChar(16)
+  businessModel    String? @db.VarChar(16)
+  pricingModel     String? @db.VarChar(16)
+  mission          String? @db.VarChar(1000)
+  vision           String? @db.VarChar(1000)
+  valueProposition String? @db.VarChar(1000)
+  idealCustomer    String? @db.VarChar(1000)
+  email            String? @db.VarChar(254)
+  phone            String? @db.VarChar(40)
+  hours            String? @db.VarChar(200)
   updatedAt   DateTime            @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

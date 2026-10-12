@@ -15,12 +15,19 @@ type Tx = Prisma.TransactionClient
 export const SCALARS = ['name', 'location', 'serviceArea', 'purpose', 'brandVoice'] as const
 export type Scalar = (typeof SCALARS)[number]
 // Details are set by people on the company page; the setup interview never writes them.
-export const DETAILS = ['legalName', 'website', 'industry', 'sizeRange', 'foundedYear', 'logoMediaId'] as const
+export const DETAILS = [
+  'legalName', 'website', 'industry', 'sizeRange', 'foundedYear', 'logoMediaId',
+  'entityType', 'revenueRange', 'businessModel', 'pricingModel', 'mission', 'vision', 'valueProposition', 'idealCustomer', 'email', 'phone', 'hours',
+] as const
 export type Detail = (typeof DETAILS)[number]
 export const SIZE_RANGES = ['1', '2-10', '11-50', '51-200', '201-1000', '1000+'] as const
+export const ENTITY_TYPES = ['sole_proprietorship', 'partnership', 'llc', 'corporation', 's_corporation', 'nonprofit', 'cooperative', 'other'] as const
+export const REVENUE_RANGES = ['under_100k', '100k_500k', '500k_1m', '1m_5m', '5m_20m', '20m_100m', '100m_plus'] as const
+export const BUSINESS_MODELS = ['b2b', 'b2c', 'b2b2c', 'b2g', 'd2c', 'marketplace'] as const
+export const PRICING_MODELS = ['fixed', 'hourly', 'retainer', 'subscription', 'usage', 'commission', 'mixed'] as const
 // The setup interview (and assistant proposals) fill these lists; the page edits all LISTS.
 export const INTERVIEW_LISTS = { offerings: 'offering', customers: 'customer', differentiators: 'differentiator' } as const satisfies Record<string, CompanyFactKind>
-export const LISTS = { ...INTERVIEW_LISTS, goals: 'goal', links: 'link' } as const satisfies Record<string, CompanyFactKind>
+export const LISTS = { ...INTERVIEW_LISTS, goals: 'goal', links: 'link', competitors: 'competitor', challenges: 'challenge', terms: 'term', avoid: 'avoid' } as const satisfies Record<string, CompanyFactKind>
 
 /** What one interview establishes, with the answer each part came from. */
 export type ProfileUpdate = {
@@ -56,6 +63,17 @@ async function snapshot(client: Tx | typeof db, workspaceId: string) {
     brandVoice: profile?.brandVoice ?? null,
     imageUrl: profile?.imageUrl ?? null,
     legalName: profile?.legalName ?? null,
+    entityType: profile?.entityType ?? null,
+    revenueRange: profile?.revenueRange ?? null,
+    businessModel: profile?.businessModel ?? null,
+    pricingModel: profile?.pricingModel ?? null,
+    mission: profile?.mission ?? null,
+    vision: profile?.vision ?? null,
+    valueProposition: profile?.valueProposition ?? null,
+    idealCustomer: profile?.idealCustomer ?? null,
+    email: profile?.email ?? null,
+    phone: profile?.phone ?? null,
+    hours: profile?.hours ?? null,
     website: profile?.website ?? null,
     industry: profile?.industry ?? null,
     sizeRange: profile?.sizeRange ?? null,
@@ -201,8 +219,14 @@ export class CompanyProfileService {
   async update(ctx: WorkspaceCtx, workspaceId: string, input: { expectedRevision: number; changes: Partial<Record<Scalar | Detail | keyof typeof LISTS, unknown>> }) {
     const actor = await authorize(ctx.user.id, workspaceId, 'companyProfile.edit')
     const bad = (m: string) => badRequest(m, 'INVALID_PROFILE')
-    const MAX: Record<Scalar | Detail, number> = { name: 200, location: 200, purpose: 1000, serviceArea: 0, brandVoice: 0, legalName: 200, website: 512, industry: 120, sizeRange: 0, foundedYear: 4, logoMediaId: 64 }
-    const ENUMS: Partial<Record<Scalar | Detail, readonly string[]>> = { serviceArea: ['local', 'regional', 'national', 'global'], brandVoice: ['professional', 'friendly', 'bold', 'technical'], sizeRange: SIZE_RANGES }
+    const MAX: Record<Scalar | Detail, number> = {
+      name: 200, location: 200, purpose: 1000, serviceArea: 0, brandVoice: 0, legalName: 200, website: 512, industry: 120, sizeRange: 0, foundedYear: 4, logoMediaId: 64,
+      entityType: 0, revenueRange: 0, businessModel: 0, pricingModel: 0, mission: 1000, vision: 1000, valueProposition: 1000, idealCustomer: 1000, email: 254, phone: 40, hours: 200,
+    }
+    const ENUMS: Partial<Record<Scalar | Detail, readonly string[]>> = {
+      serviceArea: ['local', 'regional', 'national', 'global'], brandVoice: ['professional', 'friendly', 'bold', 'technical'], sizeRange: SIZE_RANGES,
+      entityType: ENTITY_TYPES, revenueRange: REVENUE_RANGES, businessModel: BUSINESS_MODELS, pricingModel: PRICING_MODELS,
+    }
     const fields = Object.keys(input.changes) as (Scalar | Detail | keyof typeof LISTS)[]
     if (!fields.length) throw bad('Nothing to change')
     // Numbers arrive as numbers; the snapshot machinery carries text.
@@ -225,6 +249,8 @@ export class CompanyProfileService {
       const allowed = ENUMS[field as Scalar | Detail]
       if (value !== null && (allowed ? !allowed.includes(value) : value.length > MAX[field as Scalar | Detail])) throw bad(allowed ? `${field} is one of ${allowed.join(', ')}` : `${field} is at most ${MAX[field as Scalar | Detail]} characters`)
       if (value !== null && field === 'website' && !isWebUrl(value)) throw bad('website is a full https:// address')
+      if (value !== null && field === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) throw bad('email is an email address')
+      if (value !== null && field === 'phone' && !/^\+?[\d\s().-]{5,40}$/.test(value)) throw bad('phone is digits, spaces and + ( ) - .')
       if (value !== null && field === 'foundedYear' && !(/^\d{4}$/.test(value) && Number(value) >= 1800 && Number(value) <= new Date().getFullYear())) throw bad(`foundedYear is a year between 1800 and ${new Date().getFullYear()}`)
       return { field: field as Scalar | Detail, value, source: value === null ? null : { status: 'corrected' as const, sourceAnswerId: null, setByMemberId: actor.member.id } }
     })

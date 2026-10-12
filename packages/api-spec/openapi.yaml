@@ -7180,13 +7180,13 @@ components:
       required: [id, kind, value, status]
       properties:
         id: { type: string }
-        kind: { type: string, enum: [offering, customer, differentiator, goal, term, avoid, link] }
+        kind: { type: string, enum: [offering, customer, differentiator, goal, term, avoid, link, competitor, challenge] }
         value: { type: string }
         status: { type: string, enum: [inferred, stated, corrected], description: 'inferred = drafted by a model; stated = a person said it; corrected = a person fixed it' }
 
     CompanyProfile:
       type: object
-      required: [revision, name, location, serviceArea, purpose, brandVoice, imageUrl, legalName, website, industry, sizeRange, foundedYear, logoUrl, facts, updatedAt]
+      required: [revision, name, location, serviceArea, purpose, brandVoice, imageUrl, legalName, website, industry, sizeRange, foundedYear, logoUrl, entityType, revenueRange, businessModel, pricingModel, mission, vision, valueProposition, idealCustomer, email, phone, hours, facts, updatedAt]
       properties:
         revision: { type: integer, description: 0 until the first save }
         name: { type: [string, 'null'] }
@@ -7201,6 +7201,17 @@ components:
         sizeRange: { type: [string, 'null'], enum: ['1', '2-10', '11-50', '51-200', '201-1000', '1000+', null] }
         foundedYear: { type: [integer, 'null'] }
         logoUrl: { type: [string, 'null'] }
+        entityType: { type: [string, 'null'], enum: [sole_proprietorship, partnership, llc, corporation, s_corporation, nonprofit, cooperative, other, null] }
+        revenueRange: { type: [string, 'null'], enum: [under_100k, 100k_500k, 500k_1m, 1m_5m, 5m_20m, 20m_100m, 100m_plus, null] }
+        businessModel: { type: [string, 'null'], enum: [b2b, b2c, b2b2c, b2g, d2c, marketplace, null] }
+        pricingModel: { type: [string, 'null'], enum: [fixed, hourly, retainer, subscription, usage, commission, mixed, null] }
+        mission: { type: [string, 'null'] }
+        vision: { type: [string, 'null'] }
+        valueProposition: { type: [string, 'null'] }
+        idealCustomer: { type: [string, 'null'] }
+        email: { type: [string, 'null'] }
+        phone: { type: [string, 'null'] }
+        hours: { type: [string, 'null'] }
         facts: { type: array, items: { $ref: '#/components/schemas/CompanyFact' } }
         updatedAt: { type: [string, 'null'], format: date-time }
 
@@ -7231,6 +7242,21 @@ components:
             sizeRange: { type: [string, 'null'], enum: ['1', '2-10', '11-50', '51-200', '201-1000', '1000+', null] }
             foundedYear: { type: [integer, 'null'], minimum: 1800, maximum: 2100 }
             logoMediaId: { type: [string, 'null'], description: An image the caller uploaded via POST /media }
+            competitors: { type: array, maxItems: 12, items: { type: string, maxLength: 500 } }
+            challenges: { type: array, maxItems: 12, items: { type: string, maxLength: 500 } }
+            terms: { type: array, maxItems: 12, items: { type: string, maxLength: 500 } }
+            avoid: { type: array, maxItems: 12, items: { type: string, maxLength: 500 } }
+            entityType: { type: [string, 'null'], enum: [sole_proprietorship, partnership, llc, corporation, s_corporation, nonprofit, cooperative, other, null] }
+            revenueRange: { type: [string, 'null'], enum: [under_100k, 100k_500k, 500k_1m, 1m_5m, 5m_20m, 20m_100m, 100m_plus, null] }
+            businessModel: { type: [string, 'null'], enum: [b2b, b2c, b2b2c, b2g, d2c, marketplace, null] }
+            pricingModel: { type: [string, 'null'], enum: [fixed, hourly, retainer, subscription, usage, commission, mixed, null] }
+            mission: { type: [string, 'null'], maxLength: 1000 }
+            vision: { type: [string, 'null'], maxLength: 1000 }
+            valueProposition: { type: [string, 'null'], maxLength: 1000 }
+            idealCustomer: { type: [string, 'null'], maxLength: 1000 }
+            email: { type: [string, 'null'], maxLength: 254 }
+            phone: { type: [string, 'null'], maxLength: 40 }
+            hours: { type: [string, 'null'], maxLength: 200 }
 
     EmailConnection:
       type: object

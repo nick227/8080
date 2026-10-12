@@ -7,7 +7,10 @@ export type ProfileChanges = UpdateCompanyProfileInput['changes']
 export type FactKind = CompanyProfile['facts'][number]['kind']
 
 /** The list fields the page edits, by the fact kind they store. */
-export const LIST_KIND = { offerings: 'offering', customers: 'customer', differentiators: 'differentiator', goals: 'goal', links: 'link' } as const
+export const LIST_KIND = {
+  offerings: 'offering', customers: 'customer', differentiators: 'differentiator', goals: 'goal', links: 'link',
+  competitors: 'competitor', challenges: 'challenge', terms: 'term', avoid: 'avoid',
+} as const
 export type ListField = keyof typeof LIST_KIND
 
 /**

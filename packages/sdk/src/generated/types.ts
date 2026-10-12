@@ -4729,7 +4729,7 @@ export interface components {
         CompanyFact: {
             id: string;
             /** @enum {string} */
-            kind: "offering" | "customer" | "differentiator" | "goal" | "term" | "avoid" | "link";
+            kind: "offering" | "customer" | "differentiator" | "goal" | "term" | "avoid" | "link" | "competitor" | "challenge";
             value: string;
             /**
              * @description inferred = drafted by a model; stated = a person said it; corrected = a person fixed it
@@ -4756,6 +4756,21 @@ export interface components {
             sizeRange: "1" | "2-10" | "11-50" | "51-200" | "201-1000" | "1000+" | null;
             foundedYear: number | null;
             logoUrl: string | null;
+            /** @enum {string|null} */
+            entityType: "sole_proprietorship" | "partnership" | "llc" | "corporation" | "s_corporation" | "nonprofit" | "cooperative" | "other" | null;
+            /** @enum {string|null} */
+            revenueRange: "under_100k" | "100k_500k" | "500k_1m" | "1m_5m" | "5m_20m" | "20m_100m" | "100m_plus" | null;
+            /** @enum {string|null} */
+            businessModel: "b2b" | "b2c" | "b2b2c" | "b2g" | "d2c" | "marketplace" | null;
+            /** @enum {string|null} */
+            pricingModel: "fixed" | "hourly" | "retainer" | "subscription" | "usage" | "commission" | "mixed" | null;
+            mission: string | null;
+            vision: string | null;
+            valueProposition: string | null;
+            idealCustomer: string | null;
+            email: string | null;
+            phone: string | null;
+            hours: string | null;
             facts: components["schemas"]["CompanyFact"][];
             /** Format: date-time */
             updatedAt: string | null;
@@ -4785,6 +4800,25 @@ export interface components {
                 foundedYear?: number | null;
                 /** @description An image the caller uploaded via POST /media */
                 logoMediaId?: string | null;
+                competitors?: string[];
+                challenges?: string[];
+                terms?: string[];
+                avoid?: string[];
+                /** @enum {string|null} */
+                entityType?: "sole_proprietorship" | "partnership" | "llc" | "corporation" | "s_corporation" | "nonprofit" | "cooperative" | "other" | null;
+                /** @enum {string|null} */
+                revenueRange?: "under_100k" | "100k_500k" | "500k_1m" | "1m_5m" | "5m_20m" | "20m_100m" | "100m_plus" | null;
+                /** @enum {string|null} */
+                businessModel?: "b2b" | "b2c" | "b2b2c" | "b2g" | "d2c" | "marketplace" | null;
+                /** @enum {string|null} */
+                pricingModel?: "fixed" | "hourly" | "retainer" | "subscription" | "usage" | "commission" | "mixed" | null;
+                mission?: string | null;
+                vision?: string | null;
+                valueProposition?: string | null;
+                idealCustomer?: string | null;
+                email?: string | null;
+                phone?: string | null;
+                hours?: string | null;
             };
         };
         EmailConnection: {

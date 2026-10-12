@@ -104,6 +104,31 @@ describe('Edit company profile: ordinary fields', () => {
     expect(cleared.json().data).toMatchObject({ foundedYear: null, logoUrl: null })
   })
 
+  it('company file: identity, strategy, market and contact fields', async () => {
+    const { ws } = await setup()
+    const { revision } = await profiles.current(ws.id)
+    const res = await edit(testUserId, ws.id, {
+      expectedRevision: revision,
+      changes: {
+        entityType: 'llc', revenueRange: '1m_5m', businessModel: 'b2b', pricingModel: 'retainer',
+        mission: 'Make small teams look as good as they work.', vision: 'The studio independents call first.',
+        valueProposition: 'Senior design at a fixed monthly price.', idealCustomer: 'Owner-led shops with 5–50 staff.',
+        email: 'hello@midnight.example', phone: '+1 (512) 555-0100', hours: 'Mon–Fri 9–5 CT',
+        competitors: ['Big Agency Co'], challenges: ['Hiring senior designers'], terms: ['studio'], avoid: ['cheap'],
+      },
+    })
+    expect(res.statusCode).toBe(200)
+    await validateResponse('updateCompanyProfile', 200, res.json())
+    const p = res.json().data
+    expect(p).toMatchObject({ entityType: 'llc', revenueRange: '1m_5m', businessModel: 'b2b', pricingModel: 'retainer', email: 'hello@midnight.example', phone: '+1 (512) 555-0100', hours: 'Mon–Fri 9–5 CT' })
+    const kinds = (kind: string) => p.facts.filter((f: { kind: string }) => f.kind === kind).map((f: { value: string }) => f.value)
+    expect([kinds('competitor'), kinds('challenge'), kinds('term'), kinds('avoid')]).toEqual([['Big Agency Co'], ['Hiring senior designers'], ['studio'], ['cheap']])
+    const code = async (changes: object) => (await edit(testUserId, ws.id, { expectedRevision: p.revision, changes })).json().code
+    expect(await code({ email: 'not-an-email' })).toBe('INVALID_PROFILE')
+    expect(await code({ phone: 'call me' })).toBe('INVALID_PROFILE')
+    expect(await code({ entityType: 'empire' })).toBe('VALIDATION')
+  })
+
   it('page details are validated', async () => {
     const { ws } = await setup()
     const { revision } = await profiles.current(ws.id)
