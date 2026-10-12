@@ -20,7 +20,7 @@ export function DocumentsHeader() {
         value={doc.title}
         onChange={(event) => change(doc.id, (current) => ({ ...current, title: event.target.value }))}
       />
-      <DocMenu onDelete={() => remove(doc.id)} />
+      <DocMenu onDelete={() => void remove(doc.id).catch(() => {})} />
     </div>
   )
 }

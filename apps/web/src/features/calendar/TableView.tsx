@@ -116,16 +116,6 @@ export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { 
   const selectionSet = useMemo(() => new Set(selection), [selection])
   const points = tasks.reduce((n, t) => n + (t.storyPoints ?? 0), 0)
 
-  if (!tasks.length) {
-    return (
-      <div className="cal-table-view">
-        <p className="cal-board-note" role="status">
-          {filtersOn ? <>No tasks match these filters. <button type="button" className="cal-link-btn" onClick={onClearFilters}>Clear filters</button></> : 'No tasks yet. Press C or use + New to add one.'}
-        </p>
-      </div>
-    )
-  }
-
   return (
     <div className="cal-table-view" role="region" aria-label="Task table">
       <div className="collection-bar cal-table-bar" role="toolbar" aria-label="Task table controls">
@@ -168,6 +158,9 @@ export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { 
         onOpen={onSelectTask}
         tableClass="cal-table"
         groupBy={group === 'none' ? undefined : (t) => groupOf(t, group, workflow)}
+        empty={filtersOn ? (
+          <>No tasks match these filters. <button type="button" className="cal-link-btn" onClick={onClearFilters}>Clear filters</button></>
+        ) : 'No tasks yet. Press C or use + New to add one.'}
         useRow={useRowCtx}
         rowProps={(t) => ({ 'data-pending': t.pending ? '' : undefined, 'data-done': workflow.isDone(t.status) ? '' : undefined, 'aria-label': `${t.taskKey} ${t.title}` })}
         selection={{
@@ -184,7 +177,6 @@ export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { 
           if (e.key === 'F2') { (ctx as RowCtx).setEditing(true); return true }
           return !t.pending && !e.metaKey && !e.ctrlKey && !e.altKey && taskShortcut(e, t.id, e.currentTarget, team, meId, () => toggleSelect(t.id))
         }}
-        empty="No tasks with this status."
       />
     </div>
   )

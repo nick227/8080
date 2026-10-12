@@ -16,6 +16,8 @@ export type BlueprintBudgetItem = {
 }
 export type Blueprint = {
   slug: string; type: string; title: string; subtitle: string; description: string; image: string; accent: string; specialization: string;
+  /** Plain-language page copy: one-sentence summary and three "how it works" points. */
+  brief: { summary: string; how: [string, string, string] };
   intro: string; principle: string; tradeoff: string; offer: string; acquisition: string; people: Person[]; projects: Project[]; tasks: Task[];
   scenarios: Record<Horizon, { label: string; summary: string; capacity: string; budget: BlueprintBudgetItem[] }>
 }
@@ -53,6 +55,10 @@ export const blueprints: Blueprint[] = [
     accent: '#b77b46',
     specialization: 'Independent professional services & consulting',
     description: 'An independent practitioner balances business development, client delivery, invoicing, and operational administration with external bookkeeping support.',
+    brief: {
+      summary: 'One consultant runs an advisory practice with a part-time bookkeeper: two clients at a time, about 38 hours a week.',
+      how: ['Monday to Thursday is client work. Friday morning is invoices, books and follow-ups.', 'Every client starts with a paid discovery session, then a fixed-price project or a monthly retainer.', 'About 10 hours a week stay set aside for finding the next clients.'],
+    },
     intro: 'Independent service practices frequently struggle with revenue volatility caused by alternating between heads-down delivery and frantic business development. This 90-day starter operational blueprint establishes a repeatable operating cadence that integrates client qualification, milestone delivery, weekly billing, and cashflow oversight into a sustainable 38-hour work week.',
     principle: 'The practice operates on a protected four-day client delivery schedule with Friday mornings reserved for invoicing, account reconciliation, and pipeline follow-ups. Client engagements are structured around clearly defined milestones rather than open-ended hourly billing, enabling the operator to manage two concurrent client deliverables without compromising quality or turnaround time.',
     offer: 'The core service offering consists of fixed-scope strategic advisory projects and ongoing monthly retainer agreements. Every client engagement begins with a paid diagnostic discovery deliverable that establishes baseline requirements, followed by structured implementation phases producing tangible documentation, architectural roadmaps, and executive reviews.',
@@ -124,6 +130,10 @@ export const blueprints: Blueprint[] = [
     accent: '#658371',
     specialization: 'Commercial facilities & property operations',
     description: 'A four-person service team coordinates field dispatch, service execution, photo quality audits, customer billing, and equipment maintenance.',
+    brief: {
+      summary: 'Four people maintain commercial buildings on recurring contracts: a dispatcher, a field lead, a technician and a part-time office manager.',
+      how: ['The office confirms site access 48 hours before each visit, and routes keep 25% spare time for delays.', 'Technicians follow a written checklist, photograph the work and get the customer\'s sign-off on site.', 'Every finished job is invoiced within 24 hours.'],
+    },
     intro: 'Multi-person service firms encounter operational failure when field handoffs are ambiguous, daily dispatch routes lack travel buffers, or client billing lags behind completed field work. This 90-day starter operational blueprint establishes clear separation between office dispatch, on-site technical execution, and billing administration, supporting profitable commercial property contracts with documented proof of service.',
     principle: 'The service workflow adheres to a strict three-phase standard: office coordination confirms job scope, site access codes, and safety requirements 48 hours prior to dispatch; field technicians perform maintenance according to written site checklists and record timestamped photo logs; and office administration reviews completion notes and issues customer invoices within 24 hours of job completion.',
     offer: 'The firm provides recurring commercial facility maintenance agreements, seasonal property turnovers, and scheduled mechanical inspections. Every commercial service contract specifies included tasks, service frequencies, guaranteed arrival windows, and consumable supply allowances, with digital completion reports delivered directly to commercial property managers.',
@@ -198,6 +208,10 @@ export const blueprints: Blueprint[] = [
     accent: '#758aa7',
     specialization: 'Digital product design & technology consultancy',
     description: 'A five-person studio manages client pipelines, staged milestone sprints, design system delivery, and commercial project governance.',
+    brief: {
+      summary: 'Five people run a design studio with two client projects at a time, in two-week sprints.',
+      how: ['Each sprint starts with written acceptance criteria and ends with a client demo.', 'One client sponsor sends combined feedback within three business days.', 'Nobody works on more than two projects. New clients wait for a free slot.'],
+    },
     intro: 'Design and technical consultancies suffer margin collapse when project scope creeps without adjustment, client review rounds drag on without decisions, or producers over-commit studio capacity. This 90-day starter operational blueprint establishes structured sprint checkpoints, formal acceptance gates, consolidated stakeholder feedback cycles, and rigorous milestone invoicing to keep delivery profitable, predictable, and calm.',
     principle: 'The studio runs two concurrent delivery tracks structured in two-week milestone sprints. Each sprint begins with an agreed brief and measurable acceptance criteria, followed by mid-sprint design reviews and formal milestone presentations. Feedback must be consolidated by a designated client executive sponsor within three business days, preventing contradictory stakeholder requests and production bottlenecks.',
     offer: 'The studio delivers scoped digital product design, multi-platform design systems, and interactive application prototypes. Commercial engagements are defined by written technical specifications rather than open-ended time allowances, with explicit boundaries covering revision cycles, production asset packaging, and post-launch technical warranty support.',

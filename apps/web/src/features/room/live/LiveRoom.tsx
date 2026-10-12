@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { RoomContext, useRemoteParticipants } from '@livekit/components-react'
 import { Room, RoomEvent, Track, type LocalTrackPublication } from 'livekit-client'
-import { useLiveToken } from '@project/sdk'
+import { useLiveToken, useMyEntitlements } from '@project/sdk'
 import { useLocalLive } from './localLive'
 
 // One LiveKit connection per room page, shared by every tile and view (Grid,
@@ -9,7 +9,8 @@ import { useLocalLive } from './localLive'
 // The app's room authorization decides through the token (GET /rooms/:id/live-token);
 // without one (no live video configured, or no access) the room works as before.
 export function LiveRoom({ roomId, children }: { roomId: string | undefined; children: ReactNode }) {
-  const token = useLiveToken(roomId)
+  const access = useMyEntitlements(!!roomId)
+  const token = useLiveToken(access.data?.liveAvailable ? roomId : undefined)
   const [room] = useState(() => new Room({ adaptiveStream: true, dynacast: true }))
   const data = token.data
   const ready = !!data

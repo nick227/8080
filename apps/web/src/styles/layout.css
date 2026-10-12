@@ -29,7 +29,7 @@
 }
 
 /* Width includes padding. A container never exceeds its parent. */
-.layout-page, .lobby-body, .explorer {
+.layout-page, .explorer {
   width: 100%;
   max-width: var(--layout-page-width, var(--content-width-standard));
   margin-inline: auto;

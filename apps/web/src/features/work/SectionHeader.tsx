@@ -30,7 +30,7 @@ export function SectionHeader({
   const Heading = level === 1 ? 'h1' : 'h2'
   return (
     <div className="section-header">
-      {collection ? <CollectionSwitcher current={collection} level={level} id={titleId} /> : <Heading id={titleId}>{title}</Heading>}
+      {collection ? <CollectionSwitcher current={collection} level={level} id={titleId} /> : <Heading className="collection-title" id={titleId}>{title}</Heading>}
       {count != null && <span className="section-count">{count}</span>}
       {onNew && (
         <button

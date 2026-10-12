@@ -23,7 +23,6 @@ export function CollectionToolbar({
   layout,
   counts,
   selectedCount,
-  matchingTotal,
   onFilter,
   onFilters,
   onLayout,
@@ -59,7 +58,6 @@ export function CollectionToolbar({
     archived: number
   }
   selectedCount: number
-  matchingTotal?: number
   onFilter: (key: string, value: string) => void
   onFilters: (patch: Record<string, string>) => void
   onLayout: (layout: CollectionLayout) => void
@@ -163,38 +161,33 @@ export function CollectionToolbar({
     </>
   )
 
+  // The selection's own actions; RecordsExperience puts them in the shared SelectionBar.
   const bulkPart = selectedCount > 0 ? (
-    <div className="record-bulk" role="toolbar" aria-label="Bulk actions">
-      <span>
-        {selectedCount} selected
-        {typeof matchingTotal === 'number' ? ` of ${matchingTotal} matching` : ''}
-      </span>
-      {archived ? (
-        <button onClick={() => onBulk('restore')}>Restore</button>
-      ) : (
-        <>
-          <button onClick={() => onBulk('archive')}>Archive</button>
-          {kind === 'contacts' ? (
-            <select
-              aria-label="Set stage for selected"
-              defaultValue=""
-              onChange={(e) => {
-                if (e.target.value) onBulk('setStage', { leadStatus: e.target.value })
-                e.target.value = ''
-              }}
-            >
-              <option value="">Set stage…</option>
-              {stages.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-            </select>
-          ) : (
-            <>
-              <button onClick={() => onBulk('setAvailability', { availability: true })}>Mark offered</button>
-              <button onClick={() => onBulk('setAvailability', { availability: false })}>Mark paused</button>
-            </>
-          )}
-        </>
-      )}
-    </div>
+    archived ? (
+      <button type="button" className="collection-bulk-btn" onClick={() => onBulk('restore')}>Restore</button>
+    ) : (
+      <>
+        <button type="button" className="collection-bulk-btn" onClick={() => onBulk('archive')}>Archive</button>
+        {kind === 'contacts' ? (
+          <select
+            aria-label="Set stage for selected"
+            defaultValue=""
+            onChange={(e) => {
+              if (e.target.value) onBulk('setStage', { leadStatus: e.target.value })
+              e.target.value = ''
+            }}
+          >
+            <option value="">Set stage…</option>
+            {stages.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+          </select>
+        ) : (
+          <>
+            <button type="button" className="collection-bulk-btn" onClick={() => onBulk('setAvailability', { availability: true })}>Mark offered</button>
+            <button type="button" className="collection-bulk-btn" onClick={() => onBulk('setAvailability', { availability: false })}>Mark paused</button>
+          </>
+        )}
+      </>
+    )
   ) : null
 
   if (part === 'filters') return <div className="record-sort-row">{filtersPart}</div>

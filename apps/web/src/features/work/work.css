@@ -69,7 +69,7 @@
 .work-nav-company:hover .work-nav-company-name,
 .work-nav-company:focus-visible .work-nav-company-name { text-decoration: underline; text-underline-offset: 3px; }
 .work-nav-lists { padding-left: var(--space-sm); border-left: var(--line-width) solid var(--line); }
-.work-nav-stream { padding-left: var(--space-sm); border-left: var(--line-width) solid var(--line); }
+
 /* Narrow screens: keep the company name short. */
 @media (max-width: 760px) {
   .work-nav-company-name { max-width: 12ch; }

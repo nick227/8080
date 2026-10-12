@@ -11,6 +11,8 @@ import {
   keys,
   useBulkUpdateContacts,
   useBulkUpdateInventory,
+  useDeleteContact,
+  useDeleteInventoryItem,
   useContact,
   useContactCounts,
   useContacts,
@@ -27,6 +29,7 @@ import { useCreateCompany, useCurrentWorkspace } from '../documents/workspace'
 import { Composer } from '../compose/Composer'
 import { CollectionBar, CollectionHeader } from '../collections/CollectionView'
 import { useUrlSearch } from '../collections/table'
+import { BulkMessage, SelectionBar, useBulkDelete, useEscapeClears } from '../collections/selection'
 import {
   RecordPreviewPanel,
   RecordStepper,
@@ -73,6 +76,7 @@ export function RecordsExperience({ kind }: { kind: RecordKind }) {
       kind={kind}
       workspaceId={workspace.id}
       currency={workspace.defaultCurrency || 'USD'}
+      admin={workspace.role === 'owner' || workspace.role === 'admin'}
     />
   )
 }
@@ -81,10 +85,13 @@ function RecordWorkspace({
   kind,
   workspaceId,
   currency,
+  admin,
 }: {
   kind: RecordKind
   workspaceId: string
   currency: string
+  /** Inventory deletes are admin-only; contacts also let their owner delete (the server decides). */
+  admin: boolean
 }) {
   const nav = useRecordNavigation(kind)
   const container = useRef<HTMLDivElement>(null)
@@ -172,6 +179,17 @@ function RecordWorkspace({
   const total = list.data?.pages[0]?.meta.total
   const [selected, setSelected] = useState<string[]>([])
   const [bulkError, setBulkError] = useState('')
+  const clearSelection = useCallback(() => setSelected([]), [])
+  useEscapeClears(selected.length > 0, clearSelection)
+  const deleteContact = useDeleteContact(workspaceId)
+  const deleteInventory = useDeleteInventoryItem(workspaceId)
+  const canDelete = kind === 'contacts' || admin
+  const removal = useBulkDelete({
+    noun: kind === 'contacts' ? { one: 'contact', many: 'contacts' } : { one: 'item', many: 'items' },
+    remove: (id) => (kind === 'contacts' ? deleteContact : deleteInventory).mutateAsync(id),
+    warning: kind === 'contacts' ? 'This can’t be undone.' : 'This can’t be undone; archive keeps its history instead.',
+    done: (ids) => setSelected((current) => current.filter((id) => !ids.includes(id))),
+  })
   const [layout, setLayout] = useState<CollectionLayout>(() => loadLayout(workspaceId, kind))
   useEffect(() => {
     setLayout(loadLayout(workspaceId, kind))
@@ -220,6 +238,7 @@ function RecordWorkspace({
     onOpen: (id) => nav.open(id, context(id)),
     onPreview: (id, name) => nav.preview({ kind: 'inventory', id, name }, context(id)),
     onSort: (next) => filters({ sort: next, dir: next === sort && dir === 'asc' ? 'desc' : 'asc' }),
+    onDelete: admin ? (id, name) => void removal.run([id], name) : undefined,
   })
   const toolbar = (part: 'filters' | 'view' | 'bulk') => (
     <CollectionToolbar
@@ -238,7 +257,6 @@ function RecordWorkspace({
               layout={layout}
               counts={counts}
               selectedCount={selected.length}
-              matchingTotal={typeof total === 'number' ? total : undefined}
               onFilter={filter}
               onFilters={filters}
               onLayout={chooseLayout}
@@ -478,29 +496,7 @@ function RecordWorkspace({
           }
         }}
       >
-        {importing ? (
-          <RecordImportFlow page={{ backLabel: kind === 'contacts' ? 'Contacts' : 'Inventory' }} kind={kind} workspaceId={workspaceId} onClose={() => setImporting(false)} />
-        ) : adding ? (
-          <RecordForm
-            page={{ backLabel: kind === 'contacts' ? 'Contacts' : 'Inventory' }}
-            kind={kind}
-            workspaceId={workspaceId}
-            currency={currency}
-            onClose={() => setAdding(false)}
-            onSaved={(id) => {
-              // One navigation: leave the create page and open the new record in its place.
-              const next = new URLSearchParams(location.search)
-              next.delete('new'); next.delete('preview'); next.delete('previewKind')
-              next.set('record', id)
-              navigate({ search: next.toString() }, { replace: true, state: location.state })
-            }}
-            onOpenRecord={(target, id) => {
-              setAdding(false)
-              if (target === kind) nav.open(id)
-              else nav.expand({ kind: target, id, name: titleCase(target) }, fullName)
-            }}
-          />
-        ) : nav.recordId ? (
+        {nav.recordId ? (
           <>
             {/* The edit page has its own way back; search and record stepping belong to viewing. */}
             {nav.params.get('edit') !== '1' && (
@@ -551,8 +547,12 @@ function RecordWorkspace({
               filters={toolbar('filters')}
               view={<>{toolbar('view')}{kind === 'inventory' && layout === 'list' && <InventoryColumns table={inventoryTable} />}</>}
             />
-            {toolbar('bulk')}
-            {kind === 'contacts' && selected.length > 0 && <button type="button" className="agents-button" onClick={() => navigate({ search: new URLSearchParams({ desk: 'agents', add: '1', contactIds: selected.join(',') }).toString() })}>New automation for {selected.length} selected {selected.length === 1 ? 'contact' : 'contacts'}</button>}
+            <SelectionBar count={selected.length} onClear={clearSelection} busy={removal.busy}
+              onDelete={canDelete ? () => void removal.run(selected) : undefined}>
+              {toolbar('bulk')}
+              {kind === 'contacts' && <button type="button" className="collection-bulk-btn" onClick={() => navigate({ search: new URLSearchParams({ desk: 'agents', add: '1', contactIds: selected.join(',') }).toString() })}>New automation</button>}
+            </SelectionBar>
+            <BulkMessage result={removal.result} onDismiss={removal.dismiss} />
             {kind === 'contacts' && nav.params.get('audience') && <div className="audience-chips"><span>{audienceSummary}</span><button type="button" onClick={() => nav.setFilter('audience', '')}>Clear audience</button></div>}
             {kind === 'contacts' && <ContactUndoBar workspaceId={workspaceId} undo={undo} onDismiss={() => setUndo(null)} />}
             {bulkError && (
@@ -606,7 +606,8 @@ function RecordWorkspace({
                 sort={sort} dir={dir} onSort={next => filters({ sort: next, dir: next === sort && dir === 'asc' ? 'desc' : 'asc' })}
                 onSelect={setSelected} onToggle={id => setSelected(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id])}
                 href={nav.href} onOpen={id => nav.open(id, context(id))} previewId={nav.previewId}
-                onPreview={(id, name) => nav.preview({ kind, id, name }, context(id))} />
+                onPreview={(id, name) => nav.preview({ kind, id, name }, context(id))}
+                onDelete={(id, name) => void removal.run([id], name)} />
             ) : kind === 'inventory' && layout === 'list' ? (
               <InventoryTable table={inventoryTable} workspaceId={workspaceId} currency={currency} records={records as InventoryItem[]} selected={selected}
                 sort={sort} dir={dir} onSort={next => filters({ sort: next, dir: next === sort && dir === 'asc' ? 'desc' : 'asc' })}
@@ -708,6 +709,40 @@ function RecordWorkspace({
           />
         </RecordPreviewPanel>
       )}
+      {adding && (
+        <RecordForm
+          kind={kind}
+          workspaceId={workspaceId}
+          currency={currency}
+          onClose={() => setAdding(false)}
+          onSaved={(id) => {
+            const next = new URLSearchParams(location.search)
+            next.delete('new')
+            next.delete('preview')
+            next.delete('previewKind')
+            next.set('record', id)
+            navigate({ search: next.toString() }, { replace: true, state: location.state })
+          }}
+          onOpenRecord={(target, id) => {
+            setAdding(false)
+            if (target === kind) nav.open(id)
+            else nav.expand({ kind: target, id, name: titleCase(target) }, fullName)
+          }}
+        />
+      )}
+      {importing && (
+        <RecordImportFlow
+          kind={kind}
+          workspaceId={workspaceId}
+          onClose={() => {
+            setImporting(false)
+            const next = new URLSearchParams(location.search)
+            next.delete('import')
+            navigate({ search: next.toString() }, { replace: true, state: location.state })
+          }}
+        />
+      )}
+
       {messageId && (
         <RecordFormDialog title="Message contact" onClose={() => setMessageId(null)}>
           <Composer

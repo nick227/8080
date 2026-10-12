@@ -66,7 +66,7 @@ export function WorkNav({ desk, onSelect, layoutControl, streamLabel = 'Team', c
             aria-label={`Lists: open ${COLLECTIONS.find((c) => c.id === lastList())?.label}`}
             onClick={() => onSelect(isCollection(desk) ? desk : lastList())}
           >
-            Lists
+            Work
           </button>
           {item('board')}
           {item('calendar')}

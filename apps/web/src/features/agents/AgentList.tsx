@@ -1,9 +1,11 @@
+import { WorkspaceLoading } from '../work/WorkspaceTransition'
 import { useMemo, useState, type ReactNode } from 'react'
-import { useAgents, type Agent } from '@project/sdk'
+import { useAgents, useDeleteAgentById, type Agent } from '@project/sdk'
 import { CollectionView } from '../collections/CollectionView'
 import { ColumnsMenu, FilterChips } from '../collections/ColumnsMenu'
 import { DataTable } from '../collections/DataTable'
 import { matches, useTableState, useUrlSearch, type Column } from '../collections/table'
+import { BulkMessage, SelectionBar, deleteColumn, useBulkDelete, useSelection } from '../collections/selection'
 import { destinationsLine, scheduleLine, when } from './format'
 
 const STATUS: Record<string, string> = { active: 'Active', paused: 'Paused', draft: 'Draft', archived: 'Archived' }
@@ -16,18 +18,26 @@ const attentionOf = (a: Agent) => [
 ].filter(Boolean).join(' · ')
 
 /** Automations as a shared collection (redesign D9): same frame and table as every list. */
-export function AgentList({ workspaceId, timeZone, canManage, onOpen, onAdd, activity }: {
+export function AgentList({ workspaceId, timeZone, canManage, onOpen, onAdd, onImport, activity }: {
   workspaceId: string
   timeZone: string
   canManage: boolean
   onOpen: (agentId: string) => void
   onAdd: () => void
+  onImport?: () => void
   /** Recent run history, shown under the list. */
   activity?: ReactNode
 }) {
   const agents = useAgents(workspaceId)
   const search = useUrlSearch()
   const [show, setShow] = useState<Show>('all')
+  const deleteAgent = useDeleteAgentById(workspaceId)
+  const removal = useBulkDelete({
+    noun: { one: 'automation', many: 'automations' },
+    remove: deleteAgent.mutateAsync,
+    warning: 'Drafts that never ran are deleted; the rest are archived and keep their history.',
+  })
+  const runRemoval = removal.run
   const columns = useMemo<Column<Agent>[]>(() => [
     { id: 'name', header: 'Name', width: '22%', cell: (a) => a.name, sortValue: (a) => a.name, title: (a) => a.name, hideable: false },
     { id: 'type', header: 'Type', cell: (a) => FAMILY_LABEL[a.family] ?? a.family, sortValue: (a) => FAMILY_LABEL[a.family] ?? a.family },
@@ -38,7 +48,8 @@ export function AgentList({ workspaceId, timeZone, canManage, onOpen, onAdd, act
     { id: 'attention', header: 'Attention', cell: (a) => { const t = attentionOf(a); return t ? <span className="agents-status-bad">{t}</span> : '—' }, title: (a) => attentionOf(a) || undefined },
     { id: 'sender', header: 'Sender', defaultHidden: true, cell: (a) => a.sender.label, sortValue: (a) => a.sender.label, title: (a) => a.sender.label },
     { id: 'channel', header: 'Channel', defaultHidden: true, cell: (a) => destinationsLine(a.destinations.filter((d) => d !== 'internal_chat')) || '—' },
-  ], [timeZone])
+    ...(canManage ? [deleteColumn<Agent>({ name: (a) => a.name, onDelete: (a) => void runRemoval([a.id], a.name) })] : []),
+  ], [timeZone, canManage, runRemoval])
   const table = useTableState('agents', columns, { id: 'name', dir: 1 })
 
   const all = agents.data ?? []
@@ -53,12 +64,14 @@ export function AgentList({ workspaceId, timeZone, canManage, onOpen, onAdd, act
     (show === 'all' || (show === 'attention' ? !!attentionOf(a) : a.status === show)) &&
     matches(search.q, a.name, FAMILY_LABEL[a.family], a.sender.label, scheduleLine(a.schedule)),
   ))
+  const selection = useSelection(useMemo(() => rows.map((a) => a.id), [rows]))
 
   return (
     <CollectionView
       collection="agents"
       count={all.length}
       onNew={canManage ? onAdd : undefined}
+      onImport={canManage ? onImport : undefined}
       search={{ value: search.value, onChange: search.setValue, placeholder: 'Search automations…' }}
       filters={<FilterChips label="Show" value={show} onChange={setShow} options={[
         { id: 'all', label: 'All', count: counts.all },
@@ -68,9 +81,9 @@ export function AgentList({ workspaceId, timeZone, canManage, onOpen, onAdd, act
         { id: 'attention', label: 'Needs attention', count: counts.attention },
       ]} />}
       view={<ColumnsMenu state={table} />}
-      subtitle="Scheduled team briefs, reports and emails."
+      notice={<BulkMessage result={removal.result} onDismiss={removal.dismiss} />}
     >
-      {agents.isLoading ? <p className="collection-note" role="status">Loading automations…</p>
+      {agents.isLoading ? <WorkspaceLoading label="Loading automations…" />
         : agents.isError ? <p className="collection-note" role="alert">Couldn’t load automations.</p>
           : (
             <DataTable
@@ -79,10 +92,12 @@ export function AgentList({ workspaceId, timeZone, canManage, onOpen, onAdd, act
               getId={(a) => a.id}
               state={table}
               onOpen={(a) => onOpen(a.id)}
+              selection={canManage ? { selected: selection.selected, onChange: selection.set } : undefined}
               empty={all.length === 0 ? (canManage ? 'No automations yet. Start one with + New automation.' : 'No automations yet.') : 'No automations match.'}
             />
           )}
       {activity}
+      <SelectionBar count={selection.selected.size} onClear={selection.clear} busy={removal.busy} onDelete={() => void removal.run(selection.ids)} />
     </CollectionView>
   )
 }

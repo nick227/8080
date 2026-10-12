@@ -1,3 +1,4 @@
+import { watchAccountStream } from '../services/authorization/accountStreams'
 // Calendar / Boards tasks, logged work and board settings.
 import { workspaceCtx as ctx } from '../lib/session'
 import { TaskService } from '../services/TaskService'
@@ -148,6 +149,7 @@ export async function streamTasks(request: any, reply: any) {
   const { workspaceId } = request.params
   await authorize(request.user.id, workspaceId, 'task.read')
   const lastEventId = (request.headers['last-event-id'] as string | undefined) ?? (request.query?.after as string | undefined) ?? null
+  watchAccountStream(request.user.id, request.raw)
   reply.hijack()
   reply.raw.writeHead(200, {
     ...reply.getHeaders(),

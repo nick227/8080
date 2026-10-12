@@ -1,6 +1,6 @@
 import { useLayoutEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useLogout, useSession } from '@project/sdk'
+import { Link, useNavigate } from 'react-router-dom'
+import { useLogout, useSession, useAdminSession } from '@project/sdk'
 import { SEO } from '../components/SEO'
 import { AccountIdentity, CompanyList, GuestAuth, useSaveName } from '../features/AccountSheet'
 import { useShell } from '../state/shell'
@@ -10,6 +10,7 @@ import '../features/room/room.css'
 // are, your companies, sign-out. Company roles and work live in each company's Team.
 export function Account() {
   const user = useSession().data?.data
+  const staff = useAdminSession(!!user && !user.isGuest)
   const navigate = useNavigate()
   const logout = useLogout()
   const saveName = useSaveName()
@@ -51,6 +52,7 @@ export function Account() {
             <section aria-label="Companies">
               <CompanyList onOpen={(id) => navigate(`/c/${id}`)} />
             </section>
+            {staff.data && <section aria-label="Administration"><Link to="/admin">Manage platform users →</Link></section>}
             <section aria-label="Session">
               <button type="button" className="account-text" onClick={() => void logout.mutateAsync().then(() => navigate('/'))}>
                 Sign out

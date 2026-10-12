@@ -6,7 +6,7 @@
   flex-direction: column;
   background: var(--surface-deep, #0e0f12);
   color: var(--ink, #f3f4f6);
-  padding: 0 var(--space-sm);
+  padding: var(--space-sm);
   overflow: auto;
 }
 

@@ -1,3 +1,4 @@
+import { watchAccountStream } from '../services/authorization/accountStreams'
 import { workspaceCtx } from '../lib/session'
 import { DocumentService } from '../services/DocumentService'
 import { DocumentDatasetService } from '../services/DocumentDatasetService'
@@ -50,6 +51,7 @@ export async function setDocumentPresence(r: any) {
 export async function streamDocumentEvents(request: any, reply: any) {
   const { workspaceId, documentId } = request.params
   const me = await contents.streamAccess(request.user.id, workspaceId, documentId)
+  watchAccountStream(request.user.id, request.raw)
   reply.hijack()
   reply.raw.writeHead(200, {
     ...reply.getHeaders(), 'content-type': 'text/event-stream; charset=utf-8',

@@ -87,6 +87,11 @@ export function useDeleteAgent(workspaceId: string, agentId: string) {
   return useAgentsMutation(workspaceId, async () => unwrap(await getApiClient().DELETE('/workspaces/{workspaceId}/agents/{agentId}', one(workspaceId, agentId))).data)
 }
 
+/** Delete by id (collection tables): a draft with no history goes, anything else is archived. */
+export function useDeleteAgentById(workspaceId: string) {
+  return useAgentsMutation(workspaceId, async (agentId: string) => unwrap(await getApiClient().DELETE('/workspaces/{workspaceId}/agents/{agentId}', one(workspaceId, agentId))).data)
+}
+
 export function useSendAgentTest(workspaceId: string, agentId: string) {
   return useMutation({
     mutationFn: async () => unwrap(await getApiClient().POST('/workspaces/{workspaceId}/agents/{agentId}/test', one(workspaceId, agentId))).data,

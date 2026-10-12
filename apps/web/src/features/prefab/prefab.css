@@ -1,0 +1,226 @@
+.prefab-picker-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.prefab-pack-select-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+}
+
+.prefab-pack-select-bar label {
+  font-size: 0.85rem;
+  color: var(--text-muted, #888);
+  font-weight: 500;
+}
+
+.prefab-pack-select {
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-surface-2, rgba(255, 255, 255, 0.06));
+  color: var(--text-main, #fff);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.15));
+  font-size: 0.9rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.prefab-pack-meta {
+  font-size: 0.85rem;
+  color: var(--text-muted, #aaa);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.prefab-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.prefab-badge.public-domain,
+.prefab-badge.open-government {
+  background: rgba(59, 130, 246, 0.18);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.prefab-badge.editorial {
+  background: rgba(168, 85, 247, 0.18);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.prefab-preview-table-wrap {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-surface-1, rgba(0, 0, 0, 0.2));
+}
+
+.prefab-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.prefab-preview-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-surface-2, #1e1e24);
+  padding: 0.5rem 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted, #aaa);
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+  z-index: 1;
+}
+
+.prefab-preview-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+  color: var(--text-main, #eee);
+  vertical-align: top;
+}
+
+.prefab-preview-table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.prefab-ref-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted, #bbb);
+  margin-right: 0.25rem;
+}
+
+.prefab-actions-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+}
+
+.prefab-count-note {
+  font-size: 0.82rem;
+  color: var(--text-muted, #888);
+}
+
+.prefab-import-btn {
+  padding: 0.5rem 1.25rem;
+  background: var(--color-primary, #3b82f6);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.prefab-import-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.prefab-import-btn:not(:disabled):hover {
+  opacity: 0.9;
+}
+
+/* Blueprint link banner and links across all import modals */
+.modal-blueprint-banner,
+.prefab-blueprint-link-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-surface-2, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.82rem;
+  color: var(--text-muted, #aaa);
+}
+
+.modal-blueprint-banner {
+  margin-bottom: 0.75rem;
+}
+
+.modal-blueprint-link,
+.prefab-blueprint-link {
+  color: var(--color-primary, #60a5fa);
+  text-decoration: none;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+}
+
+.modal-blueprint-link:hover,
+.prefab-blueprint-link:hover {
+  color: var(--color-primary-hover, #93c5fd);
+  text-decoration: underline;
+}
+
+.modal-blueprint-link.secondary,
+.prefab-blueprint-link.secondary {
+  color: var(--text-muted, #94a3b8);
+}
+
+.modal-blueprint-link.secondary:hover,
+.prefab-blueprint-link.secondary:hover {
+  color: var(--text-main, #e2e8f0);
+}
+
+.modal-blueprint-dot,
+.prefab-blueprint-divider {
+  color: var(--border-subtle, rgba(255, 255, 255, 0.2));
+  user-select: none;
+}
+
+.prefab-blueprint-pill {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 4px;
+  background: rgba(96, 165, 250, 0.12);
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.25);
+}
+
+.prefab-blueprint-info {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.prefab-blueprint-name {
+  font-weight: 600;
+  color: var(--text-main, #fff);
+}
+
+.prefab-blueprint-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+

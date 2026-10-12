@@ -42,7 +42,39 @@
 .room-chat-max:hover, .room-chat-max:focus-visible { color: var(--ink); border-color: var(--ink); }
 .room-chat[data-chat="open"] .room-chat-toggle svg,
 .room-chat[data-chat="full"] .room-chat-toggle svg { transform: rotate(180deg); }
-.room-chat[data-chat="closed"] .room-chat-toggle { justify-self: end; margin-left: 0; margin-right: var(--space-sm); width: 40px; height: 48px; }
+.room-chat[data-chat="closed"] .room-chat-toggle {
+  position: absolute;
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  width: 56px;
+  height: 56px;
+  margin: 0;
+  padding: 0;
+  border-radius: 12px;
+  color: var(--ink);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--ink) 14%, transparent);
+}
+.room-chat-toggle:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+.room-chat-count {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--bg);
+  border-radius: var(--radius-pill);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
 
 /* Maximize / restore: upper right of the chat, inside the rail so it follows it everywhere. */
 .room-rail { position: relative; }
@@ -1096,10 +1128,8 @@
     height: 24px;
     margin: -12px 0 0;
   }
-  /* Glyphs point up to open, down to hide. */
+  /* The open panel uses a downward collapse chevron. */
   .room-chat[data-chat="open"] .room-chat-toggle svg { transform: rotate(-90deg); }
-  .room-chat[data-chat="closed"] .room-chat-toggle { justify-self: center; margin: 0 0 var(--space-sm); align-self: end; width: 56px; height: 32px; }
-  .room-chat[data-chat="closed"] .room-chat-toggle svg { transform: rotate(90deg); }
   /* Full: the overlay covers the whole screen, growing up from the panel's footprint. */
   .room-chat[data-chat="full"] .room-rail {
     border-top: 0;
@@ -1208,7 +1238,12 @@
 .team-member-link img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
 .team-member-link svg { width: 20px; height: 20px; }
 .team-member-link small { color: var(--muted); }
-.team-streaming-add { position: absolute; right: clamp(20px, 3vw, 44px); bottom: clamp(20px, 4vh, 44px); z-index: 5; min-width: 144px; min-height: 52px; padding: 12px 22px; border: 1px solid var(--ink); border-radius: var(--radius-pill); background: var(--ink); color: var(--bg); font: 700 var(--text-base) var(--mono); box-shadow: 0 10px 30px rgb(0 0 0 / .2); cursor: pointer; }
+.team-streaming-add { 
+  position: absolute; left: 50%;
+  transform: translateX(-50%);
+  bottom: clamp(20px, 4vh, 44px); z-index: 5; min-width: 144px; min-height: 52px; padding: 12px 22px; border: 1px solid var(--ink); border-radius: var(--radius-pill); background: var(--ink); 
+  color: var(--bg); font: 700 var(--text-base) var(--mono); box-shadow: 0 10px 30px rgb(0 0 0 / .2); cursor: pointer; 
+}
 .team-streaming-add:hover, .team-streaming-add:focus-visible { background: var(--signal); border-color: var(--signal); }
 .team-invite-dialog { width: min(520px, calc(100vw - 32px)); padding: 0; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: 0 24px 70px rgb(0 0 0 / .28); }
 .team-invite-dialog::backdrop { background: rgb(0 0 0 / .48); }

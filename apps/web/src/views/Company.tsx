@@ -1,3 +1,4 @@
+import { WorkspaceLoading, WorkspaceTransition } from '../features/work/WorkspaceTransition'
 import { useEffect, useLayoutEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Panel } from '../components/Panel'
@@ -33,7 +34,7 @@ export function Company() {
       <SEO title={workspace ? `${workspace.name} - 8080` : '8080'} description="Company workspace" />
       <StageChrome />
       {loading || redirecting ? (
-        <p className="work-empty" role="status">Loading…</p>
+        <WorkspaceLoading />
       ) : missing || unknownDesk || !workspace ? (
         <div className="company-missing" role="alert">
           <h1>{unknownDesk && workspace ? 'This page doesn’t exist' : 'This company isn’t available'}</h1>
@@ -44,6 +45,7 @@ export function Company() {
         <CompanyChannelShell workspaceId={workspace.id}>
           <div className="work-column company-column">
             <WorkNav desk={place} onSelect={setPlace} />
+            <WorkspaceTransition view={place}>
             {place === 'team' ? (
               <TeamDesk seats={[]} />
             ) : place === 'calendar' ? (
@@ -53,6 +55,7 @@ export function Company() {
             ) : (
               <WorkPage place={place} onPlace={setPlace} />
             )}
+            </WorkspaceTransition>
           </div>
         </CompanyChannelShell>
       )}

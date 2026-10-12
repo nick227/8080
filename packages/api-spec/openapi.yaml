@@ -24,6 +24,8 @@ security:
   - bearerAuth: []
 
 tags:
+  - name: admin
+    description: Platform staff operations and personal entitlements
   - name: auth
     description: Guest sessions, account upgrade, login
   - name: users
@@ -46,6 +48,756 @@ tags:
     description: Communication agents and their email senders (docs/agents)
 
 paths:
+  /admin/settings:
+    get:
+      operationId: getAdminSettings
+      tags:
+        - admin
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminSettings'
+        '400':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/users/{userId}/staff:
+    post:
+      operationId: updateAdminStaff
+      tags:
+        - admin
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminSettings'
+        '400':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 191
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminStaffChange'
+      x-fastify-config:
+        rateLimit:
+          max: 20
+          timeWindow: 1 minute
+  /admin/users/{userId}/billing-customer:
+    post:
+      operationId: linkAdminCustomer
+      tags:
+        - admin
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminUserBilling'
+        '400':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 191
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCustomerLink'
+      x-fastify-config:
+        rateLimit:
+          max: 20
+          timeWindow: 1 minute
+  /admin/subscriptions/{subscriptionId}/sync:
+    post:
+      operationId: syncAdminSubscription
+      tags:
+        - admin
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminSyncResult'
+        '400':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+        - name: subscriptionId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 191
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminSyncInput'
+      x-fastify-config:
+        rateLimit:
+          max: 20
+          timeWindow: 1 minute
+  /admin/users/{userId}/preview:
+    post:
+      operationId: previewAdminChange
+      summary: Preview account and Premium changes without applying them
+      tags:
+        - admin
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUserPreviewInput'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminChangePreview'
+        '400':
+          description: Request unavailable or denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Request unavailable or denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Request unavailable or denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Request unavailable or denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Request unavailable or denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Request unavailable or denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Request unavailable or denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/subscriptions:
+    get:
+      operationId: getAdminSubscriptions
+      summary: Read Stripe subscriptions without changing billing or app access
+      tags:
+        - admin
+      x-fastify-config:
+        rateLimit:
+          max: 30
+          timeWindow: 1 minute
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            pattern: ^sub_[A-Za-z0-9]+$
+            maxLength: 191
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - all
+              - active
+              - trialing
+              - past_due
+              - unpaid
+              - canceled
+              - incomplete
+              - incomplete_expired
+              - paused
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSubscriptionsResponse'
+        '400':
+          description: Request unavailable or denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Request unavailable or denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Request unavailable or denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Request unavailable or denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Request unavailable or denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Request unavailable or denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Request unavailable or denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/me:
+    get:
+      operationId: getAdminSession
+      tags:
+        - admin
+      summary: get Admin Session
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    type: object
+                    additionalProperties: false
+                    required:
+                      - role
+                      - csrfToken
+                    properties:
+                      role:
+                        type: string
+                        enum:
+                          - platform_admin
+                          - platform_owner
+                      csrfToken:
+                        type:
+                          - string
+                          - 'null'
+        '400':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/users:
+    get:
+      operationId: getAdminUsers
+      tags:
+        - admin
+      summary: get Admin Users
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            maxLength: 191
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                  - nextCursor
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminUser'
+                  nextCursor:
+                    type:
+                      - string
+                      - 'null'
+        '400':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/users/{userId}:
+    get:
+      operationId: getAdminUser
+      tags:
+        - admin
+      summary: get Admin User
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 191
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminUserDetail'
+        '400':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/users/{userId}/actions:
+    post:
+      operationId: updateAdminUser
+      tags:
+        - admin
+      summary: update Admin User
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 191
+      x-fastify-config:
+        rateLimit:
+          max: 30
+          timeWindow: 1 minute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUserChange'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminUserDetail'
+        '400':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /me/entitlements:
+    get:
+      operationId: getMyEntitlements
+      tags:
+        - admin
+      summary: get My Entitlements
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PersonalEntitlements'
+        '400':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   # ─── auth ──────────────────────────────────────────────────────────────────
   /auth/guest:
     post:
@@ -576,13 +1328,13 @@ paths:
       operationId: getLiveToken
       x-fastify-config:
         rateLimit: { max: 120, timeWindow: '1 hour' }
-      summary: A short-lived token to join this room's live video (LiveKit)
+      summary: Check admission to this room's Live session (currently disabled)
       description: |
-        Room access decides: callers who can't view the room get 404, like every room read.
-        The token is for this room only, expires in 10 minutes (a connected client is
-        refreshed by LiveKit), may always subscribe, and may publish camera and screen share
-        for people (not bots or suspended accounts). Async recordings never go through live.
-        503 LIVE_UNAVAILABLE when live video isn't configured on the server.
+        Active identity and room access are required. Free accounts receive 403
+        PREMIUM_REQUIRED, including viewers. Premium accounts receive 503
+        LIVE_NOT_ENABLED until personal usage limits and enforcement are ready.
+        No tokens are issued in this release. Async recordings are unaffected.
+        The 200 shape is reserved for a future enabled implementation.
       tags: [rooms]
       responses:
         '200':
@@ -591,10 +1343,11 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/LiveTokenResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '503':
-          description: Live video is not configured
+          description: Premium Live is disabled until usage limits are decided
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -6625,7 +7378,678 @@ components:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   schemas:
-    # ─── shared ──────────────────────────────────────────────────────────────
+    AdminStaffChange:
+      type: object
+      additionalProperties: false
+      required:
+        - confirmed
+        - reason
+        - role
+        - expectedVersion
+      properties:
+        confirmed:
+          type: boolean
+          enum:
+            - true
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+        role:
+          type:
+            - string
+            - 'null'
+          enum:
+            - platform_admin
+            - platform_owner
+            - null
+        expectedVersion:
+          type: integer
+          minimum: 0
+    AdminCustomerLink:
+      type: object
+      additionalProperties: false
+      required:
+        - confirmed
+        - reason
+        - customerId
+        - expectedVersion
+      properties:
+        confirmed:
+          type: boolean
+          enum:
+            - true
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+        customerId:
+          type: string
+          pattern: ^cus_[A-Za-z0-9]+$
+          maxLength: 191
+        expectedVersion:
+          type: integer
+          minimum: 0
+    AdminSyncInput:
+      type: object
+      additionalProperties: false
+      required:
+        - confirmed
+        - reason
+      properties:
+        confirmed:
+          type: boolean
+          enum:
+            - true
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+    AdminSyncResult:
+      type: object
+      additionalProperties: false
+      required:
+        - synchronized
+      properties:
+        synchronized:
+          type: boolean
+    AdminUserBilling:
+      type: object
+      additionalProperties: false
+      required:
+        - customerId
+        - mode
+        - subscriptions
+      properties:
+        customerId:
+          type:
+            - string
+            - 'null'
+        mode:
+          type:
+            - string
+            - 'null'
+          enum:
+            - live
+            - test
+            - null
+        subscriptions:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - id
+              - status
+              - invoiceStatus
+              - accessUntil
+              - syncedAt
+            properties:
+              id:
+                type: string
+              status:
+                type: string
+              invoiceStatus:
+                type:
+                  - string
+                  - 'null'
+              accessUntil:
+                type:
+                  - string
+                  - 'null'
+                format: date-time
+              syncedAt:
+                type: string
+                format: date-time
+    AdminSettings:
+      type: object
+      additionalProperties: false
+      required:
+        - canManage
+        - staff
+        - billing
+        - live
+        - checkout
+      properties:
+        canManage:
+          type: boolean
+        staff:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - userId
+              - email
+              - displayName
+              - role
+              - version
+              - suspended
+            properties:
+              userId:
+                type: string
+              email:
+                type:
+                  - string
+                  - 'null'
+              displayName:
+                type: string
+              role:
+                type: string
+                enum:
+                  - platform_admin
+                  - platform_owner
+              version:
+                type: integer
+                minimum: 0
+              suspended:
+                type: boolean
+        billing:
+          type: object
+          additionalProperties: false
+          required:
+            - configured
+            - mode
+            - premiumPriceCount
+            - webhookConfigured
+            - lastEventAt
+          properties:
+            configured:
+              type: boolean
+            mode:
+              type:
+                - string
+                - 'null'
+              enum:
+                - live
+                - test
+                - null
+            premiumPriceCount:
+              type: integer
+              minimum: 0
+            webhookConfigured:
+              type: boolean
+            lastEventAt:
+              type:
+                - string
+                - 'null'
+              format: date-time
+        live:
+          type: object
+          additionalProperties: false
+          required:
+            - enabled
+            - reason
+          properties:
+            enabled:
+              type: boolean
+            reason:
+              type: string
+        checkout:
+          type: object
+          additionalProperties: false
+          required:
+            - enabled
+            - reason
+          properties:
+            enabled:
+              type: boolean
+            reason:
+              type: string
+    AdminSubscriptionsResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - configured
+        - mode
+        - fetchedAt
+        - data
+        - nextCursor
+      properties:
+        configured:
+          type: boolean
+        mode:
+          type:
+            - string
+            - 'null'
+          enum:
+            - test
+            - live
+            - null
+        fetchedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminSubscription'
+        nextCursor:
+          type:
+            - string
+            - 'null'
+    AdminSubscription:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - customerId
+        - user
+        - status
+        - invoiceStatus
+        - interval
+        - dateLabel
+        - date
+        - dashboardUrl
+      properties:
+        id:
+          type: string
+        customerId:
+          type:
+            - string
+            - 'null'
+        user:
+          anyOf:
+            - type: object
+              additionalProperties: false
+              required:
+                - id
+                - displayName
+                - email
+              properties:
+                id:
+                  type: string
+                displayName:
+                  type: string
+                email:
+                  type:
+                    - string
+                    - 'null'
+            - type: 'null'
+        status:
+          type: string
+        invoiceStatus:
+          type:
+            - string
+            - 'null'
+        interval:
+          type: string
+        dateLabel:
+          type: string
+        date:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        dashboardUrl:
+          type: string
+          format: uri
+    AdminChangePreview:
+      type: object
+      additionalProperties: false
+      required:
+        - before
+        - after
+        - affectedGrantCount
+        - effectiveAt
+        - billingImpact
+        - liveImpact
+      properties:
+        before:
+          type: object
+          additionalProperties: false
+          required:
+            - account
+            - tier
+            - expiresAt
+          properties:
+            account:
+              type: string
+              enum:
+                - active
+                - suspended
+            tier:
+              type: string
+              enum:
+                - free
+                - premium
+            expiresAt:
+              type:
+                - string
+                - 'null'
+              format: date-time
+        after:
+          type: object
+          additionalProperties: false
+          required:
+            - account
+            - tier
+            - expiresAt
+          properties:
+            account:
+              type: string
+              enum:
+                - active
+                - suspended
+            tier:
+              type: string
+              enum:
+                - free
+                - premium
+            expiresAt:
+              type:
+                - string
+                - 'null'
+              format: date-time
+        affectedGrantCount:
+          type: integer
+        effectiveAt:
+          type: string
+          format: date-time
+        billingImpact:
+          type: string
+        liveImpact:
+          type: string
+    AdminUserPreviewInput:
+      type: object
+      additionalProperties: false
+      required:
+        - action
+        - expectedVersion
+      properties:
+        action:
+          type: string
+          enum:
+            - suspend
+            - reactivate
+            - grant_premium
+            - revoke_premium
+        expectedVersion:
+          type: integer
+          minimum: 0
+        expiresAt:
+          type: string
+          format: date-time
+        grantId:
+          type: string
+          minLength: 1
+          maxLength: 191
+    PersonalEntitlements:
+      type: object
+      additionalProperties: false
+      required:
+        - tier
+        - source
+        - expiresAt
+        - liveAvailable
+        - liveUnavailableReason
+      properties:
+        tier:
+          type: string
+          enum:
+            - free
+            - premium
+        source:
+          type:
+            - string
+            - 'null'
+          enum:
+            - grant
+            - stripe
+            - grant_and_stripe
+            - null
+        expiresAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        liveAvailable:
+          type: boolean
+        liveUnavailableReason:
+          type: string
+    AdminUser:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - email
+        - displayName
+        - isGuest
+        - kind
+        - suspendedAt
+        - createdAt
+        - version
+        - staffRole
+        - premium
+      properties:
+        id:
+          type: string
+        email:
+          type:
+            - string
+            - 'null'
+        displayName:
+          type: string
+        isGuest:
+          type: boolean
+        kind:
+          type: string
+          enum:
+            - human
+            - bot
+        suspendedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+        staffRole:
+          type:
+            - string
+            - 'null'
+          enum:
+            - platform_admin
+            - platform_owner
+            - null
+        premium:
+          $ref: '#/components/schemas/PersonalEntitlements'
+    AdminUserDetail:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - email
+        - displayName
+        - isGuest
+        - kind
+        - suspendedAt
+        - createdAt
+        - version
+        - staffRole
+        - premium
+        - memberships
+        - activity
+        - grants
+        - billingConfigured
+        - availableActions
+        - grantCount
+        - billing
+      properties:
+        id:
+          type: string
+        email:
+          type:
+            - string
+            - 'null'
+        displayName:
+          type: string
+        isGuest:
+          type: boolean
+        kind:
+          type: string
+          enum:
+            - human
+            - bot
+        suspendedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+        staffRole:
+          type:
+            - string
+            - 'null'
+          enum:
+            - platform_admin
+            - platform_owner
+            - null
+        premium:
+          $ref: '#/components/schemas/PersonalEntitlements'
+        memberships:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - id
+              - role
+              - status
+              - workspace
+            properties:
+              id:
+                type: string
+              role:
+                type: string
+              status:
+                type: string
+              workspace:
+                type: object
+                additionalProperties: false
+                required:
+                  - id
+                  - name
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+        activity:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - id
+              - action
+              - reason
+              - createdAt
+              - actorId
+            properties:
+              id:
+                type: string
+              action:
+                type: string
+              reason:
+                type: string
+              createdAt:
+                type: string
+                format: date-time
+              actorId:
+                type: string
+        grants:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - id
+              - startsAt
+              - expiresAt
+              - reason
+              - revokedAt
+              - status
+            properties:
+              id:
+                type: string
+              startsAt:
+                type: string
+                format: date-time
+              expiresAt:
+                type: string
+                format: date-time
+              reason:
+                type: string
+              revokedAt:
+                type:
+                  - string
+                  - 'null'
+                format: date-time
+              status:
+                type: string
+                enum:
+                  - active
+                  - scheduled
+                  - expired
+                  - revoked
+        billingConfigured:
+          type: boolean
+        availableActions:
+          type: array
+          items:
+            type: string
+            enum:
+              - suspend
+              - reactivate
+              - grant_premium
+              - revoke_premium
+        grantCount:
+          type: integer
+        billing:
+          $ref: '#/components/schemas/AdminUserBilling'
+    AdminUserChange:
+      type: object
+      additionalProperties: false
+      required:
+        - action
+        - expectedVersion
+        - reason
+        - confirmed
+      properties:
+        action:
+          type: string
+          enum:
+            - suspend
+            - reactivate
+            - grant_premium
+            - revoke_premium
+        expectedVersion:
+          type: integer
+          minimum: 0
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+        expiresAt:
+          type: string
+          format: date-time
+        confirmed:
+          type: boolean
+          enum:
+            - true
+        grantId:
+          type: string
+          minLength: 1
+          maxLength: 191
     ErrorResponse:
       type: object
       required: [error]

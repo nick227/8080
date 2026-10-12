@@ -14,3 +14,5 @@ export * from './audiences'
 export * from './taskUrgency'
 export * from './taskWorkflow'
 export * from './budget'
+
+export * from './prefab'

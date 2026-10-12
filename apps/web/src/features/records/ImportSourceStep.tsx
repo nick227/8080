@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { IMPORT_SOURCES, type ConnectField, type ImportSource, type SourceId } from './importSources'
 import type { RecordKind } from './navigation'
 
@@ -21,12 +22,12 @@ export function ImportSourceStep({
   onMode: (mode: SyncMode) => void
   onBack?: () => void
 }) {
-  const [phase, setPhase] = useState<Phase>(sourceId && sourceId !== 'csv' ? 'connect' : 'pick')
+  const [phase, setPhase] = useState<Phase>(sourceId && sourceId !== 'csv' && sourceId !== 'starter-packs' ? 'connect' : 'pick')
   const [draft, setDraft] = useState<Record<string, string>>({})
   const selected = sourceId ? IMPORT_SOURCES.find((s) => s.id === sourceId) : null
   const sources = IMPORT_SOURCES.filter((s) => s.targets.includes(kind))
 
-  if (phase === 'connect' && selected && selected.id !== 'csv') {
+  if (phase === 'connect' && selected && selected.id !== 'csv' && selected.id !== 'starter-packs') {
     return (
       <ConnectPanel
         source={selected}
@@ -53,7 +54,7 @@ export function ImportSourceStep({
               data-available={source.status === 'available' || undefined}
               onClick={() => {
                 onPick(source.id)
-                if (source.id === 'csv') return
+                if (source.id === 'csv' || source.id === 'starter-packs') return
                 setDraft({})
                 setPhase('connect')
               }}
@@ -67,7 +68,8 @@ export function ImportSourceStep({
   )
 }
 
-function ConnectPanel({
+export function ConnectPanel({
+
   source,
   draft,
   mode,

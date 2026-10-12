@@ -38,7 +38,6 @@ export function CollectionHeader({ collection, title, count, onNew, onImport, ac
       ) : (
         <h1 className="collection-title" id={titleId}>{displayTitle}</h1>
       )}
-      {count != null && <span className="collection-count" aria-label={`${count} ${count === 1 ? (meta?.singular ?? 'task') : (meta?.label ?? 'tasks').toLowerCase()}`}>{count}</span>}
       {onNew && (
         <button
           type="button"

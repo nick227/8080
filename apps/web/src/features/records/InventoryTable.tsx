@@ -3,6 +3,7 @@ import { useUpdateInventoryItem, type InventoryItem } from '@project/sdk'
 import { ColumnsMenu } from '../collections/ColumnsMenu'
 import { DataTable } from '../collections/DataTable'
 import { useTableState, type Column, type TableState } from '../collections/table'
+import { deleteColumn } from '../collections/selection'
 import { RecordMedia } from './RecordChrome'
 import { dateLabel, priceLabel, stockLabel } from './labels'
 import { useSaveFeedback } from './saveFeedback'
@@ -21,11 +22,13 @@ type Props = {
   onOpen: (id: string) => void
   onPreview: (id: string, name: string) => void
   previewId?: string | null
+  /** Admins only (omit to hide the row ✕). */
+  onDelete?: (id: string, name: string) => void
 }
 
 /** Inventory's columns (redesign D9). Sorting is the API's (URL `sort`/`dir`). */
-export function useInventoryTable(props: Pick<Props, 'workspaceId' | 'currency' | 'href' | 'onOpen' | 'onPreview' | 'sort' | 'dir' | 'onSort'>) {
-  const { currency, href, onOpen, onPreview } = props
+export function useInventoryTable(props: Pick<Props, 'workspaceId' | 'currency' | 'href' | 'onOpen' | 'onPreview' | 'sort' | 'dir' | 'onSort' | 'onDelete'>) {
+  const { currency, href, onOpen, onPreview, onDelete } = props
   const columns = useMemo<Column<InventoryItem>[]>(() => [
     {
       id: 'name', header: 'Item', width: '30%', hideable: false, sortValue: (i) => i.name,
@@ -57,7 +60,8 @@ export function useInventoryTable(props: Pick<Props, 'workspaceId' | 'currency' 
       id: 'preview', header: '', width: '7rem', hideable: false,
       cell: (item) => <button type="button" className="collection-row-action" aria-label={`Preview ${item.name}`} onClick={() => onPreview(item.id, item.name)}>Preview</button>,
     },
-  ], [currency, href, onOpen, onPreview, props.workspaceId])
+    ...(onDelete ? [deleteColumn<InventoryItem>({ name: (i) => i.name, onDelete: (i) => onDelete(i.id, i.name) })] : []),
+  ], [currency, href, onOpen, onPreview, onDelete, props.workspaceId])
   return useTableState('inventory', columns, { id: 'name', dir: 1 }, {
     sort: { id: props.sort, dir: props.dir === 'desc' ? -1 : 1 },
     onSort: props.onSort,

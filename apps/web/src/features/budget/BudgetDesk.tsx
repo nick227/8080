@@ -1,3 +1,4 @@
+import { WorkspaceLoading } from '../work/WorkspaceTransition'
 import { useCurrentWorkspace } from '../documents/workspace'
 import { BudgetTable } from './BudgetTable'
 
@@ -6,9 +7,7 @@ export function BudgetDesk() {
 
   if (loading) {
     return (
-      <p className="record-loading" role="status">
-        Loading budget…
-      </p>
+      <WorkspaceLoading label="Loading budget…" />
     )
   }
 

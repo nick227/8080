@@ -18,6 +18,13 @@ afterAll(async () => {
 
 // Clean between tests — children before parents for FK constraints.
 afterEach(async () => {
+  await db.stripeWebhookReceipt.deleteMany()
+  await db.stripeSubscription.deleteMany()
+  await db.stripeCustomerBinding.deleteMany()
+  await db.adminAuditEvent.deleteMany()
+  await db.adminMutationLock.deleteMany()
+  await db.premiumGrant.deleteMany()
+  await db.platformStaff.deleteMany()
   // Workspaces (doc/09) before users: Workspace.createdBy restricts user deletes.
   // Chatbot host + company profile (doc/12), proposals (doc/13): before members.
   await db.agentBusinessEvent.deleteMany()

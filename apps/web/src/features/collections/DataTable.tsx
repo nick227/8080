@@ -7,6 +7,8 @@ import './collections.css'
  * The shared collection table (redesign D9): sortable headers, optional selection, a
  * whole row opens its item (click, Enter), arrow keys / j k move between rows. Domain
  * cells come from the columns; interactive controls inside a cell stop the row click.
+ * Selection works like the task board: Shift-click a checkbox for a range, Space or x
+ * on a focused row toggles it (selection.tsx has the bar, Esc and row delete).
  */
 export function DataTable<T>({ label, rows: allRows, getId, state, onOpen, selection, empty, rowProps, useRow, footer, tableClass, groupBy, onRowKey }: {
   label: string
@@ -14,8 +16,8 @@ export function DataTable<T>({ label, rows: allRows, getId, state, onOpen, selec
   getId: (row: T) => string
   state: TableState<T>
   onOpen?: (row: T) => void
-  /** `limit`: "select all" takes at most this many (bulk actions have a cap); `disabled`: rows that can't be selected yet. */
-  selection?: { selected: Set<string>; onChange: (next: Set<string>) => void; limit?: number; disabled?: (row: T) => boolean }
+  /** `limit`: "select all" takes at most this many (bulk actions have a cap); `disabled`: rows that can't be selected (a string says why; true = still saving). */
+  selection?: { selected: Set<string>; onChange: (next: Set<string>) => void; limit?: number; disabled?: (row: T) => boolean | string }
   empty?: ReactNode
   rowProps?: (row: T) => Record<string, string | undefined>
   /** A hook run once per row (e.g. an inline editor); its result reaches every cell as `ctx`. */
@@ -62,11 +64,25 @@ export function DataTable<T>({ label, rows: allRows, getId, state, onOpen, selec
     const row = body.current.querySelector(`tr[data-row-id="${CSS.escape(focusId)}"]`) as HTMLElement | null
     if (row && row !== active) row.focus()
   })
-  const toggle = (id: string) => {
+  const blocked = (row: T) => {
+    const why = selection?.disabled?.(row)
+    return why === true ? 'Saving…' : why || null
+  }
+  // The last row toggled: Shift-click extends from it.
+  const anchor = useRef<string | null>(null)
+  const toggle = (id: string, range = false) => {
     if (!selection) return
     const next = new Set(selection.selected)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
+    const on = !next.has(id)
+    const from = range && anchor.current ? ids.indexOf(anchor.current) : -1
+    const span = from < 0 ? [id] : ids.slice(Math.min(from, ids.indexOf(id)), Math.max(from, ids.indexOf(id)) + 1)
+    for (const rowId of span) {
+      const row = rows[ids.indexOf(rowId)]
+      if (row === undefined || selection.disabled?.(row)) continue
+      if (!on) next.delete(rowId)
+      else if (!selection.limit || next.size < selection.limit) next.add(rowId)
+    }
+    anchor.current = id
     selection.onChange(next)
   }
   const allIds = rows.filter((row) => !selection?.disabled?.(row)).map(getId).slice(0, selection?.limit ?? Infinity)
@@ -130,14 +146,13 @@ export function DataTable<T>({ label, rows: allRows, getId, state, onOpen, selec
                     selected={!!selection?.selected.has(id)}
                     selectable={!!selection}
                     selectBlocked={!selection ? null
-                      : selection.disabled?.(row) ? 'Saving…'
-                        : selection.limit && !selection.selected.has(id) && selection.selected.size >= selection.limit ? `Up to ${selection.limit} at a time` : null}
+                      : blocked(row) ?? (selection.limit && !selection.selected.has(id) && selection.selected.size >= selection.limit ? `Up to ${selection.limit} at a time` : null)}
                     extra={rowProps?.(row)}
                     useRow={useRow}
                     onRowKey={onRowKey}
                     onFocus={() => setFocusId(id)}
                     onOpen={onOpen ? () => onOpen(row) : undefined}
-                    onToggle={() => toggle(id)}
+                    onToggle={(range) => toggle(id, range)}
                     onMove={(e) => {
                       if (e.key === 'ArrowDown' || (e.key === 'j' && !e.metaKey && !e.ctrlKey)) { e.preventDefault(); focusRow(index + 1) }
                       else if (e.key === 'ArrowUp' || (e.key === 'k' && !e.metaKey && !e.ctrlKey)) { e.preventDefault(); focusRow(index - 1) }
@@ -186,7 +201,7 @@ function DataRow<T>({ row, id, columns, tabbable, selected, selectable, selectBl
   onRowKey?: (e: ReactKeyboardEvent<HTMLTableRowElement>, row: T, ctx: unknown) => boolean
   onFocus: () => void
   onOpen?: () => void
-  onToggle: () => void
+  onToggle: (range: boolean) => void
   onMove: (e: ReactKeyboardEvent<HTMLTableRowElement>) => void
 }) {
   // One hook per row; a table passes useRow always or never, so the order is stable.
@@ -208,13 +223,13 @@ function DataRow<T>({ row, id, columns, tabbable, selected, selectable, selectBl
         if (e.target !== e.currentTarget) return
         if (onRowKey?.(e, row, ctx)) { e.preventDefault(); e.stopPropagation(); return }
         if (e.key === 'Enter' && onOpen) { e.preventDefault(); onOpen(); return }
-        if (e.key === ' ' && selectable) { e.preventDefault(); if (!selectBlocked) onToggle(); return }
+        if ((e.key === ' ' || (e.key === 'x' && !e.metaKey && !e.ctrlKey && !e.altKey)) && selectable) { e.preventDefault(); if (!selectBlocked) onToggle(e.shiftKey); return }
         onMove(e)
       }}
     >
       {selectable && (
         <td className="collection-select-cell">
-          <input type="checkbox" aria-label="Select row" checked={selected} disabled={!!selectBlocked} title={selectBlocked ?? undefined} onChange={onToggle} />
+          <input type="checkbox" aria-label="Select row" checked={selected} disabled={!!selectBlocked} title={selectBlocked ?? undefined} onChange={(e) => onToggle((e.nativeEvent as MouseEvent).shiftKey === true)} />
         </td>
       )}
       {columns.map((c) => (

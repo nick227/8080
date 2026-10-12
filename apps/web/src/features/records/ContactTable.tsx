@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { DataTable } from '../collections/DataTable'
 import { useTableState, type Column } from '../collections/table'
+import { deleteColumn } from '../collections/selection'
 import { CONTACT_FIELD_DEFAULTS, CONTACT_MILESTONES, CONTACT_MILESTONE_HELP, type ContactFieldDefinition } from '@project/shared'
 import { useContactFields, useNotes, useWorkspaceMembers, useWorkspaceVocabulary, type Contact, type UpdateContactInput, type WorkspaceMember } from '@project/sdk'
 import { STAGES, dateLabel, followUpLate, localDay, titleCase } from './labels'
@@ -30,6 +31,7 @@ type Props = {
   onSelect: (ids: string[]) => void; href: (id: string) => string
   onOpen: (id: string) => void; onPreview: (id: string, name: string) => void; previewId?: string | null
   onCommitted: (undo: ContactUndo) => void
+  onDelete: (id: string, name: string) => void
 }
 export function ContactUndoBar({ undo, workspaceId, onDismiss }: { undo: ContactUndo | null; workspaceId: string; onDismiss: () => void }) {
   return null
@@ -72,6 +74,7 @@ export function ContactTable(props: Props) {
       id: 'preview', header: '', width: '7rem', hideable: false,
       cell: (c) => <button type="button" className="collection-row-action" aria-label={`Preview ${c.displayName}`} onClick={() => props.onPreview(c.id, c.displayName)}>Preview</button>,
     },
+    deleteColumn<Contact>({ name: (c) => c.displayName, onDelete: (c) => props.onDelete(c.id, c.displayName) }),
   ]
   const table = useTableState('contacts', columns, { id: 'name', dir: 1 }, {
     sort: { id: props.sort, dir: props.dir === 'desc' ? -1 : 1 },

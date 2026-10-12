@@ -3,6 +3,7 @@
 // roles. V1 is deliberately broad: active members read everything, owners/admins
 // manage. Record-level rules (ownerMemberId, teamId) arrive with the domains and
 // are decided here too — no ACL tables yet.
+import { activeIdentity } from './authorization/identity'
 import { db, type Workspace, type WorkspaceMember, type WorkspaceRole } from '@project/db'
 import { forbidden, httpError, notFound } from '../lib/errors'
 
@@ -149,7 +150,7 @@ export function can(member: Pick<WorkspaceMember, 'id' | 'role' | 'status'>, ver
   if (verb === 'note.delete' && target?.kind === 'note' && target.authorMemberId === member.id) return true
   if (verb === 'budget.delete' && target?.kind === 'budget' && target.authorMemberId === member.id) return true
   if (verb === 'worklog.delete' && target?.kind === 'worklog' && target.memberIds.includes(member.id)) return true
-  if (!ROLES[verb].includes(member.role)) return false
+  if (!ROLES[verb]?.includes(member.role)) return false
   // Only owners touch owners, or make someone an owner.
   if (verb === 'member.manage' && target?.kind === 'member' && member.role !== 'owner') {
     if (target.role === 'owner' || target.grant === 'owner') return false
@@ -161,6 +162,7 @@ export function can(member: Pick<WorkspaceMember, 'id' | 'role' | 'status'>, ver
 // members and deleted workspaces all get 404 (don't leak existence — same rule
 // as private rooms). Suspended members are told so.
 export async function authorize(userId: string, workspaceId: string, verb: WorkspaceVerb, target?: PolicyTarget): Promise<Actor> {
+  await activeIdentity(userId)
   const found = await db.workspaceMember.findUnique({
     where: { workspaceId_userId: { workspaceId, userId } },
     include: { workspace: true },

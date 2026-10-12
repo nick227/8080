@@ -8,8 +8,8 @@
 .section-header h1,
 .section-header h2 {
   margin: 0;
-  font-size: var(--text-base);
-  font-weight: var(--weight-medium);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
   color: var(--ink);
   min-width: 0;
   overflow: hidden;

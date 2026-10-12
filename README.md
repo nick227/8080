@@ -11,7 +11,7 @@ Conversations live in public or private rooms. People can participate as guests,
 | Accounts and rooms | Join as a guest, register or sign in, browse public rooms, and create private rooms with invite links. | Room owners manage room details and can rotate invite codes. |
 | Conversations | Send text, voice recordings, video, images, files, and YouTube media; reply to individual posts and react. | Branching replies, timeline playback, response maps, and replies anchored to a point in media. Live updates use server-sent events (SSE). |
 | Recording and editing | Preview your camera, choose devices, record a take, and add soundtracks or combine a still image with audio. | Camera backgrounds include blur, stock images, and your own image; processing happens in the browser. |
-| Live video | Broadcast a camera or share a screen inside a room. | Requires LiveKit configuration. Live broadcasts are separate from recorded conversation posts. |
+| Live video | LiveKit admission is currently disabled for every account while Premium limits are decided. | Free accounts cannot join, including as viewers. Recorded conversation posts are separate and remain available. |
 | Workspaces and teams | Switch workspaces, invite members, organize teams, and use company chat. | Workspace roles and permissions govern business data; guest participation is for conversations. |
 | Company | Maintain a company profile, view business summaries, customize business vocabulary and pipeline stages, and manage email senders. | Company and integration settings are workspace-specific. |
 | Contacts | Work in table or gallery views, search and filter records, edit fields inline, track milestones and next actions, and connect notes or conversations. | Includes ownership, tags, company associations, inventory interests, record images, activity history, merging, and reviewed imports. |
@@ -134,6 +134,10 @@ pnpm --filter web test
 ```
 
 Focused frontend checks include `pnpm --filter web test:contacts`, `test:records`, `test:import-safety`, `test:maps`, and `test:theme`. The additional `apps/e2e` suites run with `pnpm --filter e2e test:e2e`; their Playwright configuration also starts or reuses the local development servers.
+
+## Platform administration
+
+The first admin slice lives at `/admin`: user search, account suspension/reactivation, personal Premium grants, and audited confirmations. Platform staff roles are separate from workspace roles. See the [admin setup and rollout guide](docs/admin/implementation.md) for the additive migration and initial-owner bootstrap. Read-only Stripe Billing is available at `/admin/billing` when a restricted server key is configured. Settings and subscription synchronization remain future slices; Premium Live remains disabled pending limits.
 
 ## Further reading
 

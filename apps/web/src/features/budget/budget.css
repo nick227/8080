@@ -44,27 +44,6 @@
 .budget-totals dd[data-tone="expense"] { color: var(--budget-expense); }
 .budget-totals dd[data-tone="pending"] { color: var(--budget-pending); }
 
-/* Columns. Fixed widths keep every row's cells on one grid; Title takes the rest. */
-.budget-table .budget-col-title { width: auto; }
-.budget-table .budget-col-date { width: 104px; }
-.budget-table .budget-col-type { width: 100px; }
-.budget-table .budget-col-category { width: 150px; }
-.budget-table .budget-col-status { width: 100px; }
-.budget-table .budget-col-contact { width: 150px; }
-.budget-table .budget-col-amount { width: 130px; }
-.budget-table .budget-col-action { width: 48px; }
-
-/* Plain header labels (no sort buttons) in the shared header type. */
-.budget-table thead th {
-  padding: 0 var(--table-cell-padding-x);
-  font-family: var(--mono);
-  font-size: var(--text-label);
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.budget-table tbody tr { cursor: default; }
 .budget-table td { color: var(--ink); }
 
 .budget-date,
@@ -129,14 +108,6 @@
 .budget-status:hover { background: color-mix(in srgb, var(--tone) 20%, transparent); }
 .budget-status:focus-visible { outline: 2px solid var(--ink); outline-offset: var(--focus-offset-tight); }
 .budget-status:disabled { opacity: var(--opacity-disabled); cursor: default; }
-
-/* Row action: the shared collection-row-action, square, with a danger hover. */
-.budget-delete { width: 24px; padding: 0; justify-content: center; }
-.budget-delete:hover,
-.budget-delete:focus-visible {
-  color: var(--danger);
-  border-color: var(--danger);
-}
 
 .budget-empty {
   padding: var(--space-xl) var(--table-cell-padding-x);

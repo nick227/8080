@@ -21,3 +21,161 @@
 .conversation-directory > h1 { max-width: var(--content-width-standard); margin: 0 auto var(--space-lg); padding-inline: var(--page-gutter-current); font-size: var(--text-display); }
 
 .shell.conversations-page { width: 100%; }
+
+/* Lobby controls and infinite community strategy */
+.lobby-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.lobby-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: min(100%, 360px);
+  max-width: 460px;
+  flex: 1;
+  padding: 10px 14px;
+  border: var(--line-width) solid var(--line);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--panel);
+  transition: border-color var(--motion-base) var(--ease-out);
+}
+.lobby-search-bar:focus-within {
+  border-color: var(--ink);
+}
+.lobby-search-icon {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.lobby-search-bar input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: max(14px, var(--text-sm));
+  outline: none;
+}
+.lobby-search-clear {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 14px;
+  line-height: 1;
+}
+.lobby-search-clear:hover {
+  color: var(--ink);
+}
+
+.lobby-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm, 6px);
+  border: var(--line-width) solid var(--line);
+}
+.lobby-tab {
+  background: transparent;
+  border: 0;
+  padding: 6px 14px;
+  font-size: max(13px, var(--text-sm));
+  font-weight: var(--weight-medium);
+  color: var(--muted);
+  border-radius: calc(var(--radius-sm, 6px) - 2px);
+  cursor: pointer;
+  transition: all var(--motion-base) var(--ease-out);
+}
+.lobby-tab[aria-selected="true"] {
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.lobby-empty {
+  padding: 36px 20px;
+  text-align: center;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-card);
+  margin-block: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.lobby-empty p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.lobby-pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 32px;
+  padding-block: 12px;
+}
+.lobby-load-more {
+  min-width: 200px;
+  cursor: pointer;
+}
+
+/* Workspace Card styling consistent with conv-card */
+.workspace-grid {
+  margin-bottom: 20px;
+}
+.workspace-section-memberships {
+  padding-block: 0 12px;
+  border-bottom: none;
+}
+.workspace-card-thumb {
+  position: relative;
+  background: linear-gradient(135deg, var(--surface-sunken) 0%, var(--surface-placeholder) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.workspace-thumb-mark {
+  font-family: var(--mono);
+  font-size: clamp(32px, 3.5vw, 44px);
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: var(--tracking-caps);
+  opacity: 0.9;
+}
+.workspace-thumb-role {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--ink-secondary);
+}
+.workspace-create-thumb {
+  border-style: dashed;
+  background: var(--surface-sunken);
+}
+.workspace-create-icon {
+  font-size: 36px;
+  line-height: 1;
+  color: var(--muted);
+  transition: transform var(--motion-base) var(--ease-out), color var(--motion-base) var(--ease-out);
+}
+.conv-card-link:hover .workspace-create-icon {
+  transform: scale(1.15);
+  color: var(--ink);
+}

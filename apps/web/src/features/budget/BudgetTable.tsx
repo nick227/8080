@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { WorkspaceLoading } from '../work/WorkspaceTransition'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   useBudgetItems,
   useBudgetSummary,
@@ -25,9 +26,16 @@ import {
 } from '@project/shared'
 import { CsvExample } from '../../components/CsvExample'
 import { CollectionView } from '../collections/CollectionView'
-import { FilterChips } from '../collections/ColumnsMenu'
+import { ColumnsMenu, FilterChips } from '../collections/ColumnsMenu'
+import { DataTable } from '../collections/DataTable'
+import { useTableState, type Column } from '../collections/table'
+import { BulkMessage, SelectionBar, deleteColumn, useBulkDelete, useSelection } from '../collections/selection'
 import '../documents/DocumentsList.css'
 import { parseBudgetCsv } from './importParse'
+import { blueprints, scenarioData } from '../blueprints/data'
+import { FormSlideout } from '../work/FormSlideout'
+import { ImportModalTabs } from '../prefab/ImportModalChrome'
+import '../prefab/prefab.css'
 import './budget.css'
 
 export function BudgetTable({ workspaceId }: { workspaceId: string }) {
@@ -54,8 +62,16 @@ export function BudgetTable({ workspaceId }: { workspaceId: string }) {
   const { data: budgetData, isLoading, refetch } = useBudgetItems(workspaceId, queryParams)
   const { data: summary } = useBudgetSummary(workspaceId)
 
-  const items = budgetData?.data ?? []
+  const items = useMemo(() => budgetData?.data ?? [], [budgetData])
   const totalCount = budgetData?.total ?? 0
+  const update = useUpdateBudgetItem(workspaceId)
+  const deleteItem = useDeleteBudgetItem(workspaceId)
+  const removal = useBulkDelete({ noun: { one: 'budget item', many: 'budget items' }, remove: deleteItem.mutateAsync, done: () => void refetch() })
+  const columns = useBudgetColumns(update, removal.run, () => void refetch())
+  const table = useTableState('budget', columns, { id: 'date', dir: 1 })
+  // Ties keep the server's order (by date).
+  const rows = table.sortRows(items)
+  const selection = useSelection(useMemo(() => rows.map((item) => item.id), [rows]))
 
   return (
     <div className="budget-experience">
@@ -121,61 +137,37 @@ export function BudgetTable({ workspaceId }: { workspaceId: string }) {
             </select>
           </>
         }
-        view={<BudgetTotals summary={summary} />}
-        notice={notice ? <p className="collection-note" role="status">{notice}</p> : undefined}
+        view={<><BudgetTotals summary={summary} /><ColumnsMenu state={table} /></>}
+        notice={<>
+          {notice && <p className="collection-note" role="status">{notice}</p>}
+          <BulkMessage result={removal.result} onDismiss={removal.dismiss} />
+        </>}
       >
-        <div className="docs-table-wrap collection-table-wrap" role="region" aria-label="Budget register" tabIndex={-1}>
-          {isLoading ? (
-            <p className="budget-empty">Loading budget records…</p>
-          ) : items.length === 0 ? (
-            <div className="budget-empty">
-              <h3>No budget items found</h3>
-              <p>Add planned income or expense allowances to track aggregate totals and calendar dates.</p>
-              <button
-                type="button"
-                className="section-add-btn"
-                onClick={() => setPanel('new')}
-              >
-                + Add budget entry
-              </button>
-            </div>
-          ) : (
-            <table className="docs-table collection-table budget-table" aria-label="Budget register">
-              <colgroup>
-                <col className="budget-col-title" />
-                <col className="budget-col-date" />
-                <col className="budget-col-type" />
-                <col className="budget-col-category" />
-                <col className="budget-col-status" />
-                <col className="budget-col-contact" />
-                <col className="budget-col-amount" />
-                <col className="budget-col-action" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th scope="col">Title</th>
-                  <th scope="col">Date</th>
-                  <th scope="col">Type</th>
-                  <th scope="col">Category</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Contact</th>
-                  <th scope="col" data-align="end">Amount</th>
-                  <th scope="col" aria-label="Actions" />
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <BudgetTableRow
-                    key={item.id}
-                    item={item}
-                    workspaceId={workspaceId}
-                    onChanged={() => void refetch()}
-                  />
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+        {isLoading ? (
+          <WorkspaceLoading label="Loading budget…" />
+        ) : items.length === 0 ? (
+          <div className="budget-empty">
+            <h3>No budget items found</h3>
+            <p>Add planned income or expense allowances to track aggregate totals and calendar dates.</p>
+            <button
+              type="button"
+              className="section-add-btn"
+              onClick={() => setPanel('new')}
+            >
+              + Add budget entry
+            </button>
+          </div>
+        ) : (
+          <DataTable
+            label="Budget register"
+            rows={rows}
+            getId={(item) => item.id}
+            state={table}
+            tableClass="budget-table"
+            selection={{ selected: selection.selected, onChange: selection.set }}
+          />
+        )}
+        <SelectionBar count={selection.selected.size} onClear={selection.clear} busy={removal.busy} onDelete={() => void removal.run(selection.ids)} />
       </CollectionView>
 
       {panel === 'new' && (
@@ -237,91 +229,69 @@ function BudgetTotals({ summary }: { summary?: BudgetSummary }) {
   )
 }
 
-function BudgetTableRow({
-  item,
-  workspaceId,
-  onChanged,
-}: {
-  item: BudgetItem
-  workspaceId: string
-  onChanged: () => void
-}) {
-  const updateMutation = useUpdateBudgetItem(workspaceId)
-  const deleteMutation = useDeleteBudgetItem(workspaceId)
+const NEXT_STATUS: Record<BudgetStatus, BudgetStatus> = {
+  planned: 'pending',
+  pending: 'cleared',
+  cleared: 'planned',
+  cancelled: 'planned',
+}
 
-  const isIncome = item.direction === 'income'
-  const categoryLabel = BUDGET_CATEGORIES[item.category as BudgetCategoryKey] ?? item.category
-
-  const handleNextStatus = async () => {
-    const nextStatus: Record<BudgetStatus, BudgetStatus> = {
-      planned: 'pending',
-      pending: 'cleared',
-      cleared: 'planned',
-      cancelled: 'planned',
+/** The register's columns on the shared table; status cycles in place, ✕ deletes. */
+function useBudgetColumns(update: ReturnType<typeof useUpdateBudgetItem>, remove: (ids: string[], name?: string) => Promise<void>, onChanged: () => void) {
+  const changed = useRef(onChanged)
+  changed.current = onChanged
+  const { mutateAsync } = update
+  const savingId = update.isPending ? update.variables?.budgetItemId : undefined
+  return useMemo<Column<BudgetItem>[]>(() => {
+    const cycle = async (item: BudgetItem) => {
+      await mutateAsync({ budgetItemId: item.id, body: { status: NEXT_STATUS[item.status as BudgetStatus] } })
+      changed.current()
     }
-    await updateMutation.mutateAsync({
-      budgetItemId: item.id,
-      body: { status: nextStatus[item.status as BudgetStatus] },
-    })
-    onChanged()
-  }
-
-  const handleDelete = async () => {
-    if (confirm(`Delete "${item.title}"?`)) {
-      await deleteMutation.mutateAsync(item.id)
-      onChanged()
-    }
-  }
-
-  return (
-    <tr className="budget-row" data-row-id={item.id}>
-      <td title={item.description ? `${item.title} — ${item.description}` : item.title}>
-        <span className="budget-title">{item.title}</span>
-        {item.description && <span className="budget-note">{item.description}</span>}
-      </td>
-      <td className="budget-date" data-label="Date">{item.scheduledDate}</td>
-      <td data-label="Type">
-        <span className="budget-chip" data-direction={item.direction}>
-          {isIncome ? '↑ Income' : '↓ Expense'}
-        </span>
-      </td>
-      <td data-label="Category">
-        <span className="budget-chip" data-kind="category">{categoryLabel}</span>
-      </td>
-      <td data-label="Status">
-        <button
-          type="button"
-          className="budget-chip budget-status"
-          data-status={item.status}
-          title="Click to cycle status: Planned → Pending → Cleared"
-          disabled={updateMutation.isPending}
-          onClick={() => void handleNextStatus()}
-        >
-          {BUDGET_STATUS_LABELS[item.status as BudgetStatus] ?? item.status}
-        </button>
-      </td>
-      <td className="budget-contact" data-label="Contact" data-empty={item.contact ? undefined : ''}>
-        {item.contact?.displayName ?? '—'}
-      </td>
-      <td data-label="Amount" data-align="end">
-        <span className="budget-amount" data-direction={item.direction}>
-          {isIncome ? '+' : '-'}
-          {formatMinorMoney(item.amountMinor, item.currency)}
-        </span>
-      </td>
-      <td data-align="end">
-        <button
-          type="button"
-          className="collection-row-action budget-delete"
-          onClick={() => void handleDelete()}
-          aria-label={`Delete ${item.title}`}
-          title="Delete"
-        >
-          ✕
-        </button>
-      </td>
-    </tr>
-  )
+    const chip = (children: ReactNode, attrs: Record<string, string>) => <span className="budget-chip" {...attrs}>{children}</span>
+    return [
+      {
+        id: 'title', header: 'Title', hideable: false, sortValue: (item) => item.title,
+        title: (item) => (item.description ? `${item.title} — ${item.description}` : item.title),
+        cell: (item) => <><span className="budget-title">{item.title}</span>{item.description && <span className="budget-note">{item.description}</span>}</>,
+      },
+      { id: 'date', header: 'Date', width: '104px', className: 'budget-date', sortValue: (item) => item.scheduledDate, cell: (item) => item.scheduledDate },
+      {
+        id: 'type', header: 'Type', width: '100px', sortValue: (item) => item.direction,
+        cell: (item) => chip(item.direction === 'income' ? '↑ Income' : '↓ Expense', { 'data-direction': item.direction }),
+      },
+      {
+        id: 'category', header: 'Category', width: '150px', sortValue: (item) => BUDGET_CATEGORIES[item.category as BudgetCategoryKey] ?? item.category,
+        cell: (item) => chip(BUDGET_CATEGORIES[item.category as BudgetCategoryKey] ?? item.category, { 'data-kind': 'category' }),
+      },
+      {
+        id: 'status', header: 'Status', width: '100px', sortValue: (item) => item.status,
+        cell: (item) => (
+          <button
+            type="button"
+            className="budget-chip budget-status"
+            data-status={item.status}
+            title="Click to cycle status: Planned → Pending → Cleared"
+            disabled={savingId === item.id}
+            onClick={() => void cycle(item)}
+          >
+            {BUDGET_STATUS_LABELS[item.status as BudgetStatus] ?? item.status}
+          </button>
+        ),
+      },
+      { id: 'contact', header: 'Contact', width: '150px', className: 'budget-contact', sortValue: (item) => item.contact?.displayName ?? null, cell: (item) => item.contact?.displayName ?? '—' },
+      {
+        id: 'amount', header: 'Amount', width: '130px', align: 'end', firstDir: -1,
+        sortValue: (item) => (item.direction === 'income' ? item.amountMinor : -item.amountMinor),
+        cell: (item) => (
+          <span className="budget-amount" data-direction={item.direction}>
+            {item.direction === 'income' ? '+' : '-'}
+            {formatMinorMoney(item.amountMinor, item.currency)}
+          </span>
+        ),
+      },
+      deleteColumn<BudgetItem>({ name: (item) => item.title, onDelete: (item) => void remove([item.id], item.title) }),
+    ]
+  }, [mutateAsync, savingId, remove])
 }
 
 function NewBudgetItemSlideout({
@@ -557,6 +527,8 @@ function ImportBudgetSlideout({
   onClose: () => void
   onImported: (count: number) => void
 }) {
+  const [tab, setTab] = useState<string>('starter')
+  const [selectedSlug, setSelectedSlug] = useState<string>('lean-service-team')
   const [text, setText] = useState('')
   const [error, setError] = useState('')
   // One key per file contents: a retry after a lost response replays instead of duplicating.
@@ -564,6 +536,54 @@ function ImportBudgetSlideout({
   const fileRef = useRef<HTMLInputElement>(null)
   const importMutation = useImportBudgetItems(workspaceId)
   useEscape(onClose)
+
+  const selectedBp = useMemo(() => blueprints.find((b) => b.slug === selectedSlug) ?? blueprints[0], [selectedSlug])
+  const scenario = useMemo(() => scenarioData(selectedBp, '90'), [selectedBp])
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(() => new Set(scenario.budget.map((_, i) => i)))
+
+  // Sync selectedIndices when blueprint changes
+  useEffect(() => {
+    setSelectedIndices(new Set(scenario.budget.map((_, i) => i)))
+  }, [scenario])
+
+  const toggleIndex = (i: number) => {
+    const next = new Set(selectedIndices)
+    if (next.has(i)) next.delete(i)
+    else next.add(i)
+    setSelectedIndices(next)
+  }
+
+  const toggleAll = () => {
+    if (selectedIndices.size === scenario.budget.length) {
+      setSelectedIndices(new Set())
+    } else {
+      setSelectedIndices(new Set(scenario.budget.map((_, i) => i)))
+    }
+  }
+
+  const chosenBudgetItems = scenario.budget.filter((_, i) => selectedIndices.has(i))
+
+  const importPrefabBudget = async () => {
+    if (chosenBudgetItems.length === 0) return
+    setError('')
+    try {
+      const todayIso = new Date().toISOString().slice(0, 10)
+      const items = chosenBudgetItems.map((b) => ({
+        title: b.label,
+        scheduledDate: todayIso,
+        amountMinor: Math.round(Math.abs(b.amount) * 100),
+        direction: b.direction,
+        category: b.category,
+        status: 'planned' as const,
+        description: b.note || undefined,
+      }))
+      const importKey = `${workspaceId}:prefab:${selectedSlug}:${Date.now()}`
+      const created = await importMutation.mutateAsync({ items, idempotencyKey: importKey })
+      onImported(created.length)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Import failed. Nothing was added.')
+    }
+  }
 
   const change = (value: string) => {
     setText(value)
@@ -587,60 +607,164 @@ function ImportBudgetSlideout({
   }
 
   return (
-    <div className="budget-slideout-backdrop" onClick={onClose}>
-      <div className="budget-slideout" role="dialog" aria-modal="true" aria-labelledby="budget-import-title" onClick={(e) => e.stopPropagation()}>
-        <div className="budget-slideout-head">
-          <h2 id="budget-import-title">Import budget items</h2>
-          <button type="button" className="budget-slideout-close" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
+    <FormSlideout
+      title="Import Budget Items"
+      width="680px"
+      onClose={onClose}
+    >
+      <ImportModalTabs
+        tabs={[
+          { id: 'starter', label: 'Starter Packs' },
+          { id: 'csv', label: 'CSV Upload' },
+        ]}
+        activeTab={tab}
+        onSelectTab={setTab}
+      />
 
-        <form className="budget-form" onSubmit={(e) => void submit(e)}>
-          <div className="budget-form-fields">
-            <div className="budget-form-field">
-              <label htmlFor="budget-import-csv">CSV</label>
-              <textarea
-                id="budget-import-csv"
-                rows={10}
-                spellCheck={false}
-                autoFocus
-                placeholder={'title,date,amount,type\nFigma,2026-11-03,75.00,expense'}
-                value={text}
-                onChange={(e) => change(e.target.value)}
-              />
+      <div style={{ padding: 'var(--space-md) var(--space-lg)', flex: 1, overflowY: 'auto' }}>
+        {tab === 'starter' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div className="prefab-pack-select-bar">
+              <label htmlFor="budget-pack-select">Starter Model:</label>
+              <select
+                id="budget-pack-select"
+                className="prefab-pack-select"
+                value={selectedSlug}
+                onChange={(e) => setSelectedSlug(e.target.value)}
+              >
+                {blueprints.map((bp) => (
+                  <option key={bp.slug} value={bp.slug}>
+                    {bp.title} ({bp.type})
+                  </option>
+                ))}
+              </select>
             </div>
-            <CsvExample
-              example={'title,date,amount,type,category,status,notes\nAcme retainer,2026-11-01,4500,income,Client Retainer,cleared,Invoice 1042\nFigma,2026-11-03,-75,,Tools & Software,,'}
-              note="Required: title, date (YYYY-MM-DD or M/D/YYYY), amount. Optional: type (income or expense; otherwise a negative amount is an expense), category (name or key; unknown → Other), status (planned, pending, cleared, cancelled), notes. Up to 500 rows; one bad row stops the whole import."
-            />
-            {error && <p className="budget-error" role="alert">{error}</p>}
-          </div>
 
-          <div className="budget-slideout-foot">
-            <button type="button" className="budget-cancel" onClick={() => fileRef.current?.click()}>
-              Choose file
-            </button>
-            <button type="button" className="budget-cancel" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="budget-submit" disabled={importMutation.isPending || !text.trim()}>
-              {importMutation.isPending ? 'Importing…' : 'Import'}
-            </button>
+            <p className="prefab-pack-meta">{selectedBp.description}</p>
+
+            <div className="prefab-preview-table-wrap">
+              <table className="prefab-preview-table" aria-label="Blueprint budget preview">
+                <thead>
+                  <tr>
+                    <th style={{ width: '40px', textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        aria-label="Select all records"
+                        checked={scenario.budget.length > 0 && selectedIndices.size === scenario.budget.length}
+                        onChange={toggleAll}
+                      />
+                    </th>
+                    <th>Item Title</th>
+                    <th>Category</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scenario.budget.map((item, idx) => {
+                    const isChecked = selectedIndices.has(idx)
+                    return (
+                      <tr key={`${item.label}-${idx}`} onClick={() => toggleIndex(idx)} style={{ cursor: 'pointer' }}>
+                        <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleIndex(idx)}
+                            aria-label={`Select ${item.label}`}
+                          />
+                        </td>
+                        <td><strong>{item.label}</strong></td>
+                        <td><span className="prefab-ref-tag">{BUDGET_CATEGORIES[item.category] || item.category}</span></td>
+                        <td>
+                          <span style={{ textTransform: 'capitalize', color: item.direction === 'income' ? '#34d399' : '#f87171' }}>
+                            {item.direction}
+                          </span>
+                        </td>
+                        <td>
+                          <strong>{item.direction === 'income' ? `+$${item.amount.toLocaleString()}` : `-$${item.amount.toLocaleString()}`}</strong>
+                        </td>
+                        <td><span style={{ fontSize: '0.8rem', color: '#999' }}>{item.note}</span></td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {error && <p className="budget-error" role="alert">{error}</p>}
+
+            <div className="prefab-actions-bar">
+              <span className="prefab-count-note">
+                {chosenBudgetItems.length} of {scenario.budget.length} items selected
+              </span>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button type="button" className="cal-btn" onClick={onClose}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="prefab-import-btn"
+                  disabled={chosenBudgetItems.length === 0 || importMutation.isPending}
+                  onClick={() => void importPrefabBudget()}
+                >
+                  {importMutation.isPending ? 'Importing…' : `Import Budget Items (${chosenBudgetItems.length})`}
+                </button>
+              </div>
+            </div>
           </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv,text/csv,text/plain"
-            hidden
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              if (file) void file.text().then(change)
-              e.target.value = ''
-            }}
-          />
-        </form>
+        )}
+
+        {tab === 'csv' && (
+          <form className="budget-form" onSubmit={(e) => void submit(e)}>
+            <div className="budget-form-fields">
+              <div className="budget-form-field">
+                <label htmlFor="budget-import-csv">CSV</label>
+                <textarea
+                  id="budget-import-csv"
+                  rows={10}
+                  spellCheck={false}
+                  autoFocus
+                  placeholder={'title,date,amount,type\nFigma,2026-11-03,75.00,expense'}
+                  value={text}
+                  onChange={(e) => change(e.target.value)}
+                />
+              </div>
+              <CsvExample
+                example={'title,date,amount,type,category,status,notes\nAcme retainer,2026-11-01,4500,income,Client Retainer,cleared,Invoice 1042\nFigma,2026-11-03,-75,,Tools & Software,,'}
+                note="Required: title, date (YYYY-MM-DD or M/D/YYYY), amount. Optional: type (income or expense; otherwise a negative amount is an expense), category (name or key; unknown → Other), status (planned, pending, cleared, cancelled), notes. Up to 500 rows; one bad row stops the whole import."
+              />
+              {error && <p className="budget-error" role="alert">{error}</p>}
+            </div>
+
+            <div className="budget-slideout-foot">
+              <button type="button" className="budget-cancel" onClick={() => fileRef.current?.click()}>
+                Choose file
+              </button>
+              <button type="button" className="budget-cancel" onClick={onClose}>
+                Cancel
+              </button>
+              <button type="submit" className="budget-submit" disabled={importMutation.isPending || !text.trim()}>
+                {importMutation.isPending ? 'Importing…' : 'Import'}
+              </button>
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,text/csv,text/plain"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) void file.text().then(change)
+                e.target.value = ''
+              }}
+            />
+          </form>
+        )}
+
       </div>
-    </div>
+    </FormSlideout>
   )
 }
+
+

@@ -1,4 +1,4 @@
-import { memo, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useContext, useLayoutEffect, useRef, useState } from 'react'
 import type { Media, MediaType } from '../../api/types'
 import { Media as MediaView } from '../../components/Media'
 import { PersonName } from '../../components/PersonName'
@@ -6,6 +6,7 @@ import { controllerWithin } from '../../media/controller'
 import { countAfter, groupTurns } from './groupTurns'
 import { ChoiceBar, type ChoiceView } from './ChoiceBar'
 import { ProposalCard, type ProposalView } from './ProposalCard'
+import { ChatVisibility } from './ChatShell'
 import './proposal.css'
 import './choices.css'
 import './host.css'
@@ -140,6 +141,7 @@ export function ChatStream({ rows, pin, anchorId, onCaughtUp, hasOlder, loadingO
   loadingOlder?: boolean
   onLoadOlder?: () => void
 }) {
+  const chatVisible = useContext(ChatVisibility)
   const scroller = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
   const nearBottom = useRef(!anchorId)
@@ -176,7 +178,7 @@ export function ChatStream({ rows, pin, anchorId, onCaughtUp, hasOlder, loadingO
 
   const settle = (bottom: boolean) => {
     nearBottom.current = bottom
-    if (!bottom) return
+    if (!bottom || !chatVisible) return
     seenId.current = rows.at(-1)?.id
     setFresh(0)
     caughtUp.current?.()
@@ -184,7 +186,7 @@ export function ChatStream({ rows, pin, anchorId, onCaughtUp, hasOlder, loadingO
 
   const onScroll = () => {
     const el = scroller.current
-    if (!el || sticking.current) return
+    if (!chatVisible || !el || sticking.current) return
     settle(el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM)
   }
 
@@ -195,7 +197,7 @@ export function ChatStream({ rows, pin, anchorId, onCaughtUp, hasOlder, loadingO
   }, [pin])
 
   useLayoutEffect(() => {
-    if (opened.current) return
+    if (!chatVisible || opened.current) return
     opened.current = true
     const el = scroller.current
     if (!el) return
@@ -209,12 +211,12 @@ export function ChatStream({ rows, pin, anchorId, onCaughtUp, hasOlder, loadingO
       return
     }
     nearBottom.current = false
-  }, [anchorId])
+  }, [anchorId, chatVisible])
 
   useLayoutEffect(() => {
     const el = scroller.current
     const inner = content.current
-    if (!el || !inner) return
+    if (!chatVisible || !el || !inner) return
     const stick = () => {
       const list = rowsRef.current
       if (!nearBottom.current) {
@@ -232,7 +234,7 @@ export function ChatStream({ rows, pin, anchorId, onCaughtUp, hasOlder, loadingO
     const observer = new ResizeObserver(stick)
     observer.observe(inner)
     return () => observer.disconnect()
-  }, [tail, pin])
+  }, [tail, pin, chatVisible])
 
   const jump = () => {
     const el = scroller.current

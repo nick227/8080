@@ -1,3 +1,4 @@
+import { WorkspaceLoading, WorkspaceTransition } from '../features/work/WorkspaceTransition'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useCapture } from '../state/capture'
 import { uploadMedia, useRoom, useRoomCompany, useRoomItems, useRoomParticipants, useRoomStream, useUpdateRoom } from '@project/sdk'
@@ -170,7 +171,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
     if (shownPlace === 'company') next.delete('view')
     navigate({ pathname: deskPath(`/c/${workspace.id}`, shownPlace), search: next.toString() }, { replace: true, state: location.state })
   }, [toCompany, current.loading, listingQuery.isLoading, workspace, shownPlace, location.search, location.state, navigate])
-  const { rows, catchUp, anchorId } = useChatRows({
+  const { rows, catchUp, anchorId, unseenCount } = useChatRows({
     roomId,
     meId,
     visible,
@@ -227,6 +228,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
       )}
       <HostChannelProvider value={hostChannel}>
       <ChatShell
+        unseenCount={unseenCount}
         view={view}
         stage={(
           <div className="work-column">
@@ -234,8 +236,9 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
               if (next === 'documents') useDocuments.getState().open(null)
               openPlace(next)
             }} />
+            <WorkspaceTransition view={shownPlace}>
             {toCompany ? (
-              <p className="work-empty" role="status">Opening…</p>
+              <WorkspaceLoading label="Opening workspace…" />
             ) : shownPlace === 'stream' ? (
               <RoomFloor
                 view={view}
@@ -256,6 +259,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
             ) : (
               <WorkPage place={shownPlace} roomId={roomId} onPlace={openPlace} onOpenComposer={() => { openPlace('stream'); openRecord(); }} />
             )}
+            </WorkspaceTransition>
           </div>
         )}
         composer={<ChatBox onSend={chat} onRecord={openRecord} />}

@@ -30,6 +30,10 @@ model User {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
+  platformStaff PlatformStaff?
+  premiumGrants PremiumGrant[]
+  adminVersion Int @default(0)
+
   profile     Profile?
   sessions    Session[]
   ownedRooms  Room[]       @relation("RoomOwner")
@@ -2515,3 +2519,78 @@ model BudgetItem {
   @@index([workspaceId, blueprintSlug])
 }
 
+
+// Platform roles never confer workspace membership or paid entitlements.
+enum PlatformStaffRole {
+  platform_admin
+  platform_owner
+}
+
+model PlatformStaff {
+  userId String @id
+  role PlatformStaffRole
+  grantedById String
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PremiumGrant {
+  id String @id @default(cuid())
+  userId String
+  startsAt DateTime @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  grantedById String
+  revokedById String?
+  reason String @db.VarChar(500)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, revokedAt, expiresAt])
+}
+
+// No user FK: account deletion must not erase privileged action history.
+model AdminAuditEvent {
+  id String @id @default(cuid())
+  actorId String
+  targetUserId String
+  action String @db.VarChar(60)
+  reason String @db.VarChar(500)
+  requestId String @unique @db.VarChar(191)
+  before Json
+  after Json
+  createdAt DateTime @default(now())
+  @@index([targetUserId, createdAt])
+}
+
+// Serializes low-volume staff mutations and owner bootstrap across API instances.
+model AdminMutationLock {
+  id Int @id
+  version Int @default(0)
+}
+
+// Explicit binding; no email or metadata-based entitlement assignment.
+// No cascading user FK: retain billing history when an account is removed.
+model StripeCustomerBinding {
+  customerId String @id @db.VarChar(191)
+  userId String @unique
+  livemode Boolean
+  createdAt DateTime @default(now())
+}
+
+model StripeSubscription {
+  id String @id @db.VarChar(191)
+  customerId String @db.VarChar(191)
+  livemode Boolean
+  status String @db.VarChar(40)
+  invoiceStatus String? @db.VarChar(40)
+  priceId String? @db.VarChar(191)
+  accessUntil DateTime?
+  cancelAtPeriodEnd Boolean @default(false)
+  syncedAt DateTime
+  @@index([customerId, accessUntil])
+}
+
+model StripeWebhookReceipt {
+  id String @id @db.VarChar(191)
+  type String @db.VarChar(100)
+  processedAt DateTime @default(now())
+}

@@ -6,12 +6,13 @@ import { AgentEditor } from './AgentEditor'
 import { AgentList } from './AgentList'
 import { AgentRiver } from './AgentRiver'
 import { EventDetail } from './EventDetail'
+import { AgentImportSlideout } from './AgentImportSlideout'
 import './agents.css'
 import { useCurrentWorkspace } from '../../app/workspace'
 
 /** Automations (docs/agents/01): the list is the shared collection view (redesign D9);
  *  the catalog, editor and run detail are full pages.
- *  Selection lives in the URL (?agent=, ?event=, ?add=1) so other places can deep-link. */
+ *  Selection lives in the URL (?agent=, ?event=, ?add=1, ?import=1) so other places can deep-link. */
 export function AgentsDesk({ onPlace }: { onPlace?: (desk: Desk) => void }) {
   const { workspace } = useCurrentWorkspace()
   const canManage = workspace?.role === 'owner' || workspace?.role === 'admin'
@@ -21,6 +22,7 @@ export function AgentsDesk({ onPlace }: { onPlace?: (desk: Desk) => void }) {
   const agentId = params.get('agent') ?? undefined
   const eventId = params.get('event') ?? undefined
   const adding = params.get('add') === '1'
+  const importing = params.get('import') === '1'
 
   const go = (changes: Record<string, string | null>) => {
     const next = new URLSearchParams(location.search)
@@ -44,23 +46,37 @@ export function AgentsDesk({ onPlace }: { onPlace?: (desk: Desk) => void }) {
           timeZone={timeZone}
           canManage={canManage}
           onOpen={(id) => go({ agent: id })}
-          onAdd={() => go({ add: '1', agent: null })}
+          onAdd={() => go({ add: '1', agent: null, mode: 'catalog' })}
+          onImport={canManage ? () => go({ import: '1' }) : undefined}
           activity={(
             <section className="agents-section agents-activity" aria-labelledby="agents-activity-title">
               <AgentRiver workspaceId={workspace.id} timeZone={timeZone} onOpen={(id) => go({ event: id })} />
             </section>
           )}
         />
+        {importing && (
+          <AgentImportSlideout
+            workspaceId={workspace.id}
+            onClose={() => go({ import: null })}
+          />
+        )}
       </div>
     )
   }
+
 
   return (
     <div className="agents">
       <SectionHeader title="Automations" titleId="agents-title" level={1} />
       <div className="agents-full-width">
         {adding ? (
-          <AgentCatalog recipientConfig={params.get('contactIds') ? { source: 'SELECTED_CONTACTS', ids: params.get('contactIds')!.split(',') } : undefined} workspaceId={workspace.id} onCancel={() => go({ add: null })} onCreated={(id) => go({ add: null, agent: id, contactIds: null })} />
+          <AgentCatalog
+            recipientConfig={params.get('contactIds') ? { source: 'SELECTED_CONTACTS', ids: params.get('contactIds')!.split(',') } : undefined}
+            workspaceId={workspace.id}
+            initialMode={params.get('mode') === 'catalog' ? 'catalog' : 'starter'}
+            onCancel={() => go({ add: null, mode: null })}
+            onCreated={(id) => go({ add: null, mode: null, agent: id, contactIds: null })}
+          />
         ) : agentId ? (
           <AgentEditor
             workspaceId={workspace.id}

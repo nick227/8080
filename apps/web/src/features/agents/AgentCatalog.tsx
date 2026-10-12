@@ -1,5 +1,8 @@
-import type { RecipientConfig } from '@project/shared'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import type { RecipientConfig, PrefabAutomation } from '@project/shared'
 import { useAgentTypes, useCreateAgent } from '@project/sdk'
+import { StarterPackPicker } from '../prefab/StarterPackPicker'
 import '../documents/DocumentsList.css'
 
 const FAMILY_LABEL: Record<string, string> = {
@@ -36,11 +39,12 @@ const DEFAULT_SCHEDULE_HINT: Record<string, string> = {
 }
 
 /** Built-in agent templates grouped by delivery channel. */
-export function AgentCatalog({ workspaceId, onCancel, onCreated, recipientConfig }: {
+export function AgentCatalog({ workspaceId, onCancel, onCreated, recipientConfig, initialMode = 'starter' }: {
   recipientConfig?: RecipientConfig
   workspaceId: string
   onCancel: () => void
   onCreated: (agentId: string) => void
+  initialMode?: 'starter' | 'catalog'
 }) {
   const types = useAgentTypes(workspaceId)
   const create = useCreateAgent(workspaceId)
@@ -50,23 +54,77 @@ export function AgentCatalog({ workspaceId, onCancel, onCreated, recipientConfig
     { name: 'Social', rows: rows.filter((type) => type.family === 'social') },
     { name: 'Team', rows: rows.filter((type) => type.family === 'team') },
   ]
+  const [viewMode, setViewMode] = useState<'starter' | 'catalog'>(initialMode)
+
   const createAgent = (key: string) => {
     if (create.isPending) return
     create.mutate({ typeKey: key, recipientConfig }, { onSuccess: (agent) => onCreated(agent.id) })
   }
 
+  const handleImportAutomations = async (records: any[]) => {
+    for (const r of records) {
+      const auto = r as PrefabAutomation
+      try {
+        await create.mutateAsync({ typeKey: auto.typeKey, recipientConfig })
+      } catch {
+        /* already exists or non-fatal */
+      }
+    }
+    onCancel()
+  }
+
   return (
     <section className="agents-catalog" aria-label="New automation">
-      <div className="agents-bar" style={{ marginBottom: '1rem' }}>
+      <div className="agents-bar" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button type="button" className="agents-back" onClick={onCancel}>
           ← Back to Automations
         </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            type="button"
+            className="cal-btn"
+            style={{ fontWeight: viewMode === 'starter' ? 'bold' : 'normal', opacity: viewMode === 'starter' ? 1 : 0.6 }}
+            onClick={() => setViewMode('starter')}
+          >
+            Starter Packs
+          </button>
+          <button
+            type="button"
+            className="cal-btn"
+            style={{ fontWeight: viewMode === 'catalog' ? 'bold' : 'normal', opacity: viewMode === 'catalog' ? 1 : 0.6 }}
+            onClick={() => setViewMode('catalog')}
+          >
+            Browse All Templates
+          </button>
+        </div>
       </div>
 
-      {types.isLoading && <p className="agents-status">Loading templates…</p>}
-      {types.isError && <p className="agents-status">Couldn’t load agent templates.</p>}
+      <div className="modal-blueprint-banner">
+        <span>Operating workflows & automation recipes:</span>
+        <Link to="/blueprints/lean-service-team" target="_blank" rel="noopener noreferrer" className="modal-blueprint-link">
+          Lean Service Team Blueprint ↗
+        </Link>
+        <span className="modal-blueprint-dot">·</span>
+        <Link to="/blueprints" target="_blank" rel="noopener noreferrer" className="modal-blueprint-link">
+          Blueprint Catalog ↗
+        </Link>
+      </div>
 
-      <div className="agents-tables-stack">
+      {viewMode === 'starter' ? (
+        <div style={{ padding: '0.5rem 0' }}>
+          <StarterPackPicker
+            domain="automations"
+            confirmLabel="Import Automations"
+            onImport={handleImportAutomations}
+            onCancel={onCancel}
+          />
+        </div>
+      ) : (
+        <>
+          {types.isLoading && <p className="agents-status">Loading templates…</p>}
+          {types.isError && <p className="agents-status">Couldn’t load agent templates.</p>}
+
+          <div className="agents-tables-stack">
         {channels.filter((channel) => channel.rows.length > 0).map((channel) => (
           <section key={channel.name} aria-label={`${channel.name} templates`}>
             <h3 className="agents-label">{channel.name}</h3>
@@ -112,6 +170,8 @@ export function AgentCatalog({ workspaceId, onCancel, onCreated, recipientConfig
           </section>
         ))}
       </div>
+      </>
+      )}
 
       {create.isError && (
         <p className="agents-status agents-status-bad" role="alert" style={{ marginTop: '0.75rem' }}>

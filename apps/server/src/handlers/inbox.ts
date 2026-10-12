@@ -1,3 +1,4 @@
+import { watchAccountStream } from '../services/authorization/accountStreams'
 // Inbox attention queue and the shared composer (doc/11). There is no route
 // that creates an inbox item; producers call InboxService.raise.
 import { ComposeService } from '../services/ComposeService'
@@ -52,6 +53,7 @@ export async function streamInbox(request: Authed & { raw: RawStream }, reply: {
   const { workspaceId } = request.params
   const opened = new Date()
   const first = await inbox.due(request.user.id, workspaceId, opened)
+  watchAccountStream(request.user.id, request.raw)
   reply.hijack()
   reply.raw.writeHead(200, {
     ...reply.getHeaders(), 'content-type': 'text/event-stream; charset=utf-8',

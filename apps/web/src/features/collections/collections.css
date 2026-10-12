@@ -98,3 +98,42 @@
 .item-page .record-form button:disabled { opacity: var(--opacity-disabled); cursor: default; }
 .item-page .record-primary { color: var(--bg); background: var(--ink); padding-inline: var(--space-md); font-weight: var(--weight-medium); }
 .item-page .record-primary:hover { background: var(--ink); opacity: 0.9; }
+
+/* Selection (selection.tsx): one floating bar for every table's bulk actions, and a ✕ per row. */
+.collection-bulkbar {
+  position: fixed; z-index: 55; left: 50%;
+  bottom: calc(var(--space-lg) + 3rem + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  display: flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: var(--space-xs);
+  max-width: calc(100vw - 32px); box-sizing: border-box; padding: var(--space-sm);
+  background: var(--surface-deep); border: var(--line-width) solid var(--ink); border-radius: var(--input-radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
+}
+.collection-bulkbar strong { margin-right: var(--space-sm); font-size: var(--text-sm); }
+.collection-bulkbar .collection-bulk-btn,
+.collection-bulkbar > select {
+  height: var(--button-height-sm, 28px); padding: 0 var(--space-sm); box-sizing: border-box;
+  border: var(--line-width) solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface-subtle); color: var(--ink); font: inherit; font-size: var(--text-sm); white-space: nowrap; cursor: pointer;
+}
+.collection-bulkbar .collection-bulk-btn:hover, .collection-bulkbar > select:hover { background: var(--surface-active); }
+.collection-bulkbar .collection-bulk-btn:disabled { opacity: var(--opacity-disabled); cursor: default; }
+.collection-bulkbar .collection-bulk-delete { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, var(--line)); }
+.collection-bulkbar .collection-bulk-delete:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.collection-bulk-clear { padding: 0 var(--space-xs); border: 0; background: transparent; color: var(--muted); font: inherit; font-size: var(--text-sm); text-decoration: underline; cursor: pointer; }
+.collection-bulk-clear:hover, .collection-bulk-clear:focus-visible { color: var(--ink); }
+.collection-bulk-message[data-failed] { color: var(--danger); }
+
+.collection-row-delete { display: inline-flex; align-items: center; justify-content: center; width: 24px; padding: 0; }
+.collection-row-delete:hover, .collection-row-delete:focus-visible { color: var(--danger); border-color: var(--danger); }
+/* On hover devices the ✕ stays quiet until its row is hovered or focused. */
+@media (hover: hover) {
+  .collection-table tbody tr .collection-row-delete { opacity: 0; }
+  .collection-table tbody tr:hover .collection-row-delete,
+  .collection-table tbody tr:focus-within .collection-row-delete,
+  .collection-table tbody tr[data-selected] .collection-row-delete { opacity: 1; }
+}
+@media (max-width: 560px) {
+  .collection-table tbody tr[data-row-id] td.collection-delete-cell { position: absolute; right: var(--table-cell-padding-x); top: var(--space-sm); }
+  .collection-table tbody tr[data-row-id] td.collection-delete-cell::before { content: none; }
+}

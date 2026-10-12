@@ -1,0 +1,47 @@
+.workspace-transition {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.workspace-loading {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-height: 160px;
+  color: var(--muted);
+  font-size: var(--text-sm, 12px);
+}
+.workspace-loading-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  opacity: 0;
+  animation: workspace-reveal 160ms ease-out 180ms forwards;
+}
+.workspace-loading-mark {
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: workspace-spin 900ms linear infinite;
+}
+/* Controls arrive with the desk; fetched content follows as one coherent surface. */
+.workspace-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  animation: workspace-reveal 220ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+@keyframes workspace-reveal { from { opacity: 0; } to { opacity: 1; } }
+@keyframes workspace-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .workspace-content { animation: none; }
+  .workspace-loading-indicator { animation: none; opacity: 1; }
+  .workspace-loading-mark { animation: none; }
+}

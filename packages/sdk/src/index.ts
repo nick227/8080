@@ -4,3 +4,5 @@ export type * from './generated/types'
 export type * from './models'
 
 export { documentsApi, documentDatasetsApi, contactImportsApi, inventoryImportsApi, documentContentApi } from './documents'
+
+export * from "./hooks/useAdmin"

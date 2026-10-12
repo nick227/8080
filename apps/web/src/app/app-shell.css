@@ -30,3 +30,43 @@
 .bp-card-numbers dt { font-size:10px; }
 .bp-card-copy .bp-card-budget-note { margin-bottom:20px; }
 @media(min-width:901px) and (max-width:1100px) { .bp-card-numbers { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+
+/* Full-width combined home page styling */
+.home-page {
+  width: 100%;
+  max-width: 1240px;
+  margin-inline: auto;
+  padding: 32px 32px 64px;
+}
+.home-section {
+  padding-block: 28px 36px;
+  scroll-margin-top: calc(var(--mast) + 16px);
+}
+.home-section:not(:first-of-type) {
+  border-top: 1px solid var(--line);
+  margin-top: 32px;
+  padding-top: 40px;
+}
+.home-section .product-page-heading {
+  padding-bottom: 24px;
+}
+.home-section .product-page-heading h1,
+.home-section .product-page-heading h2 {
+  font-size: clamp(32px, 4vw, 56px);
+  margin: 0 0 8px;
+}
+.home-section .product-page-heading p {
+  color: var(--muted);
+  font-size: max(14px, var(--text-sm));
+  margin: 0;
+}
+@media (max-width: 767px) {
+  .home-page {
+    padding: 24px 16px 48px;
+  }
+  .home-section:not(:first-of-type) {
+    margin-top: 24px;
+    padding-top: 32px;
+  }
+}
+

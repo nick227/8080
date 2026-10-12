@@ -1,3 +1,4 @@
+import { WorkspaceLoading } from '../work/WorkspaceTransition'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { isUrgencyKey } from '@project/shared'
@@ -87,7 +88,7 @@ export function CalendarExperience({ section = 'calendar' }: { section?: TaskSec
   const { taskKey } = useParams()
   const { workspace, loading, guest } = useCurrentWorkspace()
   const { create, creating, createError } = useCreateCompany()
-  if (loading) return <p className="cal-gate" role="status">Loading workspace…</p>
+  if (loading) return <WorkspaceLoading />
   if (!workspace) {
     return (
       <div className="cal-gate">
@@ -104,7 +105,7 @@ export function CalendarExperience({ section = 'calendar' }: { section?: TaskSec
 function Calendar({ workspaceId, canManage, section }: { workspaceId: string; canManage: boolean; section: TaskSection }) {
   const views = SECTION_VIEWS[section].map((id) => VIEWS.find((item) => item.id === id)!)
   // Board and Calendar show the same tasks as the Tasks list, and say so.
-  const sectionTitle = section === 'calendar' ? 'Tasks · Calendar' : section === 'board' ? 'Tasks · Board' : section === 'tasks' ? 'Tasks' : 'Table'
+  const sectionTitle = section === 'calendar' ? 'Calendar' : section === 'board' ? 'Tasks · Board' : section === 'tasks' ? 'Tasks' : 'Table'
   const location = useLocation()
   const navigate = useNavigate()
   const { taskKey: pageTaskKey } = useParams()
@@ -114,7 +115,7 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
   const budgetQuery = useBudgetItems(workspaceId)
 
   const tasks = useCalendar((state) => state.tasks)
-  const loaded = useCalendar((state) => state.loaded)
+  const loaded = useCalendar((state) => state.loaded && state.workspaceId === workspaceId)
   const accomplishments = useCalendar((state) => state.accomplishments)
   const cursor = useCalendar((state) => state.cursor)
   const storedView = useCalendar((state) => state.view)
@@ -251,7 +252,7 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
             <CollectionHeader
               collection={section === 'tasks' ? 'tasks' : undefined}
               title={section === 'board' ? 'Board' : undefined}
-              count={tasks.length}
+              count={loaded ? tasks.length : undefined}
               onNew={newTask}
               onImport={() => setImporting(true)}
               actions={
@@ -342,12 +343,13 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
         {section !== 'tasks' && section !== 'board' && <SavedViews workspaceId={workspaceId} />}
         <CalendarFilters ref={searchRef} count={filteredTasks.length} total={scopedTasks.length} scoped={scopedTasks} reports={view === 'reports'} />
 
+        <div className="workspace-content" key={`${view}:${loaded ? 'ready' : 'pending'}`} aria-busy={!loaded && !sync.error}>
         {sync.error && !loaded ? (
           <p className="cal-board-note" role="alert">
             Tasks couldn't load: {sync.error} <button type="button" className="cal-link-btn" onClick={sync.retry}>Retry</button>
           </p>
         ) : !loaded ? (
-          <p className="cal-board-note" role="status">Loading tasks…</p>
+          <WorkspaceLoading label="Loading tasks…" />
         ) : view === 'day' ? (
           <DayView
             day={cursor}
@@ -397,6 +399,7 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
             onSelectTask={openTicket}
           />
         )}
+        </div>
       </div>
 
       </>}

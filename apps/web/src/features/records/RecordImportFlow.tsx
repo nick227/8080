@@ -2,22 +2,23 @@ import { useEffect, useState } from 'react'
 import { CsvExample } from '../../components/CsvExample'
 import { useQueryClient } from '@tanstack/react-query'
 import { keys, type ImportProposal } from '@project/sdk'
-import { ImportSourceStep, type SyncMode } from './ImportSourceStep'
 import { importAdapter, importError, importReason, PROPOSAL_LABEL, type ImportBatch, type ImportRow } from './importAdapter'
-import type { SourceId } from './importSources'
 import { RecordFormDialog } from './RecordChrome'
 import { ItemPage } from '../collections/ItemPage'
 import type { ReactNode } from 'react'
 import type { RecordKind } from './navigation'
+import { StarterPackPicker } from '../prefab/StarterPackPicker'
+import { contactsToCsv, inventoryToCsv } from '../prefab/csvFormatters'
+import type { PrefabContact, PrefabInventory } from '@project/shared'
+import { ImportModalTabs } from '../prefab/ImportModalChrome'
 
 type Step = 'source' | 'upload' | 'map' | 'review' | 'results'
 
-const STEPS: { id: Step; label: string }[] = [
-  { id: 'source', label: 'Source' },
-  { id: 'upload', label: 'Upload' },
-  { id: 'map', label: 'Map' },
-  { id: 'review', label: 'Review' },
-  { id: 'results', label: 'Results' },
+const CSV_STEPS: { id: Step; label: string }[] = [
+  { id: 'upload', label: '1. Upload' },
+  { id: 'map', label: '2. Map' },
+  { id: 'review', label: '3. Review' },
+  { id: 'results', label: '4. Results' },
 ]
 
 export function RecordImportFlow({
@@ -34,9 +35,9 @@ export function RecordImportFlow({
 }) {
   const adapter = importAdapter(kind)
   const queryClient = useQueryClient()
+  const [activeTab, setActiveTab] = useState<'starter-packs' | 'csv'>('starter-packs')
   const [step, setStep] = useState<Step>('source')
-  const [sourceId, setSourceId] = useState<SourceId | null>(null)
-  const [mode, setMode] = useState<SyncMode>('once')
+  const [isStarterBatch, setIsStarterBatch] = useState(false)
   const [csv, setCsv] = useState('')
   const [filename, setFilename] = useState('import.csv')
   const [batch, setBatch] = useState<ImportBatch | null>(null)
@@ -56,7 +57,6 @@ export function RecordImportFlow({
     setBatch(imp)
   }
   const options = kind === 'inventory' ? { onMatch } : undefined
-  const connecting = step === 'source' && !!sourceId && sourceId !== 'csv'
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)
@@ -98,7 +98,7 @@ export function RecordImportFlow({
           }
           const loaded = await adapter.rows(workspaceId, imp.id)
           if (!active) return
-          setSourceId('csv')
+          setActiveTab('csv')
           setBatch(imp)
           setMapping({ ...(imp.mapping as Record<string, string>) })
           if ('onMatch' in imp.options) setOnMatch(imp.options.onMatch === 'update' ? 'update' : 'skip')
@@ -134,15 +134,31 @@ export function RecordImportFlow({
     })
   }
 
-  const pickSource = (id: SourceId) => {
-    setSourceId(id)
+  const selectTab = (tabId: 'starter-packs' | 'csv') => {
+    setActiveTab(tabId)
     setError('')
-    if (id === 'csv') {
-      setMode('once')
+    if (tabId === 'csv' && step === 'source') {
       setStep('upload')
-    } else {
-      setMode('once')
+    } else if (tabId === 'starter-packs' && step === 'upload') {
+      setStep('source')
     }
+  }
+
+  const handleImportStarterPack = (records: any[], packName: string) => {
+    void run(async () => {
+      const generatedCsv =
+        kind === 'contacts'
+          ? contactsToCsv(records as PrefabContact[])
+          : inventoryToCsv(records as PrefabInventory[])
+      setFilename(`${packName}.csv`)
+      setCsv(generatedCsv)
+      const imp = await adapter.preview(workspaceId, generatedCsv, `${packName}.csv`, undefined, options)
+      remember(imp)
+      setMapping({ ...(imp.mapping as Record<string, string>) })
+      await loadRows(imp)
+      setIsStarterBatch(true)
+      setStep('review')
+    })
   }
 
   const sampleByColumn = (() => {
@@ -174,38 +190,47 @@ export function RecordImportFlow({
     </label>
   )
 
-  const visibleSteps =
-    sourceId === 'csv' || step === 'upload' || step === 'map' || step === 'review' || step === 'results'
-      ? STEPS
-      : STEPS.filter((entry) => entry.id === 'source')
-
   return (
-    <Frame page={page} title={adapter.title} onClose={close}>
+    <Frame
+      page={page}
+      title={adapter.title}
+      onClose={close}
+    >
       <div className="record-form record-import">
-        <nav className="record-import-steps" aria-label="Import steps">
-          {visibleSteps.map((entry) => (
-            <span key={entry.id} data-current={step === entry.id || undefined}>
-              {entry.label}
-            </span>
-          ))}
-        </nav>
+        <ImportModalTabs
+          tabs={[
+            { id: 'starter-packs', label: 'Starter Packs' },
+            { id: 'csv', label: 'CSV Upload', ariaLabel: 'CSV' },
+          ]}
+          activeTab={activeTab}
+          onSelectTab={(id) => selectTab(id as 'starter-packs' | 'csv')}
+        />
+        {activeTab === 'csv' && (
+          <nav className="record-import-steps" aria-label="CSV import steps">
+            {CSV_STEPS.map((entry) => (
+              <span key={entry.id} data-current={step === entry.id || undefined}>
+                {entry.label}
+              </span>
+            ))}
+          </nav>
+        )}
         <div className="record-form-fields">
           {error && (
             <p role="alert" className="record-error">
               {error}
             </p>
           )}
-          {step === 'source' && (
-            <ImportSourceStep
-              kind={kind}
-              sourceId={sourceId}
-              mode={mode}
-              onPick={pickSource}
-              onMode={setMode}
-              onBack={() => setSourceId(null)}
-            />
+          {activeTab === 'starter-packs' && (step === 'source' || !isStarterBatch) && (
+            <div className="record-import-panel">
+              <StarterPackPicker
+                domain={kind}
+                confirmLabel="Load into preview"
+                onImport={handleImportStarterPack}
+                onCancel={close}
+              />
+            </div>
           )}
-          {step === 'upload' && (
+          {activeTab === 'csv' && step === 'upload' && (
             <div className="record-import-panel">
               <label className="record-file">
                 <span>CSV file</span>
@@ -239,7 +264,7 @@ export function RecordImportFlow({
               {kind === 'inventory' && matchSelect}
             </div>
           )}
-          {step === 'map' && batch && (
+          {((activeTab === 'csv' && step === 'map') || (activeTab === 'starter-packs' && step === 'map')) && batch && (
             <div className="record-import-panel">
               <p>
                 {batch.totalRows} rows from {batch.source.filename ?? 'CSV'}.
@@ -415,16 +440,9 @@ export function RecordImportFlow({
         </div>
         <footer>
           {step === 'source' && (
-            <>
-              <button type="button" onClick={close}>
-                Cancel
-              </button>
-              {connecting && (
-                <button className="record-primary" disabled>
-                  Continue
-                </button>
-              )}
-            </>
+            <button type="button" onClick={close}>
+              Cancel
+            </button>
           )}
           {step === 'upload' && (
             <>
@@ -433,7 +451,7 @@ export function RecordImportFlow({
                 onClick={() => {
                   setCsv('')
                   setFilename('import.csv')
-                  setSourceId(null)
+                  setActiveTab('starter-packs')
                   setStep('source')
                 }}
               >
@@ -482,7 +500,15 @@ export function RecordImportFlow({
               <button
                 type="button"
                 disabled={busy || batch.status !== 'previewed'}
-                onClick={() => setStep('map')}
+                onClick={() => {
+                  if (isStarterBatch) {
+                    setIsStarterBatch(false)
+                    setStep('source')
+                    setActiveTab('starter-packs')
+                  } else {
+                    setStep('map')
+                  }
+                }}
               >
                 Back
               </button>
@@ -536,8 +562,27 @@ export function RecordImportFlow({
 }
 
 // Defined at module level (a component made inside render would remount the flow).
-function Frame({ page, title, onClose, children }: { page?: { backLabel: string }; title: string; onClose: () => void; children: ReactNode }) {
-  return page
-    ? <ItemPage back={{ label: page.backLabel, onClick: onClose }} title={title}>{children}</ItemPage>
-    : <RecordFormDialog title={title} onClose={onClose}>{children}</RecordFormDialog>
+function Frame({
+  page,
+  title,
+  subtitle,
+  onClose,
+  children,
+}: {
+  page?: { backLabel: string }
+  title: string
+  subtitle?: ReactNode
+  onClose: () => void
+  children: ReactNode
+}) {
+  return page ? (
+    <ItemPage back={{ label: page.backLabel, onClick: onClose }} title={title}>
+      {children}
+    </ItemPage>
+  ) : (
+    <RecordFormDialog title={title} subtitle={subtitle} width="640px" onClose={onClose}>
+      {children}
+    </RecordFormDialog>
+  )
 }
+

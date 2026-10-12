@@ -49,7 +49,8 @@ type State = {
   openFromLink: (workspaceId: string, id: string) => Promise<boolean>
   add: (doc: DocumentRecord) => void
   change: (id: string, recipe: (doc: DocumentRecord) => DocumentRecord) => void
-  remove: (id: string) => void
+  /** Resolves once the server agrees (rejects, and puts the document back, when it doesn't). */
+  remove: (id: string) => Promise<void>
   linkRoom: (id: string, roomId: string) => void
   replaceIfNewer: (doc: DocumentRecord) => void
   // Registry actions for the list/header UI to wire (workspace mode only)
@@ -459,7 +460,7 @@ export const useDocuments = create<State>((set, get) => {
       }
     },
 
-    remove(id) {
+    async remove(id) {
       const doc = get().docs.find((d) => d.id === id)
       if (!doc) return
       detachBlocks(id)
@@ -471,9 +472,12 @@ export const useDocuments = create<State>((set, get) => {
       }
       set({ docs, openId })
       // Moves to trash for everyone it's shared with; restore brings it back.
-      void documentsApi.remove(ws(), id, doc.shared.version).catch((error) => {
+      try {
+        await documentsApi.remove(ws(), id, doc.shared.version)
+      } catch (error) {
         set({ docs: [doc, ...get().docs], status: `Couldn’t delete — ${errorText(error)}` })
-      })
+        throw error
+      }
     },
 
     linkRoom(id, roomId) {

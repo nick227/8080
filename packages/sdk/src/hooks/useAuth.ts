@@ -55,6 +55,8 @@ export function useLogin() {
       return data!
     },
     onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ['admin'] })
+      queryClient.removeQueries({ queryKey: ['entitlements'] })
       queryClient.invalidateQueries({ queryKey: ['me'] })
     },
   })
@@ -70,6 +72,8 @@ export function useRegister() {
       return data!
     },
     onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ['admin'] })
+      queryClient.removeQueries({ queryKey: ['entitlements'] })
       queryClient.invalidateQueries({ queryKey: ['me'] })
     },
   })

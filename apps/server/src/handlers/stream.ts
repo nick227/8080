@@ -1,3 +1,4 @@
+import { watchAccountStream } from '../services/authorization/accountStreams'
 import { readRoomChanges } from '../services/roomChanges'
 import { db } from '@project/db'
 import { RoomService } from '../services/RoomService'
@@ -18,6 +19,7 @@ export async function streamRoomEvents(request: any, reply: any) {
   const room = await db.room.findUniqueOrThrow({ where: { id: roomId }, select: { changeCount: true } })
   let cursor = supplied === undefined ? room.changeCount : Number(supplied)
   if (!Number.isSafeInteger(cursor) || cursor > room.changeCount) throw { statusCode: 400, message: 'Invalid change cursor' }
+  watchAccountStream(request.user.id, request.raw)
   reply.hijack()
   reply.raw.writeHead(200, {
     ...reply.getHeaders(), 'content-type': 'text/event-stream; charset=utf-8',

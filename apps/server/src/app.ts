@@ -49,6 +49,7 @@ export async function buildApp(opts: BuildOptions = {}) {
   if (opts.rateLimit ?? process.env.RATE_LIMITS !== 'off') await server.register(rateLimit, { global: false })
 
   await server.register(uploads)
+  await server.register((await import('./plugins/stripeWebhook')).default)
 
   if (opts.docs ?? process.env.NODE_ENV !== 'production') {
     const spec = load(readFileSync(specPath, 'utf-8')) as object

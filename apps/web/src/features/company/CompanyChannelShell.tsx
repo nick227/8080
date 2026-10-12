@@ -35,7 +35,7 @@ export function CompanyChannelShell({ workspaceId, children }: { workspaceId: st
     setPin((n) => n + 1)
     return post(input, retryId, { chat: true })
   }, [post])
-  const { rows, catchUp, anchorId } = useChatRows({
+  const { rows, catchUp, anchorId, unseenCount } = useChatRows({
     roomId,
     meId,
     visible,
@@ -54,6 +54,7 @@ export function CompanyChannelShell({ workspaceId, children }: { workspaceId: st
 
   return (
     <ChatShell
+      unseenCount={unseenCount}
       view="grid"
       stage={children}
       stream={(

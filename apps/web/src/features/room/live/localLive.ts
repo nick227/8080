@@ -1,3 +1,4 @@
+import { ApiError, getApiClient, unwrap } from '@project/sdk'
 import { create } from 'zustand'
 import { useBackground } from '../../../state/background'
 import { openCamera } from '../../previewStream'
@@ -58,6 +59,7 @@ function cameraLook(): Look {
 }
 
 function failure(error: unknown) {
+  if (error instanceof ApiError) return error.message
   const name = (error as { name?: string })?.name
   if (name === 'NotAllowedError') return 'Camera or screen access was blocked'
   if (name === 'NotFoundError') return 'No camera found'
@@ -80,6 +82,9 @@ export const useLocalLive = create<State>((set, get) => {
     release()
     set({ starting: true, error: null })
     try {
+      const access = unwrap(await getApiClient().GET('/me/entitlements')).data
+      if (mine !== generation) return
+      if (!access.liveAvailable) throw new ApiError(403, access.liveUnavailableReason)
       const { track, preview } = await capture()
       if (mine !== generation) return
       // The browser's own "Stop sharing" (or a camera unplugged) ends live too.

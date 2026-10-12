@@ -124,7 +124,7 @@ export function useLiveToken(roomId: string | undefined) {
     enabled: !!roomId,
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
-    retry: (count, error) => !(error instanceof ApiError && (error.status === 404 || error.status === 503)) && count < 2,
+    retry: (count, error) => !(error instanceof ApiError && (error.status === 401 || error.status === 403 || error.status === 404 || error.status === 503)) && count < 2,
     queryFn: async () =>
       unwrap(await getApiClient().GET('/rooms/{roomId}/live-token', { params: { path: { roomId: roomId! } } })).data,
   })

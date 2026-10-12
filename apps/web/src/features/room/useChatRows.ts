@@ -118,5 +118,9 @@ export function useChatRows(opts: {
   // Bot items never make a room unread (doc/08 I6).
   const anchorId = stored == null || readMark < 0 ? undefined : visible.find((item) => item.number > stored && isHumanAuthored(item))?.id
 
-  return { rows, catchUp, anchorId }
+  const unseenCount = meId && roomId
+    ? visible.filter((item) => item.number > (stored ?? 0) && item.author.id !== meId && isHumanAuthored(item)).length
+    : 0
+
+  return { rows, catchUp, anchorId, unseenCount }
 }
