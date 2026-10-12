@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   ApiError,
   useCreateWorkspaceInvite,
+  useMyEntitlements,
   useRemoveWorkspaceMember,
   useRevokeWorkspaceInvite,
   useSession,
@@ -18,7 +19,7 @@ type Workspace = { id: string; name: string; role: string }
 /**
  * The one place people are added to a company and their access is set: Company,
  * Work › Members and a room's Team all open this. Owners and admins invite by email
- * (the server sends the link; it's also shown once to copy), resend or withdraw
+ * (Premium: the server sends the link; it's always shown once to copy), resend or withdraw
  * pending invites, and change roles. Everyone else sees who's here.
  * In a room, `roomUrl` adds the room's own share link (that opens the room; it
  * doesn't make anyone a member of the company).
@@ -36,6 +37,9 @@ export function PeopleDialog({ workspace, roomUrl, onClose }: { workspace: Works
   }, [])
 
   const canManage = workspace?.role === 'owner' || workspace?.role === 'admin'
+  // Sending email is Premium (the server checks too); free plans create the link to copy.
+  const access = useMyEntitlements(canManage)
+  const canEmail = access.data?.tier === 'premium'
 
   return (
     <dialog className="people-dialog" ref={dialog} aria-labelledby="people-dialog-title" onCancel={(event) => {
@@ -51,9 +55,9 @@ export function PeopleDialog({ workspace, roomUrl, onClose }: { workspace: Works
       </header>
       <div className="people-dialog-body">
         {workspace && (canManage
-          ? <InviteByEmail workspaceId={workspace.id} />
+          ? <InviteByEmail workspaceId={workspace.id} canEmail={canEmail} />
           : <p className="people-muted">Only owners and admins can invite people or change roles in {workspace.name}.</p>)}
-        {workspace && canManage && <PendingInvites workspaceId={workspace.id} />}
+        {workspace && canManage && <PendingInvites workspaceId={workspace.id} canEmail={canEmail} />}
         {workspace && <People workspace={workspace} canManage={canManage} />}
         {roomUrl && <RoomLink url={roomUrl} />}
       </div>
@@ -87,7 +91,7 @@ function CopyButton({ text, label = 'Copy link' }: { text: string; label?: strin
 
 type Sent = { email: string; link: string; emailed: boolean; emailError: string | null }
 
-function InviteByEmail({ workspaceId }: { workspaceId: string }) {
+function InviteByEmail({ workspaceId, canEmail }: { workspaceId: string; canEmail: boolean }) {
   const create = useCreateWorkspaceInvite(workspaceId)
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<'member' | 'admin'>('member')
@@ -96,13 +100,13 @@ function InviteByEmail({ workspaceId }: { workspaceId: string }) {
 
   return (
     <section className="people-section" aria-labelledby="people-invite-title">
-      <h3 id="people-invite-title">Invite by email</h3>
+      <h3 id="people-invite-title">{canEmail ? 'Invite by email' : 'Invite someone'}</h3>
       <form className="people-invite-form" onSubmit={(e) => {
         e.preventDefault()
         const to = email.trim()
         setError('')
         setSent(null)
-        create.mutate({ email: to, role, sendEmail: true }, {
+        create.mutate({ email: to, role, sendEmail: canEmail }, {
           onSuccess: (res) => {
             setSent({ email: to, link: inviteLink(res.token), emailed: res.emailed, emailError: res.emailError })
             setEmail('')
@@ -115,16 +119,19 @@ function InviteByEmail({ workspaceId }: { workspaceId: string }) {
           <option value="member">Member</option>
           <option value="admin">Admin</option>
         </select>
-        <button type="submit" className="people-btn people-btn-primary" disabled={create.isPending}>{create.isPending ? 'Sending…' : 'Send invite'}</button>
+        <button type="submit" className="people-btn people-btn-primary" disabled={create.isPending}>{create.isPending ? (canEmail ? 'Sending…' : 'Creating…') : canEmail ? 'Send invite' : 'Create invite link'}</button>
       </form>
       <small className="people-muted">Members work in the company. Admins can also invite people and change roles.</small>
+      {!canEmail && <small className="people-muted people-premium">Sending invites by email is a Premium feature. You’ll get a link to copy and send yourself.</small>}
       {error && <p className="people-error" role="alert">{error}</p>}
       {sent && (
         <div className="people-sent" role="status">
           <p>
             {sent.emailed
               ? <>Invite sent to <strong>{sent.email}</strong>. You can also copy the link and send it yourself.</>
-              : <>The email to <strong>{sent.email}</strong> couldn’t be sent{sent.emailError === 'NO_APP_URL' ? ' (email isn’t set up here)' : ''}. Copy the link and send it yourself.</>}
+              : !sent.emailError || sent.emailError === 'PREMIUM_REQUIRED'
+                ? <>Invite created for <strong>{sent.email}</strong>. Copy the link and send it to them.</>
+                : <>The email to <strong>{sent.email}</strong> couldn’t be sent{sent.emailError === 'NO_APP_URL' ? ' (email isn’t set up here)' : ''}. Copy the link and send it yourself.</>}
             {' '}It works for that address only, and it’s shown just once.
           </p>
           <div className="people-link">
@@ -137,7 +144,7 @@ function InviteByEmail({ workspaceId }: { workspaceId: string }) {
   )
 }
 
-function PendingInvites({ workspaceId }: { workspaceId: string }) {
+function PendingInvites({ workspaceId, canEmail }: { workspaceId: string; canEmail: boolean }) {
   const invites = useWorkspaceInvites(workspaceId)
   const resend = useCreateWorkspaceInvite(workspaceId)
   const revoke = useRevokeWorkspaceInvite(workspaceId)
@@ -157,12 +164,13 @@ function PendingInvites({ workspaceId }: { workspaceId: string }) {
               </span>
             </span>
             <span className="people-actions">
-              <button type="button" className="people-btn" disabled={resend.isPending} onClick={() => {
+              {/* Without email, a new invite would only replace the link: re-invite from the form instead. */}
+              {canEmail && <button type="button" className="people-btn" disabled={resend.isPending} onClick={() => {
                 resend.mutate({ email: i.email, role: i.role === 'admin' ? 'admin' : 'member', sendEmail: true }, {
                   onSuccess: (res) => setNote({ id: res.data.id, text: res.emailed ? 'Sent again' : 'Couldn’t email it' }),
                   onError: (err) => setNote({ id: i.id, text: problem(err, 'Couldn’t resend.') }),
                 })
-              }}>Resend</button>
+              }}>Resend</button>}
               <button type="button" className="people-btn" disabled={revoke.isPending} onClick={() => revoke.mutate(i.id)}>Withdraw</button>
             </span>
           </li>

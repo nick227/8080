@@ -1095,7 +1095,8 @@ export interface paths {
          * Invite someone by email (owner/admin)
          * @description Returns the invite token once. With `sendEmail`, the link is also emailed to the
          *     invitee through the workspace's default sender; `emailed`/`emailError` say how that
-         *     went (a failed send still creates the invite). Without it, deliver the link yourself.
+         *     went (a failed send still creates the invite). Emailing is Premium: a free inviter
+         *     gets the invite with `emailError: PREMIUM_REQUIRED`. Otherwise deliver the link yourself.
          *     A new invite for the same email replaces the pending one (Resend). Expires in 7 days.
          */
         post: operations["createWorkspaceInvite"];
@@ -6025,7 +6026,7 @@ export interface components {
             token: string;
             /** @description The invite email was accepted by the sender (false when sendEmail was off). */
             emailed: boolean;
-            /** @description Why the email wasn’t sent (e.g. NO_APP_URL, SEND_ERROR, a provider code). */
+            /** @description Why the email wasn’t sent (PREMIUM_REQUIRED, NO_APP_URL, SEND_ERROR, or a provider code). */
             emailError: string | null;
         };
         CreateWorkspaceInviteInput: {

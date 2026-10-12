@@ -236,12 +236,19 @@ describe('invites', () => {
     expect((await call(carolId, 'POST', '/workspace-invites/accept', { token: third.token })).json().code).toBe('INVITE_INVALID')
   })
 
-  it('sendEmail emails the accept link through the workspace sender; a failed send still creates the invite', async () => {
+  it('sendEmail (Premium) emails the accept link through the workspace sender; a failed or refused send still creates the invite', async () => {
     vi.stubEnv('APP_URL', 'https://app.test.local')
     try {
       const ws = await createWorkspace()
       await seedPeople()
       await db.devOutboxEmail.deleteMany({ where: { to: 'carol@test.local' } })
+      // Emailing is Premium: a free inviter gets the invite and its link, nothing is sent.
+      const free = await call(testUserId, 'POST', `/workspaces/${ws.id}/invites`, { email: 'carol@test.local', sendEmail: true })
+      expect(free.statusCode).toBe(201)
+      expect(free.json()).toMatchObject({ emailed: false, emailError: 'PREMIUM_REQUIRED' })
+      expect(await db.devOutboxEmail.count({ where: { to: 'carol@test.local' } })).toBe(0)
+      await db.premiumGrant.create({ data: { userId: testUserId, grantedById: testUserId, reason: 'test', expiresAt: new Date(Date.now() + 3600_000) } })
+
       const res = await call(testUserId, 'POST', `/workspaces/${ws.id}/invites`, { email: 'carol@test.local', role: 'admin', sendEmail: true })
       expect(res.statusCode).toBe(201)
       await validateResponse('createWorkspaceInvite', 201, res.json())

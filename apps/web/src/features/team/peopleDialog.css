@@ -47,3 +47,4 @@ dialog.people-dialog[open] { display: flex; flex-direction: column; }
   .people-list li { flex-direction: column; align-items: stretch; }
   .people-actions { justify-content: flex-end; }
 }
+.people-premium { margin-top: 4px; }

@@ -20,6 +20,7 @@ import { redactRooms } from './records'
 import { authorize, permit, type Actor } from './workspacePolicy'
 import { createPlatformConnection } from './agents/connections'
 import { sendInviteEmail } from './inviteEmail'
+import { entitlements } from './admin/entitlements'
 import { ensurePipelineStages } from './PipelineService'
 import { ensureContactCategories } from './TagService'
 import { ensureInventoryCategories } from './VocabularyService'
@@ -269,7 +270,7 @@ export class WorkspaceService {
   // ─── invites ───────────────────────────────────────────────────────────────
 
   // Returns the token once. A new invite for the same email replaces the pending one.
-  // With sendEmail, the link is also emailed (after the commit); a failed send still returns the token.
+  // With sendEmail (Premium), the link is also emailed (after the commit); a failed or refused send still returns the token.
   async createInvite(ctx: WorkspaceCtx, workspaceId: string, input: { email: string; role?: Exclude<WorkspaceRole, 'owner'>; sendEmail?: boolean }) {
     const actor = await authorize(ctx.user.id, workspaceId, 'member.invite')
     const email = normalizeEmail(input.email)
@@ -290,6 +291,8 @@ export class WorkspaceService {
       },
     )
     if (!input.sendEmail) return { data: toWorkspaceInvite(invite), token, emailed: false, emailError: null }
+    // Sending email is a Premium feature (the inviter's own access); the invite and its link still work.
+    if ((await entitlements(ctx.user.id)).tier !== 'premium') return { data: toWorkspaceInvite(invite), token, emailed: false, emailError: 'PREMIUM_REQUIRED' }
     const workspace = await db.workspace.findUniqueOrThrow({ where: { id: workspaceId } })
     const sent = await sendInviteEmail(workspace, invite, token, ctx.user.profile?.displayName ?? null)
     return { data: toWorkspaceInvite(invite), token, ...sent }
