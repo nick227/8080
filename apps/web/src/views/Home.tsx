@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '@project/sdk'
 import { WorkspaceList } from '../features/home/WorkspaceList'
+import { AppPromo } from '../features/home/AppPromo'
 import { Lobby } from '../features/Lobby'
 import { blueprints, scenarioData, money } from '../features/blueprints/data'
 import { RecordModalSurface } from '../features/conversation/RecordModalSurface'
@@ -67,6 +68,8 @@ export function Home() {
         </div>
         <WorkspaceList />
       </section>
+
+      <AppPromo />
 
       {/* Section 2: Community */}
       <section id="community" className="home-section" aria-labelledby="heading-community">

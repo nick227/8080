@@ -1,0 +1,17 @@
+{
+  "id": "/native/",
+  "name": "8080",
+  "short_name": "8080",
+  "description": "Notifications and workspaces from 8080.",
+  "start_url": "/native/",
+  "scope": "/native/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
+  "icons": [
+    { "src": "/native/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/native/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/native/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

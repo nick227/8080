@@ -154,6 +154,8 @@ function longCache(): Plugin {
     configurePreviewServer(server) {
       server.middlewares.use((req, res, next) => {
         if (immutable(req.url ?? '')) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+        // The mobile app's worker and manifest are re-checked on every load so a deploy updates it.
+        else if (/^\/native\/(sw\.js|manifest\.webmanifest)/.test(req.url ?? '')) res.setHeader('Cache-Control', 'no-cache')
         next()
       })
     },

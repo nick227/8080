@@ -152,3 +152,17 @@
   max-width: 600px; margin: 0 auto; padding: 12px 14px;
   background: var(--ink); color: var(--bg); font-size: 14px; border-radius: var(--radius);
 }
+
+.native-install {
+  display: flex; align-items: flex-start; gap: 12px; margin: 0 0 12px; padding: 12px;
+  border: var(--line-width) solid var(--line); background: var(--surface-tile); border-radius: var(--radius);
+}
+.native-install img { flex: none; border-radius: 9px; }
+.native-install-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.native-install-copy strong { font-size: 14px; }
+.native-install-copy span, .native-install-copy p { color: var(--muted); margin: 0; }
+.native-install-actions { flex: none; display: flex; align-items: center; gap: 4px; }
+.native-install-actions .native-button { width: auto; padding: 0 14px; }
+.native-install-close { width: 36px; min-height: var(--native-touch); background: none; border: 0; color: var(--muted); font-size: 22px; cursor: pointer; }
+.native .install-steps { margin: 8px 0 0; padding-left: 18px; color: var(--ink-secondary, var(--ink)); font-size: 13px; line-height: 1.6; }
+.native .install-share { vertical-align: -2px; margin: 0 2px; }

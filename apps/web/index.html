@@ -5,6 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>8080</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
+    <script>
+      // The installable mobile app lives at /native/ (manifest scope). Only those pages
+      // advertise the manifest, and the install prompt is kept for the app to offer.
+      (function () {
+        var path = location.pathname
+        // A real navigation: a page whose URL started outside the scope can't be controlled.
+        if (path === '/native') return location.replace('/native/' + location.search + location.hash)
+        if (path.indexOf('/native/') !== 0) return
+        var head = document.head
+        function add(tag, attrs) { var el = document.createElement(tag); for (var k in attrs) el.setAttribute(k, attrs[k]); head.appendChild(el) }
+        add('link', { rel: 'manifest', href: '/native/manifest.webmanifest' })
+        add('link', { rel: 'apple-touch-icon', href: '/native/apple-touch-icon.png' })
+        add('meta', { name: 'theme-color', content: '#0f1115' })
+        add('meta', { name: 'mobile-web-app-capable', content: 'yes' })
+        add('meta', { name: 'apple-mobile-web-app-capable', content: 'yes' })
+        add('meta', { name: 'apple-mobile-web-app-title', content: '8080' })
+        add('meta', { name: 'apple-mobile-web-app-status-bar-style', content: 'black' })
+        var vp = document.querySelector('meta[name=viewport]')
+        if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1.0, viewport-fit=cover')
+        window.addEventListener('beforeinstallprompt', function (e) {
+          e.preventDefault()
+          window.__installPrompt = e
+          window.dispatchEvent(new Event('installpromptready'))
+        })
+      })()
+    </script>
 
   </head>
   <body>

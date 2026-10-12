@@ -1,0 +1,57 @@
+/* Homepage "Get the 8080 app": one compact band; preview + QR on wide screens only. */
+.app-promo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 40px;
+  align-items: center;
+}
+.app-promo-eyebrow { margin: 0 0 8px; font-family: var(--mono); font-size: 12px; letter-spacing: var(--tracking-action, .08em); text-transform: uppercase; color: var(--signal); }
+.app-promo-copy h2 { font-size: clamp(28px, 3.2vw, 44px); margin: 0 0 10px; }
+.app-promo-copy > p { max-width: 520px; margin: 0; color: var(--muted); font-size: max(14px, var(--text-sm)); line-height: 1.5; }
+.app-promo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: 22px; }
+.app-promo .app-promo-cta {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px;
+  background: var(--ink); color: var(--bg); text-decoration: none; font-weight: 700; border-radius: var(--radius);
+}
+.app-promo .app-promo-cta:hover { opacity: .9; }
+.app-promo-note { font-size: 13px; color: var(--muted); }
+.app-promo-link { min-height: 44px; background: none; border: 0; padding: 0; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; font: inherit; font-size: 14px; cursor: pointer; }
+.app-promo-steps { margin-top: 14px; padding: 12px 14px; border: var(--line-width) solid var(--line); max-width: 520px; font-size: 14px; }
+.app-promo-steps > p { margin: 0; color: var(--muted); }
+.app-promo .install-steps { margin: 6px 0 0; padding-left: 18px; line-height: 1.6; }
+.app-promo .install-share { vertical-align: -2px; margin: 0 2px; }
+
+.app-promo-visual { display: flex; align-items: flex-end; gap: 28px; }
+
+.app-promo-phone {
+  width: 210px; padding: 9px; border-radius: 30px;
+  background: var(--surface-deep); border: 1px solid var(--line);
+  box-shadow: 0 20px 50px color-mix(in srgb, var(--shadow-color, #000) 35%, transparent);
+}
+.app-promo-screen {
+  height: 380px; border-radius: 22px; overflow: hidden; position: relative;
+  background: #0f1115; color: #f0ede1; font-family: var(--sans);
+  display: flex; flex-direction: column; gap: 6px; padding: 0 10px;
+}
+.app-promo-bar { display: flex; justify-content: space-between; align-items: center; height: 38px; margin: 0 -10px 4px; padding: 10px 12px 0; border-bottom: 1px solid #2b2e36; }
+.app-promo-bar b { font-family: var(--mono); letter-spacing: .08em; font-size: 12px; }
+.app-promo-bar i { width: 16px; height: 16px; border-radius: 50%; border: 1px solid #2b2e36; }
+.app-promo-title { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; font-size: 17px; margin: 4px 0 2px; }
+.app-promo-title span { font-family: var(--mono); font-weight: 400; font-size: 9px; color: #84827a; }
+.app-promo-row { display: flex; flex-direction: column; gap: 3px; padding: 8px 18px 8px 8px; border: 1px solid #2b2e36; background: #101216; position: relative; }
+.app-promo-row span { font-size: 8.5px; color: #84827a; }
+.app-promo-row strong { font-size: 10.5px; font-weight: 400; color: #c9c6bb; }
+.app-promo-row[data-unread] strong { font-weight: 700; color: #f0ede1; }
+.app-promo-row[data-unread]::after { content: ''; position: absolute; right: 7px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: #d94236; }
+.app-promo-tabs { position: absolute; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(3, 1fr); height: 40px; align-items: center; text-align: center; border-top: 1px solid #2b2e36; font-family: var(--mono); font-size: 7.5px; letter-spacing: .08em; text-transform: uppercase; color: #84827a; }
+.app-promo-tabs span:first-child { color: #f0ede1; }
+
+.app-promo-qr { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.app-promo-qr svg, .app-promo-qr-blank { display: block; width: 132px; height: 132px; border-radius: 6px; }
+.app-promo-qr-blank { background: var(--surface-subtle); }
+.app-promo-qr figcaption { font-size: 12px; color: var(--muted); text-align: center; max-width: 132px; }
+
+@media (max-width: 900px) {
+  .app-promo { grid-template-columns: 1fr; gap: 28px; }
+  .app-promo-visual { display: none; }
+}

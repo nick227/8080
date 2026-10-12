@@ -7,6 +7,7 @@ import { ApiError, useLogout, useMyWorkspaces, useSession, type InboxItem, type 
 import { GuestAuth } from '../AccountSheet'
 import { SEO } from '../../components/SEO'
 import { destinationOf } from './destination'
+import { IosSteps, isStandalone, platform, rememberInstalled, useInstallPrompt } from './install'
 import { KINDS, kindOf, useMarkRead, useUnifiedInbox, type Kind, type WorkspaceInbox } from './inbox'
 import './native.css'
 
@@ -16,6 +17,13 @@ export const RETURN_KEY = '8080.return-to'
 export function NativeApp() {
   const session = useSession()
   const user = session.data?.data
+  useEffect(() => {
+    if (isStandalone()) rememberInstalled()
+    // Scope /native/; caches nothing (public/native/sw.js).
+    if ('serviceWorker' in navigator && window.isSecureContext) {
+      navigator.serviceWorker.register('/native/sw.js', { scope: '/native/', updateViaCache: 'none' }).catch(() => { /* the app works without it */ })
+    }
+  }, [])
   return (
     <div className="native">
       <SEO title="8080" description="Your 8080 notifications and workspaces." />
@@ -148,6 +156,7 @@ function Inbox({ inboxes }: { inboxes: WorkspaceInbox[] }) {
 
   return (
     <section className="native-inbox" aria-labelledby="native-inbox-title">
+      <InstallBanner />
       <div className="native-title-row">
         <h1 id="native-inbox-title">{selected ? selected.name : 'Inbox'}</h1>
         <span className="native-count" aria-live="polite">{unreadIds.length}{moreUnread ? '+' : ''} unread</span>
@@ -268,6 +277,11 @@ function Settings() {
         </span>
       </div>
       <div className="native-group">
+        <h2>App</h2>
+        <InstallSection />
+      </div>
+      <div className="native-group">
+        <h2>Account</h2>
         <a href="/account">Account settings</a>
         <a href="/">Open 8080 on the web</a>
       </div>
@@ -281,6 +295,58 @@ function Settings() {
       </button>
     </section>
   )
+}
+
+// ─── install ─────────────────────────────────────────────────────────────────
+
+const DISMISS_KEY = '8080.install-dismissed'
+
+/** A compact, dismissible offer at the top of the inbox; never shown once installed. */
+function InstallBanner() {
+  const [params] = useSearchParams()
+  const asked = params.get('install') === '1'
+  const { canPrompt, install, installed } = useInstallPrompt()
+  const ios = platform() === 'ios'
+  const [open, setOpen] = useState(asked)
+  const [dismissed, setDismissed] = useState(() => { try { return localStorage.getItem(DISMISS_KEY) === '1' } catch { return false } })
+  if (isStandalone() || installed || (dismissed && !asked) || !(canPrompt || ios)) return null
+  const dismiss = () => {
+    try { localStorage.setItem(DISMISS_KEY, '1') } catch { /* session-only */ }
+    setDismissed(true)
+    setOpen(false)
+  }
+  return (
+    <aside className="native-install" aria-label="Install the app">
+      <img src="/native/icon-192.png" alt="" width={40} height={40} />
+      <div className="native-install-copy">
+        <strong>Add 8080 to your home screen</strong>
+        <span>Open your notifications in one tap.</span>
+        {open && ios && <IosSteps />}
+      </div>
+      <div className="native-install-actions">
+        {canPrompt ? <button type="button" className="native-button" data-primary onClick={() => void install()}>Install</button>
+          : !open && <button type="button" className="native-button" data-primary onClick={() => setOpen(true)}>How</button>}
+        <button type="button" className="native-install-close" aria-label="Not now" onClick={dismiss}>×</button>
+      </div>
+    </aside>
+  )
+}
+
+function InstallSection() {
+  const { canPrompt, install, installed } = useInstallPrompt()
+  if (isStandalone()) return <p>You’re using the installed app.</p>
+  if (installed) return <p>Installed. Open 8080 from your home screen or app list.</p>
+  if (canPrompt) {
+    return (
+      <>
+        <p>Install 8080 to open your notifications from your home screen.</p>
+        <button type="button" className="native-button" data-primary onClick={() => void install()}>Install app</button>
+      </>
+    )
+  }
+  if (platform() === 'ios') return <IosSteps />
+  if (platform() === 'android') return <p>Open this page in Chrome, then choose Install app (or Add to Home screen) from the ⋮ menu.</p>
+  return <p>On your phone, open {window.location.host}/native/ in Safari (iPhone) or Chrome (Android) to add 8080 to your home screen. It also works here in the browser.</p>
 }
 
 // ─── bits ────────────────────────────────────────────────────────────────────
