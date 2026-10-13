@@ -17549,7 +17549,10 @@ export interface operations {
     };
     getWorkLobby: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description The viewer's IANA zone for "today" (default: their member zone, then the workspace's) */
+                timezone?: string;
+            };
             header?: never;
             path: {
                 workspaceId: components["parameters"]["WorkspaceId"];

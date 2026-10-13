@@ -226,7 +226,7 @@ export async function getTaskReport(request: any, reply: any) {
 const sessions = new WorkSessionService()
 
 export async function getWorkLobby(request: any, reply: any) {
-  return reply.send({ data: await sessions.lobby(request.user.id, request.params.workspaceId) })
+  return reply.send({ data: await sessions.lobby(request.user.id, request.params.workspaceId, request.query ?? {}) })
 }
 
 export async function listWorkSessions(request: any, reply: any) {

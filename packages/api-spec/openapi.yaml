@@ -7207,6 +7207,8 @@ paths:
       summary: The Work Session widget — my session and today's markers, every member's status, today's updates
       description: Times are exact. A running total is todayMs + (now − runningSince); the server writes nothing while time passes.
       tags: [workspaces]
+      parameters:
+        - { name: timezone, in: query, description: 'The viewer''s IANA zone for "today" (default: their member zone, then the workspace''s)', schema: { type: string, maxLength: 64 } }
       responses:
         '200':
           description: OK

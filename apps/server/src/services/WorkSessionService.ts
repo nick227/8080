@@ -123,6 +123,15 @@ function perTask(segments: SessionRow['segments'], now: Date) {
   return [...by.values()].sort((a, b) => b.workedMs - a.workedMs)
 }
 
+function validZone(zone: string) {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone })
+    return true
+  } catch {
+    return false
+  }
+}
+
 const clock = (at: Date, timeZone: string) =>
   new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at)
 
@@ -401,9 +410,10 @@ export class WorkSessionService {
   // ─── reads ────────────────────────────────────────────────────────────────
 
   /** The homepage widget: my session and today's markers, everyone's status, today's updates. */
-  async lobby(userId: string, workspaceId: string) {
+  async lobby(userId: string, workspaceId: string, q: { timezone?: string } = {}) {
     const actor = await authorize(userId, workspaceId, 'worksession.read')
-    const tz = actor.workspace.timezone || 'UTC'
+    // "Today" is the viewer's day: their browser's zone, else their profile's, else the workspace's.
+    const tz = [q.timezone, actor.member.timezone, actor.workspace.timezone].find((z) => z && validZone(z)) ?? 'UTC'
     const now = new Date()
     const { start, end, day } = localDayBounds(tz, now)
     const [members, open, today, updates, markers] = await Promise.all([

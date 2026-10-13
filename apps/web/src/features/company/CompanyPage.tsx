@@ -44,6 +44,7 @@ import type { DocumentRecord } from '../documents/types'
 import '../budget/budget.css'
 import '../agents/agents.css'
 import './company-page.css'
+import { WorkSessionWidget } from '../worksession/WorkSessionWidget'
 
 type Workspace = { id: string; name: string; role: string; createdAt: string }
 type Option = { value: string; label: string }
@@ -307,6 +308,9 @@ export function CompanyPage({
           {error} <button type="button" className="inline-link" onClick={clearError}>Dismiss</button>
         </p>
       )}
+
+      {/* ─── Work Session: time clock + team lobby ──────────────────── */}
+      <WorkSessionWidget workspaceId={workspace.id} />
 
       {/* ─── 2. Live Operations / "Active Now" Radar ───────────────────── */}
       <ActiveOperations workspaceId={workspace.id} onGo={onGo} />

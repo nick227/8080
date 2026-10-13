@@ -59,6 +59,11 @@ describe('work sessions', () => {
     expect(d.members[0].task.title).toBe('Homepage layout')
     expect(d.me.session).toBeNull()
 
+    // "Today" follows the viewer's zone when given (bad zones fall back).
+    const tokyo = (await call(carolId, 'GET', `${base}/work-sessions/lobby?timezone=Asia/Tokyo`)).json().data
+    expect(tokyo.timezone).toBe('Asia/Tokyo')
+    expect((await call(carolId, 'GET', `${base}/work-sessions/lobby?timezone=Mars/Olympus`)).json().data.timezone).toBe('UTC')
+
     // Nothing to pause when nothing runs.
     expect((await call(carolId, 'POST', `${base}/work-sessions/current/pause`)).json().code).toBe('NO_SESSION')
     // Bob (a guest, not a member) can't see the lobby.

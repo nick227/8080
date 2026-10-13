@@ -9,11 +9,14 @@ import { keys } from './keys'
 
 const path = (workspaceId: string) => ({ params: { path: { workspaceId } } })
 
-export function useWorkLobby(workspaceId: string | undefined, opts: { refetchInterval?: number | false } = {}) {
+/** `timezone` defaults to the browser's, so "today" is the viewer's day. */
+export function useWorkLobby(workspaceId: string | undefined, opts: { refetchInterval?: number | false; timezone?: string } = {}) {
+  const timezone = opts.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   return useQuery({
     queryKey: keys.workLobby(workspaceId ?? ''),
     enabled: !!workspaceId,
-    queryFn: async () => unwrap(await getApiClient().GET('/workspaces/{workspaceId}/work-sessions/lobby', path(workspaceId!))).data,
+    queryFn: async () =>
+      unwrap(await getApiClient().GET('/workspaces/{workspaceId}/work-sessions/lobby', { params: { path: { workspaceId: workspaceId! }, query: timezone ? { timezone } : {} } })).data,
     refetchInterval: opts.refetchInterval,
   })
 }
