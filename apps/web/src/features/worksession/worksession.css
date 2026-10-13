@@ -1,5 +1,6 @@
-/* Work Session widget (company home) + the shared day strip (also on the Calendar).
-   Theme tokens only, so it follows every theme. */
+/* Work Session widget (company home) + the shared day strip (Calendar) and task
+   time styles. Theme tokens only, so it follows every theme.
+   Widget = two rows: my session as one control bar, then the team. */
 
 .ws {
   display: flex;
@@ -12,86 +13,69 @@
   color: var(--ink);
   min-width: 0;
 }
-
 .ws-status { margin: 0; font-size: var(--text-sm); color: var(--ink-secondary); }
-
-.ws-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--space-md);
-}
-.ws-title { margin: 0; font-size: var(--text-xl); font-weight: var(--weight-bold); letter-spacing: var(--tracking-heading); }
-.ws-sub { margin: 0; font-size: var(--text-xs); color: var(--ink-medium); }
-.ws-count {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  margin: 0;
-  font-family: var(--mono);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-  color: var(--ink-secondary);
-  white-space: nowrap;
-}
-.ws-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); }
-.ws-dot[data-state='working'] { background: var(--signal); }
-
-.ws-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-  gap: var(--space-lg);
-}
-.ws-side { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; }
-
-.ws-eyebrow {
-  margin: 0;
-  font-family: var(--mono);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-  color: var(--ink-medium);
-}
-.ws-eyebrow [data-state='working'] { color: var(--signal); }
-.ws-hint { margin: 0; font-size: var(--text-xs); color: var(--ink-medium); }
 .ws-error { margin: 0; font-size: var(--text-sm); color: var(--danger); }
 .ws-empty { margin: 0; font-size: var(--text-sm); color: var(--ink-medium); }
+.ws-hint { margin: 0; font-size: var(--text-xs); color: var(--ink-medium); }
 
-/* ─── my session ─────────────────────────────────────────────────────────── */
+.ws-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-md); flex-wrap: wrap; }
+.ws-title { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-bold); letter-spacing: var(--tracking-heading); }
+.ws-date { margin-left: var(--space-xs); font-size: var(--text-sm); font-weight: var(--weight-normal); letter-spacing: 0; color: var(--ink-medium); }
+.ws-head-side { display: flex; align-items: center; gap: var(--space-md); }
+.ws-count { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: var(--text-sm); color: var(--ink-secondary); white-space: nowrap; }
+.ws-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); }
+.ws-dot[data-state='working'] { background: var(--signal); }
+.ws-dot[data-state='paused'] { background: transparent; box-shadow: inset 0 0 0 2px var(--ink-medium); }
 
-.ws-mine { display: flex; flex-direction: column; gap: var(--space-md); min-width: 0; }
-.ws-mine-top { display: flex; flex-direction: column; gap: 2px; }
+/* ─── row 1: the control bar ─────────────────────────────────────────────── */
+
+.ws-mine { display: flex; flex-direction: column; gap: var(--space-sm); min-width: 0; }
+.ws-console {
+  display: grid;
+  grid-template-columns: minmax(150px, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-md);
+  border: var(--line-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+.ws-mine[data-state='working'] .ws-console { border-color: color-mix(in srgb, var(--signal) 55%, var(--line)); }
+.ws-clock { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ws-total {
-  margin: 0;
   font-family: var(--mono);
-  font-size: var(--text-3xl);
+  font-size: var(--text-2xl);
   font-weight: var(--weight-bold);
-  line-height: 1.1;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 .ws-mine[data-state='working'] .ws-total { color: var(--signal); }
+.ws-clock-note { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--ink-medium); white-space: nowrap; }
 
-.ws-task { display: flex; flex-direction: column; gap: var(--space-xs); }
-.ws-task select,
+.ws-task,
 .ws-field input,
-.ws-field textarea {
+.ws-field textarea,
+.ws-update input {
   width: 100%;
+  min-width: 0;
   min-height: var(--control-size);
   padding: 0 var(--space-sm);
   border: var(--line-width) solid var(--line);
   border-radius: var(--radius-md);
-  background: var(--bg);
+  background: var(--panel);
   color: var(--ink);
   font: inherit;
   font-size: var(--text-sm);
 }
 .ws-field textarea { padding: var(--space-xs) var(--space-sm); resize: vertical; }
 
-.ws-controls { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.ws-controls { display: flex; gap: var(--space-sm); }
 .ws-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   min-height: var(--control-size);
-  min-width: 88px;
   padding: 0 var(--space-md);
   border: var(--line-width) solid var(--line-strong);
   border-radius: var(--radius-md);
@@ -100,18 +84,23 @@
   font: inherit;
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
+  white-space: nowrap;
   cursor: pointer;
 }
+.ws-console .ws-btn { min-width: 96px; min-height: var(--control-size-lg); }
 .ws-btn:hover:not(:disabled) { background: var(--surface-hover); }
 .ws-btn:disabled { opacity: 0.5; cursor: default; }
 .ws-btn[data-primary] { border-color: var(--signal); background: var(--signal); color: var(--bg); }
 .ws-btn[data-primary]:hover:not(:disabled) { background: color-mix(in srgb, var(--signal) 85%, var(--ink)); }
 .ws-btn[data-stop] { border-color: var(--danger); color: var(--danger); }
-.ws-btn[data-quiet] { border-color: transparent; color: var(--ink-secondary); }
+.ws-btn[data-quiet] { border-color: var(--line); color: var(--ink-secondary); }
 .ws-btn:focus-visible, .ws-link:focus-visible, .ws-task-link:focus-visible, .ws-strip-work:focus-visible {
   outline: 2px solid var(--focus-color);
   outline-offset: 2px;
 }
+
+.ws-update { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-sm); }
+.ws-update .ws-error { grid-column: 1 / -1; }
 
 .ws-link, .ws-task-link {
   padding: 0;
@@ -125,10 +114,10 @@
   cursor: pointer;
   text-align: left;
 }
-.ws-task-link { font-size: inherit; color: inherit; text-decoration-color: var(--line-strong); }
+.ws-task-link { color: inherit; text-decoration-color: var(--line-strong); }
 .ws-link:hover, .ws-task-link:hover { color: var(--ink); }
 
-.ws-stop, .ws-edit, .ws-summary {
+.ws-stop, .ws-edit, .ws-summary, .ws-times {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
@@ -147,40 +136,72 @@
 .ws-field em { font-style: normal; color: var(--ink-medium); }
 .ws-check { display: flex; align-items: center; gap: var(--space-xs); font-size: var(--text-sm); }
 .ws-edit-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); }
-
-.ws-today { display: flex; flex-direction: column; gap: var(--space-xs); }
-.ws-today-head { display: flex; justify-content: space-between; align-items: baseline; }
-.ws-today-actions { display: inline-flex; gap: var(--space-md); }
-.ws-stretches { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; font-size: var(--text-xs); }
+.ws-times { align-items: flex-start; }
+.ws-stretches { align-self: stretch; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; font-size: var(--text-xs); }
 .ws-stretches li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: var(--space-sm);
   align-items: baseline;
   padding: var(--space-xs) 0;
-  border-top: var(--line-width) solid var(--line-soft);
+  border-bottom: var(--line-width) solid var(--line-soft);
 }
 .ws-stretch-what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-stretch-when { font-family: var(--mono); color: var(--ink-secondary); font-variant-numeric: tabular-nums; }
-.ws-legend { display: flex; flex-wrap: wrap; gap: var(--space-md); margin: 0; font-size: var(--text-xs); color: var(--ink-medium); }
-.ws-legend span::before {
-  content: '';
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  margin-right: 4px;
-  vertical-align: -1px;
-  border-radius: 2px;
+
+/* ─── row 2: the team ────────────────────────────────────────────────────── */
+
+.ws-team { display: flex; flex-direction: column; gap: var(--space-sm); }
+.ws-team-foot { display: flex; gap: var(--space-sm); align-items: baseline; margin: 0; font-size: var(--text-sm); color: var(--ink-medium); }
+.ws-team-foot:empty { display: none; }
+.ws-people {
+  align-self: stretch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-sm);
 }
-.ws-legend [data-k='work']::before { background: var(--signal); }
-.ws-legend [data-k='pause']::before { background: repeating-linear-gradient(135deg, var(--line-strong) 0 2px, transparent 2px 4px); }
-.ws-legend [data-k='mark']::before { width: 2px; background: var(--ink); }
-.ws-legend [data-k='update']::before { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); vertical-align: 1px; }
+.ws-people:empty { display: none; }
+.ws-person {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: center;
+  min-width: 0;
+  padding: var(--space-sm);
+  border: var(--line-width) solid var(--line-soft);
+  border-radius: var(--radius-md);
+}
+.ws-person[data-state='off'] { color: var(--ink-secondary); }
+.ws-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-highlight);
+  font-size: 11px;
+  font-weight: var(--weight-bold);
+}
+.ws-person[data-state='working'] .ws-avatar { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--signal); }
+.ws-person[data-state='paused'] .ws-avatar { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--ink-medium); }
+.ws-person-main { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.ws-person-name { font-size: var(--text-sm); font-weight: var(--weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-person-what { font-size: var(--text-xs); color: var(--ink-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.ws-person-time { font-family: var(--mono); font-size: var(--text-sm); color: var(--ink-secondary); font-variant-numeric: tabular-nums; }
+.ws-person[data-state='working'] .ws-person-time { color: var(--signal); }
 
-.ws-update-row { display: flex; gap: var(--space-sm); }
-.ws-update-row .ws-btn { min-width: 64px; }
+@media (max-width: 720px) {
+  .ws { padding: var(--space-md); }
+  .ws-console { grid-template-columns: minmax(0, 1fr) auto; padding: var(--space-sm); }
+  .ws-console .ws-task { grid-column: 1 / -1; grid-row: 2; }
+  .ws-console .ws-btn { min-width: 0; }
+}
 
-/* ─── day strip ──────────────────────────────────────────────────────────── */
+/* ─── day strip (Calendar) ───────────────────────────────────────────────── */
 
 .ws-strip { margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .ws-strip-track {
@@ -233,66 +254,6 @@ button.ws-strip-work:hover { background: color-mix(in srgb, var(--signal) 80%, v
 .ws-strip-hours span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
 .ws-strip-hours span[data-edge='start'] { transform: none; }
 .ws-strip-hours span[data-edge='end'] { transform: translateX(-100%); }
-
-/* ─── lobby + updates ────────────────────────────────────────────────────── */
-
-.ws-section-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-sm); margin-bottom: var(--space-sm); }
-.ws-h3 { margin: 0; font-size: var(--text-base); font-weight: var(--weight-bold); }
-
-.ws-people { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
-.ws-person {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: var(--space-sm);
-  align-items: start;
-  padding: var(--space-sm) 0;
-  border-top: var(--line-width) solid var(--line-soft);
-}
-.ws-person:first-child { border-top: 0; }
-.ws-person[data-state='off'] { color: var(--ink-secondary); }
-.ws-avatar {
-  display: inline-grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-  background: var(--surface-highlight);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-bold);
-}
-.ws-person[data-state='working'] .ws-avatar { box-shadow: 0 0 0 2px var(--signal); }
-.ws-person-main { min-width: 0; }
-.ws-person-main p { margin: 0; }
-.ws-person-name { font-size: var(--text-sm); font-weight: var(--weight-medium); }
-.ws-you { font-weight: var(--weight-normal); color: var(--ink-medium); }
-.ws-person-what, .ws-person-update { font-size: var(--text-xs); color: var(--ink-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ws-person-update { color: var(--ink-medium); }
-.ws-person-side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-.ws-person-time { font-family: var(--mono); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
-.ws-state {
-  font-family: var(--mono);
-  font-size: var(--text-2xs, 10px);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-  color: var(--ink-medium);
-}
-.ws-state[data-state='working'] { color: var(--signal); }
-
-.ws-feed { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-sm); }
-.ws-feed li { padding-left: var(--space-sm); border-left: 2px solid var(--line-soft); }
-.ws-feed p { margin: 0; }
-.ws-feed-text { font-size: var(--text-sm); overflow-wrap: anywhere; }
-.ws-feed-meta { font-size: var(--text-xs); color: var(--ink-medium); }
-
-@media (max-width: 860px) {
-  .ws-grid { grid-template-columns: minmax(0, 1fr); }
-}
-@media (max-width: 520px) {
-  .ws { padding: var(--space-md); }
-  .ws-head { flex-direction: column; gap: var(--space-xs); }
-  .ws-controls .ws-btn { flex: 1 1 0; }
-}
 
 /* ─── on tasks: board card chip + task details box ───────────────────────── */
 

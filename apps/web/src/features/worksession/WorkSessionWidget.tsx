@@ -9,25 +9,25 @@ import {
   type WorkLobby,
   type WorkLobbyMember,
   type WorkSessionStop,
-  type WorkUpdate,
 } from '@project/sdk'
 import { taskPath } from '../tasks/links'
-import { DayStrip, type StripSegment } from './DayStrip'
+import type { StripSegment } from './DayStrip'
 import { useWorkStream } from './live'
 import { clockLabel, hm, liveMs, stepped, useSteppedNow } from './time'
 import './worksession.css'
 
-// Work Session: the workspace's time clock and team lobby. Start, pause, resume,
-// stop; pick the task; post updates. Everyone sees who is working on what.
-// Numbers step every 5 minutes; the server keeps the exact times.
+// Work Session: the workspace's time clock and team lobby, in two rows — my
+// session as one control bar, then who's working on what. Numbers step every
+// 5 minutes; the server keeps the exact times.
 
 const POLL_MS = 60_000
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')
 const message = (err: unknown) => (err instanceof Error ? err.message : 'Something went wrong. Try again.')
 
-export function WorkSessionWidget({ workspaceId }: { workspaceId: string }) {
+export function WorkSessionWidget({ workspaceId, onInvite }: { workspaceId: string; onInvite?: () => void }) {
   const lobby = useWorkLobby(workspaceId, { refetchInterval: POLL_MS })
+  const [listing, setListing] = useState(false)
   useWorkStream(workspaceId)
   const now = useSteppedNow()
 
@@ -39,40 +39,38 @@ export function WorkSessionWidget({ workspaceId }: { workspaceId: string }) {
       </section>
     )
   }
-  return <Widget workspaceId={workspaceId} data={lobby.data} now={Math.max(now, Date.parse(lobby.data.now))} />
-}
-
-function Widget({ workspaceId, data, now }: { workspaceId: string; data: WorkLobby; now: number }) {
+  const data = lobby.data
+  const at = Math.max(now, Date.parse(data.now))
   const working = data.members.filter((m) => m.state === 'working').length
   const paused = data.members.filter((m) => m.state === 'paused').length
-  const day = new Date(`${data.day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
+  const day = new Date(`${data.day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
 
   return (
     <section className="ws" aria-labelledby="ws-title">
       <header className="ws-head">
-        <div>
-          <h2 id="ws-title" className="ws-title">Work Session</h2>
-          <p className="ws-sub">{day}</p>
+        <h2 id="ws-title" className="ws-title">Work Session <span className="ws-date">{day}</span></h2>
+        <div className="ws-head-side">
+          <p className="ws-count" aria-live="polite">
+            <span className="ws-dot" data-state={working ? 'working' : 'off'} aria-hidden="true" />
+            {working} working{paused ? ` · ${paused} paused` : ''}
+          </p>
+          <button type="button" className="ws-link" aria-expanded={listing} onClick={() => setListing((v) => !v)}>{listing ? 'Done' : 'Edit time'}</button>
+          {onInvite && <button type="button" className="ws-btn" data-quiet="" onClick={onInvite}>+ Invite</button>}
         </div>
-        <p className="ws-count" aria-live="polite">
-          <span className="ws-dot" data-state={working ? 'working' : 'off'} aria-hidden="true" />
-          {working} working{paused ? ` · ${paused} paused` : ''}
-        </p>
       </header>
-      <div className="ws-grid">
-        <MySession workspaceId={workspaceId} data={data} now={now} />
-        <div className="ws-side">
-          <Lobby members={data.members} meId={data.me.memberId} now={now} />
-          <Updates updates={data.updates} />
-        </div>
-      </div>
+      <MySession workspaceId={workspaceId} data={data} now={at} listing={listing} />
+      <Team members={data.members} meId={data.me.memberId} now={at} />
     </section>
   )
 }
 
-// ─── my session ─────────────────────────────────────────────────────────────
+const PlayIcon = () => <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.5v9l7.5-4.5z" fill="currentColor" /></svg>
+const PauseIcon = () => <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1.5h2.5v9H2.5zM7 1.5h2.5v9H7z" fill="currentColor" /></svg>
+const StopIcon = () => <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="2" width="8" height="8" rx="1" fill="currentColor" /></svg>
 
-function MySession({ workspaceId, data, now }: { workspaceId: string; data: WorkLobby; now: number }) {
+// ─── row 1: my session ──────────────────────────────────────────────────────
+
+function MySession({ workspaceId, data, now, listing }: { workspaceId: string; data: WorkLobby; now: number; listing: boolean }) {
   const session = data.me.session
   const me = data.members.find((m) => m.memberId === data.me.memberId)
   const state = session?.state ?? 'off'
@@ -85,9 +83,8 @@ function MySession({ workspaceId, data, now }: { workspaceId: string; data: Work
   const [stopping, setStopping] = useState(false)
   const [summary, setSummary] = useState<WorkSessionStop | null>(null)
   const [editing, setEditing] = useState<StripSegment | 'add' | null>(null)
-  const [listing, setListing] = useState(false)
-  const closed = data.me.segments.filter((s) => s.endedAt)
   const [draftTask, setDraftTask] = useState<string>('')
+  const closed = data.me.segments.filter((s) => s.endedAt)
   const busy = start.isPending || pause.isPending || resume.isPending || switchTask.isPending
   const error = [start, pause, resume, switchTask].find((m) => m.isError)?.error
 
@@ -96,67 +93,41 @@ function MySession({ workspaceId, data, now }: { workspaceId: string; data: Work
     if (!session) return setDraftTask(id)
     switchTask.mutate([id || null])
   }
-
-  const stateLabel = state === 'working' ? 'Working' : state === 'paused' ? 'Paused' : today > 0 ? 'Clocked out' : 'Not started'
+  const shown = hm(state === 'working' ? stepped(today) : today)
+  const note = state === 'working' && me?.since ? `Working since ${clockLabel(me.since)}`
+    : state === 'paused' && me?.since ? `Paused at ${clockLabel(me.since)}`
+    : today > 0 ? 'Recorded today' : 'Not started'
 
   return (
     <div className="ws-mine" data-state={state}>
-      <div className="ws-mine-top">
-        <p className="ws-eyebrow">Your session · <span data-state={state}>{stateLabel}</span></p>
-        <p className="ws-total" aria-label={`Recorded today: ${hm(state === 'working' ? stepped(today) : today)}`}>
-          {hm(state === 'working' ? stepped(today) : today)}
-        </p>
-        <p className="ws-hint">
-          {state === 'working' && me?.runningSince ? `Since ${clockLabel(me.since ?? me.runningSince)} · counted in 5-minute steps` : state === 'paused' && me?.since ? `Paused at ${clockLabel(me.since)} · pauses don’t count` : 'Today’s recorded time'}
-        </p>
+      <div className="ws-console">
+        <div className="ws-clock" aria-label={`${note}. ${shown} today`}>
+          <span className="ws-total">{shown}</span>
+          <span className="ws-clock-note"><span className="ws-dot" data-state={state} aria-hidden="true" />{note}</span>
+        </div>
+        <TaskPicker workspaceId={workspaceId} meId={data.me.memberId} value={chosen} onChange={onTask} disabled={busy} />
+        <div className="ws-controls">
+          {state === 'off' && (
+            <button type="button" className="ws-btn" data-primary="" disabled={busy} onClick={() => { setSummary(null); start.mutate([draftTask || null]) }}>
+              <PlayIcon /> Start
+            </button>
+          )}
+          {state === 'working' && <button type="button" className="ws-btn" disabled={busy} onClick={() => pause.mutate([])}><PauseIcon /> Pause</button>}
+          {state === 'paused' && <button type="button" className="ws-btn" data-primary="" disabled={busy} onClick={() => resume.mutate([undefined])}><PlayIcon /> Resume</button>}
+          {state !== 'off' && <button type="button" className="ws-btn" data-stop="" disabled={busy} aria-expanded={stopping} onClick={() => setStopping((v) => !v)}><StopIcon /> Stop</button>}
+        </div>
       </div>
 
-      <TaskPicker workspaceId={workspaceId} meId={data.me.memberId} value={chosen} onChange={onTask} disabled={busy} />
-
-      <div className="ws-controls">
-        {state === 'off' && (
-          <button type="button" className="ws-btn" data-primary="" disabled={busy} onClick={() => { setSummary(null); start.mutate([draftTask || null]) }}>
-            Start
-          </button>
-        )}
-        {state === 'working' && <button type="button" className="ws-btn" disabled={busy} onClick={() => pause.mutate([])}>Pause</button>}
-        {state === 'paused' && <button type="button" className="ws-btn" data-primary="" disabled={busy} onClick={() => resume.mutate([undefined])}>Resume</button>}
-        {state !== 'off' && <button type="button" className="ws-btn" data-stop="" disabled={busy} aria-expanded={stopping} onClick={() => setStopping((v) => !v)}>Stop</button>}
-      </div>
+      {state !== 'off' && !stopping && <UpdateForm workspaceId={workspaceId} />}
       {error && <p className="ws-error" role="alert">{message(error)}</p>}
-
       {stopping && session && (
-        <StopPanel
-          workspaceId={workspaceId}
-          data={data}
-          onCancel={() => setStopping(false)}
-          onDone={(s) => { setStopping(false); setSummary(s); setDraftTask('') }}
-        />
+        <StopPanel workspaceId={workspaceId} data={data} onCancel={() => setStopping(false)} onDone={(s) => { setStopping(false); setSummary(s); setDraftTask('') }} />
       )}
       {summary && <StopSummary summary={summary} onClose={() => setSummary(null)} />}
 
-      <div className="ws-today">
-        <div className="ws-today-head">
-          <span className="ws-eyebrow">Today</span>
-          <span className="ws-today-actions">
-            {closed.length > 0 && <button type="button" className="ws-link" aria-expanded={listing} onClick={() => setListing((v) => !v)}>Edit times</button>}
-            <button type="button" className="ws-link" onClick={() => setEditing(editing === 'add' ? null : 'add')}>Add missed time</button>
-          </span>
-        </div>
-        <DayStrip
-          segments={data.me.segments}
-          markers={data.me.markers}
-          openSession={session}
-          dayStart={Date.parse(data.dayStart)}
-          dayEnd={Date.parse(data.dayEnd)}
-          now={now}
-          label="Your day: worked, paused and unrecorded time"
-          onSegment={(s) => setEditing(s)}
-        />
-        <p className="ws-legend" aria-hidden="true">
-          <span data-k="work">Worked</span><span data-k="pause">Paused</span><span data-k="mark">Start / stop</span><span data-k="update">Update</span>
-        </p>
-        {listing && (
+      {listing && (
+        <div className="ws-times">
+          {closed.length === 0 && <p className="ws-empty">No time recorded today.</p>}
           <ul className="ws-stretches" aria-label="Today’s recorded time">
             {closed.map((s) => (
               <li key={s.id}>
@@ -166,11 +137,10 @@ function MySession({ workspaceId, data, now }: { workspaceId: string; data: Work
               </li>
             ))}
           </ul>
-        )}
-        {editing && <TimeEditor key={editing === 'add' ? 'add' : editing.id} workspaceId={workspaceId} segment={editing === 'add' ? null : editing} day={data.day} onClose={() => setEditing(null)} />}
-      </div>
-
-      <UpdateForm workspaceId={workspaceId} taskTitle={session?.task?.title ?? null} />
+          <button type="button" className="ws-link" onClick={() => setEditing('add')}>Add missed time</button>
+        </div>
+      )}
+      {listing && editing && <TimeEditor key={editing === 'add' ? 'add' : editing.id} workspaceId={workspaceId} segment={editing === 'add' ? null : editing} day={data.day} onClose={() => setEditing(null)} />}
     </div>
   )
 }
@@ -188,23 +158,20 @@ function TaskPicker({ workspaceId, meId, value, onChange, disabled }: { workspac
   const known = value && ![...groups.mine, ...groups.rest].some((t) => t.id === value)
 
   return (
-    <label className="ws-task">
-      <span className="ws-eyebrow">Working on</span>
-      <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
-        <option value="">General work (no task)</option>
-        {known && <option value={value}>Current task</option>}
-        {groups.mine.length > 0 && (
-          <optgroup label="Assigned to you">
-            {groups.mine.map((t) => <option key={t.id} value={t.id}>{t.taskKey} · {t.title}</option>)}
-          </optgroup>
-        )}
-        {groups.rest.length > 0 && (
-          <optgroup label="Other open tasks">
-            {groups.rest.map((t) => <option key={t.id} value={t.id}>{t.taskKey} · {t.title}</option>)}
-          </optgroup>
-        )}
-      </select>
-    </label>
+    <select className="ws-task" aria-label="Working on" value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+      <option value="">General work (no task)</option>
+      {known && <option value={value}>Current task</option>}
+      {groups.mine.length > 0 && (
+        <optgroup label="Assigned to you">
+          {groups.mine.map((t) => <option key={t.id} value={t.id}>{t.taskKey} · {t.title}</option>)}
+        </optgroup>
+      )}
+      {groups.rest.length > 0 && (
+        <optgroup label="Other open tasks">
+          {groups.rest.map((t) => <option key={t.id} value={t.id}>{t.taskKey} · {t.title}</option>)}
+        </optgroup>
+      )}
+    </select>
   )
 }
 
@@ -316,7 +283,8 @@ function TimeEditor({ workspaceId, segment, day, onClose }: { workspaceId: strin
   )
 }
 
-function UpdateForm({ workspaceId, taskTitle }: { workspaceId: string; taskTitle: string | null }) {
+
+function UpdateForm({ workspaceId }: { workspaceId: string }) {
   const [text, setText] = useState('')
   const post = useWorkAction(workspaceId, workSessionApi.update)
   const submit = (e: FormEvent) => {
@@ -327,86 +295,54 @@ function UpdateForm({ workspaceId, taskTitle }: { workspaceId: string; taskTitle
   }
   return (
     <form className="ws-update" onSubmit={submit}>
-      <label className="ws-field">
-        <span>Add an update{taskTitle ? <em> · on {taskTitle}</em> : null}</span>
-        <div className="ws-update-row">
-          <input value={text} maxLength={500} onChange={(e) => setText(e.target.value)} placeholder="What moved forward?" />
-          <button type="submit" className="ws-btn" disabled={post.isPending || !text.trim()}>Post</button>
-        </div>
-      </label>
+      <input aria-label="Add an update" value={text} maxLength={500} onChange={(e) => setText(e.target.value)} placeholder="Add an update — what moved forward?" />
+      <button type="submit" className="ws-btn" disabled={post.isPending || !text.trim()}>Post</button>
       {post.isError && <p className="ws-error" role="alert">{message(post.error)}</p>}
     </form>
   )
 }
 
-// ─── team lobby ─────────────────────────────────────────────────────────────
+// ─── row 2: the team ────────────────────────────────────────────────────────
 
-function Lobby({ members, meId, now }: { members: WorkLobbyMember[]; meId: string; now: number }) {
+function Team({ members, meId, now }: { members: WorkLobbyMember[]; meId: string; now: number }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const active = members.filter((m) => m.state !== 'off')
-  const rest = members.filter((m) => m.state === 'off')
   const [showAll, setShowAll] = useState(false)
-  const shown = showAll ? members : active.length ? [...active, ...rest.filter((m) => m.todayMs > 0)] : members.slice(0, 6)
+  // Who's in (working, paused, or clocked some time today) first; the rest fold away.
+  const others = members.filter((m) => m.memberId !== meId)
+  const inToday = others.filter((m) => m.state !== 'off' || m.todayMs > 0)
+  const shown = showAll ? others : inToday
+  const hidden = others.length - shown.length
 
+  if (!others.length) return null
   return (
-    <div className="ws-lobby">
-      <div className="ws-section-head">
-        <h3 className="ws-h3">Team</h3>
-        <span className="ws-sub">{active.filter((m) => m.state === 'working').length} active · {active.filter((m) => m.state === 'paused').length} paused</span>
-      </div>
-      <ul className="ws-people">
+    <div className="ws-team">
+      <ul className="ws-people" aria-label="Team">
         {shown.map((m) => {
           const total = liveMs(m.todayMs, m.runningSince, now)
+          const what = m.task ? m.task.title : m.state === 'off' ? (total > 0 ? 'Clocked out' : 'Not started') : 'General work'
           return (
-            <li key={m.memberId} className="ws-person" data-state={m.state}>
+            <li key={m.memberId} className="ws-person" data-state={m.state} title={m.lastUpdate ? `Latest update: “${m.lastUpdate.text}” (${clockLabel(m.lastUpdate.at)})` : undefined}>
               {m.avatarUrl ? <img className="ws-avatar" src={m.avatarUrl} alt="" /> : <span className="ws-avatar" aria-hidden="true">{initials(m.name)}</span>}
-              <div className="ws-person-main">
-                <p className="ws-person-name">{m.name}{m.memberId === meId ? <span className="ws-you"> (you)</span> : null}</p>
-                <p className="ws-person-what">
-                  {m.task
-                    ? <button type="button" className="ws-task-link" onClick={() => navigate(taskPath(location.pathname, m.task!.taskKey))}>{m.task.title}</button>
-                    : m.state === 'off' ? (total > 0 ? 'Clocked out' : 'Not started') : 'General work'}
-                </p>
-                {m.lastUpdate && <p className="ws-person-update" title={clockLabel(m.lastUpdate.at)}>“{m.lastUpdate.text}”</p>}
-              </div>
-              <div className="ws-person-side">
-                <span className="ws-person-time">{total > 0 ? hm(m.state === 'working' ? stepped(total) : total) : '—'}</span>
-                <span className="ws-state" data-state={m.state}>{m.state === 'working' ? 'Working' : m.state === 'paused' ? 'Paused' : 'Off'}</span>
-              </div>
+              <span className="ws-person-main">
+                <span className="ws-person-name">{m.name}</span>
+                {m.task
+                  ? <button type="button" className="ws-person-what ws-task-link" onClick={() => navigate(taskPath(location.pathname, m.task!.taskKey))}>{what}</button>
+                  : <span className="ws-person-what">{what}</span>}
+              </span>
+              <span className="ws-person-time" aria-label={`${m.state === 'working' ? 'Working' : m.state === 'paused' ? 'Paused' : 'Off'}, ${hm(total)} today`}>
+                {total > 0 ? hm(m.state === 'working' ? stepped(total) : total) : '—'}
+              </span>
             </li>
           )
         })}
       </ul>
-      {members.length > shown.length && <button type="button" className="ws-link" onClick={() => setShowAll(true)}>Show everyone ({members.length})</button>}
-      {showAll && members.length > 6 && <button type="button" className="ws-link" onClick={() => setShowAll(false)}>Show fewer</button>}
-    </div>
-  )
-}
-
-function Updates({ updates }: { updates: WorkUpdate[] }) {
-  const location = useLocation()
-  const navigate = useNavigate()
-  return (
-    <div className="ws-updates">
-      <div className="ws-section-head">
-        <h3 className="ws-h3">Today’s updates</h3>
-      </div>
-      {updates.length === 0 ? (
-        <p className="ws-empty">No updates yet today.</p>
-      ) : (
-        <ol className="ws-feed">
-          {updates.slice(0, 8).map((u) => (
-            <li key={u.id}>
-              <p className="ws-feed-text">{u.text}</p>
-              <p className="ws-feed-meta">
-                {u.name} · <time dateTime={u.at}>{clockLabel(u.at)}</time>
-                {u.task && <> · <button type="button" className="ws-task-link" onClick={() => navigate(taskPath(location.pathname, u.task!.taskKey))}>{u.task.taskKey}</button></>}
-              </p>
-            </li>
-          ))}
-        </ol>
-      )}
+      <p className="ws-team-foot">
+        {!shown.length && <span>Nobody else is clocked in yet.</span>}
+        {(hidden > 0 || showAll) && (
+          <button type="button" className="ws-link" onClick={() => setShowAll((v) => !v)}>{showAll ? 'Show who’s in' : `Show ${hidden} more`}</button>
+        )}
+      </p>
     </div>
   )
 }

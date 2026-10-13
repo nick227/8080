@@ -311,7 +311,7 @@ export function CompanyPage({
       )}
 
       {/* ─── Work Session: time clock + team lobby ──────────────────── */}
-      <WorkSessionWidget workspaceId={workspace.id} />
+      <WorkSessionWidget workspaceId={workspace.id} onInvite={canEdit ? () => setInviting(true) : undefined} />
 
       {/* ─── 2. Live Operations / "Active Now" Radar ───────────────────── */}
       <ActiveOperations workspaceId={workspace.id} onGo={onGo} />
