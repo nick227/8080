@@ -137,3 +137,62 @@
   .collection-table tbody tr[data-row-id] td.collection-delete-cell { position: absolute; right: var(--table-cell-padding-x); top: var(--space-sm); }
   .collection-table tbody tr[data-row-id] td.collection-delete-cell::before { content: none; }
 }
+
+/* ─── Phones (D10 mobile): compact headers, filters in a sheet, card rows ─────────── */
+/* FilterSheet: inline on desktop (the wrapper adds no box). */
+.filter-sheet, .filter-sheet-body { display: contents; }
+.filter-sheet-toggle, .filter-sheet-head, .filter-sheet-scrim { display: none; }
+.add-short { display: none; }
+
+@media (max-width: 719px) {
+  /* Title row: the title, its count, then a compact primary "+ New"; Import stays a quiet link. */
+  .collection-head, .section-header { flex-wrap: wrap; gap: var(--space-xs) var(--space-sm); padding: var(--space-md) 16px var(--space-sm); }
+  .collection-head .collection-title, .collection-head .collection-switcher-title,
+  .collection-switcher-title, .section-header h1, .section-header h2 { font-size: var(--text-3xl); line-height: 1.2; }
+  .collection-count, .section-count { white-space: nowrap; }
+  .section-add-btn[data-primary] { order: 1; margin-left: auto; height: 32px; padding: 0 12px; border-radius: var(--radius-sm); background: var(--ink); color: var(--bg); font-family: var(--sans); font-size: var(--text-sm); font-weight: 600; text-transform: none; letter-spacing: 0; }
+  .collection-head .section-add-btn[data-primary]:hover, .section-add-btn[data-primary]:hover { color: var(--bg); opacity: .9; }
+  .section-add-btn[data-primary] ~ .section-add-btn:not([data-primary]) { order: 0; }
+  .add-full { display: none; }
+  .add-short { display: inline; }
+  /* Header actions (view switches, saved views): their own scrollable row. */
+  .collection-actions { order: 2; flex: 1 0 100%; margin-left: 0; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .collection-actions > * { flex: none; }
+
+  /* Toolbar: search + Filters on one row. */
+  .collection-bar { flex-wrap: nowrap; padding: 0 16px var(--space-sm); }
+  .collection-bar .collection-search, .cal-filters .collection-search { flex: 1 1 auto; min-width: 0; height: 36px; }
+  .filter-sheet-toggle { flex: none; display: inline-flex; align-items: center; gap: var(--space-xs); height: 36px; padding: 0 12px; box-sizing: border-box; border: var(--line-width) solid var(--line); border-radius: var(--radius-sm); background: var(--surface-subtle, transparent); color: var(--ink); font: inherit; font-size: var(--text-sm); cursor: pointer; }
+  .filter-sheet-toggle[aria-expanded="true"] { border-color: var(--ink); }
+  .filter-sheet-count { min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; display: inline-grid; place-items: center; border-radius: var(--radius-pill); background: var(--signal); color: var(--bg); font-family: var(--mono); font-size: 10px; font-weight: 700; }
+  .filter-sheet { display: none; }
+  .filter-sheet[data-open] { position: fixed; left: 0; right: 0; bottom: 0; z-index: 70; display: flex; flex-direction: column; max-height: min(80dvh, 640px); padding: 0 16px calc(16px + env(safe-area-inset-bottom)); box-sizing: border-box; overflow-y: auto; background: var(--bg); border-top: var(--line-width) solid var(--line); border-radius: var(--radius-md, 12px) var(--radius-md, 12px) 0 0; box-shadow: 0 -12px 40px rgba(0, 0, 0, .3); }
+  .filter-sheet-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; margin: 0 -16px var(--space-sm); padding: 12px 16px; background: var(--bg); border-bottom: var(--line-width) solid var(--line); font-weight: 600; }
+  .filter-sheet-head button { height: 32px; padding: 0 12px; border-radius: var(--radius-sm); background: var(--ink); color: var(--bg); font: inherit; font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
+  .filter-sheet-body { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-md); }
+  .filter-sheet-body > *, .filter-sheet-body .collection-filters, .filter-sheet-body .collection-view-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); margin: 0; }
+  .filter-sheet-body select { flex: 1 1 100%; max-width: none; height: 40px; min-height: 40px; }
+  .filter-sheet-scrim { display: block; position: fixed; inset: 0; z-index: 69; border: 0; background: rgba(0, 0, 0, .45); }
+
+  /* Workspace tabs step aside while typing (on-screen keyboard) and while recording. */
+  :root:has(:is(input:not([type="checkbox"], [type="radio"], [type="button"], [type="submit"], [type="file"]), textarea, [contenteditable="true"]):focus) .masthead .work-nav,
+  :root:has(.room-desk) .masthead .work-nav { display: none; }
+  :root:has(:is(input:not([type="checkbox"], [type="radio"], [type="button"], [type="submit"], [type="file"]), textarea, [contenteditable="true"]):focus),
+  :root:has(.room-desk) { --tabs-reserve: 0px; }
+}
+
+/* Card rows: the title on top, other fields as one wrapping line of small "label value" pairs. */
+@media (max-width: 560px) {
+  .collection-table tbody tr[data-row-id] { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: var(--space-md); row-gap: 4px; padding-block: 12px; }
+  .collection-table tbody tr[data-row-id] td { flex: none; font-size: var(--text-xs); color: var(--ink); }
+  .collection-table tbody tr[data-row-id] td[data-label]::before { min-width: 0; margin-right: 4px; }
+  .collection-table tbody tr[data-row-id] td:nth-child(1 of :not(.collection-select-cell)) { flex: 1 0 100%; padding-right: 2rem; font-size: var(--text-md); font-weight: 500; }
+  /* Tasks: the title is the headline; the key joins the field line. */
+  .collection-table tbody tr[data-row-id] td.cal-col-title { order: -1; flex: 1 0 100%; padding-right: 2rem; font-size: var(--text-md); font-weight: 500; }
+  .collection-table tbody tr[data-row-id] td.cal-col-title::before { content: none; }
+  .collection-table tbody tr[data-row-id] td.cal-col-key:nth-child(n) { flex: none; padding-right: 0; font-size: var(--text-xs); font-weight: normal; }
+  .collection-table tbody tr[data-row-id] td .avatar, .collection-table tbody tr[data-row-id] td [class*="avatar"] { width: 16px; height: 16px; font-size: 8px; }
+}
+
+/* The task table's own options sit with the toolbar's Filters on phones. */
+@media (max-width: 719px) { .cal-table-bar { justify-content: flex-end; } }

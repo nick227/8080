@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { SearchIcon } from '../../components/icons'
 import { CollectionSwitcher } from '../work/CollectionSwitcher'
 import { COLLECTIONS, type Desk } from '../work/sections'
+import { FilterSheet } from './FilterSheet'
 import './collections.css'
 
 /**
@@ -42,10 +43,12 @@ export function CollectionHeader({ collection, title, count, onNew, onImport, ac
         <button
           type="button"
           className="section-add-btn"
+          data-primary=""
           aria-label={meta?.newLabel ?? `New ${meta?.singular ?? 'task'}`}
           onClick={onNew}
         >
-          + {meta?.newLabel ?? `New ${meta?.singular ?? 'task'}`}
+          <span className="add-full">+ {meta?.newLabel ?? `New ${meta?.singular ?? 'task'}`}</span>
+          <span className="add-short" aria-hidden>+ New</span>
         </button>
       )}
       {onImport && (
@@ -80,8 +83,12 @@ export function CollectionBar({ collection, search, filters, view }: BarProps) {
           />
         </label>
       )}
-      {filters && <div className="collection-filters">{filters}</div>}
-      {view && <div className="collection-view-controls">{view}</div>}
+      {(filters || view) && (
+        <FilterSheet label={filters ? 'Filters' : 'View'}>
+          {filters && <div className="collection-filters">{filters}</div>}
+          {view && <div className="collection-view-controls">{view}</div>}
+        </FilterSheet>
+      )}
     </div>
   )
 }

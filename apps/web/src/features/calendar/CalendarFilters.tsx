@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useRef, useState } from 'react'
 import { SearchIcon } from '../../components/icons'
+import { FilterSheet } from '../collections/FilterSheet'
 import { Avatar } from './BoardView'
 import { filtersActive, useCalendar, useWorkflow, type Filters } from './store'
 import { useTeam } from './sync'
@@ -50,6 +51,7 @@ export const CalendarFilters = forwardRef<HTMLInputElement, { count: number; tot
         />
       </label>
 
+      <FilterSheet active={filters.members.length + filters.urgency.length + filters.types.length + filters.areas.length + filters.priorities.length}>
       <div className="cal-member-filter" role="group" aria-label="Filter by assignee">
         {team.map((m) => (
           <button key={m.id} type="button" className="cal-member-toggle" aria-pressed={filters.members.includes(m.id)} title={m.name} aria-label={m.name} onClick={() => toggle('members', m.id)}>
@@ -86,6 +88,7 @@ export const CalendarFilters = forwardRef<HTMLInputElement, { count: number; tot
         ? filters.urgency.length > 0 && <span className="cal-view-count">Needs-attention filters don't apply to reports</span>
         : <span className="cal-view-count" aria-live="polite">{count === total ? `${count} tasks` : `${count} of ${total} tasks`}</span>}
       {filtersActive(filters) && <button className="cal-btn" type="button" onClick={clear}>Clear filters</button>}
+      </FilterSheet>
     </div>
   )
 })

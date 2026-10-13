@@ -11,6 +11,7 @@ import { useTeam } from './sync'
 import type { CalTask } from './types'
 import { downloadCsv, tasksCsv } from './csv'
 import { ColumnsMenu } from '../collections/ColumnsMenu'
+import { FilterSheet } from '../collections/FilterSheet'
 import { DataTable } from '../collections/DataTable'
 import { useTableState, type Column } from '../collections/table'
 
@@ -119,6 +120,7 @@ export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { 
   return (
     <div className="cal-table-view" role="region" aria-label="Task table">
       <div className="collection-bar cal-table-bar" role="toolbar" aria-label="Task table controls">
+        <FilterSheet label="View">
         <div className="collection-filters">
           <select aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}>
             <option value="all">All statuses</option><option value="!open">Open tasks</option>
@@ -149,6 +151,7 @@ export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { 
             {selection.length ? `Export ${selection.length} selected` : 'Export CSV'}
           </button>
         </div>
+        </FilterSheet>
       </div>
       <DataTable
         label="Tasks"

@@ -2336,3 +2336,15 @@ a.cal-title-link:hover { text-decoration: underline; }
   color: #dc2626;
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
+
+/* Phones (D10 mobile): the date bar and the filter row fit the width; filters open in a sheet. */
+@media (max-width: 719px) {
+  .cal-filters { flex-wrap: nowrap; overflow: visible; gap: var(--space-sm); padding: 0 16px var(--space-sm); border-bottom: 0; }
+  .cal-bar { flex-wrap: wrap; gap: var(--space-sm); padding: 0 16px var(--space-sm); }
+  .cal-nav { flex: 1 0 100%; display: flex; align-items: center; gap: var(--space-xs); }
+  .cal-nav .cal-period { flex: 1; margin: 0; font-size: var(--text-md); text-align: center; }
+  .cal-tools { flex: 1 0 100%; overflow-x: auto; scrollbar-width: none; }
+  .cal-view-toggle { flex: none; }
+  .filter-sheet-body .cal-member-filter, .filter-sheet-body .cal-urgency { flex-wrap: wrap; }
+  .filter-sheet-body .cal-pick-menu { position: static; margin-top: var(--space-xs); }
+}

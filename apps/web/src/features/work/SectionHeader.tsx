@@ -36,10 +36,12 @@ export function SectionHeader({
         <button
           type="button"
           className="section-add-btn"
+          data-primary=""
           aria-label={newLabel ? `New ${newLabel}` : 'New'}
           onClick={onNew}
         >
-          {collection && newLabel ? `+ New ${newLabel}` : '+ New'}
+          <span className="add-full">{collection && newLabel ? `+ New ${newLabel}` : '+ New'}</span>
+          <span className="add-short" aria-hidden>+ New</span>
         </button>
       )}
       {onImport && (
