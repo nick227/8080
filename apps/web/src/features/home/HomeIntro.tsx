@@ -51,6 +51,7 @@ export function HomeIntro() {
           <Link className="home-intro-more" to="/blueprints">Browse blueprints <span aria-hidden>→</span></Link>
         </div>
         <div className="home-intro-card">
+          <img style={{ maxWidth: "365px" }} src="stock/dezgo_1b167e4045e06c30.webp" />
           {registered && user ? <SignedIn name={user.displayName} /> : <Signup plan={plan} setPlan={setPlan} />}
         </div>
       </div>

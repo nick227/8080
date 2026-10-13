@@ -34,7 +34,7 @@ import '../documents/DocumentsList.css'
 import { parseBudgetCsv } from './importParse'
 import { blueprints, scenarioData } from '../blueprints/data'
 import { FormSlideout } from '../work/FormSlideout'
-import { ImportModalTabs } from '../prefab/ImportModalChrome'
+import { ImportModalTabs, ApiConnectionsPanel } from '../prefab/ImportModalChrome'
 import '../prefab/prefab.css'
 import './budget.css'
 
@@ -508,7 +508,13 @@ function useEscape(onClose: () => void) {
   }, [onClose])
 }
 
-function ImportBudgetSlideout({
+function safeRandomKey() {
+  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+export function ImportBudgetSlideout({
   workspaceId,
   onClose,
   onImported,
@@ -517,12 +523,12 @@ function ImportBudgetSlideout({
   onClose: () => void
   onImported: (count: number) => void
 }) {
-  const [tab, setTab] = useState<string>('starter')
+  const [tab, setTab] = useState<string>('csv')
   const [selectedSlug, setSelectedSlug] = useState<string>('lean-service-team')
   const [text, setText] = useState('')
   const [error, setError] = useState('')
   // One key per file contents: a retry after a lost response replays instead of duplicating.
-  const [key, setKey] = useState(() => crypto.randomUUID())
+  const [key, setKey] = useState(safeRandomKey)
   const fileRef = useRef<HTMLInputElement>(null)
   const importMutation = useImportBudgetItems(workspaceId)
   useEscape(onClose)
@@ -578,7 +584,7 @@ function ImportBudgetSlideout({
   const change = (value: string) => {
     setText(value)
     setError('')
-    setKey(crypto.randomUUID())
+    setKey(safeRandomKey())
   }
 
   const submit = async (e: React.FormEvent) => {
@@ -604,14 +610,23 @@ function ImportBudgetSlideout({
     >
       <ImportModalTabs
         tabs={[
-          { id: 'starter', label: 'Starter Packs' },
           { id: 'csv', label: 'CSV Upload' },
+          { id: 'api', label: 'API Connections' },
+          { id: 'starter', label: 'Starter Packs' },
         ]}
         activeTab={tab}
         onSelectTab={setTab}
       />
 
       <div style={{ padding: 'var(--space-md) var(--space-lg)', flex: 1, overflowY: 'auto' }}>
+        {tab === 'api' && (
+          <ApiConnectionsPanel
+            workspaceId={workspaceId}
+            domain="budget"
+            onClose={onClose}
+          />
+        )}
+
         {tab === 'starter' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div className="prefab-pack-select-bar">

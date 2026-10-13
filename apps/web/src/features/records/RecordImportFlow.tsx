@@ -10,7 +10,7 @@ import type { RecordKind } from './navigation'
 import { StarterPackPicker } from '../prefab/StarterPackPicker'
 import { contactsToCsv, inventoryToCsv } from '../prefab/csvFormatters'
 import type { PrefabContact, PrefabInventory } from '@project/shared'
-import { ImportModalTabs } from '../prefab/ImportModalChrome'
+import { ImportModalTabs, ApiConnectionsPanel } from '../prefab/ImportModalChrome'
 
 type Step = 'source' | 'upload' | 'map' | 'review' | 'results'
 
@@ -35,8 +35,8 @@ export function RecordImportFlow({
 }) {
   const adapter = importAdapter(kind)
   const queryClient = useQueryClient()
-  const [activeTab, setActiveTab] = useState<'starter-packs' | 'csv'>('starter-packs')
-  const [step, setStep] = useState<Step>('source')
+  const [activeTab, setActiveTab] = useState<'csv' | 'api' | 'starter-packs'>('csv')
+  const [step, setStep] = useState<Step>('upload')
   const [isStarterBatch, setIsStarterBatch] = useState(false)
   const [csv, setCsv] = useState('')
   const [filename, setFilename] = useState('import.csv')
@@ -134,12 +134,12 @@ export function RecordImportFlow({
     })
   }
 
-  const selectTab = (tabId: 'starter-packs' | 'csv') => {
+  const selectTab = (tabId: 'csv' | 'api' | 'starter-packs') => {
     setActiveTab(tabId)
     setError('')
-    if (tabId === 'csv' && step === 'source') {
+    if (tabId === 'csv' && (step === 'source' || !batch)) {
       setStep('upload')
-    } else if (tabId === 'starter-packs' && step === 'upload') {
+    } else if (tabId === 'starter-packs' && (step === 'upload' || !batch)) {
       setStep('source')
     }
   }
@@ -199,11 +199,12 @@ export function RecordImportFlow({
       <div className="record-form record-import">
         <ImportModalTabs
           tabs={[
-            { id: 'starter-packs', label: 'Starter Packs' },
             { id: 'csv', label: 'CSV Upload', ariaLabel: 'CSV' },
+            { id: 'api', label: 'API Connections' },
+            { id: 'starter-packs', label: 'Starter Packs' },
           ]}
           activeTab={activeTab}
-          onSelectTab={(id) => selectTab(id as 'starter-packs' | 'csv')}
+          onSelectTab={(id) => selectTab(id as 'csv' | 'api' | 'starter-packs')}
         />
         {activeTab === 'csv' && (
           <nav className="record-import-steps" aria-label="CSV import steps">
@@ -219,6 +220,15 @@ export function RecordImportFlow({
             <p role="alert" className="record-error">
               {error}
             </p>
+          )}
+          {activeTab === 'api' && (
+            <div className="record-import-panel">
+              <ApiConnectionsPanel
+                workspaceId={workspaceId}
+                domain={kind}
+                onClose={close}
+              />
+            </div>
           )}
           {activeTab === 'starter-packs' && (step === 'source' || !isStarterBatch) && (
             <div className="record-import-panel">
@@ -439,23 +449,18 @@ export function RecordImportFlow({
           )}
         </div>
         <footer>
-          {step === 'source' && (
+          {(step === 'source' || activeTab === 'api') && (
             <button type="button" onClick={close}>
-              Cancel
+              {activeTab === 'api' ? 'Close' : 'Cancel'}
             </button>
           )}
-          {step === 'upload' && (
+          {activeTab === 'csv' && step === 'upload' && (
             <>
               <button
                 type="button"
-                onClick={() => {
-                  setCsv('')
-                  setFilename('import.csv')
-                  setActiveTab('starter-packs')
-                  setStep('source')
-                }}
+                onClick={close}
               >
-                Back
+                Cancel
               </button>
               <button
                 className="record-primary"

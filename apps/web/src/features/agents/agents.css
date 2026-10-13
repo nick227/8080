@@ -296,7 +296,7 @@
 .agents-count { margin-left: var(--space-sm); font-family: var(--mono); font-size: var(--text-label); color: var(--muted); }
 
 .agents-editor-grid {
-  display: grid;
+  display: block;
   grid-template-columns: 1fr;
   gap: var(--space-xl);
   align-items: start;

@@ -13,7 +13,8 @@ import { blankDoc } from './seed'
 import { useDocuments } from './store'
 import type { DocumentRecord } from './types'
 import { StarterPackPicker } from '../prefab/StarterPackPicker'
-import { ImportModalTabs } from '../prefab/ImportModalChrome'
+import { ImportModalTabs, ApiConnectionsPanel } from '../prefab/ImportModalChrome'
+import { useCurrentWorkspace } from '../../app/workspace'
 import { CsvExample } from '../../components/CsvExample'
 import type { PrefabDocument } from '@project/shared'
 import './DocumentsList.css'
@@ -154,16 +155,20 @@ export function DocumentsList({ owner }: { owner: string }) {
   )
 }
 
-function ImportDocumentsSlideout({
+export function ImportDocumentsSlideout({
   owner,
   onClose,
   onImportDocs,
+  workspaceId,
 }: {
   owner: string
   onClose: () => void
   onImportDocs: (records: any[]) => void
+  workspaceId?: string
 }) {
-  const [tab, setTab] = useState<string>('starter')
+  const { workspace } = useCurrentWorkspace()
+  const effectiveWsId = workspaceId ?? workspace?.id
+  const [tab, setTab] = useState<string>('csv')
   const [text, setText] = useState('')
   const [error, setError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
@@ -212,14 +217,23 @@ function ImportDocumentsSlideout({
     >
       <ImportModalTabs
         tabs={[
-          { id: 'starter', label: 'Starter Packs' },
           { id: 'csv', label: 'CSV Upload' },
+          { id: 'api', label: 'API Connections' },
+          { id: 'starter', label: 'Starter Packs' },
         ]}
         activeTab={tab}
         onSelectTab={setTab}
       />
 
       <div style={{ padding: 'var(--space-md) var(--space-lg)', flex: 1, overflowY: 'auto' }}>
+        {tab === 'api' && (
+          <ApiConnectionsPanel
+            workspaceId={effectiveWsId}
+            domain="documents"
+            onClose={onClose}
+          />
+        )}
+
         {tab === 'starter' && (
           <StarterPackPicker
             domain="documents"

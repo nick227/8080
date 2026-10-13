@@ -18,6 +18,7 @@
     "test:contacts": "node tests/contact-workbench.mjs",
     "test:records": "node tests/records.mjs",
     "test:import-safety": "node tests/import-safety.mjs",
+    "test:import-tabs": "node tests/import-tabs.mjs",
     "test:theme": "node tests/theme-tokens.mjs",
     "test:theme-switcher": "node tests/theme-switcher.mjs",
     "test:theme-gallery": "node tests/theme-gallery.mjs",

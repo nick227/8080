@@ -37,3 +37,5 @@ export function ImportModalTabs({
   )
 }
 
+export { ApiConnectionsPanel, type ApiDomain } from './ApiConnectionsPanel'
+

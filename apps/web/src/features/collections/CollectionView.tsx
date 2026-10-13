@@ -39,6 +39,11 @@ export function CollectionHeader({ collection, title, count, onNew, onImport, ac
       ) : (
         <h1 className="collection-title" id={titleId}>{displayTitle}</h1>
       )}
+      {count != null && (
+        <span className="collection-count" role="status">
+          {count} {count === 1 ? (meta?.singular ?? 'record') : 'records'}
+        </span>
+      )}
       {onNew && (
         <button
           type="button"

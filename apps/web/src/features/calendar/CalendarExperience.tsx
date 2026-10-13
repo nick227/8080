@@ -424,7 +424,7 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
       {composing && <NewTaskSlideout initialDay={selectedDayForNewTask} onClose={() => setComposing(false)} />}
       {loggingAcc && <LogAccomplishmentModal initialDay={cursor} onClose={() => setLoggingAcc(false)} />}
       {importing && (
-        <ImportModal mode={view === 'day' ? 'list' : 'csv'} day={cursor} onClose={() => setImporting(false)} onImport={importTasks} />
+        <ImportModal mode={view === 'day' ? 'list' : 'csv'} day={cursor} onClose={() => setImporting(false)} onImport={importTasks} workspaceId={workspaceId} />
       )}
     </div>
   )

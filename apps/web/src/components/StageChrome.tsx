@@ -54,7 +54,18 @@ export function StageChrome({ showLobbyOverlay = true, nav }: { showLobbyOverlay
     <>
       <header className="masthead" data-nav={nav ? 'workspace' : undefined}>
         <Link to="/" className="mast-logo" aria-label="8080 home">
-          <span className="mast-logo-mark" aria-hidden>80<br />80</span>
+          <span className="mast-logo-mark" aria-hidden>
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+  <circle
+    cx="8"
+    cy="8"
+    r="5.5"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.25"
+  />
+</svg>
+          </span>
           {!workspace && <span className="mast-logo-word">8080</span>}
         </Link>
         <WorkspaceSwitcher />

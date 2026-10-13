@@ -45,6 +45,7 @@ import '../budget/budget.css'
 import '../agents/agents.css'
 import './company-page.css'
 import { WorkSessionWidget } from '../worksession/WorkSessionWidget'
+import { IntegrationsSection } from './IntegrationsSection'
 
 type Workspace = { id: string; name: string; role: string; createdAt: string }
 type Option = { value: string; label: string }
@@ -365,6 +366,9 @@ export function CompanyPage({
 
       {/* ─── 5. Team Card ─────────────────────────────────────────────── */}
       <TeamCard workspace={workspace} onInvite={canEdit ? () => setInviting(true) : undefined} />
+
+      {/* ─── 6. Integrations Section ──────────────────────────────────── */}
+      <IntegrationsSection workspaceId={workspace.id} canEdit={canEdit} variant="card" />
 
       {/* ─── On-Page Entity Creation Modals / Slideouts ───────────────── */}
       {addingEntity === 'task' && (

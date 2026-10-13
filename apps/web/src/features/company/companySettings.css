@@ -1,0 +1,192 @@
+/* Workspace Settings Modal — styled directly after PeopleDialog (Invite modal) */
+@import '../team/peopleDialog.css';
+
+dialog.people-dialog.cp-settings-dialog {
+  width: min(880px, calc(100vw - 32px)) !important;
+  max-width: 880px !important;
+  max-height: min(840px, calc(100dvh - 32px)) !important;
+}
+
+.cp-settings-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 50%, var(--bg));
+  flex: none;
+}
+
+.cp-settings-tab {
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill, 9999px);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: all var(--motion-fast) var(--ease-out);
+}
+
+.cp-settings-tab:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.cp-settings-tab.active,
+.cp-settings-tab[aria-current="page"] {
+  color: var(--ink);
+  background: var(--bg);
+  border-color: var(--line);
+  box-shadow: 0 1px 3px rgb(0 0 0 / .08);
+  font-weight: 600;
+}
+
+/* General Settings tab styling */
+.cp-general {
+  display: flex;
+  flex-direction: column;
+}
+
+.cp-general-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cp-general-label {
+  font-size: var(--text-sm, 14px);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.cp-general-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+/* Vocabulary section overrides in modal */
+.cp-settings-dialog .company-vocab {
+  padding: 16px 0 0;
+  gap: 20px;
+}
+
+.cp-settings-dialog .company-vocab-block h3 {
+  font-size: var(--text-sm, 14px);
+  font-weight: 600;
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: normal;
+  font-family: inherit;
+  margin-bottom: 8px;
+}
+
+.cp-settings-dialog .company-vocab-row,
+.cp-settings-dialog .company-vocab-add {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+}
+
+.cp-settings-dialog .company-vocab-input {
+  max-width: none;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+  color: var(--input-color);
+}
+
+.cp-settings-dialog .section-add-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: all var(--motion-fast) var(--ease-out);
+}
+
+.cp-settings-dialog .section-add-btn:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+/* Integrations tab in modal */
+.cp-settings-integrations {
+  padding-top: 16px;
+}
+
+.cp-settings-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.cp-settings-section-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: var(--text-sm, 14px);
+  font-weight: 600;
+}
+
+.cp-settings-dialog .integrations-table-container {
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+
+.cp-settings-dialog .integrations-table th {
+  background: color-mix(in srgb, var(--ink) 3%, var(--panel));
+  padding: 10px 12px;
+}
+
+.cp-settings-dialog .integrations-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.cp-settings-dialog .integrations-table .ui-btn-action {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill, 9999px);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  transition: all var(--motion-fast) var(--ease-out);
+}
+
+.cp-settings-dialog .integrations-table .ui-btn-action:hover {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 4%, var(--bg));
+}
+
+.cp-settings-dialog .integrations-table .ui-btn-primary {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+
+.cp-settings-dialog .integrations-table .ui-btn-primary:hover {
+  opacity: 0.9;
+  background: var(--ink);
+  color: var(--bg);
+}

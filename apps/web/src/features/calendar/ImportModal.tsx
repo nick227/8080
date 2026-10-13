@@ -1,20 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import { FormSlideout } from '../work/FormSlideout'
-import { ImportModalTabs } from '../prefab/ImportModalChrome'
+import { ImportModalTabs, ApiConnectionsPanel } from '../prefab/ImportModalChrome'
 import { CsvExample } from '../../components/CsvExample'
 import { parseTaskCsv, parseTaskList, type ImportedTask } from './importParse'
 import { StarterPackPicker } from '../prefab/StarterPackPicker'
+import { useCurrentWorkspace } from '../../app/workspace'
 import type { PrefabTask } from '@project/shared'
 
-type ImportTab = 'starter' | 'csv' | 'list'
+type ImportTab = 'csv' | 'api' | 'starter' | 'list'
 
-export function ImportModal({ day, onClose, onImport }: {
+export function ImportModal({ day, onClose, onImport, workspaceId }: {
   mode?: 'list' | 'csv'
   day: string
   onClose: () => void
   onImport: (tasks: ImportedTask[]) => number
+  workspaceId?: string
 }) {
-  const [tab, setTab] = useState<ImportTab>('starter')
+  const { workspace } = useCurrentWorkspace()
+  const effectiveWsId = workspaceId ?? workspace?.id
+  const [tab, setTab] = useState<ImportTab>('csv')
   const [text, setText] = useState('')
   const [error, setError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
@@ -77,8 +81,9 @@ export function ImportModal({ day, onClose, onImport }: {
     >
       <ImportModalTabs
         tabs={[
-          { id: 'starter', label: 'Starter Packs' },
           { id: 'csv', label: 'CSV Upload' },
+          { id: 'api', label: 'API Connections' },
+          { id: 'starter', label: 'Starter Packs' },
           { id: 'list', label: 'Quick List' },
         ]}
         activeTab={tab}
@@ -86,6 +91,14 @@ export function ImportModal({ day, onClose, onImport }: {
       />
 
       <div style={{ padding: 'var(--space-md) var(--space-lg)', flex: 1, overflowY: 'auto' }}>
+        {tab === 'api' && (
+          <ApiConnectionsPanel
+            workspaceId={effectiveWsId}
+            domain="tasks"
+            onClose={onClose}
+          />
+        )}
+
         {tab === 'starter' && (
           <StarterPackPicker
             domain="tasks"

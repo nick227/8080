@@ -15,7 +15,7 @@ import { BulkMessage, SelectionBar, deleteColumn, useBulkDelete, useSelection } 
 import { PeopleDialog } from './PeopleDialog'
 import { FormSlideout } from '../work/FormSlideout'
 import { StarterPackPicker } from '../prefab/StarterPackPicker'
-import { ImportModalTabs } from '../prefab/ImportModalChrome'
+import { ImportModalTabs, ApiConnectionsPanel } from '../prefab/ImportModalChrome'
 import { CsvExample } from '../../components/CsvExample'
 import type { PrefabTeamRole } from '@project/shared'
 import './team.css'
@@ -205,14 +205,18 @@ export function TeamTableView({
   )
 }
 
-function ImportTeamSlideout({
+export function ImportTeamSlideout({
   onClose,
   onImportRoles,
+  workspaceId,
 }: {
   onClose: () => void
   onImportRoles: (records: any[]) => void
+  workspaceId?: string
 }) {
-  const [tab, setTab] = useState<string>('starter')
+  const { workspace } = useCurrentWorkspace()
+  const effectiveWsId = workspaceId ?? workspace?.id
+  const [tab, setTab] = useState<string>('csv')
   const [text, setText] = useState('')
   const [error, setError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
@@ -262,14 +266,23 @@ function ImportTeamSlideout({
     >
       <ImportModalTabs
         tabs={[
-          { id: 'starter', label: 'Starter Packs' },
           { id: 'csv', label: 'CSV Upload' },
+          { id: 'api', label: 'API Connections' },
+          { id: 'starter', label: 'Starter Packs' },
         ]}
         activeTab={tab}
         onSelectTab={setTab}
       />
 
       <div style={{ padding: 'var(--space-md) var(--space-lg)', flex: 1, overflowY: 'auto' }}>
+        {tab === 'api' && (
+          <ApiConnectionsPanel
+            workspaceId={effectiveWsId}
+            domain="team"
+            onClose={onClose}
+          />
+        )}
+
         {tab === 'starter' && (
           <StarterPackPicker
             domain="team"

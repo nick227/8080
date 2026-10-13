@@ -1,0 +1,289 @@
+/* API Connections & Workspace Integrations Tab */
+
+.api-connections-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: 0;
+  color: var(--ink);
+}
+
+/* Header Banner linked to Workspace Integrations */
+.api-conn-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 8px);
+  background: var(--surface-subtle, rgba(255, 255, 255, 0.03));
+  flex-wrap: wrap;
+}
+
+.api-conn-banner-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 220px;
+  flex: 1;
+}
+
+.api-conn-banner-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm, 6px);
+  background: rgba(32, 128, 141, 0.15);
+  color: var(--brand-teal, #20808D);
+  flex-shrink: 0;
+}
+
+.api-conn-banner-text h3 {
+  margin: 0;
+  font-size: var(--text-sm, 0.875rem);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.api-conn-banner-text p {
+  margin: 2px 0 0;
+  font-size: var(--text-xs, 0.75rem);
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.api-conn-manage-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: 500;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--line);
+  background: var(--surface-active, rgba(255, 255, 255, 0.08));
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.api-conn-manage-btn:hover {
+  background: var(--brand-teal, #20808D);
+  border-color: var(--brand-teal, #20808D);
+  color: #fff;
+}
+
+/* Sections */
+.api-conn-section {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 8px);
+  background: var(--surface, rgba(255, 255, 255, 0.02));
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.api-conn-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.api-conn-section-title {
+  margin: 0;
+  font-size: var(--text-sm, 0.85rem);
+  font-weight: 600;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.api-conn-section-desc {
+  margin: 0;
+  font-size: var(--text-xs, 0.75rem);
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* Active Integrations List */
+.api-conn-active-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+
+.api-conn-active-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.65rem;
+  background: var(--surface-subtle, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm, 6px);
+  font-size: var(--text-xs, 0.75rem);
+}
+
+.api-conn-active-item-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.api-conn-active-item-label {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.api-conn-active-item-sub {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+/* Code block & cURL */
+.api-conn-code-wrapper {
+  position: relative;
+  margin-top: 0.25rem;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm, 6px);
+  overflow: hidden;
+}
+
+.api-conn-code-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.65rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--line);
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.api-conn-copy-btn {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.api-conn-copy-btn:hover {
+  color: var(--ink);
+  background: var(--surface-active, rgba(255, 255, 255, 0.1));
+}
+
+.api-conn-copy-btn[data-copied="true"] {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+.api-conn-code {
+  margin: 0;
+  padding: 0.65rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--ink);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* Connector Cards Grid */
+.api-conn-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-sm);
+  margin-top: 0.25rem;
+}
+
+.api-conn-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm, 6px);
+  padding: var(--space-sm);
+  background: var(--surface-subtle, rgba(255, 255, 255, 0.02));
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.api-conn-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.api-conn-card-title {
+  margin: 0;
+  font-size: var(--text-xs, 0.78rem);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.api-conn-card-desc {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.api-conn-card-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.api-conn-input-group label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.api-conn-input-group input {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.75rem;
+  background: var(--surface, rgba(0, 0, 0, 0.2));
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink);
+}
+
+.api-conn-card-btn {
+  margin-top: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface-active, rgba(255, 255, 255, 0.05));
+  color: var(--ink);
+  cursor: pointer;
+  align-self: flex-start;
+  transition: all 0.15s ease;
+}
+
+.api-conn-card-btn:hover {
+  background: var(--surface-active, rgba(255, 255, 255, 0.12));
+}
+
+.api-conn-card-btn[data-connected="true"] {
+  border-color: #22c55e;
+  color: #22c55e;
+}
