@@ -61,9 +61,12 @@ export function useWorkPlace() {
   // One address per page: /c/:id/company is the overview at /c/:id.
   useEffect(() => {
     if (company && segment === 'company') navigate({ pathname: basePath, search: location.search }, { replace: true })
+    if (company && segment === 'team') navigate({ pathname: `${basePath}/members`, search: location.search }, { replace: true })
+    if (company && segment === 'tables') navigate({ pathname: `${basePath}/tasks`, search: location.search }, { replace: true })
   }, [company, segment, basePath, location.search, navigate])
   // Company paths name their desk exactly; old ?desk= links were mapped by the redirect.
-  const requested = company ? requestedDesk : legacyDesk(requestedDesk, legacyView)
+  const normalizedDesk = requestedDesk === 'team' ? 'members' : requestedDesk === 'tables' ? 'tasks' : requestedDesk
+  const requested = company ? normalizedDesk : legacyDesk(requestedDesk, legacyView)
   const known = company
     ? requested === 'company' || requested === 'stream' || COMPANY_DESKS.includes(requested as Desk)
     : DESKS.some((d) => d.id === requested)
@@ -98,6 +101,8 @@ export function useWorkPlace() {
 function legacyDesk(desk: string | null, view: string | null) {
   if (desk === 'calendar' && view === 'table') return 'company'
   if (desk === 'calendar' && ['board', 'backlog', 'reports'].includes(view ?? '')) return 'board'
+  if (desk === 'team') return 'members'
+  if (desk === 'tables') return 'tasks'
   return desk
 }
 

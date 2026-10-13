@@ -90,10 +90,6 @@ export function WorkflowEditor({ workspaceId, onClose }: { workspaceId: string; 
             </li>
           ))}
         </ol>
-        <button type="button" className="cal-btn cal-workflow-add" disabled={rows.length >= 12}
-          onClick={() => setRows((rs) => [...rs.filter((r) => !r.archived), { label: '', category: 'doing', handoff: false, archived: false, tmp: crypto.randomUUID() }, ...rs.filter((r) => r.archived)])}>
-          + Add column
-        </button>
 
         {leaving.length > 0 && (
           <div className="cal-workflow-reassign">
@@ -124,6 +120,10 @@ export function WorkflowEditor({ workspaceId, onClose }: { workspaceId: string; 
         {(problem || update.isError) && <p className="cal-workflow-problem" role="alert">{update.isError ? (update.error as Error).message : problem}</p>}
         <div className="cal-actions">
           <button type="button" className="cal-btn" onClick={onClose}>Cancel</button>
+        <button type="button" className="cal-btn cal-workflow-add" disabled={rows.length >= 12}
+          onClick={() => setRows((rs) => [...rs.filter((r) => !r.archived), { label: '', category: 'doing', handoff: false, archived: false, tmp: crypto.randomUUID() }, ...rs.filter((r) => r.archived)])}>
+          + Add column
+        </button>
           <button type="button" className="cal-btn" data-primary="" disabled={!!problem || update.isPending} onClick={save}>{update.isPending ? 'Saving…' : 'Save columns'}</button>
         </div>
       </div>

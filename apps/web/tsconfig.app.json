@@ -14,7 +14,12 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "paths": {
+      "@project/sdk": ["../../packages/sdk/src/index.ts"],
+      "@project/shared": ["../../packages/shared/src/index.ts"]
+    }
   },
   "include": ["src"]
 }

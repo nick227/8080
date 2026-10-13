@@ -279,7 +279,7 @@ audio.media-view { width: min(520px, 100%); }
   .mast { gap: var(--space-xs); letter-spacing: .12em; padding-left: 0; }
 }
 .mast-mark { width: 8px; height: 8px; border: var(--line-width) solid var(--signal); border-radius: 50%; }
-.mast-icon { width: var(--control-size); height: var(--control-size); display: grid; place-items: center; color: var(--ink); opacity: var(--nav-icon-opacity); }
+.mast-icon { height: var(--control-size); display: flex; align-items: center; gap: 7px; color: var(--ink); opacity: var(--nav-icon-opacity); }
 .mast-icon:hover, .mast-icon:focus-visible, .mast-icon[aria-expanded="true"] { opacity: 1; }
 .mast-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: var(--line-width) solid var(--line); display: block; }
 /* The account is always identifiable: a 32px photo or initial in a ≥36px target (redesign Phase 2). */

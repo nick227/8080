@@ -1,11 +1,11 @@
-export type Desk = 'tasks' | 'company' | 'stream' | 'team' | 'inbox' | 'contacts' | 'inventory' | 'documents' | 'calendar' | 'board' | 'agents' | 'budget'
+export type Desk = 'tasks' | 'company' | 'stream' | 'tables' | 'inbox' | 'contacts' | 'inventory' | 'documents' | 'calendar' | 'board' | 'agents' | 'budget' | 'members' | 'team'
 
 /** Desks shown in the workspace nav. Inbox is deferred until real inbound mail exists. */
 export const DESKS: { id: Desk; label: string }[] = [
   { id: 'company', label: 'Company' },
   { id: 'tasks', label: 'Tasks' },
   { id: 'stream', label: 'Team' },
-  { id: 'team', label: 'Work' },
+  { id: 'tables', label: 'Tables' },
   { id: 'contacts', label: 'Contacts' },
   { id: 'inventory', label: 'Inventory' },
   { id: 'budget', label: 'Budget' },
@@ -13,6 +13,7 @@ export const DESKS: { id: Desk; label: string }[] = [
   { id: 'calendar', label: 'Calendar' },
   { id: 'board', label: 'Board' },
   { id: 'agents', label: 'Automations' },
+  { id: 'members', label: 'Members' },
 ]
 
 /** The tabular collections (redesign D9): one shared view, switched in its header. */
@@ -21,11 +22,11 @@ export const COLLECTIONS: { id: Desk; label: string; singular: string; newLabel?
   { id: 'contacts', label: 'Contacts', singular: 'contact' },
   { id: 'inventory', label: 'Inventory', singular: 'item' },
   { id: 'budget', label: 'Budget', singular: 'entry', newLabel: 'New item' },
-  { id: 'team', label: 'Team', singular: 'member', newLabel: 'Invite member' },
+  { id: 'members', label: 'Members', singular: 'member', newLabel: 'Invite member' },
   { id: 'documents', label: 'Documents', singular: 'document' },
   { id: 'agents', label: 'Automations', singular: 'automation' },
 ]
-export const isCollection = (desk: Desk) => COLLECTIONS.some((c) => c.id === desk)
+export const isCollection = (desk: Desk) => COLLECTIONS.some((c) => c.id === desk) || (desk as string) === 'team'
 
 export type InboxNote = { id: string; from: string; subject: string }
 export type CalendarEvent = { id: string; title: string; when: string }

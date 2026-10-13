@@ -18,19 +18,20 @@ export type ListField = keyof typeof LIST_KIND
  * revision it started from; if someone else saved meanwhile, the profile reloads and the
  * edit is not applied (the person sees the newer value and can redo it).
  */
-export function useCompanyProfile(workspaceId: string) {
+export function useCompanyProfile(workspaceId?: string | null) {
   const queryClient = useQueryClient()
-  const key = ['company-profile', workspaceId]
+  const key = ['company-profile', workspaceId ?? '']
   const [error, setError] = useState('')
   const query = useQuery({
     queryKey: key,
+    enabled: Boolean(workspaceId),
     queryFn: async () =>
-      unwrap(await getApiClient().GET('/workspaces/{workspaceId}/company-profile', { params: { path: { workspaceId } } })).data as CompanyProfile,
+      unwrap(await getApiClient().GET('/workspaces/{workspaceId}/company-profile', { params: { path: { workspaceId: workspaceId! } } })).data as CompanyProfile,
   })
 
   const save = async (changes: ProfileChanges): Promise<boolean> => {
     const current = query.data
-    if (!current) return false
+    if (!current || !workspaceId) return false
     setError('')
     try {
       const saved = unwrap(

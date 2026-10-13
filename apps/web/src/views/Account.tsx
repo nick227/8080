@@ -52,7 +52,7 @@ export function Account() {
             <section aria-label="Companies">
               <CompanyList onOpen={(id) => navigate(`/c/${id}`)} />
             </section>
-            {staff.data && <section aria-label="Administration"><Link to="/admin">Manage platform users →</Link></section>}
+            {staff.data && <section aria-label="Administration"><Link to="/admin">Admin Tools →</Link></section>}
             <section aria-label="Session">
               <button type="button" className="account-text" onClick={() => void logout.mutateAsync().then(() => navigate('/'))}>
                 Sign out

@@ -7,9 +7,10 @@ import { ContactsDesk } from '../inbox/ContactsDesk'
 import { InventoryDesk } from '../inventory/InventoryDesk'
 import { BudgetDesk } from '../budget/BudgetDesk'
 import { InboxExperience } from '../inbox/InboxExperience'
+import { TeamDesk } from '../team/TeamDesk'
 import { DESKS, deskEmpty, type Desk } from './sections'
 
-export function WorkPage({ place, roomId, onPlace, onOpenComposer }: { place: Exclude<Desk, 'team' | 'stream' | 'calendar'>; roomId?: string; onPlace?: (desk: Desk) => void; onOpenComposer?: () => void }) {
+export function WorkPage({ place, roomId, onPlace, onOpenComposer }: { place: Exclude<Desk, 'stream' | 'calendar'>; roomId?: string; onPlace?: (desk: Desk) => void; onOpenComposer?: () => void }) {
   const session = useSession()
   const owner = session.data?.data.displayName ?? 'You'
   const label = DESKS.find((item) => item.id === place)?.label ?? 'Work'
@@ -28,7 +29,9 @@ export function WorkPage({ place, roomId, onPlace, onOpenComposer }: { place: Ex
         <InventoryDesk />
       ) : place === 'budget' ? (
         <BudgetDesk />
-      ) : place === 'tasks' ? (
+      ) : place === 'members' || (place as string) === 'team' ? (
+        <TeamDesk seats={[]} roomId={roomId} />
+      ) : place === 'tasks' || (place as string) === 'tables' ? (
         <CalendarExperience section="tasks" />
       ) : place === 'board' ? (
         <CalendarExperience section="board" />

@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { useSession } from '@project/sdk'
-import { LobbyIcon, PersonIcon, SearchIcon } from '../components/icons'
+import { HomeIcon, PersonIcon, SearchIcon } from '../components/icons'
 import { AccountSheet } from '../features/AccountSheet'
 import { Lobby } from '../features/Lobby'
 import { useShell } from '../state/shell'
@@ -10,6 +10,7 @@ import { useUI } from '../state/ui'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { CommandPalette, openCommandPalette } from '../features/command/CommandPalette'
 import { GetAppButton } from '../features/native/GetApp'
+
 
 export function StageChrome({ showLobbyOverlay = true }: { showLobbyOverlay?: boolean }) {
   const surface = useShell((s) => s.surface)
@@ -39,12 +40,9 @@ export function StageChrome({ showLobbyOverlay = true }: { showLobbyOverlay?: bo
     <>
       <header className="masthead">
         <Link to="/" className="mast-icon" aria-label="Home">
-          <LobbyIcon />
+          <HomeIcon /> 8080
         </Link>
-        <p className="mast">
-          <span className="mast-mark" aria-hidden />
-          8080
-        </p>
+        <p className="mast"></p>
         <div className="mast-actions">
           <button type="button" className="mast-goto" onClick={openCommandPalette} aria-label="Go to…" aria-keyshortcuts="Control+K Meta+K">
             <SearchIcon />

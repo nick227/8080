@@ -65,8 +65,8 @@ test.describe('Media Capture State Machine', () => {
   });
 
   test('should handle permission denied gracefully', async ({ page }) => {
-    // Intercept getUserMedia to throw a permission error
-    await page.evaluate(() => {
+    // Intercept getUserMedia to throw a permission error (init script: survives the helper's navigation)
+    await page.addInitScript(() => {
       navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('Permission denied', 'NotAllowedError'));
     });
 

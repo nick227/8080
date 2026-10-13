@@ -8,6 +8,21 @@ export function LobbyIcon() {
   )
 }
 
+export function HomeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+  <circle
+    cx="8"
+    cy="8"
+    r="5.5"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.25"
+  />
+</svg>
+  )
+}
+
 export function PersonIcon({ guest }: { guest: boolean }) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>

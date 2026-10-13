@@ -1,0 +1,135 @@
+/* Homepage introduction: copy on the left, signup card on the right. */
+.home-intro { padding-block: clamp(16px, 3vw, 40px) 0; }
+.home-intro .home-intro-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 410px);
+  gap: clamp(32px, 5vw, 72px);
+  align-items: center;
+}
+
+.home-intro .home-intro-pill {
+  display: inline-flex; align-items: center; gap: 10px;
+  margin: 0 0 20px; padding: 4px 14px 4px 4px;
+  border: 1px solid var(--line); border-radius: 999px;
+  font-size: 13px; color: var(--ink-secondary);
+}
+.home-intro .home-intro-pill span {
+  padding: 3px 10px; border-radius: 999px;
+  background: var(--ink); color: var(--bg);
+  font-family: var(--mono); font-size: 12px; letter-spacing: .06em; font-weight: 700;
+}
+
+.home-intro h1 {
+  font-size: clamp(38px, 5vw, 64px);
+  line-height: 1.05; letter-spacing: -.04em; font-weight: 700;
+  max-width: 14ch; margin: 0 0 20px;
+}
+.home-intro h1 mark {
+  background: none; color: inherit;
+  /* A thick signal underline under the key phrase, drawn behind descenders. */
+  background-image: linear-gradient(var(--signal), var(--signal));
+  background-repeat: no-repeat; background-size: 100% .14em; background-position: 0 92%;
+  padding-bottom: .04em;
+}
+.home-intro .home-intro-lead { max-width: 560px; margin: 0 0 28px; font-size: max(16px, var(--text-body)); line-height: 1.6; color: var(--ink-secondary); }
+
+.home-intro .home-intro-list {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px;
+  max-width: 620px; margin: 0 0 28px; padding: 0; list-style: none;
+  font-size: max(14px, var(--text-sm));
+}
+.home-intro .home-intro-list li { display: flex; align-items: flex-start; gap: 10px; line-height: 1.4; }
+.home-intro .home-intro-check { flex: none; width: 18px; height: 18px; margin-top: 1px; }
+.home-intro .home-intro-check circle { fill: var(--signal); }
+.home-intro .home-intro-check path { stroke: var(--bg); }
+
+.home-intro .home-intro-more { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; color: var(--ink); font-weight: 600; text-decoration: none; }
+.home-intro .home-intro-more span {
+  display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--signal); color: var(--bg); transition: transform .2s ease;
+}
+.home-intro .home-intro-more:hover span { transform: translateX(3px); }
+
+/* Signup card */
+.home-intro .home-intro-card {
+  padding: 26px 24px 22px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 18px 48px color-mix(in srgb, var(--shadow-color, #000) 18%, transparent);
+}
+.home-intro .home-intro-card h2 { font-size: 26px; letter-spacing: -.03em; margin: 0 0 4px; }
+.home-intro .home-intro-card-sub { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
+
+.home-intro .home-intro-plans { display: grid; gap: 8px; margin: 0 0 18px; padding: 0; border: 0; }
+.home-intro .home-intro-plan {
+  position: relative; display: grid; gap: 4px;
+  padding: 12px 40px 12px 14px;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  cursor: pointer; transition: border-color .15s ease, background .15s ease;
+}
+.home-intro .home-intro-plan:hover { background: var(--surface-hover); }
+.home-intro .home-intro-plan[data-selected] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.home-intro .home-intro-plan input {
+  position: absolute; right: 14px; top: 14px; margin: 0;
+  width: 18px; height: 18px; accent-color: var(--ink);
+}
+.home-intro .home-intro-plan input:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 3px; }
+.home-intro .home-intro-plan-head { display: flex; align-items: baseline; gap: 10px; }
+.home-intro .home-intro-plan-head strong { font-size: 16px; }
+.home-intro .home-intro-price { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.home-intro .home-intro-plan[data-selected] .home-intro .home-intro-price { color: var(--signal); }
+.home-intro .home-intro-plan-note { font-size: 13px; line-height: 1.45; color: var(--ink-secondary); }
+
+.home-intro .home-intro-field { display: grid; gap: 4px; margin-bottom: 12px; font-size: 13px; }
+.home-intro .home-intro-field > span { font-weight: 600; }
+.home-intro .home-intro-field input {
+  width: 100%; min-height: 44px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--bg); color: var(--ink); font: inherit; font-size: 15px;
+}
+.home-intro .home-intro-field input:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 1px; }
+.home-intro .home-intro-field small { color: var(--muted); font-size: 12px; }
+
+.home-intro .home-intro-notice { margin: 4px 0 12px; padding: 10px 12px; border-left: 2px solid var(--signal); background: var(--signal-wash); font-size: 13px; line-height: 1.45; }
+.home-intro .home-intro-error { margin: 4px 0 12px; color: var(--danger); font-size: 13px; }
+
+.home-intro .home-intro-submit, .home-intro .home-intro-google {
+  display: flex; align-items: center; justify-content: center; width: 100%; min-height: 46px;
+  border-radius: var(--radius); font: inherit; font-weight: 700; font-size: 15px;
+  text-decoration: none; cursor: pointer;
+}
+.home-intro .home-intro-submit { margin-top: 6px; border: 1px solid var(--ink); background: var(--ink); color: var(--bg); }
+.home-intro .home-intro-submit:hover { opacity: .9; }
+.home-intro .home-intro-submit:disabled { opacity: .55; cursor: default; }
+.home-intro .home-intro-google { margin-top: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink); font-weight: 600; }
+.home-intro .home-intro-google:hover { background: var(--surface-hover); }
+.home-intro .home-intro-signin { margin: 14px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
+.home-intro .home-intro-signin button { background: none; border: 0; padding: 0; color: var(--ink); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.home-intro :is(.home-intro-submit, .home-intro-google, .home-intro-more, .home-intro-signin button):focus-visible { outline: 2px solid var(--focus-color); outline-offset: 3px; }
+
+
+
+
+/* Premium plan option: tagged and set apart. */
+.home-intro .home-intro-tag {
+  justify-self: start; margin-bottom: 2px; padding: 2px 8px; border-radius: 999px;
+  background: var(--signal); color: var(--bg);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700;
+}
+.home-intro .home-intro-plan[data-plan=premium][data-selected] { border-color: var(--signal); box-shadow: inset 0 0 0 1px var(--signal); background: var(--signal-wash); }
+.home-intro .home-intro-plan[data-plan=premium] input { accent-color: var(--signal); }
+
+.home-intro .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .home-intro .home-intro-hero { grid-template-columns: minmax(0, 1fr); }
+  .home-intro .home-intro-card { max-width: 520px; }
+}
+@media (max-width: 520px) {
+  .home-intro .home-intro-list { grid-template-columns: minmax(0, 1fr); }
+  .home-intro .home-intro-card { padding: 20px 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-intro .home-intro-more span, .home-intro .home-intro-plan { transition: none; }
+}

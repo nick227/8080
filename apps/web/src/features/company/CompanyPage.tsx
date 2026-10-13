@@ -159,6 +159,7 @@ export function CompanyPage({
   }
 
   const p = profile
+  const companyName = p.name || workspace.name
   const set = (key: keyof ProfileChanges) => (next: string | null) => save({ [key]: next } as ProfileChanges)
   const items = (key: ListField) => list(key).map((f) => ({ value: f.value, suggested: f.status === 'inferred' }))
 
@@ -228,11 +229,11 @@ export function CompanyPage({
     <article className="cp" aria-labelledby="cp-name">
       {/* ─── 1. Executive Identity & Inline Vitals ─────────────────────── */}
       <header className="cp-hero">
-        <Logo workspace={workspace} logoUrl={p.logoUrl} canEdit={canEdit} onLogo={(id) => save({ logoMediaId: id })} />
+        <Logo workspace={workspace} companyName={companyName} logoUrl={p.logoUrl} canEdit={canEdit} onLogo={(id) => save({ logoMediaId: id })} />
         <div className="cp-identity">
           <h1 id="cp-name" className="cp-name">
             <InlineText
-              value={workspace.name}
+              value={companyName}
               canEdit={canEdit}
               required
               label="Company name"
@@ -258,7 +259,7 @@ export function CompanyPage({
             />
           </div>
           <div className="cp-facts" id="cp-facts">
-            {openFacts && canEdit ? (
+            
               <div className="cp-facts-edit">
                 {facts.map((f) => (
                   <label key={f.key} className="cp-facts-field">
@@ -266,10 +267,7 @@ export function CompanyPage({
                     {f.node}
                   </label>
                 ))}
-                <button type="button" className="inline-link" onClick={() => setOpenFacts(false)}>Done</button>
               </div>
-            ) : (
-              <>
                 {filledFacts.map((f) => (
                   <span key={f.key} className="cp-pill">{f.node}</span>
                 ))}
@@ -283,8 +281,7 @@ export function CompanyPage({
                     {filledFacts.length ? 'Edit company facts' : '+ Add company facts'}
                   </button>
                 )}
-              </>
-            )}
+
           </div>
         </div>
         <div className="cp-hero-side">
@@ -677,7 +674,7 @@ function BudgetCard({ workspaceId, onGo, onAdd }: { workspaceId: string; onGo: (
         <div className="cp-entity-title-group">
           <span className="cp-entity-icon" aria-hidden="true"><ChartMetricsIcon /></span>
           <div>
-            <h3 id="cp-card-budget" className="cp-entity-title">Budget & Cashflow</h3>
+            <h3 id="cp-card-budget" className="cp-entity-title">Budgets</h3>
             <span className="cp-entity-metric">
               {b ? `${b.netBalanceMinor >= 0 ? '+' : ''}${formatMinorMoney(b.netBalanceMinor, b.currency)} net` : 'Financial health'}
             </span>
@@ -759,7 +756,7 @@ function AgentsCard({ workspaceId, onGo, onAdd }: { workspaceId: string; onGo: (
         <div className="cp-entity-title-group">
           <span className="cp-entity-icon" aria-hidden="true"><WorkflowIcon /></span>
           <div>
-            <h3 id="cp-card-agents" className="cp-entity-title">Automations & Agents</h3>
+            <h3 id="cp-card-agents" className="cp-entity-title">Automations</h3>
             <span className="cp-entity-metric">{activeCount} active · {agents.length} configured</span>
           </div>
         </div>
@@ -1250,11 +1247,13 @@ function NewDocumentSlideout({
 
 function Logo({
   workspace,
+  companyName,
   logoUrl,
   canEdit,
   onLogo,
 }: {
   workspace: Workspace
+  companyName?: string
   logoUrl: string | null
   canEdit: boolean
   onLogo: (mediaId: string | null) => Promise<boolean>
@@ -1263,7 +1262,7 @@ function Logo({
   const input = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState('')
-  const initial = workspace.name.trim().charAt(0).toUpperCase() || '·'
+  const initial = (companyName || workspace.name).trim().charAt(0).toUpperCase() || '·'
 
   const pick = async (file: File | undefined) => {
     if (!file) return

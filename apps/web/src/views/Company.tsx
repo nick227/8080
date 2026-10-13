@@ -46,7 +46,7 @@ export function Company() {
           <div className="work-column company-column">
             <WorkNav desk={place} onSelect={setPlace} />
             <WorkspaceTransition view={place}>
-            {place === 'team' ? (
+            {place === 'members' || place === 'team' ? (
               <TeamDesk seats={[]} />
             ) : place === 'calendar' ? (
               <CalendarPage />

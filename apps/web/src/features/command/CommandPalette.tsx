@@ -28,6 +28,7 @@ const SYNONYMS: Partial<Record<Desk, string>> = {
   contacts: 'contacts people customers leads crm',
   inventory: 'inventory products catalog stock items',
   team: 'team members people colleagues',
+  members: 'team members people colleagues',
   documents: 'documents docs files sheets maps',
   company: 'company overview profile settings integrations senders vocabulary',
 }

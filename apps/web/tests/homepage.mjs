@@ -35,7 +35,7 @@ try {
   })
   delaySession = true
   await page.goto('https://homepage.test')
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Your workspaces')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Run your company from one workspace.')
   delaySession = false
   // Persistent main app masthead
   await expect(page.locator('.masthead')).toBeVisible()
@@ -57,7 +57,7 @@ try {
 
   // Navigate back home via masthead Lobby/Home icon
   await page.locator('.masthead').getByRole('link', { name: 'Home' }).click()
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Your workspaces')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Run your company from one workspace.')
   await expect(page.locator('.masthead')).toHaveAttribute('data-test-identity', 'persistent')
 
   // Navigate to create workspace via client-side link
@@ -149,7 +149,7 @@ try {
   await page.goto('https://homepage.test')
   await expect(page.locator('.app-page').getByRole('region', { name: 'Your workspaces' }).getByRole('link', { name: /New Company/ })).toHaveAttribute('href', '/c/new-company')
   await page.goto('https://homepage.test/workspaces')
-  await expect(page.getByRole('heading', { name: 'Your workspaces', level: 1 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your workspaces', level: 2 })).toBeVisible()
   workspaces = []
   await page.reload()
   await expect(page.locator('.app-page').getByText('You do not belong to a workspace yet.')).toBeVisible()

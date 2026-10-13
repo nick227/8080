@@ -1,15 +1,17 @@
-import { useEffect, type ReactNode } from 'react'
+import React, { useEffect, useState, type ReactNode } from 'react'
 import type { Desk } from './sections'
 import { COLLECTIONS, DESKS, isCollection } from './sections'
 import './work.css'
 import { ActiveUsersWidget } from '../documents/ActiveUsersWidget'
 import { useCurrentWorkspace } from '../../app/workspace'
+import { useCompanyProfile } from '../company/useCompanyProfile'
 
 const LAST_LIST = '8080.nav.list'
 
 function lastList(): Desk {
   try {
     const saved = localStorage.getItem(LAST_LIST) as Desk | null
+    if (saved === 'team') return 'members'
     if (saved && isCollection(saved)) return saved
   } catch { /* Tasks */ }
   return 'tasks'
@@ -33,6 +35,14 @@ export function WorkNav({ desk, onSelect, layoutControl, streamLabel = 'Team', c
   streamLabel?: string
 }) {
   const { workspace } = useCurrentWorkspace()
+  const { profile } = useCompanyProfile(workspace?.id)
+  const [imgError, setImgError] = useState(false)
+  const logoUrl = profile?.logoUrl
+
+  useEffect(() => {
+    setImgError(false)
+  }, [logoUrl])
+
   // Remember the last list so Lists returns to it.
   useEffect(() => {
     if (!isCollection(desk)) return
@@ -46,7 +56,7 @@ export function WorkNav({ desk, onSelect, layoutControl, streamLabel = 'Team', c
   )
 
   return (
-    <nav className="work-nav" aria-label="Workspace" data-desk={desk} data-compact={compact || undefined}>
+    <header className="work-nav" aria-label="Workspace" data-desk={desk} data-compact={compact || undefined}>
       {workspace && showWork && (
         <>
           {showCompany && <button
@@ -56,17 +66,26 @@ export function WorkNav({ desk, onSelect, layoutControl, streamLabel = 'Team', c
             aria-label={`${workspace.name}: company overview`}
             onClick={() => onSelect('company')}
           >
-            <span className="work-nav-company-mark" aria-hidden>{workspace.name.trim().charAt(0).toUpperCase() || '·'}</span>
+            <span className={`work-nav-company-mark${logoUrl && !imgError ? ' has-image' : ''}`} aria-hidden>
+              {logoUrl && !imgError ? (
+                <img src={logoUrl} alt="" onError={() => setImgError(true)} />
+              ) : (
+                workspace.name.trim().charAt(0).toUpperCase() || '·'
+              )}
+            </span>
             <span className="work-nav-company-name">{workspace.name}</span>
           </button>}
+          <button type="button" className="work-nav-item work-nav-home" aria-current={desk === 'company' ? 'page' : undefined} onClick={() => onSelect('company')}>
+            Home
+          </button>
           <button
             type="button"
-            className="work-nav-item work-nav-lists"
+            className="work-nav-item work-nav-data"
             aria-current={isCollection(desk) ? 'page' : undefined}
             aria-label={`Lists: open ${COLLECTIONS.find((c) => c.id === lastList())?.label}`}
             onClick={() => onSelect(isCollection(desk) ? desk : lastList())}
           >
-            Work
+            Data
           </button>
           {item('board')}
           {item('calendar')}
@@ -80,6 +99,6 @@ export function WorkNav({ desk, onSelect, layoutControl, streamLabel = 'Team', c
         {layoutControl}
         <ActiveUsersWidget />
       </div>
-    </nav>
+    </header>
   )
 }

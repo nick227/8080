@@ -8,6 +8,7 @@ import type {
   UpdateTeamInput,
   UpdateWorkspaceInput,
   UpdateWorkspaceMemberInput,
+  Workspace,
 } from '../models'
 import { keys } from './keys'
 
@@ -54,9 +55,19 @@ export function useCreateWorkspace() {
 }
 
 export function useUpdateWorkspace(workspaceId: string) {
-  return useWorkspaceMutation(workspaceId, async (body: UpdateWorkspaceInput) =>
-    unwrap(await getApiClient().PATCH('/workspaces/{workspaceId}', { ...path(workspaceId), body })).data,
-  )
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: UpdateWorkspaceInput) =>
+      unwrap(await getApiClient().PATCH('/workspaces/{workspaceId}', { ...path(workspaceId), body })).data,
+    onSuccess: (updated) => {
+      queryClient.setQueryData<Workspace[]>(keys.workspaces, (old) =>
+        old ? old.map((w) => (w.id === workspaceId ? { ...w, ...updated } : w)) : old,
+      )
+      queryClient.setQueryData(keys.workspace(workspaceId), updated)
+      void queryClient.invalidateQueries({ queryKey: keys.workspace(workspaceId) })
+      void queryClient.invalidateQueries({ queryKey: keys.workspaces, exact: true })
+    },
+  })
 }
 
 export function useDeleteWorkspace() {

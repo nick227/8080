@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '@project/sdk'
 import { WorkspaceList } from '../features/home/WorkspaceList'
 import { AppPromo } from '../features/home/AppPromo'
+import { HomeIntro } from '../features/home/HomeIntro'
 import { Lobby } from '../features/Lobby'
 import { blueprints, scenarioData, money } from '../features/blueprints/data'
 import { RecordModalSurface } from '../features/conversation/RecordModalSurface'
@@ -55,15 +56,17 @@ export function Home() {
   return (
     <div className="app-page home-page">
       <SEO
-        title="8080 — Workspaces, Community & Blueprints"
-        description="8080 work management platform: workspaces, community conversations, and operating blueprints."
+        title="8080 — CRM and work management for small teams"
+        description="8080 keeps your customers, tasks, documents and team conversations in one workspace. Start free."
       />
       {params.get('authError') && <p role="alert">Sign-in failed. Please try signing in again.</p>}
+
+      <HomeIntro />
 
       {/* Section 1: Your Workspaces */}
       <section id="workspaces" className="home-section" aria-labelledby="heading-workspaces">
         <div className="product-page-heading">
-          <h1 id="heading-workspaces">Your workspaces</h1>
+          <h2 id="heading-workspaces">Your workspaces</h2>
           <p>Manage your company records, inventory, documents, and connected workspaces.</p>
         </div>
         <WorkspaceList />

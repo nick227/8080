@@ -8,7 +8,7 @@
 .section-header h1,
 .section-header h2 {
   margin: 0;
-  font-size: var(--text-lg);
+  font-size: var(--text-6xl);
   font-weight: var(--weight-bold);
   color: var(--ink);
   min-width: 0;
@@ -28,7 +28,7 @@
 
 /* The shared collection view's title: a list switcher (redesign D9). */
 .collection-switcher { position: relative; min-width: 0; }
-.collection-switcher-title { margin: 0; font-size: var(--text-lg); font-weight: 600; }
+.collection-switcher-title { margin: 0; font-size: var(--text-6xl); font-weight: 600; }
 .collection-switcher-title button { display: inline-flex; align-items: center; gap: var(--space-xs); padding: 2px var(--space-xs); margin-left: calc(var(--space-xs) * -1); border-radius: var(--radius-sm); color: var(--ink); font: inherit; }
 .collection-switcher-title button:hover, .collection-switcher-title button:focus-visible, .collection-switcher-title button[aria-expanded="true"] { background: var(--surface-active); }
 .collection-switcher-caret { font-size: 0.7em; color: var(--muted); }

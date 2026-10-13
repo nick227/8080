@@ -281,7 +281,7 @@
   font-size: var(--text-md);
   color: var(--muted);
 }
-.cal-actions { display: flex; flex-wrap: wrap; gap: var(--form-actions-gap); }
+.cal-actions { display: flex; flex-wrap: wrap; gap: var(--form-actions-gap); margin-top: 20px; }
 .cal-actions .cal-btn:first-child { margin-right: auto; }
 
 @media (max-width: 720px) {

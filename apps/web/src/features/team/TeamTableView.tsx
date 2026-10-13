@@ -151,7 +151,7 @@ export function TeamTableView({
     },
     ...(canInvite ? [deleteColumn<Row>({ verb: 'Remove', name: (m) => m.name, can: (m) => !m.self, onDelete: (m) => void runRemoval([m.id], m.name) })] : []),
   ], [inRoom, onAssignTask, canInvite, runRemoval])
-  const table = useTableState('team', columns, { id: 'name', dir: 1 })
+  const table = useTableState('members', columns, { id: 'name', dir: 1 })
   const shown = table.sortRows(rows.filter((m) => matches(search.q, m.name, m.role, m.email, m.focus)))
   const selection = useSelection(useMemo(() => shown.map((m) => m.id), [shown]))
 
@@ -166,7 +166,7 @@ export function TeamTableView({
 
   return (
     <CollectionView
-      collection="team"
+      collection="members"
       count={members.isLoading ? undefined : rows.length}
       onNew={canInvite ? () => setInviting(true) : undefined}
       onImport={canInvite ? () => setImporting(true) : undefined}

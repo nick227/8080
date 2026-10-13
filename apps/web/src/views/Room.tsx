@@ -249,7 +249,7 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
                 onSend={send}
                 onActivity={onActivity}
               />
-            ) : shownPlace === 'team' ? (
+            ) : shownPlace === 'members' || shownPlace === 'team' ? (
               <TeamDesk
                 seats={seatsFrom(people, meId, meGuest)}
                 roomId={roomId}

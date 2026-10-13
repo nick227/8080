@@ -30,40 +30,69 @@ export function InlineText({ value, canEdit, prompt, label, multiline, maxLength
   const [draft, setDraft] = useState(value ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [optimistic, setOptimistic] = useState<string | null>(null)
+  const committing = useRef(false)
   const field = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (editing) field.current?.focus()
   }, [editing])
 
+  useEffect(() => {
+    setOptimistic(null)
+  }, [value])
+
+  const displayValue = optimistic ?? value
+
   if (!editing) {
-    if (!value && !canEdit) return null
-    if (!canEdit) return <span className={className}>{children ?? value}</span>
+    if (!displayValue && !canEdit) return null
+    if (!canEdit) return <span className={className}>{children ?? displayValue}</span>
     return (
       <button
         type="button"
-        className={`inline-value${value ? '' : ' inline-prompt'}${className ? ` ${className}` : ''}`}
-        aria-label={value ? `${label}: ${value}. Edit` : prompt}
-        onClick={() => { setDraft(value ?? ''); setError(''); setEditing(true) }}
+        className={`inline-value${displayValue ? '' : ' inline-prompt'}${className ? ` ${className}` : ''}`}
+        aria-label={displayValue ? `${label}: ${displayValue}. Edit` : prompt}
+        onClick={() => { setDraft(displayValue ?? ''); setError(''); setEditing(true) }}
       >
-        {value ? (children ?? value) : prompt}
+        {displayValue ? (children ?? displayValue) : prompt}
       </button>
     )
   }
 
   const commit = async () => {
+    if (committing.current) return
     const next = draft.trim()
-    if (next === (value ?? '')) { setEditing(false); return }
+    if (next === (displayValue ?? '')) { setEditing(false); return }
     const problem = next ? validate?.(next) : required ? `${label} can’t be empty` : null
     if (problem) { setError(problem); field.current?.focus(); return }
+    committing.current = true
     setSaving(true)
-    const ok = await onSave(next || null)
-    setSaving(false)
-    if (ok) setEditing(false)
+    try {
+      const ok = await onSave(next || null)
+      if (ok) {
+        setOptimistic(next || null)
+        setEditing(false)
+      } else {
+        setError('Couldn’t save changes.')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Couldn’t save changes.')
+    } finally {
+      committing.current = false
+      setSaving(false)
+    }
   }
   const keys = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') { e.preventDefault(); setEditing(false) }
-    if (e.key === 'Enter' && (!multiline || e.metaKey || e.ctrlKey)) { e.preventDefault(); void commit() }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      setDraft(displayValue ?? '')
+      setError('')
+      setEditing(false)
+    }
+    if (e.key === 'Enter' && (!multiline || e.metaKey || e.ctrlKey)) {
+      e.preventDefault()
+      void commit()
+    }
   }
   const shared = {
     ref: field,

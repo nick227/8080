@@ -1,5 +1,7 @@
 /// <reference types="vite/client" />
 /// <reference types="@webgpu/types" />
+/// <reference types="react" />
+/// <reference types="react/jsx-runtime" />
 
 /** Versioned runtime asset URLs for the virtual background (vite.config.ts `define`). */
 declare const __VBG_ASSETS__: { mediapipe: string; ort: string; modnet: string }

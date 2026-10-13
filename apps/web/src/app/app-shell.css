@@ -13,7 +13,6 @@
 .app-rooms { position:relative; }
 .app-rooms .conversation-directory { padding:0; }
 .app-rooms .lobby-body { width:100%; max-width:none; padding:0; margin:0; }
-.app-page .account-page { padding:0; margin:0; max-width:720px; }
 .bp-catalog-scenarios { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:24px; padding-block:16px; border-block:1px solid var(--line); }
 .bp-catalog-scenarios p { color:var(--muted); font-size:12px; }
 .bp-card-numbers { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; border-block:1px solid var(--line); padding-block:16px; margin:20px 0 10px; }
