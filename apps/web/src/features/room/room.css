@@ -16,33 +16,15 @@
 .room-chat {
   --chat-full-measure: 860px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(var(--chat-panel-min-width), var(--chat-panel-width));
+  /* The chat overlays the page (D10): the page always keeps the full width. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   flex: 1;
   min-height: 0;
   position: relative;
 }
-.room-chat[data-chat="closed"] { grid-template-columns: minmax(0, 1fr) 0; }
-.room-chat[data-chat="closed"] .room-rail { visibility: hidden; padding: 0; border: 0; }
+.room-chat[data-chat="closed"] .room-rail { visibility: hidden; opacity: 0; transform: translateX(24px); pointer-events: none; }
 .room-chat-max:hover, .room-chat-max:focus-visible { color: var(--ink); border-color: var(--ink); }
-.room-chat-count {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 5px;
-  display: grid;
-  place-items: center;
-  border: 2px solid var(--bg);
-  border-radius: var(--radius-pill);
-  background: var(--ink);
-  color: var(--bg);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
 
 /* Maximize / restore: upper right of the chat, inside the rail so it follows it everywhere. */
 .room-rail { position: relative; }
@@ -69,6 +51,8 @@
 .room-chat[data-chat="full"] .room-rail {
   position: absolute;
   inset: 0;
+  width: auto;
+  box-shadow: none;
   z-index: 7;
   grid-column: auto;
   border-left: 0;
@@ -92,6 +76,7 @@
   to { clip-path: inset(0 0 0 calc(100% - var(--chat-panel-width))); opacity: 0.4; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .room-rail { transition: none; }
   .room-chat[data-chat="full"] .room-rail,
   .room-chat[data-chat="full"][data-leaving] .room-rail { animation: none; }
 }
@@ -345,8 +330,17 @@
   color: var(--muted);
 }
 .room-rail {
-  grid-column: 2;
+  grid-column: 1;
   grid-row: 1;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  width: min(var(--chat-panel-width), 100%);
+  box-sizing: border-box;
+  box-shadow: -16px 0 40px rgba(0, 0, 0, .28);
+  transition: opacity 180ms ease, transform 180ms ease, visibility 180ms;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -1060,22 +1054,18 @@
 .room-stage .media-container, .room-stage .media-view { width: min(var(--content-width-media), 100%); }
 
 @media (max-width: 860px) {
-  .room-chat {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(220px, 42vh) minmax(0, 1fr);
-  }
-  .room-chat[data-chat="closed"] {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) 0;
-  }
+  /* Phones and narrow tablets: open chat covers the whole work area (under the header,
+     above the bottom tabs); there is nothing to maximize into. */
   .room-live { grid-row: 1; grid-column: 1; }
   .room-rail {
-    grid-row: 2;
-    grid-column: 1;
+    left: 0;
+    width: auto;
     border-left: 0;
     padding: 0 var(--space-2);
-    border-top: var(--line-width) solid var(--line);
+    box-shadow: none;
   }
+  .room-chat[data-chat="closed"] .room-rail { transform: translateY(24px); }
+  .room-chat-max { display: none; }
   /* The open panel uses a downward collapse chevron. */
   /* Full: the overlay covers the whole screen, growing up from the panel's footprint. */
   .room-chat[data-chat="full"] .room-rail {

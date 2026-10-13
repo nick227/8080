@@ -1,5 +1,6 @@
 import { createContext, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { useChatPanel, type ChatMode } from '../../state/chat'
+import { useLocation } from 'react-router-dom'
+import { isPhoneChat, useChatPanel, type ChatMode } from '../../state/chat'
 import type { RoomView } from './roomViews'
 
 const LEAVE_MS = 200
@@ -26,6 +27,13 @@ export function ChatShell({ stage, stream, composer, view, unseenCount = 0 }: {
     return () => useChatPanel.setState((s) => ({ hosts: s.hosts - 1, unseen: 0 }))
   }, [])
   useEffect(() => { useChatPanel.setState({ unseen: unseenCount }) }, [unseenCount])
+  // On phones the open chat covers the page: going somewhere else (a tab, a link) closes it.
+  const { pathname } = useLocation()
+  const firstPath = useRef(pathname)
+  useEffect(() => {
+    if (pathname !== firstPath.current && isPhoneChat()) useChatPanel.setState({ mode: 'closed' })
+    firstPath.current = pathname
+  }, [pathname])
 
   // Leaving full plays the collapse animation, then lands on the open panel.
   const restore = useCallback(() => {
