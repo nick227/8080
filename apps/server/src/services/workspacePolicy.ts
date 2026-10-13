@@ -55,6 +55,11 @@ export type WorkspaceVerb =
   | 'task.delete'
   // Logged work: everyone logs; deleting is for admins, the author and the member it credits.
   | 'worklog.delete'
+  // Work Session (time clock + lobby): everyone sees the lobby and runs their own clock;
+  // correcting recorded time is for the member it belongs to and admins.
+  | 'worksession.read'
+  | 'worksession.write'
+  | 'worksession.correct'
   // Board settings (WIP limits): admins.
   | 'task.board.manage'
   // Conversations listed under the company (redesign D3): everyone sees the list and
@@ -112,6 +117,9 @@ const ROLES: Record<WorkspaceVerb, readonly WorkspaceRole[]> = {
   'task.write': EVERYONE,
   'task.delete': EVERYONE,
   'worklog.delete': ADMINS, // + the entry's author and member (below)
+  'worksession.read': EVERYONE,
+  'worksession.write': EVERYONE,
+  'worksession.correct': ADMINS, // + the member whose time it is (below)
   'task.board.manage': ADMINS,
   'conversation.read': EVERYONE,
   'conversation.link': EVERYONE,
@@ -130,6 +138,7 @@ export type PolicyTarget =
   | { kind: 'note'; authorMemberId: string }
   | { kind: 'budget'; authorMemberId: string | null }
   | { kind: 'worklog'; memberIds: readonly (string | null)[] }
+  | { kind: 'worksession'; memberId: string }
   // `workspaceAccess`: what every active member gets (null = private to owner + grants).
   | { kind: 'document'; ownerMemberId: string; grants: { memberId: string; role: 'viewer' | 'editor' }[]; workspaceAccess: 'viewer' | 'editor' | null }
 
@@ -150,6 +159,7 @@ export function can(member: Pick<WorkspaceMember, 'id' | 'role' | 'status'>, ver
   if (verb === 'note.delete' && target?.kind === 'note' && target.authorMemberId === member.id) return true
   if (verb === 'budget.delete' && target?.kind === 'budget' && target.authorMemberId === member.id) return true
   if (verb === 'worklog.delete' && target?.kind === 'worklog' && target.memberIds.includes(member.id)) return true
+  if (verb === 'worksession.correct' && target?.kind === 'worksession' && target.memberId === member.id) return true
   if (!ROLES[verb]?.includes(member.role)) return false
   // Only owners touch owners, or make someone an owner.
   if (verb === 'member.manage' && target?.kind === 'member' && member.role !== 'owner') {

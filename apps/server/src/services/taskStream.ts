@@ -40,6 +40,8 @@ async function framesFor(workspaceId: string, e: WorkspaceEvent): Promise<{ even
     out.push({ event: 'task.changed', data: { ...base, taskId: e.taskId, task: row && !row.deletedAt ? toTask(row) : null } })
   }
   if (e.type.startsWith('worklog.')) out.push({ event: 'worklogs.changed', data: base })
+  // The Work Session lobby, task time and the calendar's actual blocks refetch.
+  if (e.type.startsWith('worksession.')) out.push({ event: 'worksessions.changed', data: base })
   if (e.type === 'task.board.updated') {
     const board = await db.taskBoardSettings.findUnique({ where: { workspaceId } })
     out.push({ event: 'board.updated', data: { ...base, wipLimits: board?.wipLimits ?? {} } })

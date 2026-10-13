@@ -47,6 +47,12 @@ export const keys = {
   taskActivity: (workspaceId: string, taskId: string) => ['workspaces', workspaceId, 'tasks', taskId, 'activity'] as const,
   taskChecklist: (workspaceId: string, taskId: string) => ['workspaces', workspaceId, 'tasks', taskId, 'checklist'] as const,
   workLogs: (workspaceId: string) => ['workspaces', workspaceId, 'work-logs'] as const,
+  // Work Session: everything under this prefix refetches on worksessions.changed.
+  work: (workspaceId: string) => ['workspaces', workspaceId, 'work'] as const,
+  workLobby: (workspaceId: string) => ['workspaces', workspaceId, 'work', 'lobby'] as const,
+  workTime: (workspaceId: string, taskId?: string) => ['workspaces', workspaceId, 'work', 'time', taskId ?? 'all'] as const,
+  workSessions: (workspaceId: string, from: string, to: string, memberId?: string, taskId?: string) =>
+    ['workspaces', workspaceId, 'work', 'sessions', from, to, memberId ?? '', taskId ?? ''] as const,
   taskBoard: (workspaceId: string) => ['workspaces', workspaceId, 'task-board'] as const,
   taskStatuses: (workspaceId: string) => ['workspaces', workspaceId, 'task-statuses'] as const,
   budget: (workspaceId: string, params?: object) => ['workspaces', workspaceId, 'budget', 'list', params ?? {}] as const,

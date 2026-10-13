@@ -7199,6 +7199,234 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/work-sessions/lobby:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: getWorkLobby
+      summary: The Work Session widget — my session and today's markers, every member's status, today's updates
+      description: Times are exact. A running total is todayMs + (now − runningSince); the server writes nothing while time passes.
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkLobbyResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/work-sessions:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: listWorkSessions
+      summary: Sessions overlapping a time range, with their segments (the Calendar's actual time)
+      tags: [workspaces]
+      parameters:
+        - { name: from, in: query, required: true, description: ISO date-time (checked by the service), schema: { type: string, maxLength: 40 } }
+        - { name: to, in: query, required: true, description: ISO date-time (checked by the service), schema: { type: string, maxLength: 40 } }
+        - { name: memberId, in: query, schema: { type: string, maxLength: 64 } }
+        - { name: taskId, in: query, schema: { type: string, maxLength: 64 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkSessionList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: startWorkSession
+      summary: Start my session (one open session per member, across tabs and devices)
+      tags: [workspaces]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkSessionTaskInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkSessionResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/work-sessions/current/pause:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: pauseWorkSession
+      summary: Pause my session (pauses don't count as working time)
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkSessionResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/work-sessions/current/resume:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: resumeWorkSession
+      summary: Resume my paused session, on its task unless taskId says otherwise
+      tags: [workspaces]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkSessionTaskInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkSessionResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/work-sessions/current/switch:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: switchWorkSessionTask
+      summary: Switch task without ending the session (closes the prior task's segment)
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SwitchWorkTaskInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkSessionResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/work-sessions/current/stop:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: stopWorkSession
+      summary: Stop my session and get its summary
+      description: An accomplishment also logs work (Log work entry with the session's hours) on taskId or the task worked longest; completeTask closes that task.
+      tags: [workspaces]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StopWorkSessionInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkSessionStopResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /workspaces/{workspaceId}/work-updates:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: postWorkUpdate
+      summary: Post a progress update (a durable event; on the current task unless taskId is given)
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkUpdateInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkUpdateResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/work-time:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      operationId: getWorkTime
+      summary: Recorded time per task — who worked it, who is on it now, the latest update
+      tags: [workspaces]
+      parameters:
+        - { name: taskId, in: query, schema: { type: string, maxLength: 64 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkTimeResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/work-segments:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      operationId: addWorkTime
+      summary: Add time that was worked but never clocked (recorded as an addition, with a reason)
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddWorkTimeInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkSessionResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/work-segments/{segmentId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - { name: segmentId, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 64 } }
+    patch:
+      operationId: correctWorkSegment
+      summary: Correct recorded time (its member or an admin); the original bounds and the change stay recorded
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CorrectWorkSegmentInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkSessionResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /workspaces/{workspaceId}/task-statuses:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -10892,7 +11120,7 @@ components:
       description: SDK-only typing for the streamTasks SSE payloads.
       required: [event]
       properties:
-        event: { type: string, enum: [ready, task.changed, worklogs.changed, board.updated, workflow.updated, reset] }
+        event: { type: string, enum: [ready, task.changed, worklogs.changed, worksessions.changed, board.updated, workflow.updated, reset] }
         statuses:
           type: array
           items: { $ref: '#/components/schemas/TaskStatusDef' }
@@ -11331,6 +11559,261 @@ components:
           type: array
           maxItems: 500
           items: { $ref: '#/components/schemas/ImportWorkLogRow' }
+    WorkTaskRef:
+      type: object
+      required: [id, taskKey, title, deleted]
+      properties:
+        id: { type: string }
+        taskKey: { type: string }
+        title: { type: string }
+        deleted: { type: boolean }
+    WorkSegment:
+      type: object
+      required: [id, sessionId, memberId, task, startedAt, endedAt, workedMs, corrected]
+      properties:
+        id: { type: string }
+        sessionId: { type: string }
+        memberId: { type: string }
+        task:
+          oneOf:
+            - $ref: '#/components/schemas/WorkTaskRef'
+            - type: 'null'
+        startedAt: { type: string, format: date-time }
+        endedAt: { type: [string, 'null'], format: date-time, description: null = running }
+        workedMs: { type: [integer, 'null'], description: Exact counted time; null while running }
+        corrected:
+          description: Set when the bounds were corrected (or the time was added afterwards)
+          oneOf:
+            - type: object
+              required: [at, originalStartedAt, originalEndedAt]
+              properties:
+                at: { type: string, format: date-time }
+                originalStartedAt: { type: string, format: date-time }
+                originalEndedAt: { type: [string, 'null'], format: date-time }
+            - type: 'null'
+    WorkSession:
+      type: object
+      required: [id, memberId, state, startedAt, endedAt, task, workedMs, runningSince, segments, version]
+      properties:
+        id: { type: string }
+        memberId: { type: string }
+        state: { type: string, enum: [working, paused, stopped] }
+        startedAt: { type: string, format: date-time }
+        endedAt: { type: [string, 'null'], format: date-time }
+        task:
+          oneOf:
+            - $ref: '#/components/schemas/WorkTaskRef'
+            - type: 'null'
+        workedMs: { type: integer, description: Closed time; add (now − runningSince) while working }
+        runningSince: { type: [string, 'null'], format: date-time }
+        segments:
+          type: array
+          items: { $ref: '#/components/schemas/WorkSegment' }
+        version: { type: integer }
+        member: { $ref: '#/components/schemas/TaskAssignee' }
+    WorkSessionResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/WorkSession' }
+    WorkSessionList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/WorkSession' }
+    WorkUpdate:
+      type: object
+      required: [id, memberId, name, avatarUrl, text, sessionId, task, at]
+      properties:
+        id: { type: string }
+        memberId: { type: [string, 'null'] }
+        name: { type: string }
+        avatarUrl: { type: [string, 'null'] }
+        text: { type: string }
+        sessionId: { type: [string, 'null'] }
+        task:
+          oneOf:
+            - $ref: '#/components/schemas/WorkTaskRef'
+            - type: 'null'
+        at: { type: string, format: date-time }
+    WorkUpdateResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/WorkUpdate' }
+    WorkLobbyMember:
+      type: object
+      required: [memberId, name, avatarUrl, title, state, since, sessionStartedAt, task, todayMs, runningSince, lastUpdate]
+      properties:
+        memberId: { type: string }
+        name: { type: string }
+        avatarUrl: { type: [string, 'null'] }
+        title: { type: [string, 'null'] }
+        state: { type: string, enum: [working, paused, 'off'] }
+        since: { type: [string, 'null'], format: date-time, description: When the current state began }
+        sessionStartedAt: { type: [string, 'null'], format: date-time }
+        task:
+          oneOf:
+            - $ref: '#/components/schemas/WorkTaskRef'
+            - type: 'null'
+        todayMs: { type: integer, description: Closed time today (workspace day) }
+        runningSince: { type: [string, 'null'], format: date-time }
+        lastUpdate:
+          oneOf:
+            - type: object
+              required: [text, at]
+              properties:
+                text: { type: string }
+                at: { type: string, format: date-time }
+            - type: 'null'
+    WorkMarker:
+      type: object
+      required: [id, type, at, summary]
+      properties:
+        id: { type: string }
+        type: { type: string, description: 'worksession.started | paused | resumed | switched | update | stopped | segment | corrected | added' }
+        at: { type: string, format: date-time }
+        summary: { type: object, additionalProperties: true }
+    WorkLobby:
+      type: object
+      required: [now, day, timezone, dayStart, dayEnd, me, members, updates]
+      properties:
+        now: { type: string, format: date-time }
+        day: { type: string, format: date }
+        timezone: { type: string }
+        dayStart: { type: string, format: date-time }
+        dayEnd: { type: string, format: date-time }
+        me:
+          type: object
+          required: [memberId, session, segments, markers]
+          properties:
+            memberId: { type: string }
+            session:
+              oneOf:
+                - $ref: '#/components/schemas/WorkSession'
+                - type: 'null'
+            segments:
+              type: array
+              items: { $ref: '#/components/schemas/WorkSegment' }
+            markers:
+              type: array
+              items: { $ref: '#/components/schemas/WorkMarker' }
+        members:
+          type: array
+          items: { $ref: '#/components/schemas/WorkLobbyMember' }
+        updates:
+          type: array
+          items: { $ref: '#/components/schemas/WorkUpdate' }
+    WorkLobbyResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/WorkLobby' }
+    WorkSessionStopResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [session, tasks, updates, workLog]
+          properties:
+            session: { $ref: '#/components/schemas/WorkSession' }
+            tasks:
+              type: array
+              description: Time per task touched (null task = general work), longest first
+              items:
+                type: object
+                required: [task, workedMs]
+                properties:
+                  task:
+                    oneOf:
+                      - $ref: '#/components/schemas/WorkTaskRef'
+                      - type: 'null'
+                  workedMs: { type: integer }
+            updates: { type: integer }
+            workLog:
+              oneOf:
+                - $ref: '#/components/schemas/WorkLog'
+                - type: 'null'
+    WorkTimeRow:
+      type: object
+      required: [taskId, workedMs, runningSince, runningCount, sessions, lastWorkedAt, people, workingNow, lastUpdate]
+      properties:
+        taskId: { type: string }
+        workedMs: { type: integer, description: Closed time; each running stretch adds (now − its start) }
+        runningSince: { type: [string, 'null'], format: date-time }
+        runningCount: { type: integer }
+        sessions: { type: integer }
+        lastWorkedAt: { type: [string, 'null'], format: date-time }
+        people:
+          type: array
+          items:
+            type: object
+            required: [memberId, name, avatarUrl, workedMs]
+            properties:
+              memberId: { type: string }
+              name: { type: string }
+              avatarUrl: { type: [string, 'null'] }
+              workedMs: { type: integer }
+        workingNow:
+          type: array
+          items: { $ref: '#/components/schemas/TaskAssignee' }
+        lastUpdate:
+          oneOf:
+            - $ref: '#/components/schemas/WorkUpdate'
+            - type: 'null'
+    WorkTimeResponse:
+      type: object
+      required: [now, data]
+      properties:
+        now: { type: string, format: date-time }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/WorkTimeRow' }
+    WorkSessionTaskInput:
+      type: object
+      additionalProperties: false
+      properties:
+        taskId: { type: [string, 'null'], maxLength: 64, description: null = general work }
+    SwitchWorkTaskInput:
+      type: object
+      additionalProperties: false
+      required: [taskId]
+      properties:
+        taskId: { type: [string, 'null'], maxLength: 64 }
+    StopWorkSessionInput:
+      type: object
+      additionalProperties: false
+      properties:
+        accomplishment: { type: [string, 'null'], maxLength: 500, description: What got done; logs work with the session's hours }
+        taskId: { type: [string, 'null'], maxLength: 64, description: Task to log against (default = the one worked longest) }
+        completeTask: { type: boolean }
+    WorkUpdateInput:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 500 }
+        taskId: { type: [string, 'null'], maxLength: 64 }
+    CorrectWorkSegmentInput:
+      type: object
+      additionalProperties: false
+      required: [startedAt, endedAt, reason]
+      properties:
+        startedAt: { type: string, format: date-time }
+        endedAt: { type: string, format: date-time }
+        reason: { type: string, minLength: 1, maxLength: 280 }
+    AddWorkTimeInput:
+      type: object
+      additionalProperties: false
+      required: [startedAt, endedAt, reason]
+      properties:
+        startedAt: { type: string, format: date-time }
+        endedAt: { type: string, format: date-time }
+        reason: { type: string, minLength: 1, maxLength: 280 }
+        taskId: { type: [string, 'null'], maxLength: 64 }
     WipLimits:
       type: object
       description: Soft limit of cards per status key; a missing status has none

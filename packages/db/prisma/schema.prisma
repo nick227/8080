@@ -573,6 +573,8 @@ model Workspace {
   sprints          Sprint[]
   workTasks        WorkTask[]
   workLogs         WorkLog[]
+  workSessions     WorkSession[]
+  workSegments     WorkSegment[]
   taskBoard        TaskBoardSettings?
   taskStatuses     TaskStatusDef[]
   budgetItems      BudgetItem[]
@@ -633,6 +635,8 @@ model WorkspaceMember {
   workComments      WorkComment[]
   workLogs          WorkLog[] @relation("WorkLogAuthor")
   workLogsDone      WorkLog[] @relation("WorkLogMember")
+  workSessions      WorkSession[]
+  workSegments      WorkSegment[]
   taskViews         TaskView[]
   authoredBudgets   BudgetItem[] @relation("BudgetItemAuthor")
 
@@ -2310,6 +2314,8 @@ model WorkTask {
   activities Activity[]
   checklist WorkChecklistItem[]
   workLogs  WorkLog[]
+  workSegments WorkSegment[]
+  workSessions WorkSession[]
   budgetItems BudgetItem[]
 
   @@unique([workspaceId, taskKey])
@@ -2376,6 +2382,61 @@ model WorkLog {
   author    WorkspaceMember? @relation("WorkLogAuthor", fields: [authorMemberId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, day])
+  @@index([taskId])
+}
+
+// Work Session (the workspace time clock + team lobby). A session is the
+// container (one member, start → stop), a segment measures time (one task or
+// general work), and Activity rows (`worksession.*`) explain what happened. Pauses
+// are the gaps between segments. Exact timestamps are stored; the UI rounds.
+model WorkSession {
+  id          String    @id @default(cuid())
+  workspaceId String
+  memberId    String
+  state       String    @db.VarChar(16) // working | paused | stopped
+  // = memberId while the session is open (null once stopped): one open session per member.
+  openKey     String?   @unique @db.VarChar(64)
+  startedAt   DateTime
+  endedAt     DateTime?
+  // The task being worked on now (or when it was paused); null = general work.
+  taskId      String?
+  version     Int       @default(1)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  task      WorkTask?       @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  segments  WorkSegment[]
+
+  @@index([workspaceId, startedAt])
+  @@index([memberId, startedAt])
+  @@index([taskId])
+}
+
+// A stretch of counted time inside a session, on one task (or none). Corrections
+// keep the first recorded bounds in original*; the change itself is an Activity.
+model WorkSegment {
+  id                String    @id @default(cuid())
+  sessionId         String
+  workspaceId       String
+  memberId          String
+  taskId            String?
+  startedAt         DateTime
+  endedAt           DateTime?
+  originalStartedAt DateTime?
+  originalEndedAt   DateTime?
+  correctedAt       DateTime?
+  createdAt         DateTime  @default(now())
+
+  session   WorkSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  task      WorkTask?       @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, startedAt])
+  @@index([workspaceId, startedAt])
+  @@index([memberId, startedAt])
   @@index([taskId])
 }
 

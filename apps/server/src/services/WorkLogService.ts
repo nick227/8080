@@ -25,10 +25,10 @@ export type WorkLogInput = {
   hoursSpent?: number | null
 }
 
-const logInclude = {
+export const workLogInclude = {
   member: { include: { user: { include: { profile: true } } } },
 } satisfies Prisma.WorkLogInclude
-type LogRow = Prisma.WorkLogGetPayload<{ include: typeof logInclude }>
+type LogRow = Prisma.WorkLogGetPayload<{ include: typeof workLogInclude }>
 
 export function toWorkLog(l: LogRow) {
   return {
@@ -90,7 +90,7 @@ function createData(workspaceId: string, actor: Actor, author: string, input: Wo
 }
 
 /** Move a task to the workflow's first done status (no-op if it is already done). */
-async function closeTask(tx: Tx, taskId: string) {
+export async function closeTask(tx: Tx, taskId: string) {
   const task = await tx.workTask.findUniqueOrThrow({ where: { id: taskId } })
   const wf = await loadWorkflow(tx, task.workspaceId)
   if (wf.isDone(task.status)) return null
@@ -103,7 +103,7 @@ async function closeTask(tx: Tx, taskId: string) {
 export class WorkLogService {
   async list(userId: string, workspaceId: string) {
     await authorize(userId, workspaceId, 'task.read')
-    const rows = await db.workLog.findMany({ where: { workspaceId }, include: logInclude, orderBy: [{ day: 'desc' }, { time: 'desc' }, { createdAt: 'desc' }] })
+    const rows = await db.workLog.findMany({ where: { workspaceId }, include: workLogInclude, orderBy: [{ day: 'desc' }, { time: 'desc' }, { createdAt: 'desc' }] })
     return { data: rows.map(toWorkLog) }
   }
 
@@ -122,7 +122,7 @@ export class WorkLogService {
     return runAction(
       { action: 'worklog.create', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { ...input }, target: { type: 'worklog' } },
       async (tx) => {
-        const created = await tx.workLog.create({ data: createData(workspaceId, actor, author, input, task), include: logInclude })
+        const created = await tx.workLog.create({ data: createData(workspaceId, actor, author, input, task), include: workLogInclude })
         const object = task ? { taskId: task.id } : undefined
         const activities: ActivityDraft[] = [{
           type: 'worklog.created',
@@ -166,7 +166,7 @@ export class WorkLogService {
     const author = await authorName(actor)
     const rows = input.entries.map((e) => ({ ...e, memberId: e.memberId && members.has(e.memberId) ? e.memberId : null }))
     const load = async (ids: string[]) => ({
-      data: (await db.workLog.findMany({ where: { id: { in: ids }, workspaceId }, include: logInclude, orderBy: { createdAt: 'asc' } })).map(toWorkLog),
+      data: (await db.workLog.findMany({ where: { id: { in: ids }, workspaceId }, include: workLogInclude, orderBy: { createdAt: 'asc' } })).map(toWorkLog),
     })
     return runAction(
       { action: 'worklog.import', workspaceId, actor: memberActor(actor), origin: ctx.origin, input: { count: rows.length, entries: rows }, idempotencyKey: input.idempotencyKey, target: { type: 'worklog' } },
@@ -179,7 +179,7 @@ export class WorkLogService {
           if (!task && row.taskKey) data.taskKey = row.taskKey.toUpperCase().slice(0, 32)
           ids.push((await tx.workLog.create({ data, select: { id: true } })).id)
         }
-        const value = { data: (await tx.workLog.findMany({ where: { id: { in: ids } }, include: logInclude, orderBy: { createdAt: 'asc' } })).map(toWorkLog) }
+        const value = { data: (await tx.workLog.findMany({ where: { id: { in: ids } }, include: workLogInclude, orderBy: { createdAt: 'asc' } })).map(toWorkLog) }
         return { value, result: { workLogIds: ids }, activities: [{ type: 'worklog.imported', summary: { count: ids.length } }] }
       },
       async (previous) => load((previous.result as { workLogIds?: string[] } | null)?.workLogIds ?? []),

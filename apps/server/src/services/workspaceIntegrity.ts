@@ -202,6 +202,10 @@ const CHECKS: { name: string; sql: string }[] = [
   { name: 'WorkChecklistItem.doneBy', sql: 'SELECT c.id FROM WorkChecklistItem c JOIN WorkspaceMember p ON p.id = c.doneByMemberId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'WorkLog.member', sql: 'SELECT c.id FROM WorkLog c JOIN WorkspaceMember p ON p.id = c.memberId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'WorkLog.author', sql: 'SELECT c.id FROM WorkLog c JOIN WorkspaceMember p ON p.id = c.authorMemberId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'WorkSession.member', sql: 'SELECT c.id FROM WorkSession c JOIN WorkspaceMember p ON p.id = c.memberId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'WorkSession.task', sql: 'SELECT c.id FROM WorkSession c JOIN WorkTask p ON p.id = c.taskId WHERE c.workspaceId <> p.workspaceId' },
+  { name: 'WorkSegment.session', sql: 'SELECT c.id FROM WorkSegment c JOIN WorkSession p ON p.id = c.sessionId WHERE c.workspaceId <> p.workspaceId OR c.memberId <> p.memberId' },
+  { name: 'WorkSegment.task', sql: 'SELECT c.id FROM WorkSegment c JOIN WorkTask p ON p.id = c.taskId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'WorkLog.task', sql: 'SELECT c.id FROM WorkLog c JOIN WorkTask p ON p.id = c.taskId WHERE c.workspaceId <> p.workspaceId' },
   { name: 'WorkComment.author', sql: 'SELECT c.id FROM WorkComment c JOIN WorkTask t ON t.id = c.taskId JOIN WorkspaceMember p ON p.id = c.authorMemberId WHERE t.workspaceId <> p.workspaceId' },
 ]

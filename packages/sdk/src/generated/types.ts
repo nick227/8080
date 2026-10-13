@@ -4435,6 +4435,204 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/work-sessions/lobby": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The Work Session widget — my session and today's markers, every member's status, today's updates
+         * @description Times are exact. A running total is todayMs + (now − runningSince); the server writes nothing while time passes.
+         */
+        get: operations["getWorkLobby"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/work-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Sessions overlapping a time range, with their segments (the Calendar's actual time) */
+        get: operations["listWorkSessions"];
+        put?: never;
+        /** Start my session (one open session per member, across tabs and devices) */
+        post: operations["startWorkSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/work-sessions/current/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pause my session (pauses don't count as working time) */
+        post: operations["pauseWorkSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/work-sessions/current/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resume my paused session, on its task unless taskId says otherwise */
+        post: operations["resumeWorkSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/work-sessions/current/switch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Switch task without ending the session (closes the prior task's segment) */
+        post: operations["switchWorkSessionTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/work-sessions/current/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop my session and get its summary
+         * @description An accomplishment also logs work (Log work entry with the session's hours) on taskId or the task worked longest; completeTask closes that task.
+         */
+        post: operations["stopWorkSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/work-updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post a progress update (a durable event; on the current task unless taskId is given) */
+        post: operations["postWorkUpdate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/work-time": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Recorded time per task — who worked it, who is on it now, the latest update */
+        get: operations["getWorkTime"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/work-segments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add time that was worked but never clocked (recorded as an addition, with a reason) */
+        post: operations["addWorkTime"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/work-segments/{segmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                segmentId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Correct recorded time (its member or an admin); the original bounds and the change stay recorded */
+        patch: operations["correctWorkSegment"];
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/task-statuses": {
         parameters: {
             query?: never;
@@ -6643,7 +6841,7 @@ export interface components {
         /** @description SDK-only typing for the streamTasks SSE payloads. */
         TaskStreamEvent: {
             /** @enum {string} */
-            event: "ready" | "task.changed" | "worklogs.changed" | "board.updated" | "workflow.updated" | "reset";
+            event: "ready" | "task.changed" | "worklogs.changed" | "worksessions.changed" | "board.updated" | "workflow.updated" | "reset";
             statuses?: components["schemas"]["TaskStatusDef"][];
             replayed?: boolean;
             activityId?: string;
@@ -6970,6 +7168,200 @@ export interface components {
         ImportWorkLogsInput: {
             idempotencyKey?: string;
             entries: components["schemas"]["ImportWorkLogRow"][];
+        };
+        WorkTaskRef: {
+            id: string;
+            taskKey: string;
+            title: string;
+            deleted: boolean;
+        };
+        WorkSegment: {
+            id: string;
+            sessionId: string;
+            memberId: string;
+            task: components["schemas"]["WorkTaskRef"] | null;
+            /** Format: date-time */
+            startedAt: string;
+            /**
+             * Format: date-time
+             * @description null = running
+             */
+            endedAt: string | null;
+            /** @description Exact counted time; null while running */
+            workedMs: number | null;
+            /** @description Set when the bounds were corrected (or the time was added afterwards) */
+            corrected: {
+                /** Format: date-time */
+                at: string;
+                /** Format: date-time */
+                originalStartedAt: string;
+                /** Format: date-time */
+                originalEndedAt: string | null;
+            } | null;
+        };
+        WorkSession: {
+            id: string;
+            memberId: string;
+            /** @enum {string} */
+            state: "working" | "paused" | "stopped";
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            endedAt: string | null;
+            task: components["schemas"]["WorkTaskRef"] | null;
+            /** @description Closed time; add (now − runningSince) while working */
+            workedMs: number;
+            /** Format: date-time */
+            runningSince: string | null;
+            segments: components["schemas"]["WorkSegment"][];
+            version: number;
+            member?: components["schemas"]["TaskAssignee"];
+        };
+        WorkSessionResponse: {
+            data: components["schemas"]["WorkSession"];
+        };
+        WorkSessionList: {
+            data: components["schemas"]["WorkSession"][];
+        };
+        WorkUpdate: {
+            id: string;
+            memberId: string | null;
+            name: string;
+            avatarUrl: string | null;
+            text: string;
+            sessionId: string | null;
+            task: components["schemas"]["WorkTaskRef"] | null;
+            /** Format: date-time */
+            at: string;
+        };
+        WorkUpdateResponse: {
+            data: components["schemas"]["WorkUpdate"];
+        };
+        WorkLobbyMember: {
+            memberId: string;
+            name: string;
+            avatarUrl: string | null;
+            title: string | null;
+            /** @enum {string} */
+            state: "working" | "paused" | "off";
+            /**
+             * Format: date-time
+             * @description When the current state began
+             */
+            since: string | null;
+            /** Format: date-time */
+            sessionStartedAt: string | null;
+            task: components["schemas"]["WorkTaskRef"] | null;
+            /** @description Closed time today (workspace day) */
+            todayMs: number;
+            /** Format: date-time */
+            runningSince: string | null;
+            lastUpdate: {
+                text: string;
+                /** Format: date-time */
+                at: string;
+            } | null;
+        };
+        WorkMarker: {
+            id: string;
+            /** @description worksession.started | paused | resumed | switched | update | stopped | segment | corrected | added */
+            type: string;
+            /** Format: date-time */
+            at: string;
+            summary: {
+                [key: string]: unknown;
+            };
+        };
+        WorkLobby: {
+            /** Format: date-time */
+            now: string;
+            /** Format: date */
+            day: string;
+            timezone: string;
+            /** Format: date-time */
+            dayStart: string;
+            /** Format: date-time */
+            dayEnd: string;
+            me: {
+                memberId: string;
+                session: components["schemas"]["WorkSession"] | null;
+                segments: components["schemas"]["WorkSegment"][];
+                markers: components["schemas"]["WorkMarker"][];
+            };
+            members: components["schemas"]["WorkLobbyMember"][];
+            updates: components["schemas"]["WorkUpdate"][];
+        };
+        WorkLobbyResponse: {
+            data: components["schemas"]["WorkLobby"];
+        };
+        WorkSessionStopResponse: {
+            data: {
+                session: components["schemas"]["WorkSession"];
+                /** @description Time per task touched (null task = general work), longest first */
+                tasks: {
+                    task: components["schemas"]["WorkTaskRef"] | null;
+                    workedMs: number;
+                }[];
+                updates: number;
+                workLog: components["schemas"]["WorkLog"] | null;
+            };
+        };
+        WorkTimeRow: {
+            taskId: string;
+            /** @description Closed time; each running stretch adds (now − its start) */
+            workedMs: number;
+            /** Format: date-time */
+            runningSince: string | null;
+            runningCount: number;
+            sessions: number;
+            /** Format: date-time */
+            lastWorkedAt: string | null;
+            people: {
+                memberId: string;
+                name: string;
+                avatarUrl: string | null;
+                workedMs: number;
+            }[];
+            workingNow: components["schemas"]["TaskAssignee"][];
+            lastUpdate: components["schemas"]["WorkUpdate"] | null;
+        };
+        WorkTimeResponse: {
+            /** Format: date-time */
+            now: string;
+            data: components["schemas"]["WorkTimeRow"][];
+        };
+        WorkSessionTaskInput: {
+            /** @description null = general work */
+            taskId?: string | null;
+        };
+        SwitchWorkTaskInput: {
+            taskId: string | null;
+        };
+        StopWorkSessionInput: {
+            /** @description What got done; logs work with the session's hours */
+            accomplishment?: string | null;
+            /** @description Task to log against (default = the one worked longest) */
+            taskId?: string | null;
+            completeTask?: boolean;
+        };
+        WorkUpdateInput: {
+            text: string;
+            taskId?: string | null;
+        };
+        CorrectWorkSegmentInput: {
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            endedAt: string;
+            reason: string;
+        };
+        AddWorkTimeInput: {
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            endedAt: string;
+            reason: string;
+            taskId?: string | null;
         };
         /** @description Soft limit of cards per status key; a missing status has none */
         WipLimits: {
@@ -17147,6 +17539,332 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NullResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getWorkLobby: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkLobbyResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listWorkSessions: {
+        parameters: {
+            query: {
+                /** @description ISO date-time (checked by the service) */
+                from: string;
+                /** @description ISO date-time (checked by the service) */
+                to: string;
+                memberId?: string;
+                taskId?: string;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkSessionList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    startWorkSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["WorkSessionTaskInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkSessionResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    pauseWorkSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkSessionResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    resumeWorkSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["WorkSessionTaskInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkSessionResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    switchWorkSessionTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SwitchWorkTaskInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkSessionResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    stopWorkSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StopWorkSessionInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkSessionStopResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    postWorkUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkUpdateInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkUpdateResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getWorkTime: {
+        parameters: {
+            query?: {
+                taskId?: string;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkTimeResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addWorkTime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddWorkTimeInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkSessionResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    correctWorkSegment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                segmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CorrectWorkSegmentInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkSessionResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];

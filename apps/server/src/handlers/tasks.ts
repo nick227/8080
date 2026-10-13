@@ -9,6 +9,7 @@ import { taskReport } from '../services/taskReport'
 import { setTaskEmailSettings, taskEmailSettings } from '../services/taskEmail'
 import { TaskViewService } from '../services/TaskViewService'
 import { TaskLinkService } from '../services/TaskLinkService'
+import { WorkSessionService } from '../services/WorkSessionService'
 
 const views = new TaskViewService()
 const links = new TaskLinkService()
@@ -219,4 +220,52 @@ export async function getTaskReport(request: any, reply: any) {
   const list = (v: unknown) => (typeof v === 'string' ? v.split(',').map((x) => x.trim()).filter(Boolean) : [])
   const filters = { members: list(q.who), types: list(q.type), areas: list(q.area), priorities: list(q.priority), q: typeof q.q === 'string' ? q.q : '' }
   return reply.send({ data: await taskReport(request.user.id, request.params.workspaceId, { weeks, filters }) })
+}
+
+// ─── Work Session (time clock + team lobby) ─────────────────────────────────
+const sessions = new WorkSessionService()
+
+export async function getWorkLobby(request: any, reply: any) {
+  return reply.send({ data: await sessions.lobby(request.user.id, request.params.workspaceId) })
+}
+
+export async function listWorkSessions(request: any, reply: any) {
+  return reply.send(await sessions.list(request.user.id, request.params.workspaceId, request.query))
+}
+
+export async function getWorkTime(request: any, reply: any) {
+  return reply.send(await sessions.workTime(request.user.id, request.params.workspaceId, request.query ?? {}))
+}
+
+export async function startWorkSession(request: any, reply: any) {
+  return reply.status(201).send({ data: await sessions.start(ctx(request), request.params.workspaceId, request.body ?? {}) })
+}
+
+export async function pauseWorkSession(request: any, reply: any) {
+  return reply.send({ data: await sessions.pause(ctx(request), request.params.workspaceId) })
+}
+
+export async function resumeWorkSession(request: any, reply: any) {
+  return reply.send({ data: await sessions.resume(ctx(request), request.params.workspaceId, request.body ?? {}) })
+}
+
+export async function switchWorkSessionTask(request: any, reply: any) {
+  return reply.send({ data: await sessions.switchTask(ctx(request), request.params.workspaceId, request.body) })
+}
+
+export async function stopWorkSession(request: any, reply: any) {
+  return reply.send({ data: await sessions.stop(ctx(request), request.params.workspaceId, request.body ?? {}) })
+}
+
+export async function postWorkUpdate(request: any, reply: any) {
+  return reply.status(201).send({ data: await sessions.postUpdate(ctx(request), request.params.workspaceId, request.body) })
+}
+
+export async function correctWorkSegment(request: any, reply: any) {
+  const { workspaceId, segmentId } = request.params
+  return reply.send({ data: await sessions.correct(ctx(request), workspaceId, segmentId, request.body) })
+}
+
+export async function addWorkTime(request: any, reply: any) {
+  return reply.status(201).send({ data: await sessions.addTime(ctx(request), request.params.workspaceId, request.body) })
 }
