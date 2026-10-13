@@ -1,4 +1,3 @@
-import { AdminMfaBoundary } from '../features/admin/AdminMfaBoundary'
 import { lazy, Suspense } from 'react'
 import { WorkspaceLoading } from '../features/work/WorkspaceTransition'
 import type { ReactNode } from 'react'
@@ -28,13 +27,11 @@ function AppRoutes() {
   const location = useLocation()
   return (
     <RouterRoutes location={location}>
-      <Route element={<AdminMfaBoundary />}>
       <Route path="/admin" element={<Suspense fallback={<WorkspaceLoading />}><AdminUsers /></Suspense>} />
       <Route path="/admin/billing" element={<Suspense fallback={<WorkspaceLoading />}><AdminBilling /></Suspense>} />
       <Route path="/admin/settings" element={<Suspense fallback={<WorkspaceLoading />}><AdminSettings /></Suspense>} />
       <Route path="/admin/push" element={<Suspense fallback={<WorkspaceLoading />}><AdminPush /></Suspense>} />
       <Route path="/admin/blueprints" element={<Suspense fallback={<WorkspaceLoading />}><AdminBlueprints /></Suspense>} />
-      </Route>
       {/* Mobile dashboard: its own layout, no desktop shell. */}
       <Route path="/native/*" element={<Suspense fallback={null}><NativeApp /></Suspense>} />
       <Route element={<AppShell />} >

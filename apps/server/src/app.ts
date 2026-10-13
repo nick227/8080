@@ -11,7 +11,6 @@ import { resolve } from 'path'
 import * as handlers from './handlers'
 import * as security from './plugins/security'
 import uploads from './plugins/uploads'
-import { requireStaffMfa } from './services/admin/mfa'
 
 export const specPath = resolve(__dirname, '../../../packages/api-spec/openapi.yaml')
 
@@ -20,7 +19,7 @@ type BuildOptions = {
   // Tests swap in a header-only auth handler; everything else is identical to prod.
   securityHandlers?: Record<string, (request: any, reply: any, params: any) => Promise<void>>
   docs?: boolean
-  // Explicit bypass for legacy auth fixtures only; rejected outside tests.
+  // Optional flag preserved for backwards compatibility with tests.
   adminMfa?: boolean
   // Tests disable limits (every inject shares 127.0.0.1); one test re-enables them.
   rateLimit?: boolean
@@ -29,7 +28,6 @@ type BuildOptions = {
 // Shared by index.ts (prod/dev) and __tests__/helpers so tests run the real plugin
 // stack: multipart, rate limits, error mapping, spec-driven routing.
 export async function buildApp(opts: BuildOptions = {}) {
-  if (opts.adminMfa === false && process.env.NODE_ENV !== 'test') throw new Error('MFA bypass is test-only')
   const server = Fastify({
     logger: opts.logger ?? false,
     trustProxy: true, // Railway terminates TLS; client IPs come from X-Forwarded-For
@@ -88,12 +86,7 @@ export async function buildApp(opts: BuildOptions = {}) {
   await server.register(openapiGlue, {
     specification: specPath,
     serviceHandlers: handlers,
-    securityHandlers: Object.fromEntries(Object.entries(opts.securityHandlers ?? security).map(([name, handler]) => [name, async (request: any, reply: any, params: any) => {
-      await handler(request, reply, params)
-      const path = request.routeOptions.url
-      const mfaRoutes = ['/admin/mfa', '/admin/mfa/enroll', '/admin/mfa/verify']
-      if (name === 'bearerAuth' && path?.startsWith('/admin/') && !mfaRoutes.includes(path) && opts.adminMfa !== false) await requireStaffMfa(request)
-    }])),
+    securityHandlers: opts.securityHandlers ?? security,
     noAdditional: true,
   } as any)
 

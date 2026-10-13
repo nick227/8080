@@ -155,22 +155,15 @@ try {
   await expect(page.getByText(/Demo submissions only/)).toBeVisible()
   await page.getByRole('button',{name:'Simulate approval',exact:true}).click()
   await expect(page.getByText(/Demo approval saved in this browser.*Nothing was published to the site/)).toBeVisible()
-  mfaVerified=false;mfaEnrolled=false
-  await page.goto('https://admin.test/admin')
-  await expect(page.getByRole('heading',{name:'Staff verification'})).toBeVisible()
-  await expect(page.getByRole('searchbox')).toHaveCount(0)
-  await page.getByLabel('Current password').fill('test-password')
-  await page.getByRole('button',{name:'Set up authenticator'}).click()
-  await expect(page.getByText('TESTSETUPKEY')).toBeVisible()
-  await page.getByLabel('Authenticator or recovery code').fill('123456')
-  await page.getByRole('button',{name:'Verify staff access'}).click()
-  await expect(page.getByRole('heading',{name:'Save your recovery codes'})).toBeVisible()
-  await page.getByRole('button',{name:'I saved these codes'}).click()
-  await expect(page.getByRole('heading',{name:'Users',exact:true})).toBeVisible()
   authorized=false
   await page.goto('https://admin.test/admin')
-  await expect(page.getByRole('heading',{name:'Staff verification'})).toBeVisible()
+  await expect(page.getByRole('heading',{name:'Staff access required'})).toBeVisible()
+  await expect(page.getByText('Your workspace role does not grant platform administration.')).toBeVisible()
   await expect(page.getByRole('searchbox')).toHaveCount(0)
+  authorized=true
+  await page.goto('https://admin.test/admin')
+  await expect(page.getByRole('heading',{name:'Users',exact:true})).toBeVisible()
+  await expect(page.getByRole('searchbox')).toBeVisible()
   assert.deepEqual(errors,[])
   console.log('Passed: access-aware actions, grant history, server previews, failure blocking, billing states, reconciliation, customer linking, owner-only staff changes, Blueprint demo labeling, desktop/mobile layout.')
 } finally { await browser.close(); await rm(output,{recursive:true,force:true}) }
