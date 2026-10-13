@@ -1,25 +1,12 @@
 import { createContext, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useChatPanel, type ChatMode } from '../../state/chat'
 import type { RoomView } from './roomViews'
 
-const KEY = 'vc-chat-open'
 const LEAVE_MS = 200
 
 export const ChatVisibility = createContext(true)
 
-// The chat button toggles closed ⇄ open. Maximize / restore toggles open ⇄ full.
-type ChatMode = 'closed' | 'open' | 'full'
-
-function loadMode(): ChatMode {
-  try {
-    const saved = localStorage.getItem(KEY)
-    return saved === 'closed' || saved === 'full' ? saved : 'open'
-  } catch { return 'open' }
-}
-
-function saveMode(mode: ChatMode) {
-  try { localStorage.setItem(KEY, mode) } catch { /* the choice still applies for this visit */ }
-}
-
+// The header's chat control toggles closed ⇄ open (state/chat.ts). Maximize / restore toggles open ⇄ full.
 export function ChatShell({ stage, stream, composer, view, unseenCount = 0 }: {
   stage: ReactNode
   stream: ReactNode
@@ -27,12 +14,18 @@ export function ChatShell({ stage, stream, composer, view, unseenCount = 0 }: {
   view: RoomView
   unseenCount?: number
 }) {
-  const [mode, setMode] = useState<ChatMode>(loadMode)
+  const mode = useChatPanel((s) => s.mode)
   const [leaving, setLeaving] = useState(false)
   const timer = useRef<number | undefined>(undefined)
-  const change = useCallback((next: ChatMode) => { saveMode(next); setMode(next) }, [])
+  const change = useCallback((next: ChatMode) => useChatPanel.getState().setMode(next), [])
 
   useEffect(() => () => window.clearTimeout(timer.current), [])
+  // While mounted, the header shows the chat control (with this room's unseen count).
+  useEffect(() => {
+    useChatPanel.setState((s) => ({ hosts: s.hosts + 1 }))
+    return () => useChatPanel.setState((s) => ({ hosts: s.hosts - 1, unseen: 0 }))
+  }, [])
+  useEffect(() => { useChatPanel.setState({ unseen: unseenCount }) }, [unseenCount])
 
   // Leaving full plays the collapse animation, then lands on the open panel.
   const restore = useCallback(() => {
@@ -57,7 +50,6 @@ export function ChatShell({ stage, stream, composer, view, unseenCount = 0 }: {
   }, [mode, restore])
 
   const full = mode === 'full'
-  const toggleLabel = mode === 'closed' ? `Show chat${unseenCount > 0 ? `, ${unseenCount} unseen message${unseenCount === 1 ? '' : 's'}` : ''}` : full ? 'Restore chat' : 'Hide chat'
   const maxLabel = full ? 'Restore chat' : 'Maximize chat'
 
   return (
@@ -84,29 +76,6 @@ export function ChatShell({ stage, stream, composer, view, unseenCount = 0 }: {
           </svg>
         </button>
       </div>
-      <button
-        type="button"
-        className="room-chat-toggle"
-        aria-expanded={mode !== 'closed'}
-        aria-label={toggleLabel}
-        title={toggleLabel}
-        onClick={() => {
-          if (full) restore()
-          else change(mode === 'closed' ? 'open' : 'closed')
-        }}
-      >
-        {mode === 'closed' ? (
-          <>
-            <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 11.5a8 8 0 0 1-8 8H4l-1 2V11.5a8.5 8.5 0 0 1 17 0Z" />
-              <path d="M7 9h9M7 13h6" />
-            </svg>
-            {unseenCount > 0 && <span className="room-chat-count" aria-hidden="true">{unseenCount > 99 ? '99+' : unseenCount}</span>}
-          </>
-        ) : <svg width="14" height="12" viewBox="0 0 14 12" aria-hidden>
-          <path d="M8.5 2 L4.5 6 L8.5 10" fill="none" stroke="currentColor" strokeWidth="1.5" />
-        </svg>}
-      </button>
     </div>
   )
 }

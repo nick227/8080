@@ -5,7 +5,7 @@ import { BellIcon } from '../../components/icons'
 import { since } from './BoardView'
 import { useCalendar } from './store'
 
-/** The viewer's task notifications (their inbox rows), opened from the calendar. */
+/** The viewer's task notifications (their inbox rows): the header's bell (D10). */
 export function ForYou({
   workspaceId,
   onOpenTask,
@@ -47,8 +47,9 @@ export function ForYou({
     if (item.unread) read.mutate({ inboxItemId: item.id, unread: false })
     setOpen(false)
     if (item.sourceType === 'task') {
-      const task = tasks.find((t) => t.id === item.sourceId)
-      if (task) onOpenTask(task.taskKey)
+      // Outside the calendar its tasks aren't loaded: the notice title names the key (as task emails read it).
+      const key = tasks.find((t) => t.id === item.sourceId)?.taskKey ?? /\b[A-Z][A-Z0-9]*-\d+\b/.exec(item.title)?.[0]
+      if (key) onOpenTask(key)
       else say('That task was deleted.')
     } else if (item.sourceType === 'conversation') {
       navigate(`/room/${item.sourceId}`)

@@ -10,6 +10,9 @@
   padding: var(--mast) 0 0;
   overflow: hidden;
 }
+/* Beats the generic `.shell` bottom padding: the page ends at the viewport, or above the
+   phone bottom tabs when they show (D10). */
+.shell.room-shell { padding-bottom: var(--tabs-reserve, 0px); }
 .room-chat {
   --chat-full-measure: 860px;
   display: grid;
@@ -21,42 +24,7 @@
 }
 .room-chat[data-chat="closed"] { grid-template-columns: minmax(0, 1fr) 0; }
 .room-chat[data-chat="closed"] .room-rail { visibility: hidden; padding: 0; border: 0; }
-.room-chat-toggle {
-  grid-column: 2;
-  grid-row: 1;
-  justify-self: start;
-  align-self: center;
-  z-index: 9;
-  width: 32px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  margin-left: -16px;
-  border: var(--line-width) solid var(--line);
-  border-radius: var(--radius-pill);
-  background: var(--bg);
-  color: var(--muted);
-  cursor: pointer;
-}
-.room-chat-toggle:hover, .room-chat-toggle:focus-visible,
 .room-chat-max:hover, .room-chat-max:focus-visible { color: var(--ink); border-color: var(--ink); }
-.room-chat[data-chat="open"] .room-chat-toggle svg,
-.room-chat[data-chat="full"] .room-chat-toggle svg { transform: rotate(180deg); }
-.room-chat[data-chat="closed"] .room-chat-toggle {
-  position: absolute;
-  grid-column: 1 / -1;
-  grid-row: 1 / -1;
-  right: max(20px, env(safe-area-inset-right));
-  bottom: max(20px, env(safe-area-inset-bottom));
-  width: 56px;
-  height: 56px;
-  margin: 0;
-  padding: 0;
-  border-radius: 12px;
-  color: var(--ink);
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--ink) 14%, transparent);
-}
-.room-chat-toggle:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
 .room-chat-count {
   position: absolute;
   top: -8px;
@@ -109,17 +77,6 @@
   animation: chat-expand 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 .room-chat[data-chat="full"][data-leaving] .room-rail { animation: chat-collapse 200ms ease-in both; }
-.room-chat[data-chat="full"] .room-chat-toggle {
-  position: absolute;
-  grid-column: 1 / -1;
-  grid-row: 1 / -1;
-  left: 0;
-  top: 50%;
-  margin: 0;
-  transform: translateY(-50%);
-  border-left: 0;
-  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
-}
 /* Full view reads as one centred column; the scrollbar stays at the window edge. */
 .room-chat[data-chat="full"] .room-stream,
 .room-chat[data-chat="full"] .room-chatbox {
@@ -1119,25 +1076,13 @@
     padding: 0 var(--space-2);
     border-top: var(--line-width) solid var(--line);
   }
-  .room-chat-toggle {
-    grid-column: 1;
-    grid-row: 2;
-    justify-self: center;
-    align-self: start;
-    width: 44px;
-    height: 24px;
-    margin: -12px 0 0;
-  }
   /* The open panel uses a downward collapse chevron. */
-  .room-chat[data-chat="open"] .room-chat-toggle svg { transform: rotate(-90deg); }
   /* Full: the overlay covers the whole screen, growing up from the panel's footprint. */
   .room-chat[data-chat="full"] .room-rail {
     border-top: 0;
     animation-name: chat-expand-v;
   }
   .room-chat[data-chat="full"][data-leaving] .room-rail { animation-name: chat-collapse-v; }
-  .room-chat[data-chat="full"] .room-chat-toggle { top: 0; left: 50%; width: 44px; height: 24px; transform: translateX(-50%); border: var(--line-width) solid var(--line); border-top: 0; border-radius: 0 0 var(--radius-pill) var(--radius-pill); }
-  .room-chat[data-chat="full"] .room-chat-toggle svg { transform: rotate(-90deg); }
   .room-chat[data-chat="full"] .room-stream,
   .room-chat[data-chat="full"] .room-chatbox { padding-inline: var(--space-2); }
   @keyframes chat-expand-v {

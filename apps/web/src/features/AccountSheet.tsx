@@ -6,6 +6,8 @@ import { getApiClient, useLogin, useLogout, useMyWorkspaces, useRegister, useSes
 import { AccountAvatar } from './AccountAvatar'
 import { useShell } from '../state/shell'
 import { useCreateCompany, useCurrentWorkspace } from '../app/workspace'
+import { ThemeSwitcher } from '../components/ThemeSwitcher'
+import { GetAppButton } from './native/GetApp'
 
 const sheetMotion = {
   initial: { opacity: 0, y: -8, scale: 0.98 },
@@ -27,6 +29,11 @@ export function AccountSheet() {
         {open && user && (
           <motion.section key="account" className="account-sheet" role="dialog" aria-label={user.isGuest ? 'Guest' : 'Account'} style={{ transformOrigin: 'top right' }} {...sheetMotion}>
             {user.isGuest ? <GuestAuth user={user} /> : <MemberAccount user={user} />}
+            {/* Preferences moved here from the header (D10). */}
+            <div className="account-prefs">
+              <ThemeSwitcher />
+              <GetAppButton />
+            </div>
           </motion.section>
         )}
       </AnimatePresence>

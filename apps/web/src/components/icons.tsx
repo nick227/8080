@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 type MarkProps = { kind: 'audio' | 'video' }
 
 export function LobbyIcon() {
@@ -336,3 +338,36 @@ export function BellIcon() {
   )
 }
 
+
+/* Header destinations (D10): one 16px line set, drawn at 1.25px like the rest. */
+function NavSvg({ children }: { children: ReactNode }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {children}
+    </svg>
+  )
+}
+
+export function NavHomeIcon() {
+  return <NavSvg><path d="M2.5 7.25 8 2.75l5.5 4.5" /><path d="M4 6.25v7h3v-3.5h2v3.5h3v-7" /></NavSvg>
+}
+
+export function NavDataIcon() {
+  return <NavSvg><ellipse cx="8" cy="3.75" rx="5" ry="1.75" /><path d="M3 3.75v8.5c0 .97 2.24 1.75 5 1.75s5-.78 5-1.75v-8.5" /><path d="M3 8c0 .97 2.24 1.75 5 1.75S13 8.97 13 8" /></NavSvg>
+}
+
+export function NavBoardIcon() {
+  return <NavSvg><rect x="2" y="2.5" width="12" height="11" rx="1.25" /><path d="M6 2.5v11M10 2.5v11" /></NavSvg>
+}
+
+export function NavCalendarIcon() {
+  return <NavSvg><rect x="2" y="3" width="12" height="10.5" rx="1.25" /><path d="M2 6.5h12M5.25 1.75v2.5M10.75 1.75v2.5" /></NavSvg>
+}
+
+export function NavTeamIcon() {
+  return <NavSvg><circle cx="6" cy="5.5" r="2.25" /><path d="M1.75 13.25c.4-2.2 2.1-3.5 4.25-3.5s3.85 1.3 4.25 3.5" /><path d="M10.5 3.4a2.25 2.25 0 0 1 0 4.2M11.75 9.9c1.3.45 2.2 1.6 2.5 3.35" /></NavSvg>
+}
+
+export function ChatIcon() {
+  return <NavSvg><path d="M13.75 7.75a5.5 5.5 0 0 1-5.5 5.5H2.75l1-1.75A5.75 5.75 0 1 1 13.75 7.75Z" /><path d="M5.5 6.5h5M5.5 9h3" /></NavSvg>
+}

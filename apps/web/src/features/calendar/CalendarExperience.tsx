@@ -20,7 +20,6 @@ import { SavedViews } from './SavedViews'
 import { NewTaskSlideout } from './NewTaskSlideout'
 import { LogAccomplishmentModal } from './LogAccomplishmentModal'
 import { TicketPage } from './TicketPage'
-import { ForYou } from './ForYou'
 import { BulkBar } from './BulkBar'
 import { FieldPickerHost } from './FieldPicker'
 import { WorkflowEditor } from './WorkflowEditor'
@@ -200,10 +199,6 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
     navigate(taskPath(location.pathname, task.taskKey), { state: { taskListSearch: location.search } })
   }, [location.pathname, location.search, navigate, section])
 
-  const openTicketKey = useCallback((taskKey: string) => {
-    navigate(taskPath(location.pathname, taskKey))
-  }, [location.pathname, location.search, navigate, section])
-
   const closeTicket = useCallback(() => {
     navigate({ pathname: tasksPath(location.pathname), search: (location.state as { taskListSearch?: string } | null)?.taskListSearch ?? '' })
   }, [location.pathname, location.search, location.state, navigate])
@@ -281,7 +276,6 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
                       <WorkflowIcon />
                     </button>
                   )}
-                  <ForYou workspaceId={workspaceId} onOpenTask={openTicketKey} iconOnly />
                   <SavedViews workspaceId={workspaceId} />
                 </>
               }
@@ -292,7 +286,6 @@ function Calendar({ workspaceId, canManage, section }: { workspaceId: string; ca
         const extras = (
           <>
             {datedView && <button type="button" className="section-add-btn" onClick={() => setLoggingAcc(true)}>Log work</button>}
-            <ForYou workspaceId={workspaceId} onOpenTask={openTicketKey} iconOnly />
           </>
         )
 

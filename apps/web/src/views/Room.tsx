@@ -154,11 +154,9 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
   }
 
   const hostChannel = useHostChannel(roomId)
-  // A room listed under a company: its mark shows only when that's the company shown;
-  // listed under one you aren't in, you get just the conversation (D8).
+  // A room listed under a company you aren't in: you get just the conversation (D8).
   const listingQuery = useRoomCompany(roomId)
   const listing = listingQuery.data
-  const listedHere = Boolean(listing?.member && listing.id === workspace?.id)
   const listedElsewhere = Boolean(listing && !listing.member)
   // Guests and accounts without a company only get the conversation (D8).
   const shownPlace = (!current.loading && !workspace) || listedElsewhere ? 'stream' : place
@@ -216,7 +214,10 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
     <Panel as="main" variant="shell" className="room-shell">
       {roomId && <RoomItemsSync roomId={roomId} />}
       <SEO title={data ? `${roomTitle(data)} - Voice Chat` : 'Room - Voice Chat'} description={`Join ${data ? roomTitle(data) : 'this room'} on Voice Chat.`} />
-      <StageChrome />
+      <StageChrome nav={<WorkNav desk={shownPlace} compact showWork={!listedElsewhere} onSelect={(next) => {
+        if (next === 'documents') useDocuments.getState().open(null)
+        openPlace(next)
+      }} />} />
       {(ui.error || resolved.error || itemsError || captureError) && (
         <Label variant="status" className="error" role="alert">
           {ui.error ?? resolved.error?.message ?? itemsError ?? captureError ?? 'Unable to load'}
@@ -232,10 +233,6 @@ export function Room({ roomId: roomRef }: { roomId: string }) {
         view={view}
         stage={(
           <div className="work-column">
-            <WorkNav desk={shownPlace} compact showCompany={listedHere} showWork={!listedElsewhere} onSelect={(next) => {
-              if (next === 'documents') useDocuments.getState().open(null)
-              openPlace(next)
-            }} />
             <WorkspaceTransition view={shownPlace}>
             {toCompany ? (
               <WorkspaceLoading label="Opening workspace…" />

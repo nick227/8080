@@ -13,86 +13,22 @@
   grid-column: auto;
   grid-row: auto;
 }
-.work-nav {
-  width: 100%;
-  /* One height on every page, whether or not the company mark is shown. */
-  min-height: var(--work-nav-height);
-  box-sizing: border-box;
-  overflow-x: auto;
-  background: var(--surface-deep);
-  padding-top: var(--space-xs);
-}
-.work-nav-item {
-  flex: none;
-  padding: 2px;
-  font-family: var(--mono);
-  font-size: var(--text-label);
-  letter-spacing: var(--tracking-spaced);
-  text-transform: uppercase;
-  white-space: nowrap;
-  color: var(--muted);
-  margin: 0 2px;
-}
-.work-nav-item[aria-current="page"] { color: var(--ink); font-weight: 900; }
-.work-nav-company {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  max-width: 82ch;
-  padding: 2px var(--space-xs) 2px 2px;
-  margin-right: var(--space-sm);
-  font-family: var(--sans);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium, 500);
-  color: var(--ink);
-  white-space: nowrap;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-.work-nav-company-mark {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-sm);
-  background: var(--ink);
-  color: var(--bg);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  margin: 0 var(--space-sm) var(--space-sm) 0;
-  overflow: hidden;
-}
-.work-nav-company-mark.has-image,
-.work-nav-company-mark:has(img) {
-  background: var(--surface-subtle, var(--panel));
-  border: var(--line-width) solid var(--line);
-}
-.work-nav-company-mark img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.work-nav-company-name { overflow: hidden; text-overflow: ellipsis; font-size: var(--text-3xl); line-height: 1.5; margin-bottom: 8px; }
-.work-nav-company[aria-current="page"] .work-nav-company-name { text-decoration: underline; text-underline-offset: 3px; }
-.work-nav-company:hover .work-nav-company-name,
-.work-nav-company:focus-visible .work-nav-company-name { text-decoration: underline; text-underline-offset: 3px; }
-.work-nav-lists { padding-left: var(--space-sm); border-left: var(--line-width) solid var(--line); }
-
-/* Narrow screens: keep the company name short. */
-@media (max-width: 760px) {
-  .work-nav-company-name { max-width: 12ch; }
-}
-.work-nav-item:hover,
-.work-nav-item:focus-visible { color: var(--ink); }
-
-.work-nav-search {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
+/* Workspace destinations (D10): tabs inside the header; bottom tabs on phones. */
+.masthead .work-nav { position: relative; align-self: stretch; display: flex; align-items: stretch; gap: 2px; min-width: 0; padding-left: var(--space-sm); }
+.masthead .work-nav::before { content: ''; position: absolute; left: 0; top: 50%; width: var(--line-width); height: 24px; transform: translateY(-50%); background: var(--line); }
+.work-nav-item { position: relative; flex: none; display: inline-flex; align-items: center; gap: var(--space-sm); padding: 0 12px; background: transparent; color: var(--muted); font-family: var(--sans); font-size: var(--text-sm); font-weight: var(--weight-medium, 500); white-space: nowrap; cursor: pointer; }
+.work-nav-item svg { flex: none; }
+.work-nav-item:hover, .work-nav-item:focus-visible { color: var(--ink); }
+.work-nav-item[aria-current="page"] { color: var(--ink); font-weight: 600; }
+.work-nav-item[aria-current="page"]::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: calc(-1 * var(--line-width)); height: 2px; background: var(--signal); }
+@media (max-width: 1100px) and (min-width: 720px) { .work-nav-item { padding: 0 8px; } }
+@media (max-width: 719px) {
+  .masthead .work-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; height: calc(var(--tabs-h) + env(safe-area-inset-bottom)); padding: 0 0 env(safe-area-inset-bottom); box-sizing: border-box; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; background: var(--panel); border-top: var(--line-width) solid var(--line); }
+  .masthead .work-nav::before { display: none; }
+  .work-nav-item { flex-direction: column; justify-content: center; gap: 4px; padding: 0 2px; min-width: 0; font-size: 11px; }
+  .work-nav-item svg { width: 20px; height: 20px; }
+  .work-nav-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .work-nav-item[aria-current="page"]::after { top: calc(-1 * var(--line-width)); bottom: auto; left: 28%; right: 28%; }
 }
 .work-search {
   display: flex;
@@ -416,10 +352,6 @@
 
 /* Keep contact search available while the workbench scrolls horizontally. */
 @media (max-width: 600px) {
-  .work-nav[data-desk="contacts"] { display: flex; flex-wrap: wrap; height: auto; min-height: var(--work-nav-height); flex-shrink: 0; row-gap: var(--space-sm); padding-block: var(--space-sm); }
-  .work-nav[data-desk="contacts"] .work-nav-search { width: 100%; margin-left: 0; }
-  .work-nav[data-desk="contacts"] .work-search { width: 100%; margin-left: 0; }
-  .work-nav[data-desk="contacts"] .work-search input { width: 100%; min-width: 0; }
 }
 
 /* Company pages (/c/:id/…): the desks fill the page; the rail holds the company channel (D4). */

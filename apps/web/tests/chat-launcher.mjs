@@ -17,22 +17,23 @@ try {
   for (const width of [1440, 390]) {
     await page.setViewportSize({width, height: 900})
     await page.goto('https://chat.test/')
-    const launcher = page.getByRole('button', {name: 'Show chat, 2 unseen messages', exact: true})
-    await expect(launcher).toBeVisible()
-    await page.waitForTimeout(150)
-    await expect(launcher).toBeVisible()
-    const box = await launcher.boundingBox()
-    assert.equal(box.width, 56); assert.equal(box.height, 56)
-    assert.equal(Math.round(box.x + box.width), width - 20)
-    assert.equal(Math.round(box.y + box.height), 880)
+    // The header's chat control is the only entry point (D10): no floating launcher.
+    await expect(page.locator('.room-chat-toggle')).toHaveCount(0)
+    const control = page.getByRole('button', {name: 'Show chat, 2 unseen messages', exact: true})
+    await expect(control).toBeVisible()
     await page.getByRole('button', {name: 'Incoming', exact: true}).click()
     await expect(page.getByRole('button', {name: 'Show chat, 3 unseen messages', exact: true})).toBeVisible()
     await page.getByRole('button', {name: 'Show chat, 3 unseen messages', exact: true}).click()
+    await expect(page.locator('.room-chat')).toHaveAttribute('data-chat', 'open')
     await expect(page.getByRole('button', {name: 'Hide chat', exact: true})).toBeVisible()
     await page.getByRole('button', {name: 'Hide chat', exact: true}).click()
+    await expect(page.locator('.room-chat')).toHaveAttribute('data-chat', 'closed')
     await expect(page.getByRole('button', {name: 'Show chat', exact: true})).toBeVisible()
-    await expect(page.locator('.room-chat-count')).toHaveCount(0)
+    await expect(page.locator('.mast-count')).toHaveCount(0)
+    // No chat context, no control.
+    await page.getByRole('button', {name: 'Leave room', exact: true}).click()
+    await expect(page.locator('.mast-chat')).toHaveCount(0)
   }
   assert.deepEqual(errors, [])
-  console.log('Passed: desktop/mobile lower-right square, hidden messages stay unseen, live count, opening clears count.')
+  console.log('Passed: header chat control only (no floating launcher), live unseen count, open/close, opening clears count, hidden without a chat context.')
 } finally { await browser.close(); await rm(output, {recursive: true, force: true}) }

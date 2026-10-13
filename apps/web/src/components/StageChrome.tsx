@@ -1,18 +1,27 @@
-import { useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, type ReactNode } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { useSession } from '@project/sdk'
-import { HomeIcon, PersonIcon, SearchIcon } from '../components/icons'
+import { PersonIcon, SearchIcon } from '../components/icons'
+import { ChatControl } from './ChatControl'
 import { AccountSheet } from '../features/AccountSheet'
 import { Lobby } from '../features/Lobby'
 import { useShell } from '../state/shell'
 import { useUI } from '../state/ui'
-import { ThemeSwitcher } from './ThemeSwitcher'
+import { useCurrentWorkspace } from '../app/workspace'
 import { CommandPalette, openCommandPalette } from '../features/command/CommandPalette'
-import { GetAppButton } from '../features/native/GetApp'
+import { ForYou } from '../features/calendar/ForYou'
+import { ActiveUsersWidget } from '../features/documents/ActiveUsersWidget'
+import { WorkspaceSwitcher } from '../features/work/WorkspaceSwitcher'
+import { BASE_PATH, taskPath } from '../features/tasks/links'
 
-
-export function StageChrome({ showLobbyOverlay = true }: { showLobbyOverlay?: boolean }) {
+/**
+ * The one site-wide header (redesign D10, 15-site-shell.md): logo mark → workspace switcher →
+ * destinations (`nav`, WorkNav on company and room pages) → search → notifications → chat →
+ * avatar. One 56px row; on phones the destinations become the bottom tab bar (CSS).
+ * Theme and Get App live in the avatar menu.
+ */
+export function StageChrome({ showLobbyOverlay = true, nav }: { showLobbyOverlay?: boolean; nav?: ReactNode }) {
   const surface = useShell((s) => s.surface)
   const accountOpen = useShell((s) => s.accountOpen)
   const toggleAccount = useShell((s) => s.toggleAccount)
@@ -20,6 +29,11 @@ export function StageChrome({ showLobbyOverlay = true }: { showLobbyOverlay?: bo
   const user = session.data?.data
   const guest = user?.isGuest ?? true
   const lobbyOpen = surface === 'lobby'
+  const { workspace } = useCurrentWorkspace()
+  const location = useLocation()
+  const navigate = useNavigate()
+  // A notice opens its task on this page's shell (room or company), else on the company's page.
+  const openTask = (taskKey: string) => navigate(BASE_PATH.test(location.pathname) ? taskPath(location.pathname, taskKey) : `/c/${workspace?.id}/tasks/${encodeURIComponent(taskKey)}`)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -38,19 +52,22 @@ export function StageChrome({ showLobbyOverlay = true }: { showLobbyOverlay?: bo
 
   return (
     <>
-      <header className="masthead">
-        <Link to="/" className="mast-icon" aria-label="Home">
-          <HomeIcon /> 8080
+      <header className="masthead" data-nav={nav ? 'workspace' : undefined}>
+        <Link to="/" className="mast-logo" aria-label="8080 home">
+          <span className="mast-logo-mark" aria-hidden>80<br />80</span>
+          {!workspace && <span className="mast-logo-word">8080</span>}
         </Link>
-        <p className="mast"></p>
+        <WorkspaceSwitcher />
+        {nav}
         <div className="mast-actions">
-          <button type="button" className="mast-goto" onClick={openCommandPalette} aria-label="Go to…" aria-keyshortcuts="Control+K Meta+K">
+          {nav && <ActiveUsersWidget />}
+          <button type="button" className="mast-goto" onClick={openCommandPalette} aria-label="Search" aria-keyshortcuts="Control+K Meta+K">
             <SearchIcon />
-            <span className="mast-goto-text">Go to…</span>
+            <span className="mast-goto-text">Search…</span>
             <kbd aria-hidden>{navigator.platform.startsWith('Mac') ? '⌘K' : 'Ctrl K'}</kbd>
           </button>
-          <GetAppButton />
-          <ThemeSwitcher />
+          {nav && workspace && <div className="mast-bell"><ForYou workspaceId={workspace.id} onOpenTask={openTask} iconOnly /></div>}
+          <ChatControl />
           <button
             type="button"
             className="mast-icon mast-account"

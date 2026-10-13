@@ -32,7 +32,7 @@ export function Company() {
   return (
     <Panel as="main" variant="shell" className="room-shell company-shell">
       <SEO title={workspace ? `${workspace.name} - 8080` : '8080'} description="Company workspace" />
-      <StageChrome />
+      <StageChrome nav={workspace && !missing && !unknownDesk && <WorkNav desk={place} onSelect={setPlace} />} />
       {loading || redirecting ? (
         <WorkspaceLoading />
       ) : missing || unknownDesk || !workspace ? (
@@ -44,7 +44,6 @@ export function Company() {
       ) : (
         <CompanyChannelShell workspaceId={workspace.id}>
           <div className="work-column company-column">
-            <WorkNav desk={place} onSelect={setPlace} />
             <WorkspaceTransition view={place}>
             {place === 'members' || place === 'team' ? (
               <TeamDesk seats={[]} />

@@ -42,7 +42,7 @@
 .explorer { --layout-page-width: var(--explorer-max-width); padding-block: var(--page-padding-block); }
 .layout-stack { display: flex; flex-direction: column; gap: var(--section-gap); min-width: 0; }
 
-.layout-toolbar, .work-nav, .work-bar, .cal-bar {
+.layout-toolbar, .work-bar, .cal-bar {
   display: flex;
   align-items: center;
   flex: none;
