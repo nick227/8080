@@ -204,21 +204,34 @@ function useContactRow(contact: Contact, shared: RowShared) {
   return { editor, current, company, fieldCell, feedback, dialogs, selection, link, logOpen, definition, nameCell, setNotesOpen, setLogOpen }
 }
 
+/** Phones: a compact, read-only summary; tapping it opens the contact, where it's edited. */
 function ContactCard({ contact, shared }: { contact: Contact; shared: RowShared }) {
-  const { current, company, fieldCell, feedback, dialogs, selection, link, logOpen, definition } = useContactRow(contact, shared)
-  const { definitions, visible, ...props } = shared
-  const primary = ['nextAction', 'followUp']
+  const { current, company, selection, dialogs } = useContactRow(contact, shared)
+  const { definitions, members, stageOptions, ...props } = shared
+  const open = () => props.onOpen(current.id)
+  const stage = stageOptions.find(s => s.key === current.leadStatus)?.label ?? (current.leadStatus ? titleCase(current.leadStatus) : null)
+  const owner = members.find(m => m.id === current.ownerMemberId)?.user.name
   const milestones = definitions.filter(f => isMilestone(f.key) && !f.archived)
-  const extra = [...new Set(['owner', 'lastContactedAt', 'stage', 'interestedIn', 'details', ...visible.filter(key => !primary.includes(key) && !isMilestone(key))])]
-  return <article className="contact-mobile-card" aria-label={current.displayName} data-selected={props.selected.includes(current.id) || undefined}>
-    <header>{selection}<div className="contact-identity">
-      <a href={props.href(current.id)} data-record-link={current.id} onClick={e => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && e.button === 0) { e.preventDefault(); props.onOpen(current.id) } }}>{current.displayName}</a>
+  const reached = milestones.filter(f => { const v = current[f.key as keyof Contact]; return v === true || (typeof v === 'number' && v > 0) })
+  const late = followUpLate(current)
+  return <article className="contact-mobile-card" aria-label={current.displayName} data-selected={props.selected.includes(current.id) || undefined} onClick={(e) => {
+    // The whole card opens the contact; the checkbox and links keep their own action.
+    if ((e.target as HTMLElement).closest('input, a, button')) return
+    open()
+  }}>
+    <header>{selection}<RecordMedia person name={current.displayName} src={current.imageUrl} /><div className="contact-identity">
+      <a href={props.href(current.id)} data-record-link={current.id} onClick={e => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && e.button === 0) { e.preventDefault(); open() } }}>{current.displayName}</a>
       {(company?.name || current.title) && <small className="contact-company">{company?.name ?? current.title}</small>}
-    </div></header>
-    {!logOpen && feedback}
-    <div className="contact-mobile-primary">{primary.map(key => <label key={key}><span>{key === 'followUp' ? 'Follow-up' : definition(key)?.label ?? 'Next action'}</span>{fieldCell(key)}</label>)}</div>
-    <fieldset className="contact-mobile-milestones"><legend>Completed milestones</legend>{milestones.map(f => <label key={f.key}>{fieldCell(f.key)}<span>{f.label}</span></label>)}</fieldset>
-    <details className="contact-mobile-more"><summary>More details</summary><div>{extra.map(key => <label key={key}><span>{columnsFor(definitions).find(c => c.key === key)?.label ?? key}</span>{fieldCell(key)}</label>)}</div></details>
+    </div>{stage && <span className="contact-card-stage">{stage}</span>}</header>
+    {current.nextAction && <p className="contact-card-next">{current.nextAction}</p>}
+    <p className="contact-card-meta">
+      {current.nextFollowUp && <span data-late={late || undefined}>{late ? 'Overdue · ' : 'Follow up '}{dateLabel(current.nextFollowUp)}</span>}
+      {owner && <span>{owner}</span>}
+      {milestones.length > 0 && <span className="contact-card-milestones" aria-label={`Milestones reached: ${reached.length ? reached.map(f => f.label).join(', ') : 'none'}`} title={milestones.map(f => `${reached.includes(f) ? '●' : '○'} ${f.label}`).join('\n')}>
+        {milestones.map(f => <i key={f.key} data-on={reached.includes(f) || undefined} aria-hidden />)}
+        <span aria-hidden>{reached.length}/{milestones.length}</span>
+      </span>}
+    </p>
     {dialogs}
   </article>
 }

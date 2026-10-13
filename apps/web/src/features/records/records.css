@@ -59,8 +59,10 @@
   font-weight: var(--weight-medium);
   line-height: var(--leading-heading);
   letter-spacing: var(--tracking-heading);
-  overflow-wrap: anywhere;
+  /* Break only words that can't fit at all; ordinary names wrap between words. */
+  overflow-wrap: break-word;
 }
+@media (max-width: 719px) { .record-identity h1 { font-size: var(--text-3xl); } }
 .record-identity p {
   color: var(--muted);
   margin: 0;
