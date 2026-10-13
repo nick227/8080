@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useRef, useState } from 'react'
 import { SearchIcon } from '../../components/icons'
-import { FilterSheet } from '../collections/FilterSheet'
+import { FilterSheet, SheetSlot } from '../collections/FilterSheet'
 import { Avatar } from './BoardView'
 import { filtersActive, useCalendar, useWorkflow, type Filters } from './store'
 import { useTeam } from './sync'
@@ -88,6 +88,7 @@ export const CalendarFilters = forwardRef<HTMLInputElement, { count: number; tot
         ? filters.urgency.length > 0 && <span className="cal-view-count">Needs-attention filters don't apply to reports</span>
         : <span className="cal-view-count" aria-live="polite">{count === total ? `${count} tasks` : `${count} of ${total} tasks`}</span>}
       {filtersActive(filters) && <button className="cal-btn" type="button" onClick={clear}>Clear filters</button>}
+      <SheetSlot name="task-table" />
       </FilterSheet>
     </div>
   )

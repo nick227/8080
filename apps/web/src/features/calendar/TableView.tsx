@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { taskPath } from '../tasks/links'
 import { useMemo, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { isUrgent } from '@project/shared'
 import { Avatar, since, useParentKey } from './BoardView'
 import { FIELDS, openField, setField, targetsFor, taskShortcut } from './actions'
@@ -11,7 +12,7 @@ import { useTeam } from './sync'
 import type { CalTask } from './types'
 import { downloadCsv, tasksCsv } from './csv'
 import { ColumnsMenu } from '../collections/ColumnsMenu'
-import { FilterSheet } from '../collections/FilterSheet'
+import { useSheetSlot } from '../collections/FilterSheet'
 import { DataTable } from '../collections/DataTable'
 import { useTableState, type Column } from '../collections/table'
 
@@ -117,42 +118,50 @@ export function TableView({ tasks, onSelectTask, filtersOn, onClearFilters }: { 
   const selectionSet = useMemo(() => new Set(selection), [selection])
   const points = tasks.reduce((n, t) => n + (t.storyPoints ?? 0), 0)
 
+  const slot = useSheetSlot('task-table')
+  const tableControls = (
+    <>
+      <div className="collection-filters">
+        <select aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}>
+          <option value="all">All statuses</option><option value="!open">Open tasks</option>
+          {workflow.active.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+        </select>
+        <select aria-label="Group by" value={group} onChange={(e) => setGroup(e.target.value as GroupKey)}>
+          <option value="none">No grouping</option>
+          <option value="status">Group by status</option>
+          <option value="assignee">Group by assignee</option>
+          <option value="priority">Group by priority</option>
+          <option value="type">Group by type</option>
+          <option value="area">Group by area</option>
+        </select>
+        {points > 0 && <span className="cal-view-count">{points} pts shown</span>}
+      </div>
+      <div className="collection-view-controls">
+        <ColumnsMenu state={table} />
+        <button type="button" className="collection-control" onClick={() => {
+          // Display order (groups, then sort); a selection exports just those rows.
+          const ordered = group === 'none' ? sorted : [...sorted].sort((a, b) => {
+            const x = groupOf(a, group, workflow).order
+            const y = groupOf(b, group, workflow).order
+            return x < y ? -1 : x > y ? 1 : 0
+          })
+          const rows = selection.length ? ordered.filter((t) => selectionSet.has(t.id)) : ordered
+          downloadCsv(`tasks-${todayKey()}.csv`, tasksCsv(rows, workflow))
+        }}>
+          {selection.length ? `Export ${selection.length} selected` : 'Export CSV'}
+        </button>
+      </div>
+    </>
+  )
+
   return (
     <div className="cal-table-view" role="region" aria-label="Task table">
-      <div className="collection-bar cal-table-bar" role="toolbar" aria-label="Task table controls">
-        <FilterSheet label="View">
-        <div className="collection-filters">
-          <select aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value="all">All statuses</option><option value="!open">Open tasks</option>
-            {workflow.active.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
-          </select>
-          <select aria-label="Group by" value={group} onChange={(e) => setGroup(e.target.value as GroupKey)}>
-            <option value="none">No grouping</option>
-            <option value="status">Group by status</option>
-            <option value="assignee">Group by assignee</option>
-            <option value="priority">Group by priority</option>
-            <option value="type">Group by type</option>
-            <option value="area">Group by area</option>
-          </select>
-          {points > 0 && <span className="cal-view-count">{points} pts shown</span>}
+      {/* Phones: these options join the task filters' sheet (one Filters button). */}
+      {slot ? createPortal(<div className="cal-table-options">{tableControls}</div>, slot) : (
+        <div className="collection-bar cal-table-bar" role="toolbar" aria-label="Task table controls">
+          {tableControls}
         </div>
-        <div className="collection-view-controls">
-          <ColumnsMenu state={table} />
-          <button type="button" className="collection-control" onClick={() => {
-            // Display order (groups, then sort); a selection exports just those rows.
-            const ordered = group === 'none' ? sorted : [...sorted].sort((a, b) => {
-              const x = groupOf(a, group, workflow).order
-              const y = groupOf(b, group, workflow).order
-              return x < y ? -1 : x > y ? 1 : 0
-            })
-            const rows = selection.length ? ordered.filter((t) => selectionSet.has(t.id)) : ordered
-            downloadCsv(`tasks-${todayKey()}.csv`, tasksCsv(rows, workflow))
-          }}>
-            {selection.length ? `Export ${selection.length} selected` : 'Export CSV'}
-          </button>
-        </div>
-        </FilterSheet>
-      </div>
+      )}
       <DataTable
         label="Tasks"
         rows={sorted}

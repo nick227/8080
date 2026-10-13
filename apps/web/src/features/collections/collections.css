@@ -194,5 +194,11 @@
   .collection-table tbody tr[data-row-id] td .avatar, .collection-table tbody tr[data-row-id] td [class*="avatar"] { width: 16px; height: 16px; font-size: 8px; }
 }
 
-/* The task table's own options sit with the toolbar's Filters on phones. */
-@media (max-width: 719px) { .cal-table-bar { justify-content: flex-end; } }
+/* Another component's options inside a sheet (task table → task filters). */
+.filter-sheet-slot { display: contents; }
+@media (max-width: 719px) {
+  .filter-sheet-slot:not(:empty) { display: block; padding-top: var(--space-md); border-top: var(--line-width) solid var(--line); }
+  .cal-table-options, .cal-table-options .collection-filters, .cal-table-options .collection-view-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); margin: 0; }
+  .cal-table-options { flex-direction: column; align-items: stretch; }
+  .cal-table-options select { flex: 1 1 100%; height: 40px; }
+}

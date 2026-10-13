@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 
 /**
  * A toolbar's secondary controls (filters, view options). Desktop: they lay out inline as
@@ -48,4 +48,35 @@ export function FilterSheet({ active = 0, label = 'Filters', children }: {
       {open && <button type="button" className="filter-sheet-scrim" aria-label={`Close ${label.toLowerCase()}`} onClick={close} />}
     </>
   )
+}
+
+const PHONE = '(max-width: 719px)'
+const subscribe = (notify: () => void) => {
+  const query = window.matchMedia(PHONE)
+  query.addEventListener('change', notify)
+  return () => query.removeEventListener('change', notify)
+}
+
+/** True below 720px, where FilterSheet is a bottom sheet. */
+export function usePhoneSheet() {
+  return useSyncExternalStore(subscribe, () => window.matchMedia(PHONE).matches, () => false)
+}
+
+/**
+ * Another component's controls that belong in a sheet it doesn't render (the task table's
+ * status/grouping/columns/export inside the task filters' sheet). Returns the slot element
+ * on phones once it exists, else null (render the controls in place).
+ */
+export function useSheetSlot(name: string) {
+  const phone = usePhoneSheet()
+  const [slot, setSlot] = useState<Element | null>(null)
+  useEffect(() => {
+    setSlot(phone ? document.querySelector(`[data-sheet-slot="${name}"]`) : null)
+  }, [phone, name])
+  return slot
+}
+
+/** Where useSheetSlot's controls land inside a FilterSheet (no box on desktop). */
+export function SheetSlot({ name }: { name: string }) {
+  return <div className="filter-sheet-slot" data-sheet-slot={name} />
 }
