@@ -2,11 +2,48 @@
 // some device gets this person's notifications, then a quiet phone icon. Opt-in only:
 // it shows a QR code and steps; permission is asked on the phone, after a tap there.
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getPushConfig, useSession } from '@project/sdk'
 import { AppQr } from './AppQr'
-import { platform } from './install'
+import { isStandalone, platform } from './install'
 import './get-app.css'
+
+export function MobileAppIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.25">
+      <rect x="3.75" y="1.5" width="8.5" height="13" rx="1.75" />
+      <path d="M6.5 12.25h3" strokeLinecap="round" />
+      <path d="M8 4.6v4.2M6.1 7.1 8 9l1.9-1.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** Featured top-level icon button on mobile masthead */
+export function MobileGetAppButton() {
+  const [standalone, setStandalone] = useState(false)
+  const isMobile = platform() !== 'desktop'
+
+  useEffect(() => {
+    setStandalone(isStandalone())
+  }, [])
+
+  if (standalone) return null
+
+  return (
+    <Link
+      to="/native/?install=1"
+      className="mast-icon mast-getapp-top"
+      data-featured="true"
+      data-mobile-device={isMobile || undefined}
+      aria-label="Get the app"
+      title="Get the 8080 app"
+    >
+      <MobileAppIcon />
+      <span className="mast-getapp-dot" aria-hidden="true" />
+    </Link>
+  )
+}
 
 export function GetAppButton() {
   const session = useSession()
@@ -30,11 +67,17 @@ export function GetAppButton() {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh the count each time it opens
   }, [open])
 
-  if (!member) return null
   // On a phone there is nothing to scan: go straight to the app.
   if (platform() !== 'desktop') {
-    return <a className="mast-getapp" href="/native/?install=1" aria-label="Get the 8080 app"><PhoneIcon /></a>
+    if (isStandalone()) return null
+    return (
+      <Link className="mast-getapp" to="/native/?install=1" aria-label="Get the 8080 app">
+        <PhoneIcon />
+        <span className="mast-getapp-text">Get the app</span>
+      </Link>
+    )
   }
+  if (!member) return null
   const devices = config.data?.devices ?? null
   const none = devices === 0
   const url = `${window.location.origin}/native/?install=1`

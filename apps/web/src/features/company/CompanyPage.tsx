@@ -150,6 +150,7 @@ export function CompanyPage({
   const [addingEntity, setAddingEntity] = useState<'task' | 'contact' | 'inventory' | 'budget' | 'document' | 'agent' | null>(null)
   const [inviting, setInviting] = useState(false)
   const [openFacts, setOpenFacts] = useState(false)
+  const [entityFilter, setEntityFilter] = useState<'all' | 'tasks' | 'contacts' | 'inventory' | 'budget' | 'documents' | 'agents'>('all')
 
   if (loading) return <p className="cp-status" role="status">Loading the company…</p>
   if (failed || !profile) {
@@ -261,7 +262,7 @@ export function CompanyPage({
             />
           </div>
           <div className="cp-facts" id="cp-facts">
-            
+            {openFacts && (
               <div className="cp-facts-edit">
                 {facts.map((f) => (
                   <label key={f.key} className="cp-facts-field">
@@ -270,20 +271,24 @@ export function CompanyPage({
                   </label>
                 ))}
               </div>
-                {filledFacts.map((f) => (
-                  <span key={f.key} className="cp-pill">{f.node}</span>
-                ))}
-                {p.website && (
-                  <a href={p.website} target="_blank" rel="noreferrer" className="cp-pill cp-pill-link">
-                    {host(p.website)} ↗
-                  </a>
-                )}
-                {canEdit && (
-                  <button type="button" className="cp-pill cp-pill-add" onClick={() => setOpenFacts(true)}>
-                    {filledFacts.length ? 'Edit company facts' : '+ Add company facts'}
-                  </button>
-                )}
-
+            )}
+            {filledFacts.map((f) => (
+              <span key={f.key} className="cp-pill">{f.node}</span>
+            ))}
+            {p.website && (
+              <a href={p.website} target="_blank" rel="noreferrer" className="cp-pill cp-pill-link">
+                {host(p.website)} ↗
+              </a>
+            )}
+            {canEdit && (
+              <button
+                type="button"
+                className="cp-pill cp-pill-add"
+                onClick={() => setOpenFacts((v) => !v)}
+              >
+                {openFacts ? 'Done editing' : filledFacts.length ? 'Edit company facts' : '+ Add company facts'}
+              </button>
+            )}
           </div>
         </div>
         <div className="cp-hero-side">
@@ -319,40 +324,65 @@ export function CompanyPage({
       {/* ─── 3. The 6 Entity Command Cards ────────────────────────────── */}
       <section className="cp-entities-section" aria-labelledby="cp-entities-heading">
         <div className="cp-section-header">
-          <h2 id="cp-entities-heading" className="cp-section-title">Workspace Operations</h2>
-          <span className="cp-section-sub">Live management and overview of all 6 workspace domains</span>
+          <div className="cp-section-header-row">
+            <div>
+              <h2 id="cp-entities-heading" className="cp-section-title">Workspace Operations</h2>
+              <span className="cp-section-sub">Live management and overview of all 6 workspace domains</span>
+            </div>
+          </div>
+          <div className="cp-entity-chips" role="tablist" aria-label="Filter operational domains">
+            <button type="button" role="tab" aria-selected={entityFilter === 'all'} className="cp-entity-chip" onClick={() => setEntityFilter('all')}>All (6)</button>
+            <button type="button" role="tab" aria-selected={entityFilter === 'tasks'} className="cp-entity-chip" onClick={() => setEntityFilter('tasks')}>Tasks</button>
+            <button type="button" role="tab" aria-selected={entityFilter === 'contacts'} className="cp-entity-chip" onClick={() => setEntityFilter('contacts')}>Contacts</button>
+            <button type="button" role="tab" aria-selected={entityFilter === 'inventory'} className="cp-entity-chip" onClick={() => setEntityFilter('inventory')}>Inventory</button>
+            <button type="button" role="tab" aria-selected={entityFilter === 'budget'} className="cp-entity-chip" onClick={() => setEntityFilter('budget')}>Budget</button>
+            <button type="button" role="tab" aria-selected={entityFilter === 'documents'} className="cp-entity-chip" onClick={() => setEntityFilter('documents')}>Docs</button>
+            <button type="button" role="tab" aria-selected={entityFilter === 'agents'} className="cp-entity-chip" onClick={() => setEntityFilter('agents')}>Automations</button>
+          </div>
         </div>
         <div className="cp-entities-grid">
-          <TasksCard
-            workspaceId={workspace.id}
-            onGo={() => onGo({ desk: 'tasks' })}
-            onAdd={() => setAddingEntity('task')}
-          />
-          <ContactsCard
-            workspaceId={workspace.id}
-            onGo={() => onGo({ desk: 'contacts' })}
-            onAdd={() => setAddingEntity('contact')}
-          />
-          <InventoryCard
-            workspaceId={workspace.id}
-            onGo={() => onGo({ desk: 'inventory' })}
-            onAdd={() => setAddingEntity('inventory')}
-          />
-          <BudgetCard
-            workspaceId={workspace.id}
-            onGo={() => onGo({ desk: 'budget' })}
-            onAdd={() => setAddingEntity('budget')}
-          />
-          <DocumentsCard
-            workspaceId={workspace.id}
-            onGo={() => onGo({ desk: 'documents' })}
-            onAdd={() => setAddingEntity('document')}
-          />
-          <AgentsCard
-            workspaceId={workspace.id}
-            onGo={() => onGo({ desk: 'agents' })}
-            onAdd={() => setAddingEntity('agent')}
-          />
+          {(entityFilter === 'all' || entityFilter === 'tasks') && (
+            <TasksCard
+              workspaceId={workspace.id}
+              onGo={() => onGo({ desk: 'tasks' })}
+              onAdd={() => setAddingEntity('task')}
+            />
+          )}
+          {(entityFilter === 'all' || entityFilter === 'contacts') && (
+            <ContactsCard
+              workspaceId={workspace.id}
+              onGo={() => onGo({ desk: 'contacts' })}
+              onAdd={() => setAddingEntity('contact')}
+            />
+          )}
+          {(entityFilter === 'all' || entityFilter === 'inventory') && (
+            <InventoryCard
+              workspaceId={workspace.id}
+              onGo={() => onGo({ desk: 'inventory' })}
+              onAdd={() => setAddingEntity('inventory')}
+            />
+          )}
+          {(entityFilter === 'all' || entityFilter === 'budget') && (
+            <BudgetCard
+              workspaceId={workspace.id}
+              onGo={() => onGo({ desk: 'budget' })}
+              onAdd={() => setAddingEntity('budget')}
+            />
+          )}
+          {(entityFilter === 'all' || entityFilter === 'documents') && (
+            <DocumentsCard
+              workspaceId={workspace.id}
+              onGo={() => onGo({ desk: 'documents' })}
+              onAdd={() => setAddingEntity('document')}
+            />
+          )}
+          {(entityFilter === 'all' || entityFilter === 'agents') && (
+            <AgentsCard
+              workspaceId={workspace.id}
+              onGo={() => onGo({ desk: 'agents' })}
+              onAdd={() => setAddingEntity('agent')}
+            />
+          )}
         </div>
       </section>
 
@@ -808,6 +838,7 @@ function CompanyDetailsForm({
   list: (field: ListField) => { value: string; status?: string }[]
 }) {
   const p = profile
+  const [activeGroup, setActiveGroup] = useState<'all' | 'strategy' | 'market' | 'brand' | 'ops'>('all')
   const set = (key: keyof ProfileChanges) => (next: string | null) => onSave({ [key]: next } as ProfileChanges)
   const items = (key: ListField) => list(key).map((f) => ({ value: f.value, suggested: f.status === 'inferred' }))
 
@@ -818,11 +849,18 @@ function CompanyDetailsForm({
         <span className="cp-section-sub">
           Core strategy, market context, brand voice, and operational details
         </span>
+        <div className="cp-form-tabs" role="tablist" aria-label="Profile sections">
+          <button type="button" role="tab" aria-selected={activeGroup === 'all'} className="cp-form-tab" onClick={() => setActiveGroup('all')}>All</button>
+          <button type="button" role="tab" aria-selected={activeGroup === 'strategy'} className="cp-form-tab" onClick={() => setActiveGroup('strategy')}>Strategy</button>
+          <button type="button" role="tab" aria-selected={activeGroup === 'market'} className="cp-form-tab" onClick={() => setActiveGroup('market')}>Market</button>
+          <button type="button" role="tab" aria-selected={activeGroup === 'brand'} className="cp-form-tab" onClick={() => setActiveGroup('brand')}>Brand</button>
+          <button type="button" role="tab" aria-selected={activeGroup === 'ops'} className="cp-form-tab" onClick={() => setActiveGroup('ops')}>Operations</button>
+        </div>
       </div>
 
       <div className="cp-form-groups-grid">
         {/* Group 1: Strategy & Purpose */}
-        <div className="cp-form-group-card">
+        <div className={`cp-form-group-card ${activeGroup !== 'all' && activeGroup !== 'strategy' ? 'cp-group-hidden-mobile' : ''}`}>
           <h3 className="cp-group-title">
             <span className="cp-group-icon"><ChartMetricsIcon /></span> Strategy & Mission
           </h3>
@@ -868,7 +906,7 @@ function CompanyDetailsForm({
         </div>
 
         {/* Group 2: Target Market & Offerings */}
-        <div className="cp-form-group-card">
+        <div className={`cp-form-group-card ${activeGroup !== 'all' && activeGroup !== 'market' ? 'cp-group-hidden-mobile' : ''}`}>
           <h3 className="cp-group-title">
             <span className="cp-group-icon"><PersonIcon guest={false} /></span> Market & Offerings
           </h3>
@@ -920,7 +958,7 @@ function CompanyDetailsForm({
         </div>
 
         {/* Group 3: Brand & Positioning */}
-        <div className="cp-form-group-card">
+        <div className={`cp-form-group-card ${activeGroup !== 'all' && activeGroup !== 'brand' ? 'cp-group-hidden-mobile' : ''}`}>
           <h3 className="cp-group-title">
             <span className="cp-group-icon"><BookIcon /></span> Brand & Positioning
           </h3>
@@ -966,7 +1004,7 @@ function CompanyDetailsForm({
         </div>
 
         {/* Group 4: Contact & Operations */}
-        <div className="cp-form-group-card">
+        <div className={`cp-form-group-card ${activeGroup !== 'all' && activeGroup !== 'ops' ? 'cp-group-hidden-mobile' : ''}`}>
           <h3 className="cp-group-title">
             <span className="cp-group-icon"><SendIcon /></span> Contact & Operations
           </h3>

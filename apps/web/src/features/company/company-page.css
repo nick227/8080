@@ -1066,22 +1066,372 @@
   line-height: var(--leading-relaxed);
 }
 
+/* ─── Mobile Chips & Section Tabs ─────────────────────────────────────────── */
+.cp-entity-chips,
+.cp-form-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 0 6px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.cp-entity-chips::-webkit-scrollbar,
+.cp-form-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.cp-entity-chip,
+.cp-form-tab {
+  height: 28px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  border: var(--line-width) solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: all var(--motion-fast) var(--ease-out);
+  flex-shrink: 0;
+}
+
+.cp-entity-chip:hover,
+.cp-form-tab:hover {
+  color: var(--ink);
+  border-color: var(--line-strong, var(--ink));
+}
+
+.cp-entity-chip[aria-selected="true"],
+.cp-form-tab[aria-selected="true"] {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+  font-weight: var(--weight-bold);
+}
+
+@media (min-width: 720px) {
+  .cp-entity-chips,
+  .cp-form-tabs {
+    display: none;
+  }
+}
+
 /* ─── Responsive Adjustments ───────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .cp-hero {
-    grid-template-columns: 1fr;
-    gap: var(--space-lg);
-  }
-
-  .cp-hero-side {
-    align-items: flex-start;
-  }
-
   .cp-entities-grid {
     grid-template-columns: 1fr;
   }
-
   .cp-facts-edit {
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 719px) {
+  .cp {
+    --cp-gutter: 12px;
+    padding: 12px 12px calc(var(--tabs-h, 56px) + env(safe-area-inset-bottom, 16px) + 24px);
+    gap: 12px;
+  }
+
+  /* Executive Hero: compact 3-column top row */
+  .cp-hero {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    gap: 8px 10px;
+    padding: var(--space-md, 14px);
+    border-radius: var(--radius-md, 10px);
+    align-items: start;
+  }
+
+  .cp-logo {
+    width: 48px;
+    height: 48px;
+    font-size: 22px;
+    border-radius: var(--radius-md, 8px);
+  }
+
+  .cp-identity {
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .cp-name {
+    font-size: 18px;
+    line-height: 1.2;
+  }
+
+  .cp-subline {
+    font-size: 11px;
+    gap: 3px;
+  }
+
+  .cp-description {
+    grid-column: 1 / -1;
+    font-size: var(--text-xs);
+    line-height: 1.4;
+    margin-top: 2px;
+  }
+
+  .cp-facts {
+    grid-column: 1 / -1;
+    margin-top: 4px;
+    gap: 6px;
+  }
+
+  .cp-hero-side {
+    align-self: start;
+    margin-left: auto;
+  }
+
+  .cp-actions {
+    gap: 6px;
+  }
+
+  .cp-action {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  .cp-action.cp-gear {
+    width: 28px;
+    height: 28px;
+  }
+
+  .cp-facts-edit {
+    grid-template-columns: 1fr;
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .cp-pill {
+    min-height: 24px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  /* Active Radar: compact 2x2 dashboard */
+  .cp-active-radar {
+    padding: var(--space-sm) var(--space-md);
+    gap: 8px;
+    border-radius: var(--radius-md, 10px);
+  }
+
+  .cp-radar-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .cp-radar-item {
+    padding: 8px 10px;
+    gap: 8px;
+    border-radius: var(--radius-sm);
+    min-height: 50px;
+  }
+
+  .cp-radar-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+  }
+
+  .cp-radar-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .cp-radar-text {
+    gap: 1px;
+    min-width: 0;
+  }
+
+  .cp-radar-count {
+    font-size: 12px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .cp-radar-desc {
+    font-size: 10px;
+    max-width: 16ch;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Operations Cards: high-density mobile cards */
+  .cp-entities-section {
+    gap: 8px;
+  }
+
+  .cp-section-title {
+    font-size: var(--text-base);
+  }
+
+  .cp-section-sub {
+    font-size: 11px;
+  }
+
+  .cp-entities-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .cp-entity-card {
+    padding: 12px 14px;
+    border-radius: var(--radius-md, 10px);
+    gap: 6px;
+  }
+
+  .cp-entity-head {
+    padding-bottom: 8px;
+  }
+
+  .cp-entity-title-group {
+    gap: 10px;
+  }
+
+  .cp-entity-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+  }
+
+  .cp-entity-icon svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .cp-entity-title {
+    font-size: 14px;
+  }
+
+  .cp-entity-metric {
+    font-size: 11px;
+  }
+
+  .cp-entity-add {
+    height: 26px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  .cp-feed-row {
+    padding: 6px 4px;
+    font-size: 13px;
+    min-height: 36px;
+  }
+
+  .cp-feed-label {
+    font-size: 13px;
+  }
+
+  .cp-feed-detail {
+    font-size: 11px;
+  }
+
+  .cp-entity-foot {
+    padding-top: 6px;
+  }
+
+  .cp-entity-link {
+    font-size: 11px;
+    padding: 4px 0;
+  }
+
+  /* Form Groups: hide unselected group cards on mobile */
+  .cp-group-hidden-mobile {
+    display: none !important;
+  }
+
+  .cp-form-group-card {
+    padding: 14px;
+    gap: 12px;
+    border-radius: var(--radius-md, 10px);
+  }
+
+  .cp-group-title {
+    font-size: 14px;
+  }
+
+  .cp-group-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .cp-group-icon svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .cp-conventional-input,
+  .cp-conventional-textarea,
+  .cp-conventional-select {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  .cp-conventional-textarea {
+    min-height: 60px;
+  }
+
+  /* Team Section */
+  .cp-team-section {
+    padding: 14px;
+    border-radius: var(--radius-md, 10px);
+    gap: 10px;
+  }
+
+  .cp-faces {
+    gap: 10px;
+  }
+
+  .cp-face-avatar,
+  .cp-face-placeholder {
+    width: 36px;
+    height: 36px;
+    font-size: 13px;
+  }
+
+  /* Integrations Section */
+  .cp-integrations-section {
+    padding: 14px;
+    border-radius: var(--radius-md, 10px);
+    gap: 10px;
+  }
+
+  .cp-integrations-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-sm);
+  }
+
+  .cp-integrations-status-tabs {
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+  }
+
+  .cp-integrations-filters-right {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .cp-integrations-select,
+  .cp-integrations-search {
+    width: 100%;
+    min-width: 0;
+  }
+}
+

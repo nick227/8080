@@ -18,11 +18,13 @@ export function RecordGallery({
   kind,
   recordId,
   name,
+  compact = false,
 }: {
   workspaceId: string
   kind: RecordGalleryKind
   recordId: string
   name: string
+  compact?: boolean
 }) {
   const images = useRecordImages(workspaceId, kind, recordId)
   const upload = useUploadRecordImage(workspaceId, kind, recordId)
@@ -94,11 +96,10 @@ export function RecordGallery({
   const busy = upload.isPending || reorder.isPending || setPrimary.isPending || remove.isPending
 
   return (
-    <Card style={{ marginLeft: 'var(--space-lg)' }}>
+    <Card className={compact ? 'record-gallery-card-compact' : ''}>
       <CardHeader
         icon={<GalleryIcon />}
         title="Images"
-        description="Logos, storefront, and team photos."
         actions={
           <span style={{ fontSize: '0.75rem', color: '#8e8d8a', fontFamily: 'var(--mono)' }}>
             {rows.length}/{12}
@@ -106,7 +107,7 @@ export function RecordGallery({
         }
       />
       <CardContent>
-        <div className="record-gallery-body">
+        <div className={`record-gallery-body ${compact ? 'record-gallery-compact' : ''}`.trim()}>
           {selected ? (
             <button type="button" className="record-gallery-hero" onClick={() => setLightbox(true)} disabled={busy}>
               <img src={selected.url} alt="" />
@@ -114,11 +115,11 @@ export function RecordGallery({
             </button>
           ) : (
             <button type="button" className="record-gallery-empty" onClick={() => fileRef.current?.click()} disabled={busy}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: compact ? '4px' : '8px', padding: compact ? '8px' : undefined }}>
                 <GalleryIcon />
-                <strong>Add a photo</strong>
-                <small>Logos, storefront, or team photos.</small>
-                <span className="ui-btn-action" style={{ marginTop: '4px' }}>Upload image</span>
+                <strong style={compact ? { fontSize: '0.875rem' } : undefined}>Add a photo</strong>
+                {!compact && <small>Logos, storefront, or team photos.</small>}
+                <span className="ui-btn-action" style={{ marginTop: '4px', fontSize: compact ? '0.75rem' : undefined }}>Upload image</span>
               </div>
             </button>
           )}

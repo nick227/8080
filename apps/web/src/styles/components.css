@@ -82,14 +82,13 @@
 
 /* ─── 2. Card Panel Container ────────────────────────────────────────────── */
 .ui-card {
-  background: var(--panel);
-  border: var(--line-width) solid var(--line);
   border-radius: var(--radius-card);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 4px 16px color-mix(in srgb, var(--shadow-color) 20%, transparent);
   transition: border-color var(--motion-fast) var(--ease-out);
+  margin-bottom: var(--space-lg);
 }
 
 .ui-card + .ui-card {
@@ -105,9 +104,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-md);
-  padding: var(--space-md) var(--space-section);
-  border-bottom: var(--line-width) solid var(--line);
-  background: var(--surface-subtle);
+  margin-bottom: var(--space-md);
 }
 
 .ui-card-header-main {
@@ -159,7 +156,6 @@
 }
 
 .ui-card-content {
-  padding: var(--space-section);
   flex: 1;
 }
 

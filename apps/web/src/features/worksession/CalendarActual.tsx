@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useWorkSessions, type WorkSession } from '@project/sdk'
 import { useCurrentWorkspace } from '../documents/workspace'
-import { DayStrip } from './DayStrip'
 import { SessionDetail, sessionSpan } from './SessionDetail'
 import { hm, short, useSteppedNow } from './time'
 import './worksession.css'
@@ -180,22 +179,5 @@ export function DayActual({ day }: { day: string }) {
   }, [q.data, from, to, now])
 
   if (!people.length) return null
-  return (
-    <section className="cal-actual" aria-label="Actual time worked">
-      <h4>Worked</h4>
-      {people.map((p) => (
-        <div key={p.member.memberId} className="cal-actual-row">
-          <p className="cal-actual-who"><span>{p.member.name}</span><span>{hm(p.ms)}</span></p>
-          <DayStrip
-            segments={p.sessions.flatMap((s) => s.segments)}
-            openSession={p.sessions.find((s) => s.state !== 'stopped') ?? null}
-            dayStart={from}
-            dayEnd={to}
-            now={now}
-            label={`${p.member.name}: worked and paused time on ${day}`}
-          />
-        </div>
-      ))}
-    </section>
-  )
+  return null
 }

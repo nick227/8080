@@ -254,6 +254,7 @@
 .agents-preview-block { width: 100%; }
 
 /* Editor */
+.agents-editor { max-width: 720px; margin: 0 auto; }
 .agents-editor-head { display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap; margin: var(--space-sm) 0; }
 .agents-name {
   flex: 1 1 16rem;

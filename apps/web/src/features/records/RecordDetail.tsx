@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   useContact,
   useInventoryItem,
@@ -7,6 +7,7 @@ import {
   useDeleteInventoryItem,
   useRecordTimeline,
   useWorkspaceVocabulary,
+  useWorkspaceMembers,
   type Contact,
   type InventoryItem,
 } from '@project/sdk'
@@ -16,7 +17,7 @@ import { StockAdjust } from './StockAdjust'
 import { StockHistory } from './StockHistory'
 import { RecordGallery } from './RecordGallery'
 import { RecordNotes } from './RecordNotes'
-import { ContactBrief } from './ContactBrief'
+import { PencilIcon } from '../../components/icons'
 import {
   STAGES,
   contactSubtitle,
@@ -103,6 +104,78 @@ export function RecordDetail({
   )
 }
 
+function InlineInput({
+  value,
+  onSave,
+  label,
+  placeholder = '—',
+  type = 'text',
+  className = '',
+  disabled = false,
+  autoFocus = false,
+  onBlur,
+}: {
+  value: string | null | undefined
+  onSave: (val: string | null) => void
+  label: string
+  placeholder?: string
+  type?: string
+  className?: string
+  disabled?: boolean
+  autoFocus?: boolean
+  onBlur?: () => void
+}) {
+  const [draft, setDraft] = useState(value ?? '')
+  const focused = useRef(false)
+  const skipBlur = useRef(false)
+  const lastSent = useRef(value ?? '')
+
+  useEffect(() => {
+    if (!focused.current) {
+      setDraft(value ?? '')
+      lastSent.current = value ?? ''
+    }
+  }, [value])
+
+  return (
+    <input
+      aria-label={label}
+      type={type}
+      autoFocus={autoFocus}
+      value={draft}
+      disabled={disabled}
+      className={`record-inline-input ${className}`.trim()}
+      placeholder={placeholder}
+      onChange={(e) => setDraft(e.target.value)}
+      onFocus={() => {
+        focused.current = true
+      }}
+      onBlur={(e) => {
+        focused.current = false
+        if (!skipBlur.current && draft.trim() !== lastSent.current) {
+          lastSent.current = draft.trim()
+          onSave(draft.trim() || null)
+        }
+        skipBlur.current = false
+        onBlur?.()
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          e.currentTarget.blur()
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          skipBlur.current = true
+          setDraft(value ?? '')
+          lastSent.current = value ?? ''
+          e.currentTarget.blur()
+        }
+      }}
+    />
+  )
+}
+
 function ContactDetail({
   contact: c,
   workspaceId,
@@ -123,124 +196,365 @@ function ContactDetail({
   const update = useUpdateContact(workspaceId)
   const feedback = useSaveFeedback(update.isPending, update.error)
   const vocabulary = useWorkspaceVocabulary(workspaceId)
+  const membersQuery = useWorkspaceMembers(workspaceId)
+  const [editingName, setEditingName] = useState(false)
+
+  // Clear edit URL flag if navigating directly with edit=1 since contact editing is always inline
+  useEffect(() => {
+    if (editingPage && onEditing) onEditing(false)
+  }, [editingPage, onEditing])
+
   const stages = (vocabulary.data?.stages ?? []).filter((s) => !s.archived)
   const stageOptions = stages.length ? stages : STAGES.map((key) => ({ key, label: titleCase(key) }))
-  const [localEditing, setLocalEditing] = useState(false)
-  const editing = onEditing ? !!editingPage : localEditing
-  const setEditing = onEditing ?? setLocalEditing
-  const change = (data: Parameters<typeof update.mutate>[0]) =>
-    update.mutate({ expectedVersion: c.version, ...data })
-  // Editing is its own page (Phase 4): the record's back link returns to it.
-  if (editing && onEditing) {
-    return (
-      <RecordForm page={{ backLabel: c.displayName }} kind="contacts" workspaceId={workspaceId} currency={currency} contact={c}
-        onClose={() => setEditing(false)} onSaved={() => setEditing(false)} onOpenRecord={onOpenRecord} />
-    )
+  const members = (membersQuery.data ?? []).filter((m) => m.status === 'active' || m.id === c.ownerMemberId)
+  const isLost = Boolean(
+    c.fieldValues?.lost === true ||
+    c.leadStatus === 'lost' ||
+    stages.some((s) => s.key === c.leadStatus && s.kind === 'lost'),
+  )
+
+  const change = (data: Partial<Parameters<typeof update.mutate>[0]>) =>
+    update.mutate({ contactId: c.id, expectedVersion: c.version, ...data })
+
+  const updateEmail = (email: string | null) => {
+    const otherPoints = (c.points ?? []).filter((p) => p.kind !== 'email')
+    const newPoints = [
+      ...(email ? [{ kind: 'email' as const, value: email, isPrimary: true }] : []),
+      ...otherPoints.map((p) => ({
+        kind: p.kind,
+        value: p.value,
+        label: p.label,
+        isPrimary: p.isPrimary,
+        shared: p.shared,
+      })),
+    ]
+    change({ points: newPoints })
   }
+
+  const updatePhone = (phone: string | null) => {
+    const otherPoints = (c.points ?? []).filter((p) => p.kind !== 'phone')
+    const newPoints = [
+      ...(phone ? [{ kind: 'phone' as const, value: phone, isPrimary: true }] : []),
+      ...otherPoints.map((p) => ({
+        kind: p.kind,
+        value: p.value,
+        label: p.label,
+        isPrimary: p.isPrimary,
+        shared: p.shared,
+      })),
+    ]
+    change({ points: newPoints })
+  }
+
   return (
-    <article className="record-detail">
-      <header className="record-masthead">
-        <RecordMedia name={c.displayName} src={c.imageUrl} person />
-        <div className="record-identity">
-          <span className="record-eyebrow">Contact{c.status === 'archived' && ' · Archived'}</span>
-          <h1>{c.displayName}</h1>
-          <p>{contactSubtitle(c)}</p>
-          <div className="record-actions">
-            <button className="record-primary" onClick={() => onMessage(c.id)}>
-              Message
-            </button>
-            <button onClick={() => setEditing(true)}>Edit</button>
-            <button
-              disabled={update.isPending}
-              onClick={() =>
-                change({ contactId: c.id, status: c.status === 'archived' ? 'active' : 'archived' })
-              }
-            >
-              {c.status === 'archived' ? 'Restore' : 'Archive'}
-            </button>
-          </div>
-        </div>
-        <label className="record-state">
-          <span>Stage</span>
-          <select
-            aria-label="Lead stage"
-            value={c.leadStatus ?? 'new'}
-            disabled={update.isPending}
-            onChange={(e) => change({ contactId: c.id, leadStatus: e.target.value })}
-          >
-            {stageOptions.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </header>
-      <div className="record-attention">
-        <label>
-          Next follow-up{' '}
+    <article className="record-detail record-detail-simplified">
+      {/* 5 Checkbox states at top of page: Contacted, Qualified, Proposed, Won, Lost */}
+      <div className="record-milestones-bar" role="group" aria-label="Lead milestone states">
+        <label className="record-milestone-pill" data-checked={c.contacted || undefined}>
           <input
-            aria-label="Next follow-up"
-            type="date"
-            value={localDay(c.nextFollowUp)}
+            type="checkbox"
+            checked={!!c.contacted}
+            disabled={update.isPending}
+            onChange={(e) => change({ contacted: e.target.checked })}
+          />
+          <span className="record-milestone-check">✓</span>
+          <span className="record-milestone-label">Contacted</span>
+        </label>
+        <label className="record-milestone-pill" data-checked={c.qualified || undefined}>
+          <input
+            type="checkbox"
+            checked={!!c.qualified}
+            disabled={update.isPending}
+            onChange={(e) => change({ qualified: e.target.checked })}
+          />
+          <span className="record-milestone-check">✓</span>
+          <span className="record-milestone-label">Qualified</span>
+        </label>
+        <label className="record-milestone-pill" data-checked={c.proposalSent || undefined}>
+          <input
+            type="checkbox"
+            checked={!!c.proposalSent}
+            disabled={update.isPending}
+            onChange={(e) => change({ proposalSent: e.target.checked })}
+          />
+          <span className="record-milestone-check">✓</span>
+          <span className="record-milestone-label">Proposed</span>
+        </label>
+        <label className="record-milestone-pill record-milestone-won" data-checked={c.won || undefined}>
+          <input
+            type="checkbox"
+            checked={!!c.won}
             disabled={update.isPending}
             onChange={(e) =>
               change({
-                contactId: c.id,
-                nextFollowUp: e.target.value ? new Date(`${e.target.value}T09:00:00`).toISOString() : null,
+                won: e.target.checked,
+                ...(e.target.checked ? { fieldValues: { lost: false } } : {}),
               })
             }
           />
+          <span className="record-milestone-check">★</span>
+          <span className="record-milestone-label">Won</span>
         </label>
-        <span role="status" data-failed={feedback.failed || undefined}>
-          {feedback.label ||
-            (c.nextFollowUp ? dateLabel(c.nextFollowUp) : 'Set the next step for this relationship')}
-        </span>
+        <label className="record-milestone-pill record-milestone-lost" data-checked={isLost || undefined}>
+          <input
+            type="checkbox"
+            checked={isLost}
+            disabled={update.isPending}
+            onChange={(e) =>
+              change({
+                fieldValues: { lost: e.target.checked },
+                ...(e.target.checked ? { won: false } : {}),
+              })
+            }
+          />
+          <span className="record-milestone-check">✕</span>
+          <span className="record-milestone-label">Lost</span>
+        </label>
       </div>
+
+      {/* Header combined with properties and inline editing */}
+      <header className="record-masthead record-header-combined">
+        <div className="record-header-top">
+          <RecordMedia name={c.displayName} src={c.imageUrl} person />
+          <div className="record-identity">
+            <span className="record-eyebrow">
+              Contact{c.status === 'archived' && ' · Archived'}
+            </span>
+
+            <div className="record-identity-heading-wrap">
+              <h1 className="record-identity-heading">
+                {editingName ? (
+                  <InlineInput
+                    autoFocus
+                    label="Contact name"
+                    value={c.displayName}
+                    onSave={(val) => {
+                      if (val) change({ displayName: val })
+                      setEditingName(false)
+                    }}
+                    onBlur={() => setEditingName(false)}
+                    className="record-name-input"
+                    disabled={update.isPending}
+                  />
+                ) : (
+                  <span
+                    className="record-name-display"
+                    onClick={() => setEditingName(true)}
+                    title="Click to edit name"
+                  >
+                    {c.displayName}
+                    <button
+                      type="button"
+                      className="record-inline-edit-btn"
+                      aria-label="Edit name"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setEditingName(true)
+                      }}
+                    >
+                      <PencilIcon />
+                    </button>
+                  </span>
+                )}
+              </h1>
+            </div>
+
+            <div className="record-subtitle-row">
+              <InlineInput
+                label="Role or title"
+                placeholder="Add role or title…"
+                value={c.title}
+                onSave={(val) => change({ title: val })}
+                className="record-title-input"
+                disabled={update.isPending}
+              />
+              {c.accounts?.[0]?.name && (
+                <span className="record-subtitle-company">· {c.accounts[0].name}</span>
+              )}
+            </div>
+
+            <div className="record-actions">
+              <button className="record-primary" onClick={() => onMessage(c.id)}>
+                Message
+              </button>
+              <button
+                disabled={update.isPending}
+                onClick={() =>
+                  change({ status: c.status === 'archived' ? 'active' : 'archived' })
+                }
+              >
+                {c.status === 'archived' ? 'Restore' : 'Archive'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Combined Properties Grid */}
+        <div className="record-header-props">
+          <div className="record-prop-item">
+            <span className="record-prop-label">Email</span>
+            <div className="record-prop-control">
+              <InlineInput
+                label="Primary email"
+                type="email"
+                placeholder="Add email…"
+                value={c.primaryEmail}
+                onSave={updateEmail}
+                disabled={update.isPending}
+              />
+              {c.primaryEmail && (
+                <a
+                  href={`mailto:${c.primaryEmail}`}
+                  className="record-prop-link"
+                  title={`Email ${c.primaryEmail}`}
+                  tabIndex={-1}
+                >
+                  ✉
+                </a>
+              )}
+            </div>
+          </div>
+
+          <div className="record-prop-item">
+            <span className="record-prop-label">Phone</span>
+            <div className="record-prop-control">
+              <InlineInput
+                label="Primary phone"
+                type="tel"
+                placeholder="Add phone…"
+                value={c.primaryPhone}
+                onSave={updatePhone}
+                disabled={update.isPending}
+              />
+              {c.primaryPhone && (
+                <a
+                  href={`tel:${c.primaryPhone}`}
+                  className="record-prop-link"
+                  title={`Call ${c.primaryPhone}`}
+                  tabIndex={-1}
+                >
+                  📞
+                </a>
+              )}
+            </div>
+          </div>
+
+          <div className="record-prop-item">
+            <span className="record-prop-label">Stage</span>
+            <div className="record-prop-control">
+              <select
+                aria-label="Lead stage"
+                value={c.leadStatus ?? 'new'}
+                disabled={update.isPending}
+                onChange={(e) => change({ leadStatus: e.target.value })}
+              >
+                {stageOptions.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="record-prop-item">
+            <span className="record-prop-label">Next Follow-up</span>
+            <div className="record-prop-control">
+              <input
+                aria-label="Next follow-up"
+                type="date"
+                value={localDay(c.nextFollowUp)}
+                disabled={update.isPending}
+                onChange={(e) =>
+                  change({
+                    nextFollowUp: e.target.value
+                      ? new Date(`${e.target.value}T09:00:00`).toISOString()
+                      : null,
+                  })
+                }
+              />
+            </div>
+          </div>
+
+          <div className="record-prop-item">
+            <span className="record-prop-label">Owner</span>
+            <div className="record-prop-control">
+              <select
+                aria-label="Owner"
+                value={c.ownerMemberId ?? ''}
+                disabled={update.isPending}
+                onChange={(e) => change({ ownerMemberId: e.target.value || null })}
+              >
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.user.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="record-prop-item">
+            <span className="record-prop-label">Source</span>
+            <div className="record-prop-control">
+              <InlineInput
+                label="Lead source"
+                placeholder="Add source…"
+                value={c.leadSource}
+                onSave={(val) => change({ leadSource: val })}
+                disabled={update.isPending}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Flat metadata footer with dates and save status */}
+        <div className="record-header-meta">
+          <span>Created {dateLabel(c.createdAt)}</span>
+          <span>Updated {dateLabel(c.updatedAt)}</span>
+          <span>Last activity {dateLabel(c.lastActivityAt)}</span>
+          {feedback.label && (
+            <span
+              className="record-save-status"
+              data-failed={feedback.failed || undefined}
+              role="status"
+            >
+              {feedback.label}
+            </span>
+          )}
+        </div>
+      </header>
+
       {feedback.failed && (
         <p role="alert" className="record-error">
           {feedback.label}
         </p>
       )}
+
+      {/* Main body: notes and activity on left, compact images on right */}
       <div className="record-body">
+
+        
+          <RecordGallery
+            workspaceId={workspaceId}
+            kind="contacts"
+            recordId={c.id}
+            name={c.displayName}
+          />
+
         <div className="record-main">
-          <RecordNotes workspaceId={workspaceId} subject={{ contactId: c.id }} recordName={c.displayName} />
-          <ContactBrief workspaceId={workspaceId} contactId={c.id} />
-          <RecordGallery workspaceId={workspaceId} kind="contacts" recordId={c.id} name={c.displayName} />
-          <section>
-            <h2>Recent activity</h2>
+          <RecordNotes
+            workspaceId={workspaceId}
+            subject={{ contactId: c.id }}
+            recordName={c.displayName}
+          />
+          
+          <section className="record-activity">
             <Activity workspaceId={workspaceId} contactId={c.id} />
           </section>
         </div>
-        <aside className="record-properties">
-          <h2>Properties</h2>
-          <dl>
-            <dt>Email</dt>
-            <dd>
-              {c.primaryEmail ? <a href={`mailto:${c.primaryEmail}`}>{c.primaryEmail}</a> : 'Not set'}
-            </dd>
-            <dt>Phone</dt>
-            <dd>{c.primaryPhone ? <a href={`tel:${c.primaryPhone}`}>{c.primaryPhone}</a> : 'Not set'}</dd>
-            <dt>Source</dt>
-            <dd>{c.leadSource || 'Not set'}</dd>
-            <dt>Last activity</dt>
-            <dd>{dateLabel(c.lastActivityAt)}</dd>
-          </dl>
-          <RecordDates created={c.createdAt} updated={c.updatedAt} />
-          <button onClick={() => setEditing(true)}>Edit properties</button>
-        </aside>
       </div>
-      {editing && !onEditing && (
-        <RecordForm
-          kind="contacts"
-          workspaceId={workspaceId}
-          currency={currency}
-          contact={c}
-          onClose={() => setEditing(false)}
-          onSaved={() => setEditing(false)}
-          onOpenRecord={onOpenRecord}
-        />
-      )}
     </article>
   )
 }
@@ -404,15 +718,16 @@ function InventoryDetail({
 }
 function RecordDates({ created, updated }: { created: string; updated: string }) {
   return (
-    <details className="record-dates">
-      <summary>Record information</summary>
-      <dl>
-        <dt>Created</dt>
-        <dd>{dateLabel(created)}</dd>
-        <dt>Updated</dt>
-        <dd>{dateLabel(updated)}</dd>
-      </dl>
-    </details>
+    <div className="record-dates-flat">
+      <div className="record-date-item">
+        <span className="record-prop-label">Created</span>
+        <span>{dateLabel(created)}</span>
+      </div>
+      <div className="record-date-item">
+        <span className="record-prop-label">Updated</span>
+        <span>{dateLabel(updated)}</span>
+      </div>
+    </div>
   )
 }
 function Activity({

@@ -26,4 +26,5 @@ The user primarily manages:
 
 The system intentionally hides most automation-engine vocabulary.
 
-The initial implementation should establish the pattern with **email first**, then add social with minimal architectural blast radius.
+The initial implementation established the pattern with **email first**, then added social integrations.
+See [`../social-media-and-communication-hub-proposal.md`](../social-media-and-communication-hub-proposal.md) for the strategic proposal consolidating email agents and opening up omnichannel social scheduling, two-way messaging, and ad amplification.

@@ -201,12 +201,9 @@ function StopPanel({ workspaceId, data, onCancel, onDone }: { workspaceId: strin
   return (
     <form className="ws-stop" onSubmit={submit} aria-label="Stop session">
       <p className="ws-stop-total"><strong>{hm(total)}</strong> recorded since {clockLabel(session.startedAt)}{updates ? ` · ${updates} ${updates === 1 ? 'update' : 'updates'}` : ''}</p>
-      <ul className="ws-stop-tasks">
-        {[...byTask.values()].sort((a, b) => b.ms - a.ms).map((r) => <li key={r.label}><span>{r.label}</span><span>{hm(r.ms)}</span></li>)}
-      </ul>
+    
       <label className="ws-field">
-        <span>What got done? <em>Optional — logs this time as work{main ? ` on ${main[1].label.split(' · ')[0]}` : ''}</em></span>
-        <textarea rows={2} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Finished the navigation layout" />
+        <textarea rows={2} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Closing notes here" />
       </label>
       {main && (
         <label className="ws-check">

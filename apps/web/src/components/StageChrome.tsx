@@ -14,6 +14,7 @@ import { ForYou } from '../features/calendar/ForYou'
 import { ActiveUsersWidget } from '../features/documents/ActiveUsersWidget'
 import { WorkspaceSwitcher } from '../features/work/WorkspaceSwitcher'
 import { BASE_PATH, taskPath } from '../features/tasks/links'
+import { MobileGetAppButton } from '../features/native/GetApp'
 
 /**
  * The one site-wide header (redesign D10, 15-site-shell.md): logo mark → workspace switcher →
@@ -78,6 +79,7 @@ export function StageChrome({ showLobbyOverlay = true, nav }: { showLobbyOverlay
             <kbd aria-hidden>{navigator.platform.startsWith('Mac') ? '⌘K' : 'Ctrl K'}</kbd>
           </button>
           {nav && workspace && <div className="mast-bell"><ForYou workspaceId={workspace.id} onOpenTask={openTask} iconOnly /></div>}
+          <MobileGetAppButton />
           <ChatControl />
           <button
             type="button"

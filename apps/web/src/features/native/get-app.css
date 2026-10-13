@@ -26,3 +26,57 @@
 .getapp-steps { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.5; color: var(--ink-secondary, var(--ink)); }
 .getapp-steps li + li { margin-top: 6px; }
 .getapp-link { font-size: 13px; color: var(--ink); }
+
+/* Top-level mobile "Get the app" featured icon button */
+.mast-icon.mast-getapp-top {
+  display: none;
+  position: relative;
+  text-decoration: none;
+  transition: all var(--transition-fast, 0.15s ease);
+}
+
+.mast-icon.mast-getapp-top[data-featured="true"] {
+  color: var(--ink);
+  border-color: var(--line);
+  background: var(--surface-highlight);
+}
+
+.mast-icon.mast-getapp-top[data-featured="true"]:hover,
+.mast-icon.mast-getapp-top[data-featured="true"]:focus-visible {
+  color: var(--ink);
+  border-color: var(--ink);
+  background: var(--surface-active, var(--surface-highlight));
+}
+
+@keyframes getapp-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.22); opacity: 0.85; }
+}
+
+.mast-getapp-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: 0 0 0 1.5px var(--bg);
+  pointer-events: none;
+  animation: getapp-pulse 3s ease-in-out infinite;
+}
+
+@media (max-width: 719px) {
+  .mast-icon.mast-getapp-top {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+  }
+}
+
+.mast-icon.mast-getapp-top[data-mobile-device="true"] {
+  display: grid;
+  place-items: center;
+}
+
