@@ -233,6 +233,10 @@ export async function listWorkSessions(request: any, reply: any) {
   return reply.send(await sessions.list(request.user.id, request.params.workspaceId, request.query))
 }
 
+export async function getMemberWork(request: any, reply: any) {
+  return reply.send({ data: await sessions.memberWork(request.user.id, request.params.workspaceId, request.params.memberId) })
+}
+
 export async function getWorkTime(request: any, reply: any) {
   return reply.send(await sessions.workTime(request.user.id, request.params.workspaceId, request.query ?? {}))
 }

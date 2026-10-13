@@ -4457,6 +4457,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/work-sessions/members/{memberId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                memberId: string;
+            };
+            cookie?: never;
+        };
+        /** One member's recorded time (all-time total) and their latest sessions with updates */
+        get: operations["getMemberWork"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/work-sessions": {
         parameters: {
             query?: never;
@@ -7129,6 +7149,8 @@ export interface components {
             day: string;
             time: string | null;
             hoursSpent: number | null;
+            /** @description The Work Session whose Stop wrote this entry (its hours are that session's time) */
+            sessionId?: string | null;
             memberId: string | null;
             member: components["schemas"]["TaskAssignee"] | null;
             authorMemberId: string | null;
@@ -7224,6 +7246,20 @@ export interface components {
         };
         WorkSessionList: {
             data: components["schemas"]["WorkSession"][];
+        };
+        MemberWorkResponse: {
+            data: {
+                memberId: string;
+                /** @description All closed session time; add (now − runningSince) while working */
+                workedMs: number;
+                /** Format: date-time */
+                runningSince: string | null;
+                sessions: number;
+                /** Format: date-time */
+                lastWorkedAt: string | null;
+                /** @description Latest sessions, newest first */
+                recent: components["schemas"]["WorkSession"][];
+            };
         };
         WorkUpdate: {
             id: string;
@@ -17583,6 +17619,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkLobbyResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getMemberWork: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["parameters"]["WorkspaceId"];
+                memberId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberWorkResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

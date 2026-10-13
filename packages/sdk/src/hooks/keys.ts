@@ -51,6 +51,7 @@ export const keys = {
   work: (workspaceId: string) => ['workspaces', workspaceId, 'work'] as const,
   workLobby: (workspaceId: string) => ['workspaces', workspaceId, 'work', 'lobby'] as const,
   workTime: (workspaceId: string, taskId?: string) => ['workspaces', workspaceId, 'work', 'time', taskId ?? 'all'] as const,
+  memberWork: (workspaceId: string, memberId: string) => ['workspaces', workspaceId, 'work', 'member', memberId] as const,
   workSessions: (workspaceId: string, from: string, to: string, memberId?: string, taskId?: string) =>
     ['workspaces', workspaceId, 'work', 'sessions', from, to, memberId ?? '', taskId ?? ''] as const,
   taskBoard: (workspaceId: string) => ['workspaces', workspaceId, 'task-board'] as const,

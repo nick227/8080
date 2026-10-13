@@ -3,6 +3,7 @@ import type { Seat } from '../room/roomViews'
 import { TeamTableView } from './TeamTableView'
 import { UserProfilePage, type ExtendedMember } from './UserProfilePage'
 import { AssignTaskModal } from './AssignTaskModal'
+import { useTaskSync } from '../calendar/sync'
 import './team.css'
 
 export function TeamDesk({
@@ -15,6 +16,8 @@ export function TeamDesk({
 }) {
   const [selectedUser, setSelectedUser] = useState<ExtendedMember | null>(null)
   const [assignModalUser, setAssignModalUser] = useState<string | null>(null)
+  // Tasks and Log work load here too: opened directly, the members table and profiles were empty.
+  useTaskSync()
 
   return (
     <div className="team-desk-container">

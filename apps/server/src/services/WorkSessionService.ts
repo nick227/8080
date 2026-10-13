@@ -19,6 +19,7 @@ type Tx = Prisma.TransactionClient
 const RANGE_MAX_DAYS = 62
 const UPDATE_MAX = 500
 const UPDATES_SHOWN = 30
+const MEMBER_RECENT = 20
 // A correction may reach back this far (forgotten clock-outs, missed mornings).
 const CORRECT_BACK_DAYS = 31
 
@@ -334,7 +335,7 @@ export class WorkSessionService {
         const created = await tx.workLog.create({
           data: {
             workspaceId, taskId: task?.id ?? null, taskKey: task?.taskKey ?? null, summary: note, category: 'work',
-            day: localDayKey(row.startedAt, tz), time: clock(row.startedAt, tz), hoursSpent: hours,
+            day: localDayKey(row.startedAt, tz), time: clock(row.startedAt, tz), hoursSpent: hours, sessionId: row.id,
             memberId: actor.member.id, authorMemberId: actor.member.id, authorName: author,
           },
           include: workLogInclude,
@@ -558,27 +559,30 @@ export class WorkSessionService {
       include: { ...sessionInclude, member: memberSel },
       orderBy: { startedAt: 'asc' },
     })
-    // Each session's updates (the text half of the record), oldest first.
-    const earliest = rows[0]?.startedAt
-    const notes = earliest
-      ? await db.activity.findMany({
-        where: { workspaceId, type: 'worksession.update', actorMemberId: { in: [...new Set(rows.map((r) => r.memberId))] }, occurredAt: { gte: earliest } },
-        include: { actorMember: memberSel },
-        orderBy: { occurredAt: 'asc' },
-      })
-      : []
-    const bySession = new Map<string, ReturnType<typeof toUpdate>[]>()
-    for (const n of notes) {
-      const u = toUpdate(n)
-      if (!u.sessionId) continue
-      bySession.set(u.sessionId, [...(bySession.get(u.sessionId) ?? []), u])
-    }
+    return { data: await withUpdates(workspaceId, rows) }
+  }
+
+  /** One member's recorded time: all-time total, and their latest sessions with updates (the profile). */
+  async memberWork(userId: string, workspaceId: string, memberId: string) {
+    await authorize(userId, workspaceId, 'worksession.read')
+    const member = await db.workspaceMember.findFirst({ where: { id: memberId, workspaceId }, select: { id: true } })
+    if (!member) throw notFound('That member was not found')
+    const now = new Date()
+    const [segments, sessions, recent] = await Promise.all([
+      db.workSegment.findMany({ where: { workspaceId, memberId }, select: { startedAt: true, endedAt: true } }),
+      db.workSession.count({ where: { workspaceId, memberId } }),
+      db.workSession.findMany({ where: { workspaceId, memberId }, include: { ...sessionInclude, member: memberSel }, orderBy: { startedAt: 'desc' }, take: MEMBER_RECENT }),
+    ])
+    const running = segments.find((s) => !s.endedAt)
+    const last = segments.reduce<Date | null>((at, s) => { const end = s.endedAt ?? now; return !at || end > at ? end : at }, null)
     return {
-      data: rows.map((r) => ({
-        ...toSession(r),
-        member: { memberId: r.member.id, name: toAuthor(r.member.user).name, avatarUrl: toAuthor(r.member.user).avatarUrl },
-        updates: bySession.get(r.id) ?? [],
-      })),
+      memberId,
+      // Closed time; add (now − runningSince) while working.
+      workedMs: segments.reduce((sum, s) => sum + (s.endedAt ? s.endedAt.getTime() - s.startedAt.getTime() : 0), 0),
+      runningSince: running?.startedAt ?? null,
+      sessions,
+      lastWorkedAt: last,
+      recent: await withUpdates(workspaceId, recent),
     }
   }
 
@@ -640,6 +644,29 @@ export class WorkSessionService {
 }
 
 type UpdateRow = Prisma.ActivityGetPayload<{ include: { actorMember: typeof memberSel } }>
+type ListedRow = Prisma.WorkSessionGetPayload<{ include: typeof sessionInclude & { member: typeof memberSel } }>
+
+/** Sessions as records: each with its member and its updates (the text half), oldest first. */
+async function withUpdates(workspaceId: string, rows: ListedRow[]) {
+  const earliest = rows.reduce<Date | null>((at, r) => (!at || r.startedAt < at ? r.startedAt : at), null)
+  const notes = earliest
+    ? await db.activity.findMany({
+      where: { workspaceId, type: 'worksession.update', actorMemberId: { in: [...new Set(rows.map((r) => r.memberId))] }, occurredAt: { gte: earliest } },
+      include: { actorMember: memberSel },
+      orderBy: { occurredAt: 'asc' },
+    })
+    : []
+  const bySession = new Map<string, ReturnType<typeof toUpdate>[]>()
+  for (const n of notes) {
+    const u = toUpdate(n)
+    if (u.sessionId) bySession.set(u.sessionId, [...(bySession.get(u.sessionId) ?? []), u])
+  }
+  return rows.map((r) => ({
+    ...toSession(r),
+    member: { memberId: r.member.id, name: toAuthor(r.member.user).name, avatarUrl: toAuthor(r.member.user).avatarUrl },
+    updates: bySession.get(r.id) ?? [],
+  }))
+}
 
 function toUpdate(a: UpdateRow) {
   const s = a.summary as { text?: string; sessionId?: string | null; taskId?: string | null; taskKey?: string; title?: string }

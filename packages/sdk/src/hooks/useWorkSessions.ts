@@ -32,6 +32,17 @@ export function useWorkTime(workspaceId: string | undefined, taskId?: string) {
   })
 }
 
+/** One member's recorded time and latest sessions (the profile). */
+export function useMemberWork(workspaceId: string | undefined, memberId: string | undefined) {
+  return useQuery({
+    queryKey: keys.memberWork(workspaceId ?? '', memberId ?? ''),
+    enabled: !!workspaceId && !!memberId,
+    queryFn: async () =>
+      unwrap(await getApiClient().GET('/workspaces/{workspaceId}/work-sessions/members/{memberId}', { params: { path: { workspaceId: workspaceId!, memberId: memberId! } } })).data,
+    staleTime: 30_000,
+  })
+}
+
 /** Sessions overlapping [from, to): the Calendar's actual time. */
 export function useWorkSessions(workspaceId: string | undefined, range: { from: string; to: string; memberId?: string; taskId?: string } | null) {
   return useQuery({

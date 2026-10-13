@@ -155,6 +155,16 @@ describe('work sessions', () => {
     const after = (await call(testUserId, 'GET', `${base}/tasks/${t.id}`)).json().data
     expect(after.status).toBe('done')
     expect((await call(testUserId, 'GET', `${base}/work-logs`)).json().data).toHaveLength(1)
+    // The entry points back at its session, so the profile counts those hours once.
+    expect(stopped.json().data.workLog.sessionId).toBe(s.id)
+
+    const work = await call(carolId, 'GET', `${base}/work-sessions/members/${alice}`)
+    expect(work.statusCode).toBe(200)
+    await validateResponse('getMemberWork', 200, work.json())
+    expect(work.json().data).toMatchObject({ memberId: alice, sessions: 1, runningSince: null, recent: [{ id: s.id, member: { name: 'Alice' } }] })
+    expect(Math.round(work.json().data.workedMs / MIN)).toBe(90)
+    expect((await call(testUserId, 'GET', `${base}/work-sessions/members/nope`)).statusCode).toBe(404)
+    expect((await call(testOtherUserId, 'GET', `${base}/work-sessions/members/${alice}`)).statusCode).toBe(404)
   })
 
   it('the first task picked takes the general time before it, with its updates; starting work moves a to-do task to In progress', async () => {

@@ -41,6 +41,7 @@ export function toWorkLog(l: LogRow) {
     day: l.day,
     time: l.time,
     hoursSpent: l.hoursSpent,
+    sessionId: l.sessionId,
     memberId: l.memberId,
     member: l.member ? { memberId: l.member.id, name: toAuthor(l.member.user).name, avatarUrl: toAuthor(l.member.user).avatarUrl } : null,
     authorMemberId: l.authorMemberId,

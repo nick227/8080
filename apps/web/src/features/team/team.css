@@ -670,6 +670,22 @@
   margin-top: 0.2rem;
 }
 
+/* Work Session entries: the work color, open the session on click. */
+.timeline-session {
+  width: 100%;
+  border-left: 3px solid var(--ws-work, #3b82f6);
+  background: var(--ws-work-tint, rgba(59, 130, 246, 0.12));
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.timeline-session:hover, .timeline-session:focus-visible { background: color-mix(in srgb, var(--ws-work, #3b82f6) 22%, transparent); }
+.timeline-session .timeline-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.timeline-session .timeline-hours { color: var(--ws-work, #3b82f6); font-family: var(--mono, monospace); font-weight: 600; }
+.timeline-note.timeline-done { font-style: normal; color: var(--ink, inherit); }
+.timeline-note { margin: 0.3rem 0 0; font-size: 0.8rem; font-style: italic; color: var(--ink-secondary, inherit); overflow-wrap: anywhere; }
+
 /* Task List Cards on Profile */
 .user-tasks-list {
   display: flex;

@@ -2374,6 +2374,8 @@ model WorkLog {
   authorMemberId String?
   authorName     String?          @db.VarChar(120)
   hoursSpent     Float?
+  /// Set when Stop on a Work Session wrote this entry: its hours are that session's time (don't add both).
+  sessionId      String?          @db.VarChar(32)
   createdAt      DateTime         @default(now())
 
   workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

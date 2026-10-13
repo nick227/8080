@@ -1,5 +1,9 @@
 import { TaskLink } from '../tasks/TaskLink'
 import { useMemo, useState } from 'react'
+import { useMemberWork, type WorkSession } from '@project/sdk'
+import { useCurrentWorkspace } from '../documents/workspace'
+import { SessionDetail, sessionSpan } from '../worksession/SessionDetail'
+import { hm, liveMs, stepped, useSteppedNow } from '../worksession/time'
 import { useCalendar, useWorkflow } from '../calendar/store'
 import { WORK_CATEGORIES, type CalAccomplishment, type CalTask, type WorkCategory } from '../calendar/types'
 import { todayKey } from '../calendar/dates'
@@ -67,10 +71,33 @@ export function UserProfilePage({
     )
   }, [accomplishments, member.id, member.name])
 
+  // Work Session time (recorded by the clock) — vacant seats have no membership.
+  const { workspace } = useCurrentWorkspace()
+  const work = useMemberWork(workspace?.id, member.id.startsWith('vacant:') ? undefined : member.id).data
+  const now = useSteppedNow()
+  const [openSession, setOpenSession] = useState<WorkSession | null>(null)
+  const sessionMs = work ? work.workedMs + (work.runningSince ? stepped(now - Date.parse(work.runningSince)) : 0) : 0
+
   // KPI Calculations
   const completedTasksCount = userTasks.filter((t) => workflow.isDone(t.status)).length
   const inProgressTasksCount = userTasks.filter((t) => !workflow.isDone(t.status)).length
-  const totalHoursLogged = userLogs.reduce((acc, curr) => acc + (curr.hoursSpent || 0), 0)
+  // Hours = session time + Log work credited to them; an entry written by Stop is that session's time, so it counts once.
+  const creditedLogs = userLogs.filter((l) => l.assigneeId === member.id || (!l.assigneeId && l.authorMemberId === member.id))
+  const loggedOnlyHours = creditedLogs.filter((l) => !l.sessionId).reduce((acc, curr) => acc + (curr.hoursSpent || 0), 0)
+  const totalHoursLogged = Math.round((sessionMs / 3_600_000 + loggedOnlyHours) * 100) / 100
+  const recent = work?.recent ?? []
+  const workingOn = recent.find((s) => s.state === 'working')
+  // A Stop-written entry belongs to its session: shown inside it, not as its own row.
+  const doneBySession = useMemo(() => new Map(userLogs.filter((l) => l.sessionId).map((l) => [l.sessionId!, l])), [userLogs])
+  const timeline = useMemo(() => {
+    const listed = new Set(recent.map((s) => s.id))
+    const rows: ({ kind: 'session'; at: string; session: WorkSession } | { kind: 'log'; at: string; log: CalAccomplishment })[] = [
+      ...recent.map((session) => ({ kind: 'session' as const, at: session.startedAt, session })),
+      ...userLogs.filter((log) => !log.sessionId || !listed.has(log.sessionId)).map((log) => ({ kind: 'log' as const, at: `${log.day}T${log.time ?? '00:00'}`, log })),
+    ]
+    // Newest first; sessions carry exact instants, logs a local day + time.
+    return rows.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+  }, [recent, userLogs])
 
   // Quick form state for logging work
   const [logTitle, setLogTitle] = useState('')
@@ -163,14 +190,16 @@ export function UserProfilePage({
         <div className="user-kpi-card">
           <span className="kpi-label">Hours Logged</span>
           <span className="kpi-value">{totalHoursLogged} hrs</span>
-          <span className="kpi-sub">{userLogs.length} total log entries</span>
+          <span className="kpi-sub">
+            {work?.sessions ?? 0} {work?.sessions === 1 ? 'session' : 'sessions'} ({hm(sessionMs)}) · {userLogs.length} {userLogs.length === 1 ? 'log entry' : 'log entries'}
+          </span>
         </div>
         <div className="user-kpi-card">
           <span className="kpi-label">Current Focus</span>
           <span className="kpi-value focus-text">
-            {userTasks.find((t) => workflow.get(t.status)?.category === 'doing')?.title || userLogs[0]?.title || 'Nothing in progress'}
+            {workingOn ? (workingOn.task?.title ?? 'General work') : userTasks.find((t) => workflow.get(t.status)?.category === 'doing')?.title || userLogs[0]?.title || 'Nothing in progress'}
           </span>
-          <span className="kpi-sub">Updated today</span>
+          <span className="kpi-sub">{workingOn ? `Working ${sessionSpan(workingOn)}` : 'Updated today'}</span>
         </div>
       </div>
 
@@ -224,7 +253,7 @@ export function UserProfilePage({
           className={`user-tab-btn ${activeTab === 'log' ? 'active' : ''}`}
           onClick={() => setActiveTab('log')}
         >
-          Work log & activity ({userLogs.length})
+          Work log & activity ({timeline.length})
         </button>
         <button
           type="button"
@@ -246,7 +275,7 @@ export function UserProfilePage({
       <div className="user-tab-content">
         {activeTab === 'log' && (
           <div className="user-timeline-section">
-            {userLogs.length === 0 ? (
+            {timeline.length === 0 ? (
               <div className="user-empty-state">
                 <p>No work logs recorded yet for {member.name}.</p>
                 <button type="button" className="team-btn-secondary" onClick={() => setShowLogModal(true)}>
@@ -255,7 +284,31 @@ export function UserProfilePage({
               </div>
             ) : (
               <div className="user-timeline">
-                {userLogs.map((log) => {
+                {timeline.map((row) => {
+                  if (row.kind === 'session') {
+                    const s = row.session
+                    const tasks = [...new Set(s.segments.map((g) => g.task?.taskKey ?? null))]
+                    const last = s.updates?.at(-1)
+                    return (
+                      <button type="button" className="timeline-item timeline-session" key={`s-${s.id}`} onClick={() => setOpenSession(s)} aria-label={`Work session ${new Date(s.startedAt).toLocaleDateString()}, ${sessionSpan(s)}. Open details`}>
+                        <div className="timeline-icon" aria-hidden="true">⏱</div>
+                        <div className="timeline-content">
+                          <div className="timeline-header">
+                            <span className="timeline-title">Work session · {sessionSpan(s)}</span>
+                            <span className="timeline-date">{new Date(s.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                          </div>
+                          <div className="timeline-meta">
+                            <span className="timeline-hours">{hm(liveMs(s.workedMs, s.runningSince, now))}</span>
+                            <span className="timeline-cat">{tasks.map((k) => k ?? 'General work').join(', ')}</span>
+                            {s.state !== 'stopped' && <span className="timeline-cat">{s.state === 'working' ? 'Working now' : 'Paused'}</span>}
+                          </div>
+                          {doneBySession.get(s.id) && <p className="timeline-note timeline-done">Done: {doneBySession.get(s.id)!.title}</p>}
+                          {last && <p className="timeline-note">“{last.text}”{(s.updates?.length ?? 0) > 1 ? ` · ${s.updates!.length} updates` : ''}</p>}
+                        </div>
+                      </button>
+                    )
+                  }
+                  const log = row.log
                   const cat = WORK_CATEGORIES.find((c) => c.id === log.category)
                   return (
                     <div className="timeline-item" key={log.id}>
@@ -377,6 +430,7 @@ export function UserProfilePage({
           </div>
         )}
       </div>
+      {openSession && <SessionDetail session={openSession} onClose={() => setOpenSession(null)} />}
     </div>
   )
 }

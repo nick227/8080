@@ -60,6 +60,8 @@ export type CalAccomplishment = {
   time: string | null
   category: WorkCategory
   hoursSpent?: number | null
+  /** Written by Stop on this Work Session: its hours are that session's time. */
+  sessionId?: string | null
   assigneeId?: string | null
   assigneeName?: string | null
   authorMemberId?: string | null

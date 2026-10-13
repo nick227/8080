@@ -7218,6 +7218,23 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspaceId}/work-sessions/members/{memberId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - { name: memberId, in: path, required: true, schema: { type: string, maxLength: 64 } }
+    get:
+      operationId: getMemberWork
+      summary: One member's recorded time (all-time total) and their latest sessions with updates
+      tags: [workspaces]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MemberWorkResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /workspaces/{workspaceId}/work-sessions:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -11506,6 +11523,7 @@ components:
         day: { type: string, format: date }
         time: { type: [string, 'null'] }
         hoursSpent: { type: [number, 'null'] }
+        sessionId: { type: [string, 'null'], description: The Work Session whose Stop wrote this entry (its hours are that session's time) }
         memberId: { type: [string, 'null'] }
         member:
           oneOf:
@@ -11629,6 +11647,23 @@ components:
         data:
           type: array
           items: { $ref: '#/components/schemas/WorkSession' }
+    MemberWorkResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [memberId, workedMs, runningSince, sessions, lastWorkedAt, recent]
+          properties:
+            memberId: { type: string }
+            workedMs: { type: integer, description: All closed session time; add (now − runningSince) while working }
+            runningSince: { type: [string, 'null'], format: date-time }
+            sessions: { type: integer }
+            lastWorkedAt: { type: [string, 'null'], format: date-time }
+            recent:
+              type: array
+              description: Latest sessions, newest first
+              items: { $ref: '#/components/schemas/WorkSession' }
     WorkUpdate:
       type: object
       required: [id, memberId, name, avatarUrl, text, sessionId, task, at]

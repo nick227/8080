@@ -262,6 +262,7 @@ export function logFromServer(l: WorkLog): CalAccomplishment {
     time: l.time,
     category: l.category,
     hoursSpent: l.hoursSpent,
+    sessionId: l.sessionId,
     assigneeId: l.memberId,
     assigneeName: l.member?.name ?? null,
     authorMemberId: l.authorMemberId,
