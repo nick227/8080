@@ -552,8 +552,8 @@ export class WorkSessionService {
         taskId: r.taskId,
         workedMs: r.workedMs,
         runningSince: r.runningSince,
-        // Several people can be on a task at once; each running stretch adds its own time.
-        runningCount: segments.filter((s) => s.taskId === r.taskId && !s.endedAt).length,
+        // Several people can be on a task at once; each running stretch adds (now − its start).
+        runningStarts: segments.filter((s) => s.taskId === r.taskId && !s.endedAt).map((s) => s.startedAt),
         sessions: r.sessions.size,
         lastWorkedAt: r.lastWorkedAt,
         people: [...r.people.entries()].sort((a, b) => b[1] - a[1]).map(([id, ms]) => ({ ...person(id), workedMs: ms })),

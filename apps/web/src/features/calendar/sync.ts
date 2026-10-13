@@ -40,6 +40,7 @@ export function useTaskSync() {
       void queryClient.invalidateQueries({ queryKey: keys.workLogs(workspaceId) })
       void queryClient.invalidateQueries({ queryKey: keys.taskBoard(workspaceId) })
       void queryClient.invalidateQueries({ queryKey: keys.taskStatuses(workspaceId) })
+      void queryClient.invalidateQueries({ queryKey: keys.work(workspaceId) })
     }
     source.addEventListener('ready', (e) => {
       setLive('live')
@@ -60,6 +61,8 @@ export function useTaskSync() {
       void queryClient.invalidateQueries({ queryKey: [...keys.tasks(workspaceId), d.taskId] })
     })
     source.addEventListener('worklogs.changed', () => void queryClient.invalidateQueries({ queryKey: keys.workLogs(workspaceId) }))
+    // Work Session clocks: card time chips, task time and the calendar's actual blocks.
+    source.addEventListener('worksessions.changed', () => void queryClient.invalidateQueries({ queryKey: keys.work(workspaceId) }))
     source.addEventListener('board.updated', (e) => queryClient.setQueryData(keys.taskBoard(workspaceId), { wipLimits: read(e).wipLimits ?? {} }))
     source.addEventListener('workflow.updated', (e) => {
       const list = read(e).statuses

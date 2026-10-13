@@ -140,7 +140,7 @@ describe('work sessions', () => {
 
     const time = await call(testUserId, 'GET', `${base}/work-time?taskId=${t.id}`)
     await validateResponse('getWorkTime', 200, time.json())
-    expect(time.json().data[0]).toMatchObject({ taskId: t.id, sessions: 1, runningCount: 1, workingNow: [{ name: 'Alice' }], lastUpdate: { text: 'Finished navigation layout' } })
+    expect(time.json().data[0]).toMatchObject({ taskId: t.id, sessions: 1, runningStarts: [expect.any(String)], workingNow: [{ name: 'Alice' }], lastUpdate: { text: 'Finished navigation layout' } })
   })
 
   it('stopping with what got done logs work with the session hours, and can close the task', async () => {

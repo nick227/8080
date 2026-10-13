@@ -3,6 +3,7 @@ import { orderTasks } from './store'
 import type { CalTask, CalAccomplishment } from './types'
 import { wf } from './store'
 import type { BudgetItem } from '@project/sdk'
+import { WorkedBadge, useWorkedByDay } from '../worksession/CalendarActual'
 import { formatMinorMoney } from '@project/shared'
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -50,6 +51,9 @@ export function MonthView({
     else byDayBudget.set(item.scheduledDate, [item])
   }
 
+  const cells = monthCells(cursor)
+  const worked = useWorkedByDay(cells[0]!.key, cells[cells.length - 1]!.key)
+
   return (
     <div className="cal-board" role="group" aria-label={`${monthName(cursor)} ${parseDay(cursor).getFullYear()}`}>
       <div className="cal-dows">
@@ -58,7 +62,7 @@ export function MonthView({
         ))}
       </div>
       <div className="cal-days">
-        {monthCells(cursor).map((cell) => {
+        {cells.map((cell) => {
           const dayTasks = orderTasks(byDayTasks.get(cell.key) ?? [])
           const dayAccs = byDayAccs.get(cell.key) ?? []
           const open = dayTasks.filter((task) => !wf().isDone(task.status))
@@ -84,6 +88,7 @@ export function MonthView({
             >
               <div className="cal-day-header-line">
                 <span className="cal-num">{parseDay(cell.key).getDate()}</span>
+                <WorkedBadge ms={worked.get(cell.key)} />
                 {/* Plus sign at the day level */}
                 <button
                   type="button"

@@ -293,3 +293,78 @@ button.ws-strip-work:hover { background: color-mix(in srgb, var(--signal) 80%, v
   .ws-head { flex-direction: column; gap: var(--space-xs); }
   .ws-controls .ws-btn { flex: 1 1 0; }
 }
+
+/* ─── on tasks: board card chip + task details box ───────────────────────── */
+
+.cal-card-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-medium);
+  white-space: nowrap;
+}
+.cal-card-time[data-live] { color: var(--signal); }
+.ws-live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--signal);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ws-live-dot { animation: ws-pulse 2.4s ease-in-out infinite; }
+}
+@keyframes ws-pulse { 50% { opacity: 0.35; } }
+
+.ws-taskbox { display: flex; flex-direction: column; gap: var(--space-sm); }
+.ws-taskbox p { margin: 0; }
+.ws-taskbox-total { font-family: var(--mono); font-size: var(--text-lg); font-weight: var(--weight-bold); }
+.ws-taskbox-total span { font-family: inherit; font-size: var(--text-xs); font-weight: var(--weight-normal); color: var(--ink-medium); }
+.ws-taskbox-now { display: flex; align-items: center; gap: var(--space-xs); font-size: var(--text-xs); color: var(--signal); }
+.ws-taskbox-people { margin: 0; padding: 0; list-style: none; font-size: var(--text-sm); }
+.ws-taskbox-people li { display: flex; justify-content: space-between; gap: var(--space-sm); padding: 2px 0; }
+.ws-taskbox-people li span:last-child { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-secondary); }
+.ws-taskbox-plan { margin: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--text-xs); }
+.ws-taskbox-plan div { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: var(--space-xs); }
+.ws-taskbox-plan dt { color: var(--ink-medium); }
+.ws-taskbox-plan dd { margin: 0; }
+.ws-taskbox-update { font-size: var(--text-sm); overflow-wrap: anywhere; }
+.ws-taskbox-update span { font-size: var(--text-xs); color: var(--ink-medium); }
+
+/* ─── calendar: actual time ──────────────────────────────────────────────── */
+
+.cal-actual {
+  /* Stays in view while the day scrolls to the current hour: actual beside planned. */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-height: 40%;
+  overflow-y: auto;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: var(--line-width) solid var(--line-soft);
+  background: var(--bg);
+}
+.cal-actual h4 {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-medium);
+}
+.cal-actual-row { display: flex; flex-direction: column; gap: 2px; }
+.cal-actual-who { display: flex; justify-content: space-between; margin: 0; font-size: var(--text-sm); }
+.cal-actual-who span:last-child { font-family: var(--mono); color: var(--ink-secondary); font-variant-numeric: tabular-nums; }
+.cal-day-worked {
+  margin-left: auto;
+  margin-right: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-medium);
+  white-space: nowrap;
+}

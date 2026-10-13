@@ -60,10 +60,25 @@ export function describe(a: Pick<Activity, 'type' | 'summary'>): string {
     case 'task.deleted': return 'deleted it'
     case 'task.restored': return 'restored it'
     case 'task.commented': return 'commented'
+    // Work Session (the time clock): the same rows as the homepage widget.
+    case 'worksession.started': return 'started a work session on it'
+    case 'worksession.resumed': return 'resumed work on it'
+    case 'worksession.switched': return `switched to it${s.from?.taskKey ? ` from ${s.from.taskKey}` : ''}`
+    case 'worksession.segment': return `worked on it for ${clock(s.workedMs)} (${at(s.startedAt)}–${at(s.endedAt)})`
+    case 'worksession.update': return `posted an update: “${s.text}”`
+    case 'worksession.corrected': return `corrected recorded time: ${at(s.from?.startedAt)}–${at(s.from?.endedAt)} → ${at(s.to?.startedAt)}–${at(s.to?.endedAt)} (“${s.reason}”)`
+    case 'worksession.added': return `added ${clock(s.workedMs)} of time worked ${at(s.startedAt)}–${at(s.endedAt)} (“${s.reason}”)`
     case 'worklog.created': return `logged work: ${s.summary}${s.hoursSpent != null ? ` (${s.hoursSpent} h)` : ''}${s.completeTask ? ', and closed it' : ''}`
     default: return a.type
   }
 }
+
+// Exact minutes for recorded work ("1h 05m"), and a local clock time.
+function clock(ms: unknown) {
+  const mins = Math.floor(Math.max(0, Number(ms) || 0) / 60_000)
+  return mins >= 60 ? `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m` : `${mins}m`
+}
+const at = (iso: unknown) => (typeof iso === 'string' ? new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '?')
 
 function duration(ms: number) {
   const mins = Math.round(ms / 60_000)

@@ -11741,12 +11741,15 @@ components:
                 - type: 'null'
     WorkTimeRow:
       type: object
-      required: [taskId, workedMs, runningSince, runningCount, sessions, lastWorkedAt, people, workingNow, lastUpdate]
+      required: [taskId, workedMs, runningSince, runningStarts, sessions, lastWorkedAt, people, workingNow, lastUpdate]
       properties:
         taskId: { type: string }
         workedMs: { type: integer, description: Closed time; each running stretch adds (now − its start) }
-        runningSince: { type: [string, 'null'], format: date-time }
-        runningCount: { type: integer }
+        runningSince: { type: [string, 'null'], format: date-time, description: The earliest running stretch }
+        runningStarts:
+          type: array
+          description: Start of each running stretch (one per person on it now)
+          items: { type: string, format: date-time }
         sessions: { type: integer }
         lastWorkedAt: { type: [string, 'null'], format: date-time }
         people:

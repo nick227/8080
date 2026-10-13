@@ -6,6 +6,7 @@ import { useTeam } from './sync'
 import { BlockedControl, TaskActivity } from './TaskActivity'
 import { Checklist, ParentLink, Subtasks } from './TaskStructure'
 import { TaskLinks } from './TaskLinks'
+import { TaskTimeBox } from '../worksession/TaskWork'
 import { AREAS, type CalTask, type TaskPriority, type TaskStatus, type TaskType } from './types'
 
 const TYPE_LABEL: Record<TaskType, string> = { feature: 'Feature', story: 'Story', bug: 'Bug', task: 'Task', epic: 'Epic' }
@@ -212,6 +213,7 @@ function TicketBody({ task, onBack, variant, backLabel }: { task: CalTask; onBac
               <input type="time" value={task.time ?? ''} disabled={!task.day} title={task.day ? undefined : 'Pick a calendar day first'} onChange={(e) => save({ time: e.target.value || null })} />
             </Field>
           </div>
+          {!pending && <TaskTimeBox taskId={task.id} plannedDay={task.day ?? null} />}
         </aside>
       </div>
     </div>

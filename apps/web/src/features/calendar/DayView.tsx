@@ -3,6 +3,7 @@ import { HOURS, hourLabel } from './dates'
 import type { CalTask, CalAccomplishment } from './types'
 import { wf } from './store'
 import { WorkEntryChip } from './WorkEntryChip'
+import { DayActual } from '../worksession/CalendarActual'
 
 export function DayView({
   day,
@@ -98,6 +99,9 @@ export function DayView({
           </div>
         </section>
       )}
+
+      {/* Actual time (Work Session) beside the plan, never replacing it. */}
+      <DayActual day={day} />
 
       {untimed.length > 0 && (
         <section className="cal-slot" data-has="">

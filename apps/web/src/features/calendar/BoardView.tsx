@@ -18,6 +18,7 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities'
 import { useTaskBoard, useUpdateTaskBoard, type WipLimits } from '@project/sdk'
 import { useCurrentWorkspace } from '../documents/workspace'
+import { CardWorkChip } from '../worksession/TaskWork'
 import { todayKey } from './dates'
 import { FIELDS, assignToMe, deleteTasks, openField, setField, targetsFor, taskShortcut } from './actions'
 import { columnOf, useCalendar, useWorkflow, wf } from './store'
@@ -523,6 +524,7 @@ function CardBody({ task, overlay, interactive }: { task: CalTask; overlay?: boo
             : <span className="cal-card-due" data-overdue={overdue || undefined}>{overdue ? 'Overdue ' : 'Due '}{shortDate(task.dueDate)}</span>
         ) : interactive && <Chip task={task} field="due" label="Set a due date" className="cal-card-due cal-chip-ghost"><span>+ Due</span></Chip>}
         {task.day && <span className="cal-card-due">{shortDate(task.day)}{task.time ? ` ${task.time}` : ''}</span>}
+        {!task.pending && <CardWorkChip taskId={task.id} />}
         {task.commentCount > 0 && <span className="cal-card-comments" title={`${task.commentCount} comments`}>{task.commentCount} ✎</span>}
         {subtasks && <span className="cal-card-progress" title={`Subtasks done: ${subtasks}`}>◫ {subtasks}</span>}
         {!!task.checklist?.total && (

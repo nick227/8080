@@ -7310,9 +7310,13 @@ export interface components {
             taskId: string;
             /** @description Closed time; each running stretch adds (now − its start) */
             workedMs: number;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description The earliest running stretch
+             */
             runningSince: string | null;
-            runningCount: number;
+            /** @description Start of each running stretch (one per person on it now) */
+            runningStarts: string[];
             sessions: number;
             /** Format: date-time */
             lastWorkedAt: string | null;
