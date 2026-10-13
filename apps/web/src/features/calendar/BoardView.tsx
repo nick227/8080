@@ -18,7 +18,7 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities'
 import { useTaskBoard, useUpdateTaskBoard, type WipLimits } from '@project/sdk'
 import { useCurrentWorkspace } from '../documents/workspace'
-import { CardWorkChip } from '../worksession/TaskWork'
+import { CardWorkChip, CardWorking } from '../worksession/TaskWork'
 import { todayKey } from './dates'
 import { FIELDS, assignToMe, deleteTasks, openField, setField, targetsFor, taskShortcut } from './actions'
 import { columnOf, useCalendar, useWorkflow, wf } from './store'
@@ -510,6 +510,7 @@ function CardBody({ task, overlay, interactive }: { task: CalTask; overlay?: boo
           <strong>Blocked</strong> {task.blocked.reason}
         </p>
       )}
+      {!task.pending && <CardWorking taskId={task.id} />}
       <div className="cal-card-bottom-row">
         {interactive ? (
           <Chip task={task} field="priority" label={`Priority: ${task.priority ?? 'medium'}. Change`} className="cal-priority-mark" >

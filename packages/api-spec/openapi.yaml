@@ -11613,6 +11613,10 @@ components:
           items: { $ref: '#/components/schemas/WorkSegment' }
         version: { type: integer }
         member: { $ref: '#/components/schemas/TaskAssignee' }
+        updates:
+          type: array
+          description: The session's updates, oldest first (session lists only)
+          items: { $ref: '#/components/schemas/WorkUpdate' }
     WorkSessionResponse:
       type: object
       required: [data]
@@ -11764,7 +11768,14 @@ components:
               workedMs: { type: integer }
         workingNow:
           type: array
-          items: { $ref: '#/components/schemas/TaskAssignee' }
+          items:
+            type: object
+            required: [memberId, name, avatarUrl, since]
+            properties:
+              memberId: { type: string }
+              name: { type: string }
+              avatarUrl: { type: [string, 'null'] }
+              since: { type: [string, 'null'], format: date-time, description: When this stretch on the task began }
         lastUpdate:
           oneOf:
             - $ref: '#/components/schemas/WorkUpdate'
@@ -11793,7 +11804,7 @@ components:
       additionalProperties: false
       properties:
         accomplishment: { type: [string, 'null'], maxLength: 500, description: What got done; logs work with the session's hours }
-        taskId: { type: [string, 'null'], maxLength: 64, description: Task to log against (default = the one worked longest) }
+        taskId: { type: [string, 'null'], maxLength: 64, description: 'Task to log against (default = the one worked longest); an all-general session is counted on it' }
         completeTask: { type: boolean }
     WorkUpdateInput:
       type: object

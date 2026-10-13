@@ -3,7 +3,7 @@ import { orderTasks } from './store'
 import type { CalTask, CalAccomplishment } from './types'
 import { wf } from './store'
 import type { BudgetItem } from '@project/sdk'
-import { WorkedBadge, useWorkedByDay } from '../worksession/CalendarActual'
+import { MonthWork, WorkedBadge, useWorkedByDay } from '../worksession/CalendarActual'
 import { formatMinorMoney } from '@project/shared'
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -88,7 +88,7 @@ export function MonthView({
             >
               <div className="cal-day-header-line">
                 <span className="cal-num">{parseDay(cell.key).getDate()}</span>
-                <WorkedBadge ms={worked.get(cell.key)} />
+                <WorkedBadge ms={worked.get(cell.key)?.ms} />
                 {/* Plus sign at the day level */}
                 <button
                   type="button"
@@ -135,6 +135,7 @@ export function MonthView({
               })()}
 
               <span className="cal-entries">
+                <MonthWork day={worked.get(cell.key)} />
                 {shownTasks.map((task) => (
                   <button
                     key={task.id}

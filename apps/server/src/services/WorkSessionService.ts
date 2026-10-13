@@ -9,6 +9,7 @@ import { badRequest, conflict, notFound } from '../lib/errors'
 import { toAuthor } from '../lib/serialize'
 import { localDayBounds, localDayKey } from '../lib/workspaceDay'
 import { runAction, type ActivityDraft } from './actions'
+import { loadWorkflow } from './TaskWorkflowService'
 import { closeTask, toWorkLog, workLogInclude } from './WorkLogService'
 import { authorize, permit, type Actor } from './workspacePolicy'
 import { memberActor, type WorkspaceCtx } from './WorkspaceService'
@@ -104,6 +105,51 @@ async function closeRunning(tx: Tx, session: SessionRow, at: Date): Promise<Acti
   }]
 }
 
+/** Work starting on a to-do task moves it to the first doing status (end of that column). */
+async function beginTask(tx: Tx, taskId: string | null | undefined, at: Date): Promise<ActivityDraft[]> {
+  if (!taskId) return []
+  const task = await tx.workTask.findUnique({ where: { id: taskId } })
+  if (!task || task.deletedAt) return []
+  const wf = await loadWorkflow(tx, task.workspaceId)
+  const to = wf.firstDoing
+  if (!to || wf.category(task.status) !== 'todo') return []
+  const last = await tx.workTask.findFirst({ where: { workspaceId: task.workspaceId, status: to, deletedAt: null }, orderBy: { rank: 'desc' }, select: { rank: true } })
+  await tx.workTask.update({ where: { id: taskId }, data: { status: to, rank: (last?.rank ?? 0) + 1024, version: { increment: 1 } } })
+  return [{
+    type: 'task.moved',
+    object: { taskId },
+    occurredAt: at,
+    summary: { taskId, taskKey: task.taskKey, title: task.title, from: task.status, to, fromLabel: wf.label(task.status), toLabel: wf.label(to), via: 'worksession' },
+  }]
+}
+
+/**
+ * The first task picked in a session takes the general time before it: the clock
+ * was started, then the work got its task. Updates posted meanwhile move with it.
+ * Once a session has task time, later general time stays general.
+ */
+async function claimLeading(tx: Tx, session: SessionRow, task: NonNullable<TaskSel>, at: Date): Promise<ActivityDraft[]> {
+  if (!session.segments.length || session.segments.some((g) => g.taskId)) return []
+  await tx.workSegment.updateMany({ where: { id: { in: session.segments.map((g) => g.id) } }, data: { taskId: task.id } })
+  for (const g of session.segments) Object.assign(g, { taskId: task.id, task })
+  const notes = await tx.activity.findMany({
+    where: { workspaceId: session.workspaceId, actorMemberId: session.memberId, type: 'worksession.update', taskId: null, occurredAt: { gte: session.startedAt, lte: at } },
+    select: { id: true, summary: true },
+  })
+  for (const n of notes) {
+    const summary = n.summary as Record<string, unknown>
+    if (summary.sessionId !== session.id) continue
+    await tx.activity.update({ where: { id: n.id }, data: { taskId: task.id, summary: { ...summary, ...taskSummary(task) } } })
+  }
+  // Closed stretches land in the task's history now; a running one does when it closes.
+  return session.segments.filter((g) => g.endedAt).map((g) => ({
+    type: 'worksession.segment',
+    object: { taskId: task.id },
+    occurredAt: at,
+    summary: { sessionId: session.id, segmentId: g.id, ...taskSummary(task), startedAt: g.startedAt.toISOString(), endedAt: g.endedAt!.toISOString(), workedMs: g.endedAt!.getTime() - g.startedAt.getTime(), claimed: true },
+  }))
+}
+
 /** Moves the session to its next version, or 409 if another tab/device got there first. */
 async function bump(tx: Tx, session: SessionRow, data: Prisma.WorkSessionUncheckedUpdateManyInput) {
   const res = await tx.workSession.updateMany({ where: { id: session.id, version: session.version }, data: { ...data, version: { increment: 1 } } })
@@ -168,11 +214,12 @@ export class WorkSessionService {
           data: { workspaceId, memberId, state: 'working', openKey: memberId, startedAt: now, taskId: task?.id ?? null },
         })
         await tx.workSegment.create({ data: { sessionId: created.id, workspaceId, memberId, taskId: task?.id ?? null, startedAt: now } })
+        const moved = await beginTask(tx, task?.id, now)
         const row = await reload(tx, created.id)
         return {
           value: toSession(row),
           targetId: created.id,
-          activities: [{ type: 'worksession.started', object: taskObject(task?.id), occurredAt: now, summary: { sessionId: created.id, ...taskSummary(task) } }],
+          activities: [{ type: 'worksession.started', object: taskObject(task?.id), occurredAt: now, summary: { sessionId: created.id, ...taskSummary(task) } }, ...moved],
         }
       })
     } catch (err) {
@@ -218,9 +265,11 @@ export class WorkSessionService {
       const taskId = task === undefined ? session.taskId : task?.id ?? null
       const resumedTask = task === undefined ? session.task : task
       await tx.workSegment.create({ data: { sessionId: session.id, workspaceId, memberId: actor.member.id, taskId, startedAt: now } })
+      const claimed = resumedTask && !resumedTask.deletedAt ? await claimLeading(tx, session, resumedTask, now) : []
       await bump(tx, session, { state: 'working', taskId })
+      const moved = await beginTask(tx, taskId, now)
       const row = await reload(tx, session.id)
-      return { value: toSession(row), activities: [{ type: 'worksession.resumed', object: taskObject(taskId), occurredAt: now, summary: { sessionId: session.id, ...taskSummary(resumedTask) } }] }
+      return { value: toSession(row), activities: [...claimed, { type: 'worksession.resumed', object: taskObject(taskId), occurredAt: now, summary: { sessionId: session.id, ...taskSummary(resumedTask) } }, ...moved] }
     })
   }
 
@@ -228,9 +277,12 @@ export class WorkSessionService {
     const task = await liveTask(workspaceId, input.taskId)
     return this.withOpen(ctx, workspaceId, 'worksession.switch', { ...input }, async (tx, session, now, actor) => {
       if ((session.taskId ?? null) === (task?.id ?? null)) return { value: toSession(session), activities: [] }
-      const activities: ActivityDraft[] = []
-      // Working: close this task's stretch and start the next. Paused: it applies on resume.
-      if (session.state === 'working') {
+      const activities: ActivityDraft[] = task ? await claimLeading(tx, session, task, now) : []
+      const claimedMs = activities.reduce((sum, a) => sum + Number((a.summary as { workedMs?: number }).workedMs ?? 0), 0)
+      const running = session.segments.find((g) => !g.endedAt)
+      // Working: close this task's stretch and start the next (unless the running
+      // stretch was just claimed for it). Paused: it applies on resume.
+      if (session.state === 'working' && running?.taskId !== (task?.id ?? null)) {
         activities.push(...(await closeRunning(tx, session, now)))
         await tx.workSegment.create({ data: { sessionId: session.id, workspaceId, memberId: actor.member.id, taskId: task?.id ?? null, startedAt: now } })
       }
@@ -240,8 +292,9 @@ export class WorkSessionService {
         type: 'worksession.switched',
         object: taskObject(task?.id),
         occurredAt: now,
-        summary: { sessionId: session.id, ...taskSummary(task), from: taskSummary(session.task) },
+        summary: { sessionId: session.id, ...taskSummary(task), from: taskSummary(session.task), claimedMs },
       })
+      activities.push(...(await beginTask(tx, task?.id, now)))
       return { value: toSession(row), activities }
     })
   }
@@ -252,8 +305,11 @@ export class WorkSessionService {
     const actorRow = await this.clockActor(ctx.user.id, workspaceId)
     const profile = await db.profile.findUnique({ where: { userId: actorRow.member.userId }, select: { displayName: true } })
     const author = (profile?.displayName ?? 'Member').slice(0, 120)
+    const named = input.taskId ? await liveTask(workspaceId, input.taskId) : null
     return this.withOpen(ctx, workspaceId, 'worksession.stop', { ...input }, async (tx, session, now, actor) => {
-      const activities = await closeRunning(tx, session, now)
+      // Naming a task at Stop counts an all-general session on it.
+      const claimed = named ? await claimLeading(tx, session, named, now) : []
+      const activities = [...claimed, ...(await closeRunning(tx, session, now))]
       await bump(tx, session, { state: 'stopped', endedAt: now, openKey: null })
       const row = await reload(tx, session.id)
       const tasks = perTask(row.segments, now)
@@ -502,8 +558,27 @@ export class WorkSessionService {
       include: { ...sessionInclude, member: memberSel },
       orderBy: { startedAt: 'asc' },
     })
+    // Each session's updates (the text half of the record), oldest first.
+    const earliest = rows[0]?.startedAt
+    const notes = earliest
+      ? await db.activity.findMany({
+        where: { workspaceId, type: 'worksession.update', actorMemberId: { in: [...new Set(rows.map((r) => r.memberId))] }, occurredAt: { gte: earliest } },
+        include: { actorMember: memberSel },
+        orderBy: { occurredAt: 'asc' },
+      })
+      : []
+    const bySession = new Map<string, ReturnType<typeof toUpdate>[]>()
+    for (const n of notes) {
+      const u = toUpdate(n)
+      if (!u.sessionId) continue
+      bySession.set(u.sessionId, [...(bySession.get(u.sessionId) ?? []), u])
+    }
     return {
-      data: rows.map((r) => ({ ...toSession(r), member: { memberId: r.member.id, name: toAuthor(r.member.user).name, avatarUrl: toAuthor(r.member.user).avatarUrl } })),
+      data: rows.map((r) => ({
+        ...toSession(r),
+        member: { memberId: r.member.id, name: toAuthor(r.member.user).name, avatarUrl: toAuthor(r.member.user).avatarUrl },
+        updates: bySession.get(r.id) ?? [],
+      })),
     }
   }
 
@@ -513,7 +588,7 @@ export class WorkSessionService {
     const now = new Date()
     const [segments, open, updates] = await Promise.all([
       db.workSegment.findMany({ where: { workspaceId, taskId: q.taskId ?? { not: null } }, select: { taskId: true, memberId: true, sessionId: true, startedAt: true, endedAt: true } }),
-      db.workSession.findMany({ where: { workspaceId, state: 'working', taskId: q.taskId ?? { not: null } }, select: { taskId: true, memberId: true } }),
+      db.workSession.findMany({ where: { workspaceId, state: 'working', taskId: q.taskId ?? { not: null } }, select: { taskId: true, memberId: true, segments: { where: { endedAt: null }, select: { startedAt: true } } } }),
       db.activity.findMany({
         where: { workspaceId, type: 'worksession.update', taskId: q.taskId ?? { not: null } },
         orderBy: { occurredAt: 'desc' },
@@ -525,7 +600,7 @@ export class WorkSessionService {
     const names = new Map(
       (await db.workspaceMember.findMany({ where: { workspaceId, id: { in: memberIds } }, ...memberSel })).map((m) => [m.id, toAuthor(m.user)]),
     )
-    type Row = { taskId: string; workedMs: number; runningSince: Date | null; sessions: Set<string>; people: Map<string, number>; lastWorkedAt: Date | null; working: string[] }
+    type Row = { taskId: string; workedMs: number; runningSince: Date | null; sessions: Set<string>; people: Map<string, number>; lastWorkedAt: Date | null; working: { memberId: string; since: Date | null }[] }
     const by = new Map<string, Row>()
     const row = (taskId: string) => {
       let r = by.get(taskId)
@@ -542,7 +617,7 @@ export class WorkSessionService {
       const last = s.endedAt ?? now
       if (!r.lastWorkedAt || last > r.lastWorkedAt) r.lastWorkedAt = last
     }
-    for (const o of open) row(o.taskId!).working.push(o.memberId)
+    for (const o of open) row(o.taskId!).working.push({ memberId: o.memberId, since: o.segments[0]?.startedAt ?? null })
     const lastUpdate = new Map<string, (typeof updates)[number]>()
     for (const u of updates) if (u.taskId && !lastUpdate.has(u.taskId)) lastUpdate.set(u.taskId, u)
     const person = (id: string) => ({ memberId: id, name: names.get(id)?.name ?? 'Member', avatarUrl: names.get(id)?.avatarUrl ?? null })
@@ -557,7 +632,7 @@ export class WorkSessionService {
         sessions: r.sessions.size,
         lastWorkedAt: r.lastWorkedAt,
         people: [...r.people.entries()].sort((a, b) => b[1] - a[1]).map(([id, ms]) => ({ ...person(id), workedMs: ms })),
-        workingNow: r.working.map(person),
+        workingNow: r.working.map((w) => ({ ...person(w.memberId), since: w.since })),
         lastUpdate: lastUpdate.has(r.taskId) ? toUpdate(lastUpdate.get(r.taskId)!) : null,
       })),
     }

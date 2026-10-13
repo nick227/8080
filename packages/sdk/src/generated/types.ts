@@ -7216,6 +7216,8 @@ export interface components {
             segments: components["schemas"]["WorkSegment"][];
             version: number;
             member?: components["schemas"]["TaskAssignee"];
+            /** @description The session's updates, oldest first (session lists only) */
+            updates?: components["schemas"]["WorkUpdate"][];
         };
         WorkSessionResponse: {
             data: components["schemas"]["WorkSession"];
@@ -7326,7 +7328,16 @@ export interface components {
                 avatarUrl: string | null;
                 workedMs: number;
             }[];
-            workingNow: components["schemas"]["TaskAssignee"][];
+            workingNow: {
+                memberId: string;
+                name: string;
+                avatarUrl: string | null;
+                /**
+                 * Format: date-time
+                 * @description When this stretch on the task began
+                 */
+                since: string | null;
+            }[];
             lastUpdate: components["schemas"]["WorkUpdate"] | null;
         };
         WorkTimeResponse: {
@@ -7344,7 +7355,7 @@ export interface components {
         StopWorkSessionInput: {
             /** @description What got done; logs work with the session's hours */
             accomplishment?: string | null;
-            /** @description Task to log against (default = the one worked longest) */
+            /** @description Task to log against (default = the one worked longest); an all-general session is counted on it */
             taskId?: string | null;
             completeTask?: boolean;
         };

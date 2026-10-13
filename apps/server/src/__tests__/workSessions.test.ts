@@ -157,6 +157,55 @@ describe('work sessions', () => {
     expect((await call(testUserId, 'GET', `${base}/work-logs`)).json().data).toHaveLength(1)
   })
 
+  it('the first task picked takes the general time before it, with its updates; starting work moves a to-do task to In progress', async () => {
+    const { base, task, carol } = await setup()
+    const t = await task('Pricing page')
+    expect(t.status).toBe('open')
+
+    // Clock in with no task, post an update, work 32 minutes, pause, then pick the task.
+    const s = (await call(testUserId, 'POST', `${base}/work-sessions`, {})).json().data
+    await call(testUserId, 'POST', `${base}/work-updates`, { text: 'testing it out' })
+    await backdate(s.id, 32 * MIN)
+    await call(testUserId, 'POST', `${base}/work-sessions/current/pause`)
+    const switched = (await call(testUserId, 'POST', `${base}/work-sessions/current/switch`, { taskId: t.id })).json().data
+    expect(switched.segments.map((g: any) => g.task?.id)).toEqual([t.id])
+
+    const after = (await call(testUserId, 'GET', `${base}/tasks/${t.id}`)).json().data
+    expect(after.status).toBe('in_progress')
+    const history = (await call(testUserId, 'GET', `${base}/tasks/${t.id}/activity`)).json().data
+    expect(history.find((x: any) => x.type === 'task.moved').summary).toMatchObject({ from: 'open', to: 'in_progress', via: 'worksession' })
+    expect(history.find((x: any) => x.type === 'worksession.update').summary.text).toBe('testing it out')
+    expect(Math.round(history.find((x: any) => x.type === 'worksession.segment').summary.workedMs / MIN)).toBe(32)
+
+    // Carol works the same task: hours add up, both are listed, she shows as working now.
+    await call(carolId, 'POST', `${base}/work-sessions`, { taskId: t.id })
+    const time = (await call(testUserId, 'GET', `${base}/work-time?taskId=${t.id}`)).json()
+    await validateResponse('getWorkTime', 200, time)
+    expect(Math.round(time.data[0].workedMs / MIN)).toBe(32)
+    expect(time.data[0].people.map((p: any) => p.name).sort()).toEqual(['Alice', 'Carol'])
+    expect(time.data[0].workingNow).toEqual([expect.objectContaining({ memberId: carol, since: expect.any(String) })])
+    // Already in progress: Carol's start doesn't move it again.
+    expect((await call(testUserId, 'GET', `${base}/tasks/${t.id}/activity`)).json().data.filter((x: any) => x.type === 'task.moved')).toHaveLength(1)
+
+    // Later general time stays general once the session has task time.
+    await call(testUserId, 'POST', `${base}/work-sessions/current/resume`, { taskId: null })
+    const list = await call(testUserId, 'GET', `${base}/work-sessions?from=${new Date(Date.now() - 86_400_000).toISOString()}&to=${new Date(Date.now() + MIN).toISOString()}`)
+    await validateResponse('listWorkSessions', 200, list.json())
+    const mine = list.json().data.find((x: any) => x.id === s.id)
+    expect(mine.segments.map((g: any) => g.task?.id ?? null)).toEqual([t.id, null])
+    expect(mine.updates.map((u: any) => [u.text, u.task?.id])).toEqual([['testing it out', t.id]])
+  })
+
+  it('naming a task at Stop counts an all-general session on it', async () => {
+    const { base, task } = await setup()
+    const t = await task('Invoice run')
+    const s = (await call(testUserId, 'POST', `${base}/work-sessions`, {})).json().data
+    await backdate(s.id, 20 * MIN)
+    const stopped = (await call(testUserId, 'POST', `${base}/work-sessions/current/stop`, { taskId: t.id })).json().data
+    expect(stopped.tasks.map((x: any) => [x.task?.id, Math.round(x.workedMs / MIN)])).toEqual([[t.id, 20]])
+    expect(Math.round((await call(testUserId, 'GET', `${base}/work-time?taskId=${t.id}`)).json().data[0].workedMs / MIN)).toBe(20)
+  })
+
   it('corrects closed time (own or admin), keeps the original bounds, refuses overlaps; adds missed time', async () => {
     const { ws, base, task } = await setup()
     const dave = await join(app, ws.id, daveId, 'dave@test.local')

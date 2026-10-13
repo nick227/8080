@@ -3,7 +3,7 @@ import { HOURS, hourLabel } from './dates'
 import type { CalTask, CalAccomplishment } from './types'
 import { wf } from './store'
 import { WorkEntryChip } from './WorkEntryChip'
-import { DayActual } from '../worksession/CalendarActual'
+import { DayActual, WorkBlock, useDayWork } from '../worksession/CalendarActual'
 
 export function DayView({
   day,
@@ -41,6 +41,7 @@ export function DayView({
   }
   for (const list of byHour.values()) list.sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''))
   const now = `${String(new Date().getHours()).padStart(2, '0')}:00`
+  const work = useDayWork(day)
 
   useEffect(() => {
     const root = planRef.current
@@ -140,16 +141,18 @@ export function DayView({
 
       {HOURS.map((hour, index) => {
         const rows = byHour.get(hour.value) ?? []
+        const sessions = work.get(hour.value) ?? []
         return (
           <section
             key={hour.value}
             className="cal-slot"
             data-hour={hour.value}
             data-now={day === today && hour.value === now ? '' : undefined}
-            data-has={rows.length ? '' : undefined}
+            data-has={rows.length || sessions.length ? '' : undefined}
           >
             <time className="cal-hour" dateTime={hour.value}>{hour.label}</time>
             <div className="cal-slot-tasks">
+              {sessions.map((s) => <WorkBlock key={s.id} session={s} />)}
               {rows.map((task) => (
                 <TaskLine
                   key={task.id}

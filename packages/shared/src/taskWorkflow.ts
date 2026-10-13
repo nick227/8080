@@ -55,6 +55,9 @@ export function workflowOf(statuses: readonly StatusDef[]) {
     /** Where new tasks start, and where "complete" sends a task. */
     firstTodo: first('todo') ?? active[0]?.key ?? 'open',
     firstDone: first('done') ?? 'done',
+    /** Where starting work sends a to-do task (null = the workflow has no doing status). */
+    firstDoing: first('doing'),
+    category: (key: string): StatusCategory => byKey.get(key)?.category ?? (key === 'done' ? 'done' : 'todo'),
     order: (key: string) => {
       const at = active.findIndex((s) => s.key === key)
       return at < 0 ? active.length : at
