@@ -1183,3 +1183,10 @@
 @media (max-width: 520px) {
   .team-streaming-add { min-width: 0; }
 }
+
+/* Wide screens: the open chat docks beside the page (the page narrows, nothing is covered).
+   Below this it floats over the page; maximize ("full") always covers the work area. */
+@media (min-width: 1280px) {
+  .room-chat[data-chat="open"] { grid-template-columns: minmax(0, 1fr) minmax(var(--chat-panel-min-width), var(--chat-panel-width)); }
+  .room-chat[data-chat="open"] .room-rail { position: relative; grid-column: 2; top: auto; right: auto; bottom: auto; width: auto; box-shadow: none; transition: none; }
+}

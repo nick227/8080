@@ -2,14 +2,13 @@ import { create } from 'zustand'
 
 // The chat panel's visibility, shared by ChatShell (which draws it) and the header's
 // chat control (its only entry point, D10). `hosts` counts mounted ChatShells, so the
-// control shows only where a chat context exists. The panel overlays the page, so it
-// starts closed (it would cover the page's own controls); on wide screens the viewer's
-// last choice wins. On phones, where it covers the whole work area, it always starts
-// closed and the choice isn't saved.
+// control shows only where a chat context exists. Wide screens: open by default, docked
+// beside the page (room.css); the viewer's last choice wins. Narrower screens float it
+// over the page. Phones, where it covers the whole work area, always start closed and
+// don't save the choice.
 export type ChatMode = 'closed' | 'open' | 'full'
 
-// New key with the overlay (2026-10-12): the old side-by-side default doesn't carry over.
-const KEY = 'vc-chat-panel'
+const KEY = 'vc-chat-open'
 export const PHONE_CHAT = '(max-width: 860px)'
 
 export const isPhoneChat = () => typeof window !== 'undefined' && window.matchMedia?.(PHONE_CHAT).matches === true
@@ -18,8 +17,8 @@ function load(): ChatMode {
   if (isPhoneChat()) return 'closed'
   try {
     const saved = localStorage.getItem(KEY)
-    return saved === 'open' || saved === 'full' ? saved : 'closed'
-  } catch { return 'closed' }
+    return saved === 'closed' || saved === 'full' ? saved : 'open'
+  } catch { return 'open' }
 }
 
 type ChatPanel = {

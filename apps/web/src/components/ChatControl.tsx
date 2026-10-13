@@ -11,6 +11,7 @@ export function ChatControl() {
   return (
     <button type="button" className="mast-icon mast-chat" aria-expanded={open} aria-label={label} title={label} onClick={() => useChatPanel.getState().toggle()}>
       <ChatIcon />
+      <span className="mast-chat-label" aria-hidden>Chat</span>
       {unseen > 0 && !open && <span className="mast-count" aria-hidden>{unseen > 99 ? '99+' : unseen}</span>}
     </button>
   )

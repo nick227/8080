@@ -420,6 +420,14 @@ body:has(.reply-instrument.is-active) .feed { transform: translateX(-60px); }
 .mast-bell .cal-foryou-menu { top: calc(100% + 10px); }
 .mast-count { position: absolute; top: 2px; right: 1px; min-width: 15px; height: 15px; padding: 0 3px; box-sizing: border-box; display: grid; place-items: center; border-radius: var(--radius-pill); background: var(--signal); color: var(--bg); font-family: var(--mono); font-size: 9px; font-weight: 700; line-height: 1; pointer-events: none; }
 .mast-account { margin-left: var(--space-xs); color: var(--ink); }
+/* Chat: the only way into the chat panel, so it carries a label on wide screens. */
+.mast-chat-label { display: none; }
+@media (min-width: 1100px) {
+  .mast-chat { width: auto; display: inline-flex; gap: 6px; padding: 0 10px; border-color: var(--line); color: var(--ink); font-family: var(--sans); font-size: var(--text-sm); }
+  .mast-chat-label { display: inline; }
+  .mast-chat .mast-count { position: static; margin-left: 2px; }
+}
+.mast-chat[aria-expanded="true"] { background: var(--surface-active, var(--surface-highlight)); color: var(--ink); }
 .mast-account:hover, .mast-account[aria-expanded="true"] { background: transparent; }
 .mast-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: var(--line-width) solid var(--line); display: block; }
 .mast-initial { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--bg); font-family: var(--sans); font-size: var(--text-sm); font-weight: 700; }
